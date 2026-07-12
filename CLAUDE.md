@@ -21,7 +21,7 @@ Test: PIE (Play In Editor) — no automated test suite yet. Multi-client testing
 
 After any header change: regenerate project files if IntelliSense/Rider gets confused; Live Coding (Ctrl+Alt+F11) is fine for `.cpp`-only changes.
 
-Source control: Git + Git LFS, branch `master`. Commit after each completed sub-task, same convention as this dev's other projects.
+Source control: Git + Git LFS, branch `main`. Commit after each completed sub-task, same convention as this dev's other projects.
 
 ## Architecture (current — update as it grows)
 
@@ -29,10 +29,10 @@ Source control: Git + Git LFS, branch `master`. Commit after each completed sub-
 - `AZSGameMode` — server-only rules, wires default pawn/controller/state classes. No mission logic yet.
 - `AZSGameState` — replicated data for all clients. Near-empty placeholder.
 - `AZSPlayerState` — per-player replicated data (health/ammo/kills — not yet populated).
-- `AZSPlayerController` — owns Enhanced Input setup (`IMC_ZS_Default`), possesses `AZSPlayerCharacter`.
+- `AZSPlayerController` — owns Enhanced Input setup (`IMC_ZS_Default` + `IMC_ZS_MouseLook`), possesses `AZSPlayerCharacter`. Both classes have no mandatory Blueprint child, so their default `UInputAction`/`UInputMappingContext` references are wired via `ConstructorHelpers::FObjectFinder` in the C++ constructor rather than a Blueprint CDO — see each class's constructor comment before changing these paths.
 
 ### Player (`Source/ZombieShooter/Player/`)
-- `AZSPlayerCharacter` — the player pawn. Currently just the UE5.8 template's base (camera boom + follow camera + move/look/jump). FP/TP camera pair, procedural ADS/Recoil/Crouch offsets, and Infima-config-driven setup land in Phase 2.
+- `AZSPlayerCharacter` — the player pawn. Currently just the UE5.8 template's base (camera boom + follow camera + move/look/jump), with Move/Look/MouseLook/Jump wired to real `IA_*` assets under `Content/ZS/Input/`. FP/TP camera pair, procedural ADS/Recoil/Crouch offsets, and Infima-config-driven setup land in Phase 2.
 - `Player/Animation/` — reserved for `UZSAnimInstanceBase` (native FP/TP shared logic), not yet created.
 
 ### Combat, Weapons, Zombies (`Source/ZombieShooter/{Combat,Weapons,Zombies}/`)
@@ -46,7 +46,12 @@ Every weapon-facing system must work for an arbitrary number of weapon types bef
 
 ## Claude Code MCP (live editor access)
 
-`.mcp.json` (committed) defines a local `unreal-mcp` HTTP connection to whatever Unreal Editor instance is running with the MCP plugins enabled — mirrors ShooterGame's own working setup. Four engine-level Experimental plugins are enabled in `ZombieShooter.uproject`: `ModelContextProtocol` (the core MCP server), `EditorToolset` (Blueprint/asset/object inspection and editing tools), `AllToolsets` (broader toolset bundle), and `Terminal` (shell/command execution through the MCP bridge). `AllToolsets`/`Terminal` were deliberately left disabled through Phase 0 planning, then enabled directly in-editor by the dev on 2026-07-12 — treat that as the standing decision, not a placeholder.
+`.mcp.json` (committed) defines a local `unreal-mcp` HTTP connection to whatever Unreal Editor instance is running with the MCP plugins enabled — mirrors ShooterGame's own working setup. Four engine-level Experimental plugins are enabled in `ZombieShooter.uproject`: `ModelContextProtocol` (the core MCP server), `EditorToolset` (Blueprint/asset/object inspection and editing tools), `AllToolsets`, and `Terminal`. `AllToolsets`/`Terminal` were deliberately left disabled through Phase 0 planning, then enabled directly in-editor by the dev on 2026-07-12 — treat that as the standing decision, not a placeholder.
+
+**Verified 2026-07-12 (a prior session only guessed at this — this is what's actually true):**
+- `AllToolsets` is *not itself* an MCP toolset — `list_toolsets`/`describe_toolset` never show a toolset by that name. It's a bundler plugin: enabling it is what makes ~50 other toolsets show up in `list_toolsets` (GAS, Niagara, PCG, Physics, Sequencer, StateTree, UMG, Behavior Tree inspection, DataTable/CurveTable/Material/StaticMesh/SkeletalMesh tools, etc., on top of the always-on `EditorToolset` set). Confirmed via the game's `Editor.log` (`LogGameFeatures: Loading ... BuiltIn GameFeaturePlugins`) listing all of them as enabled once `AllToolsets` is on.
+- `Terminal` is **not an MCP-callable tool at all** — `describe_toolset("Terminal")` 404s, and there's no top-level `call_tool` equivalent either. Per `Editor.log` (`LogTerminal: Display: Terminal session created with shell: C:\WINDOWS\system32\cmd.exe`), it's a real in-editor terminal *UI panel* (ConPTY-backed, ships with UE5.8 as an Experimental engine feature) meant for the human at the keyboard, not for an AI agent. If Claude needs to run shell commands against this project, use the Bash/PowerShell tool from the Claude Code session directly — there is no MCP path for it.
+- There is no generic "execute console command" or "create arbitrary asset" MCP tool. Asset creation goes through `editor_toolset.toolsets.data_asset.DataAssetTools.create` (works for any UObject-derived asset class with a registered factory, not just `UDataAsset` subclasses, despite the name/description). Compiling code (Live Coding) has no MCP path either — it's the physical Ctrl+Alt+F11 shortcut in the editor, or closing the editor and running the CLI `Build.bat`.
 
 **Important:** a Claude Code session only gets live `unreal-mcp` tool access when its working directory root is *this* project. A session rooted at a different project (e.g. ShooterGame) cannot see or call these tools even if the ZombieShooter editor is running — confirmed empirically 2026-07-12. Do real MCP-driven editor work (Blueprint/AnimBP edits, live asset inspection, Terminal-toolset commands) from a session rooted here, not from elsewhere.
 
@@ -96,7 +101,7 @@ Core-loop plan (see `Docs/SessionHandoff.md` for live status per phase):
 
 ## GitHub Workflow
 
-Repo: (added once created — see `Docs/SessionHandoff.md`). Free tier only — Git LFS budget and Actions spending limit both set to $0 deliberately, so usage fails safe instead of billing. Branch protection is Pro-only for private repos, so this repo relies on disciplined manual workflow (never force-push `master`, branch for features) instead of enforced protection.
+Repo: [aaronrod3/zombieshooter](https://github.com/aaronrod3/zombieshooter) (private). Free tier only — Git LFS budget and Actions spending limit both set to $0 deliberately, so usage fails safe instead of billing. Branch protection is Pro-only for private repos, so this repo relies on disciplined manual workflow (never force-push `main`, branch for features) instead of enforced protection. `gh` CLI is not installed on this machine — GitHub-web-UI-only actions (labels, Projects board, secret scanning) go through the site directly or wait for `gh` to be installed.
 
 ## Reference Docs
 

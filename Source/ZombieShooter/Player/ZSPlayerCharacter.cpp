@@ -10,6 +10,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "InputAction.h"
+#include "UObject/ConstructorHelpers.h"
 #include "ZombieShooter.h"
 
 AZSPlayerCharacter::AZSPlayerCharacter()
@@ -46,6 +48,21 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 
 	// FP/TP camera pair, perspective switching, and Infima-config-driven mesh/anim
 	// assignment are added in Phase 2 — see docs/SessionHandoff.md.
+
+	// Default Input Actions. AZSPlayerCharacter has no mandatory Blueprint child
+	// (see class comment), so these EditAnywhere references need a constructor-time
+	// default the way a Blueprint's CDO normally would provide one.
+	static ConstructorHelpers::FObjectFinder<UInputAction> JumpActionFinder(TEXT("/Game/ZS/Input/IA_Jump.IA_Jump"));
+	if (JumpActionFinder.Succeeded()) { JumpAction = JumpActionFinder.Object; }
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> MoveActionFinder(TEXT("/Game/ZS/Input/IA_Move.IA_Move"));
+	if (MoveActionFinder.Succeeded()) { MoveAction = MoveActionFinder.Object; }
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> LookActionFinder(TEXT("/Game/ZS/Input/IA_Look.IA_Look"));
+	if (LookActionFinder.Succeeded()) { LookAction = LookActionFinder.Object; }
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> MouseLookActionFinder(TEXT("/Game/ZS/Input/IA_MouseLook.IA_MouseLook"));
+	if (MouseLookActionFinder.Succeeded()) { MouseLookAction = MouseLookActionFinder.Object; }
 }
 
 void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

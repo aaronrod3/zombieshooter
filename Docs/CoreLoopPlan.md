@@ -70,12 +70,13 @@ Docs/
 - [x] `Docs/CoreLoopPlan.md` (this file) written.
 
 ### 0.5 — GitHub setup
-- [ ] Repo created (private recommended) — **needs final go-ahead from the dev**.
-- [ ] `.gitignore` — done (standard UE template).
-- [ ] `.gitattributes` / Git LFS — done, tracking binary asset types; **LFS spending budget still needs setting to $0 on GitHub's website — manual, billing-related**.
-- [ ] Issue labels, Projects board, issue/PR templates, secret scanning, lightweight Actions workflows — not yet done.
+- [x] Repo created (private): [aaronrod3/zombieshooter](https://github.com/aaronrod3/zombieshooter).
+- [x] `.gitignore` — done (standard UE template).
+- [x] `.gitattributes` / Git LFS — done, tracking binary asset types; **LFS spending budget still needs setting to $0 on GitHub's website — manual, billing-related, not yet confirmed**.
+- [x] Issue/PR templates — `.github/ISSUE_TEMPLATE/{bug_report,feature_request,config}` + `PULL_REQUEST_TEMPLATE.md`, added 2026-07-12.
+- [ ] Issue labels (beyond GitHub defaults), Projects (Kanban) board, secret scanning, lightweight Actions workflows — not yet done. Needs `gh` CLI (not installed on this machine) or manual GitHub web UI.
 
-**Phase 0 exit criteria:** empty-but-correctly-configured project, Infima demo running, `CLAUDE.md` + `SessionHandoff.md` committed, GitHub repo live with the above configured.
+**Phase 0 exit criteria:** empty-but-correctly-configured project, Infima demo running, `CLAUDE.md` + `SessionHandoff.md` committed, GitHub repo live with the above configured. **Blocking items left: Infima install/demo confirmation, LFS $0 budget confirmation, labels/Projects/secret-scanning.**
 
 ---
 
@@ -95,7 +96,7 @@ Docs/
 
 **Verification:** player spawns, moves, looks, jumps in single-player PIE.
 
-**Status:** class skeletons exist (from Phase 0's rename), but `AZSGameMode` currently only wires class defaults — Enhanced Input Actions/Mapping Context not yet created as assets, movement/look bindings not yet re-tested after the rename.
+**Status:** class skeletons exist (from Phase 0's rename). `IA_Move`/`IA_Look`/`IA_MouseLook`/`IA_Jump` and `IMC_ZS_Default`/`IMC_ZS_MouseLook` now exist as real assets under `Content/ZS/Input/` with real key mappings (WASD/gamepad/mouse), and `AZSPlayerCharacter`/`AZSPlayerController` are wired to them via `ConstructorHelpers` in their constructors (2026-07-12). **Not yet compiled or PIE-tested** — see `Docs/SessionHandoff.md`'s "Not yet done" list for the exact next step (Ctrl+Alt+F11, then playtest).
 
 ---
 

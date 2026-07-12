@@ -40,6 +40,13 @@ protected:
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")
 	bool bForceTouchControls = false;
 
+public:
+
+	/** Constructor */
+	AZSPlayerController();
+
+protected:
+
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
