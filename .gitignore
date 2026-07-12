@@ -1,0 +1,50 @@
+# ---------------------------------------------------
+# Unreal Engine generated/derived directories
+# ---------------------------------------------------
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Cache/DDC files
+*.uasset.orig
+
+# ---------------------------------------------------
+# Visual Studio / Rider generated
+# ---------------------------------------------------
+.vs/
+.vsconfig
+*.VC.db
+*.VC.VC.opendb
+*.opensdf
+*.opendb
+*.sdf
+*.sln
+*.slnx
+*.suo
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# ---------------------------------------------------
+# Automation/build tooling
+# ---------------------------------------------------
+Automation_*.sln
+Automation_*.slnx
+
+# ---------------------------------------------------
+# OS files
+# ---------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------------------------------
+# Never commit credentials
+# ---------------------------------------------------
+*.pem
+*.key
+.env
