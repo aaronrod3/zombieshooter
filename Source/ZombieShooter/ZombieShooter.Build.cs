@@ -15,8 +15,7 @@ public class ZombieShooter : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",
-			"StateTreeModule",
-			"GameplayStateTreeModule",
+			"GameplayTasks",
 			"UMG",
 			"Slate"
 		});
@@ -25,23 +24,14 @@ public class ZombieShooter : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] {
 			"ZombieShooter",
-			"ZombieShooter/Variant_Platforming",
-			"ZombieShooter/Variant_Platforming/Animation",
-			"ZombieShooter/Variant_Combat",
-			"ZombieShooter/Variant_Combat/AI",
-			"ZombieShooter/Variant_Combat/Animation",
-			"ZombieShooter/Variant_Combat/Gameplay",
-			"ZombieShooter/Variant_Combat/Interfaces",
-			"ZombieShooter/Variant_Combat/UI",
-			"ZombieShooter/Variant_SideScrolling",
-			"ZombieShooter/Variant_SideScrolling/AI",
-			"ZombieShooter/Variant_SideScrolling/Gameplay",
-			"ZombieShooter/Variant_SideScrolling/Interfaces",
-			"ZombieShooter/Variant_SideScrolling/UI"
+			"ZombieShooter/Framework",
+			"ZombieShooter/Player",
+			"ZombieShooter/Player/Animation",
+			"ZombieShooter/Combat",
+			"ZombieShooter/Weapons",
+			"ZombieShooter/Weapons/Notifies",
+			"ZombieShooter/Zombies"
 		});
-
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
