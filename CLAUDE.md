@@ -44,6 +44,14 @@ Empty, reserved per the planned folder structure. Populated in Phases 2 (Weapons
 ### Multi-weapon extensibility (non-negotiable design constraint from Phase 2 onward)
 Every weapon-facing system must work for an arbitrary number of weapon types before it's considered done, not just "the first weapon happens to work." New weapon = new `UZSWeaponConfig` data asset instance, never a new C++ branch.
 
+## Claude Code MCP (live editor access)
+
+`.mcp.json` (committed) defines a local `unreal-mcp` HTTP connection to whatever Unreal Editor instance is running with the MCP plugins enabled — mirrors ShooterGame's own working setup. Two engine-level Experimental plugins are enabled in `ZombieShooter.uproject` for this: `ModelContextProtocol` (the core MCP server) and `EditorToolset` (Blueprint/asset/object inspection and editing tools).
+
+**Deliberately not enabled yet, needs your call:** ShooterGame also has `AllToolsets` and `Terminal` enabled. `Terminal` in particular looks like it exposes shell/command execution *through* the MCP bridge — a meaningfully different capability than editor/asset tooling, and redundant with the Bash/PowerShell tools already available directly. Not enabled here without you explicitly deciding you want it. `AllToolsets` is a broader bundle whose exact contents weren't fully verified — same treatment, ask before enabling.
+
+**Per-machine trust note:** `.mcp.json` only *proposes* the server (that's why it's safe to commit). The actual enablement (`enabledMcpjsonServers`) and the base tool permissions live in `.claude/settings.local.json`, which is gitignored globally (`~/.config/git/ignore`) by design — this is a deliberate Claude Code security boundary (a cloned repo shouldn't be able to silently auto-trust an MCP server). **On a new machine, this file won't exist and MCP won't be active until it's recreated** — see this section for its exact contents if that ever needs redoing.
+
 ## Animation / Weapon Reference
 
 **`Docs/Infima Pack - Official Implementation Guide/`** is the reference of record for how the Infima Tactical FPS Animations pack works and how to implement it — compiled entirely from Infima's own official documentation, verified against no other project. Read `00_Overview_And_Prerequisites.md` first, then follow in numeric order. This project's own weapon/animation classes (`UZSWeaponConfig`, `AZSWeapon`, the FP/TP AnimBPs, `AN_ZS_*`/`ANS_ZS_*` notify classes) reimplement that guide's *concepts* natively in C++ — they are not literal Blueprint ports of Infima's demo Blueprints.

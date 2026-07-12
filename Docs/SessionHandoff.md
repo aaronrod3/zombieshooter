@@ -13,13 +13,15 @@ Done:
 - `Build.cs`/`.uproject` cleaned up: `StateTreeModule`/`GameplayStateTree` removed (unused now that `Variant_Combat` is gone; this project uses classic Behavior Trees in Phase 5 instead), `GameplayTasks` added.
 - `DefaultEngine.ini`: `GlobalDefaultGameMode` points at `AZSGameMode` directly; class redirects added for both the template's own rename and this project's second rename, so nothing should break when the editor next opens.
 - `CLAUDE.md`, `Docs/CoreLoopPlan.md`, `Docs/SessionHandoff.md` (this file) written.
+- Claude Code MCP configured: `.mcp.json` (committed) + `ModelContextProtocol`/`EditorToolset` engine plugins enabled in `.uproject` + `.claude/settings.local.json` (gitignored, machine-local) enabling the connection. See `CLAUDE.md`'s "Claude Code MCP" section for the full explanation, including why `AllToolsets`/`Terminal` were deliberately *not* enabled yet.
 
 **Not yet done (the very next steps, in order):**
 1. **You:** install the Infima Tactical FPS Animations pack via the editor's Fab window (Guide Step 1). Confirm the demo map runs.
-2. **You:** open the project in the editor at least once and confirm it compiles clean after the renames — the rename/redirect work above hasn't been verified against a live compile yet.
-3. **You:** decide GitHub repo name + confirm private visibility, then I'll create it, push the two commits so far, and set up LFS/.gitignore verification, labels, Projects board, templates.
-4. **You:** set the Git LFS spending budget to $0 on GitHub (Settings → Billing → Spending limits) once the repo exists — billing-related, has to be you.
-5. Then: finish Phase 1 (Enhanced Input Actions + `IMC_ZS_Default` as actual assets, re-verify move/look/jump work under the renamed classes).
+2. **You:** open the project in the editor at least once and confirm it compiles clean after the renames — the rename/redirect work above hasn't been verified against a live compile yet. This will also be the first real test of the MCP connection (editor needs to be running with the new plugins active for `http://127.0.0.1:8000/mcp` to respond).
+3. **You:** decide whether to enable `AllToolsets` and/or `Terminal` (ShooterGame has both; `Terminal` specifically looks like it exposes shell execution through MCP, which wasn't asked for and wasn't enabled without checking first) — see `CLAUDE.md`.
+4. **You:** decide GitHub repo name + confirm private visibility, then I'll create it, push the commits so far, and set up LFS/.gitignore verification, labels, Projects board, templates.
+5. **You:** set the Git LFS spending budget to $0 on GitHub (Settings → Billing → Spending limits) once the repo exists — billing-related, has to be you.
+6. Then: finish Phase 1 (Enhanced Input Actions + `IMC_ZS_Default` as actual assets, re-verify move/look/jump work under the renamed classes).
 
 ## Open decisions not yet made
 - GitHub repo name and public/private final confirmation.
