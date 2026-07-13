@@ -324,11 +324,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "FP Locomotion")
 	TObjectPtr<UAnimSequence> FP_Transition_RunEnd;
 
+	/** BlendSpace1D, not AnimSequence - confirmed against Infima's own DA_TFA_AssaultRifle (BS_TFA_FP_AR_Transition_Crouch_Start/End). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "FP Locomotion")
-	TObjectPtr<UAnimSequence> FP_Transition_CrouchStart;
+	TObjectPtr<UBlendSpace1D> FP_Transition_CrouchStart;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "FP Locomotion")
-	TObjectPtr<UAnimSequence> FP_Transition_CrouchEnd;
+	TObjectPtr<UBlendSpace1D> FP_Transition_CrouchEnd;
 
 	// ---- TP Poses / Transitions ----
 
@@ -364,11 +365,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Poses")
 	TObjectPtr<UAnimSequence> WEP_ReferencePose;
 
+	/** AnimSequence, not BlendSpace1D - confirmed against Infima's own DA_TFA_AssaultRifle (A_TFA_WEP_AR_FireModeStates, A_ prefix). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Poses")
-	TObjectPtr<UBlendSpace1D> WEP_FireModeStates;
+	TObjectPtr<UAnimSequence> WEP_FireModeStates;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Poses")
-	TObjectPtr<UBlendSpace1D> WEP_MagazineDepletion;
+	TObjectPtr<UAnimSequence> WEP_MagazineDepletion;
 
 	// ---- Grouped / Randomized Arrays ----
 

@@ -139,15 +139,20 @@ Front-loaded pure-C++ milestones (compile-verifiable, no editor content needed) 
 
 | # | Delivers | Editor/MCP weight | Status |
 |---|---|---|---|
-| M1 | `ZSCharacterTypes.h`, `ZSWeaponTypes.h`, `UZSWeaponConfig` (full field list) | Pure C++ | **Code-complete, uncompiled** |
-| M2 | `AZSWeapon` + supporting actors (`AZSMagazine`, `AZSPhysicsObject`/`Magazine`/`Casing`, `AZSLaserAttachment`), null-safe against an empty config | Pure C++ (+ smoke-test spawn) | **Code-complete, uncompiled** |
-| M3 | `AZSPlayerCharacter` Phase 2 additions: dual mesh/camera, perspective switching, spring offsets, action-state, combat/movement functions | Pure C++ | **Code-complete, uncompiled** |
-| M4 | 10 new `IA_*` assets (Fire/Aim/Reload/Crouch/Sprint/ToggleView/FireModeSwitch/Inspect/MagCheck/SwitchGrip) + `IMC_ZS_Default` mappings | Light editor/MCP | Not started — waiting on a clean compile of M1/M2/M3/M5 first |
-| M5 | 7 notify/notify-state classes; `UZSAnimInstanceBase` + FP subclass (native only, no AnimGraph content yet); **AnimGraph MCP-DSL risk spike** here to de-risk M8 early | Pure C++ (+ risk spike) | **Code-complete, uncompiled** (risk spike not yet run) |
-| M6 | `DA_ZS_WeaponConfig_AssaultRifle` fully populated; `BP_ZS_PlayerCharacter` created and wired into `GameMode` | Heavy content population | Not started |
+| M1 | `ZSCharacterTypes.h`, `ZSWeaponTypes.h`, `UZSWeaponConfig` (full field list) | Pure C++ | **Done, compiled clean** (2026-07-12) |
+| M2 | `AZSWeapon` + supporting actors (`AZSMagazine`, `AZSPhysicsObject`/`Magazine`/`Casing`, `AZSLaserAttachment`), null-safe against an empty config | Pure C++ (+ smoke-test spawn) | **Done, compiled clean** |
+| M3 | `AZSPlayerCharacter` Phase 2 additions: dual mesh/camera, perspective switching, spring offsets, action-state, combat/movement functions | Pure C++ | **Done, compiled clean** (needed one fix — `TObjectPtr`/raw-pointer ternary ambiguity in `AttachWeaponToActiveMesh`) |
+| M4 | 10 new `IA_*` assets (Fire/Aim/Reload/Crouch/Sprint/ToggleView/FireModeSwitch/Inspect/MagCheck/SwitchGrip) + `IMC_ZS_Default` mappings | Light editor/MCP | **Done** — all 10 created, 20 key mappings (keyboard+gamepad) added, verified via readback |
+| M5 | 7 notify/notify-state classes; `UZSAnimInstanceBase` + FP subclass (native only, no AnimGraph content yet); **AnimGraph MCP-DSL risk spike** here to de-risk M8 early | Pure C++ (+ risk spike) | **Done, compiled clean** (risk spike not yet run — do it before M8) |
+| M6 | `DA_ZS_WeaponConfig_AssaultRifle` fully populated; `BP_ZS_PlayerCharacter` created and wired into `GameMode` | Heavy content population | **Nearly done** — all fields populated except 4 blocked on a type fix (see below); `BP_ZS_PlayerCharacter` created with `StartingWeaponConfig` set; `GameMode.DefaultPawnClass` repointed via `ConstructorHelpers::FClassFinder`. **Needs one more compile** before the 4 remaining fields can be set. |
 | M7 | Real mesh assembly, all 4 camera perspectives with real sockets/FOV, magazine spawn+reserve-hidden | Heavy editor/PIE | Not started |
 | M8 | `ABP_ZS_FirstPerson`/`ABP_ZS_ThirdPerson` AnimGraphs built to Guide 06/07's evaluation order | Heaviest — may need the dev's own hands if MCP can't reach AnimGraph editing (unconfirmed, see M5's risk spike) | Not started |
 | M9 | Notify placement on real montage frames, `OnMontageEnded` interruption fallback, multi-weapon regression check (duplicate the config, swap it in, confirm zero C++ changes needed) | Content/PIE-heavy | Not started |
+
+**M6 field-type corrections, found by cross-referencing Infima's own `DA_TFA_AssaultRifle` values (not caught by the compiler since these are all valid `TObjectPtr<T>` types, just the wrong `T`):**
+- `FP_Transition_CrouchStart`/`FP_Transition_CrouchEnd`: declared as `UAnimSequence`, actually `UBlendSpace1D` (Infima's own asset names are `BS_`-prefixed, not `A_`-prefixed).
+- `WEP_FireModeStates`/`WEP_MagazineDepletion`: declared as `UBlendSpace1D`, actually `UAnimSequence` (`A_`-prefixed, not `BS_`-prefixed) — the reverse mistake.
+Fixed in `ZSWeaponConfig.h`; these 4 fields need the next compile before they can be populated on `DA_ZS_WeaponConfig_AssaultRifle`.
 
 ---
 
