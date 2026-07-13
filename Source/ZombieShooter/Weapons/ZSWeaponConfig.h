@@ -16,6 +16,7 @@ class UBlendSpace;
 class UBlendSpace1D;
 class UAnimInstance;
 class USoundBase;
+class AZSWeapon;
 
 
 /*
@@ -42,6 +43,16 @@ class UZSWeaponConfig : public UPrimaryDataAsset
 public:
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override;
+
+	/**
+	 *  Which AZSWeapon (sub)class AZSPlayerCharacter::EquipWeapon spawns for this config. Left
+	 *  unset by default (falls back to plain AZSWeapon) - only needs setting if a specific
+	 *  weapon wants its own Blueprint child overriding one of AZSWeapon's BlueprintNativeEvent
+	 *  functions (PerformReload, CycleFireMode, SpawnDroppedMagazine, etc.) without touching
+	 *  C++. See CLAUDE.md's tech stack convention.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Class")
+	TSubclassOf<AZSWeapon> WeaponClass;
 
 	// ---- Meshes / Classes ----
 

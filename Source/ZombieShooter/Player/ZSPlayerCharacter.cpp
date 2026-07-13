@@ -284,7 +284,11 @@ void AZSPlayerCharacter::EquipWeapon(UZSWeaponConfig* Config)
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = this;
 
-	CurrentWeapon = GetWorld()->SpawnActor<AZSWeapon>(SpawnParams);
+	// Config->WeaponClass lets a per-weapon Blueprint child override AZSWeapon's gameplay
+	// execution points without a C++ recompile - falls back to plain AZSWeapon if unset.
+	const TSubclassOf<AZSWeapon> ClassToSpawn = Config->WeaponClass ? Config->WeaponClass : AZSWeapon::StaticClass();
+
+	CurrentWeapon = GetWorld()->SpawnActor<AZSWeapon>(ClassToSpawn, SpawnParams);
 	if (CurrentWeapon)
 	{
 		CurrentWeapon->InitializeFromConfig(Config);
@@ -296,7 +300,7 @@ void AZSPlayerCharacter::EquipWeapon(UZSWeaponConfig* Config)
 // Phase 2 - Camera / Perspective
 // =====================================================================
 
-void AZSPlayerCharacter::ToggleCameraPerspective()
+void AZSPlayerCharacter::ToggleCameraPerspective_Implementation()
 {
 	const uint8 NextPerspective = (static_cast<uint8>(CurrentCameraPerspective) + 1) % 4;
 	ApplyCameraPerspective(static_cast<EZSCameraPerspective>(NextPerspective));
@@ -444,7 +448,7 @@ void AZSPlayerCharacter::SetAimingBlocked(bool bNewAimingBlocked)
 // Phase 2 - Movement / Stance
 // =====================================================================
 
-void AZSPlayerCharacter::DoToggleCrouch()
+void AZSPlayerCharacter::DoToggleCrouch_Implementation()
 {
 	if (bIsCrouched)
 	{
@@ -456,7 +460,7 @@ void AZSPlayerCharacter::DoToggleCrouch()
 	}
 }
 
-void AZSPlayerCharacter::StartSprint()
+void AZSPlayerCharacter::StartSprint_Implementation()
 {
 	if (bIsAiming)
 	{
@@ -467,7 +471,7 @@ void AZSPlayerCharacter::StartSprint()
 	GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed * SprintSpeedMultiplier;
 }
 
-void AZSPlayerCharacter::StopSprint()
+void AZSPlayerCharacter::StopSprint_Implementation()
 {
 	bIsSprinting = false;
 	GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
@@ -499,7 +503,7 @@ bool AZSPlayerCharacter::CanAim() const
 	return !bIsSprinting && !bIsAimingBlocked;
 }
 
-void AZSPlayerCharacter::StartAim()
+void AZSPlayerCharacter::StartAim_Implementation()
 {
 	if (!CanAim())
 	{
@@ -514,7 +518,7 @@ void AZSPlayerCharacter::StartAim()
 	}
 }
 
-void AZSPlayerCharacter::StopAim()
+void AZSPlayerCharacter::StopAim_Implementation()
 {
 	bIsAiming = false;
 	TargetAimDownSightsOffset = FTransform::Identity;
@@ -553,7 +557,7 @@ void AZSPlayerCharacter::HandleFireStopped()
 	RecoilRampCount = 0;
 }
 
-void AZSPlayerCharacter::Fire()
+void AZSPlayerCharacter::Fire_Implementation()
 {
 	if (!CanFire())
 	{
@@ -590,7 +594,7 @@ bool AZSPlayerCharacter::CanReload() const
 	return !bIsBusy && CurrentWeapon && CurrentWeapon->CanReload();
 }
 
-void AZSPlayerCharacter::StartReload()
+void AZSPlayerCharacter::StartReload_Implementation()
 {
 	if (!CanReload())
 	{
@@ -603,7 +607,7 @@ void AZSPlayerCharacter::StartReload()
 	CurrentWeapon->PerformReload();
 }
 
-void AZSPlayerCharacter::Inspect()
+void AZSPlayerCharacter::Inspect_Implementation()
 {
 	if (bIsBusy || !CurrentWeapon)
 	{
@@ -614,7 +618,7 @@ void AZSPlayerCharacter::Inspect()
 	SetBusy(true);
 }
 
-void AZSPlayerCharacter::MagCheck()
+void AZSPlayerCharacter::MagCheck_Implementation()
 {
 	if (bIsBusy || !CurrentWeapon)
 	{
@@ -625,7 +629,7 @@ void AZSPlayerCharacter::MagCheck()
 	SetBusy(true);
 }
 
-void AZSPlayerCharacter::CycleFireMode()
+void AZSPlayerCharacter::CycleFireMode_Implementation()
 {
 	if (CurrentWeapon)
 	{
@@ -633,7 +637,7 @@ void AZSPlayerCharacter::CycleFireMode()
 	}
 }
 
-void AZSPlayerCharacter::CycleGripAttachment()
+void AZSPlayerCharacter::CycleGripAttachment_Implementation()
 {
 	if (CurrentWeapon)
 	{

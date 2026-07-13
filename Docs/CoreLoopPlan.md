@@ -134,6 +134,14 @@ Docs/
 - **`AN_TFA_SpawnObjectAttached`/`AN_TFA_ThrowPhysicsObject` (temp-prop spawners, e.g. healing syringe) deferred** — not weapon-related, not part of this phase's scope, revisit alongside whatever phase introduces consumables.
 - **New `BP_ZS_PlayerCharacter`** (thin, data-only — sets `StartingWeaponConfig`) resolves the `ConstructorHelpers`-vs-Blueprint-child question `SessionHandoff.md` flagged as open — `GameMode.DefaultPawnClass` repoints to it once it exists.
 
+### Tech stack policy revision (2026-07-12) — C++ base classes, Blueprint configures/executes
+`CLAUDE.md`'s tech stack rule changed from "C++ for all gameplay-critical logic" to: **C++ builds base classes and anything C++ is meaningfully more efficient for; Blueprint is where gameplay gets configured and executed**, so changes don't need a recompile. Applied retroactively across M1-M6, not just forward from M7:
+- **`AZSPlayerCharacter`** — `Fire`, `StartAim`/`StopAim`, `StartReload`, `Inspect`, `MagCheck`, `CycleFireMode`, `CycleGripAttachment`, `DoToggleCrouch`, `StartSprint`/`StopSprint`, `ToggleCameraPerspective` are now `UFUNCTION(BlueprintNativeEvent)` — C++ still provides the default `_Implementation`, but `BP_ZS_PlayerCharacter` can override or extend any of them with zero recompiles.
+- **`AZSWeapon`** — `SetGripAttachment`, `RandomizeGripAttachment`, `PerformReload`, `CycleFireMode`, `SpawnDroppedMagazine`, `EjectCasing` are likewise `BlueprintNativeEvent`.
+- **`UZSWeaponConfig` gained a `WeaponClass` field** (`TSubclassOf<AZSWeapon>`, defaults unset → plain `AZSWeapon`) so a future per-weapon Blueprint child can override any of the above without a new C++ branch — `AZSPlayerCharacter::EquipWeapon` spawns whatever class the config specifies.
+- **What stayed C++-only, deliberately:** per-frame math (`UpdateSpringOffset`, `UpdateThirdPersonCameraTick`, `UpdateAimFOV`), internal attachment mechanics (`AttachWeaponToActiveMesh`, `AssignNewStaticMesh`, the `EnableXPerspective` helpers), pure predicates (`CanFire`/`CanReload`/`CanAim`), and simple data mutation (`ConsumeAmmoRound`, `SetBusy`/`SetAimingBlocked`) — these are exactly the "C++ is more efficient for" / no-real-override-value cases the new rule carves out. `ForceStopAiming` also stayed plain `BlueprintCallable` (system-triggered safety cutoff from `UANS_ZS_BlockADS`, not a player-facing decision).
+- No per-weapon Blueprint child exists yet (nothing has needed one) — the `WeaponClass` field just makes it possible to add one later without touching C++.
+
 ### Milestone breakdown
 Front-loaded pure-C++ milestones (compile-verifiable, no editor content needed) before the necessarily content/editor-heavy tail.
 

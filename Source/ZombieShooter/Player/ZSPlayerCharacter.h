@@ -179,7 +179,8 @@ protected:
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Camera")
+	/** Gameplay execution point - override in BP_ZS_PlayerCharacter to add transition FX/sound without a C++ recompile. */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Camera")
 	void ToggleCameraPerspective();
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Camera")
@@ -358,13 +359,14 @@ protected:
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Movement")
+	/** Gameplay execution points - overridable in BP_ZS_PlayerCharacter (see CLAUDE.md's tech stack convention: C++ base + Blueprint-side gameplay configuration/execution). */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Movement")
 	void DoToggleCrouch();
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Movement")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Movement")
 	void StartSprint();
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Movement")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Movement")
 	void StopSprint();
 
 protected:
@@ -378,13 +380,14 @@ protected:
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	/** Gameplay execution points - overridable in BP_ZS_PlayerCharacter (see CLAUDE.md's tech stack convention). */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void StartAim();
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void StopAim();
 
-	/** Force-stops aiming without checking CanAim - called by UANS_ZS_BlockADS::NotifyBegin. */
+	/** Force-stops aiming without checking CanAim - called by UANS_ZS_BlockADS::NotifyBegin. Not a BlueprintNativeEvent: this is a system-triggered safety cutoff, not a player-facing gameplay action. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
 	void ForceStopAiming();
 
@@ -400,27 +403,30 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
 	bool CanFire() const;
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void StartReload();
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
 	bool CanReload() const;
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void Inspect();
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void MagCheck();
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void CycleFireMode();
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void CycleGripAttachment();
 
 protected:
 
+	/** The actual per-shot gameplay execution point - overridable in BP_ZS_PlayerCharacter. HandleFireStarted/HandleFireStopped (the input-bound auto-fire timer plumbing) are not overridable; this is. */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void Fire();
+
 	void AddRecoil();
 
 	FTimerHandle AutoFireTimerHandle;

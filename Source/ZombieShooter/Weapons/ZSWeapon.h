@@ -43,17 +43,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	void SetMagazineVisibility(bool bVisible, bool bIsReserve);
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	/** Gameplay execution point - overridable in a per-weapon Blueprint child (see CLAUDE.md's tech stack convention) to add drop VFX/behavior without a C++ recompile. */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	AZSPhysicsMagazine* SpawnDroppedMagazine(float ImpulseForce, float RotationForce);
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	AZSPhysicsCasing* EjectCasing(FRotator RotationOffset, float MinEjectForce, float MaxEjectForce, float RotationSpeed);
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void SetGripAttachment(EZSGripAttachment NewGrip);
 
 	/** Cycles CurrentGrip: None -> Vertical -> Angled -> None. */
-	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void RandomizeGripAttachment();
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
@@ -66,11 +67,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
 	bool CanReload() const;
 
-	/** Transfers ammo reserve -> magazine synchronously. The reload montage that follows is purely cosmetic (see CoreLoopPlan.md Phase 2 "Key architecture decisions"). */
-	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	/** Transfers ammo reserve -> magazine synchronously. The reload montage that follows is purely cosmetic (see CoreLoopPlan.md Phase 2 "Key architecture decisions"). Gameplay execution point - overridable per-weapon. */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void PerformReload();
 
-	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void CycleFireMode();
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")

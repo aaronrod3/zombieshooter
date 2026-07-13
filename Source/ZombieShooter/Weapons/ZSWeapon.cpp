@@ -128,7 +128,7 @@ void AZSWeapon::SetMagazineVisibility(bool bVisible, bool bIsReserve)
 	}
 }
 
-AZSPhysicsMagazine* AZSWeapon::SpawnDroppedMagazine(float ImpulseForce, float RotationForce)
+AZSPhysicsMagazine* AZSWeapon::SpawnDroppedMagazine_Implementation(float ImpulseForce, float RotationForce)
 {
 	if (!CurrentConfig || !MainMagazine)
 	{
@@ -149,7 +149,7 @@ AZSPhysicsMagazine* AZSWeapon::SpawnDroppedMagazine(float ImpulseForce, float Ro
 	return DroppedMagazine;
 }
 
-AZSPhysicsCasing* AZSWeapon::EjectCasing(FRotator RotationOffset, float MinEjectForce, float MaxEjectForce, float RotationSpeed)
+AZSPhysicsCasing* AZSWeapon::EjectCasing_Implementation(FRotator RotationOffset, float MinEjectForce, float MaxEjectForce, float RotationSpeed)
 {
 	if (!CurrentConfig || !SK_Receiver->DoesSocketExist(CurrentConfig->SocketCasingEject))
 	{
@@ -173,7 +173,7 @@ AZSPhysicsCasing* AZSWeapon::EjectCasing(FRotator RotationOffset, float MinEject
 	return Casing;
 }
 
-void AZSWeapon::SetGripAttachment(EZSGripAttachment NewGrip)
+void AZSWeapon::SetGripAttachment_Implementation(EZSGripAttachment NewGrip)
 {
 	CurrentGrip = NewGrip;
 
@@ -206,7 +206,7 @@ void AZSWeapon::SetGripAttachment(EZSGripAttachment NewGrip)
 	GripMesh->SetVisibility(GripVisual != nullptr);
 }
 
-void AZSWeapon::RandomizeGripAttachment()
+void AZSWeapon::RandomizeGripAttachment_Implementation()
 {
 	const uint8 NextGrip = (static_cast<uint8>(CurrentGrip) + 1) % 3;
 	SetGripAttachment(static_cast<EZSGripAttachment>(NextGrip));
@@ -233,7 +233,7 @@ bool AZSWeapon::CanReload() const
 	return CurrentConfig && CurrentReserveAmmo > 0 && CurrentMagazineAmmo < CurrentConfig->MagazineCapacity;
 }
 
-void AZSWeapon::PerformReload()
+void AZSWeapon::PerformReload_Implementation()
 {
 	if (!CanReload())
 	{
@@ -247,7 +247,7 @@ void AZSWeapon::PerformReload()
 	CurrentReserveAmmo -= AmmoToTransfer;
 }
 
-void AZSWeapon::CycleFireMode()
+void AZSWeapon::CycleFireMode_Implementation()
 {
 	if (!CurrentConfig || CurrentConfig->SupportedFireModes.Num() == 0)
 	{
