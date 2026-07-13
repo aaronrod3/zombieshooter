@@ -286,7 +286,11 @@ void AZSPlayerCharacter::EquipWeapon(UZSWeaponConfig* Config)
 
 	// Config->WeaponClass lets a per-weapon Blueprint child override AZSWeapon's gameplay
 	// execution points without a C++ recompile - falls back to plain AZSWeapon if unset.
-	const TSubclassOf<AZSWeapon> ClassToSpawn = Config->WeaponClass ? Config->WeaponClass : AZSWeapon::StaticClass();
+	TSubclassOf<AZSWeapon> ClassToSpawn = AZSWeapon::StaticClass();
+	if (Config->WeaponClass)
+	{
+		ClassToSpawn = Config->WeaponClass;
+	}
 
 	CurrentWeapon = GetWorld()->SpawnActor<AZSWeapon>(ClassToSpawn, SpawnParams);
 	if (CurrentWeapon)

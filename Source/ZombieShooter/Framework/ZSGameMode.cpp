@@ -19,5 +19,12 @@ AZSGameMode::AZSGameMode()
 	// (a designer-tunable content default, unlike the Input System asset references that stay
 	// in ConstructorHelpers on the character/controller classes themselves).
 	static ConstructorHelpers::FClassFinder<AZSPlayerCharacter> PlayerCharacterBPClass(TEXT("/Game/ZS/Characters/BP_ZS_PlayerCharacter"));
-	DefaultPawnClass = PlayerCharacterBPClass.Succeeded() ? PlayerCharacterBPClass.Class : AZSPlayerCharacter::StaticClass();
+	if (PlayerCharacterBPClass.Succeeded())
+	{
+		DefaultPawnClass = PlayerCharacterBPClass.Class;
+	}
+	else
+	{
+		DefaultPawnClass = AZSPlayerCharacter::StaticClass();
+	}
 }
