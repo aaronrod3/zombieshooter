@@ -101,7 +101,7 @@ Docs/
 
 **Verification:** player spawns, moves, looks, jumps in single-player PIE.
 
-**Status:** class skeletons exist (from Phase 0's rename). `IA_Move`/`IA_Look`/`IA_MouseLook`/`IA_Jump` and `IMC_ZS_Default`/`IMC_ZS_MouseLook` now exist as real assets under `Content/ZS/Input/` with real key mappings (WASD/gamepad/mouse), and `AZSPlayerCharacter`/`AZSPlayerController` are wired to them via `ConstructorHelpers` in their constructors (2026-07-12). **Not yet compiled or PIE-tested** — see `Docs/SessionHandoff.md`'s "Not yet done" list for the exact next step (Ctrl+Alt+F11, then playtest).
+**Status:** done. Compiled and PIE-tested clean (2026-07-12) — move/look/jump/mouse-look all confirmed working under the renamed classes. Phase 1 exit criteria met.
 
 ---
 
@@ -121,7 +121,33 @@ Docs/
 
 **Verification:** fire/reload/inspect/mag-check/grip-switch correct in FP and TP, single-player PIE, first weapon — plus confirm nothing built assumes only one weapon ever exists.
 
-**Status:** not started.
+**Status:** in progress (2026-07-12). Infima Assault Rifle pack confirmed installed at `Content/InfimaGames/TacticalFPSAnimations/` (demo/reference content only, per its own docs — not shipped as-is, reimplemented natively in C++ per this project's convention). M1/M2/M3/M5 (all pure-C++ milestones) are code-complete but **not yet compiled** — see `Docs/SessionHandoff.md` for the exact next step.
+
+### Key architecture decisions (deviate from Infima's demo on purpose — documented so nobody "fixes" these back later)
+- **Dual mesh components (`GetMesh()`=TP body, new `FirstPersonMesh`=FP arms), not Infima's single-mesh-swap trick.** Infima swaps one mesh's skeletal asset per perspective and snaps its relative location — a single-player-preview shortcut explicitly flagged as unreplicated demo logic. Two always-present sibling components need no such snap and are structured for Phase 3's replication.
+- **Spring offsets (ADS/Recoil/Crouch) use engine built-ins** (`UKismetMathLibrary::VectorSpringInterp`/`QuaternionSpringInterp`), not a custom clone of Infima's `S_TFA_SpringData`.
+- **The weapon actor is re-parented per perspective** (attached to whichever mesh is "active" at `SocketGunAttachment`), not duplicated — one `AZSWeapon` instance per equipped weapon.
+- **Real ammo/reload state**, not Infima's cosmetic-only `AmmoCount` — `CurrentMagazineAmmo`/`CurrentReserveAmmo` live on `AZSWeapon`; reload variant (`ReloadEmpty` vs `ReloadQuick`) selected by whether the magazine is empty at reload start; ammo transfers synchronously when reload starts (cosmetic montage plays after, not gating the state change).
+- **Two-tier movement (Walk/Sprint)**, not Infima's three-tier (Walk/Run/Sprint) — matches the input set actually planned (no `IA_Run` was ever scoped).
+- **`BPI_TFA_AnimationState` interface skipped** — `UpdateLeftHandGrip` is a plain virtual function on `UZSAnimInstanceBase`, called directly from the (native C++) notify state. The interface exists in Infima's version to decouple Blueprint callers from unknown AnimInstance types; both caller and callee are our own native classes here, so the indirection has no payoff.
+- **`ABP_Weapon`/`ABP_Magazine` (weapon/magazine-mesh AnimBPs) deferred** — config fields exist but stay unset for now. A mesh with no AnimClass still plays montages fine; magazine-depletion visualization isn't required by this phase's verification target.
+- **`AN_TFA_SpawnObjectAttached`/`AN_TFA_ThrowPhysicsObject` (temp-prop spawners, e.g. healing syringe) deferred** — not weapon-related, not part of this phase's scope, revisit alongside whatever phase introduces consumables.
+- **New `BP_ZS_PlayerCharacter`** (thin, data-only — sets `StartingWeaponConfig`) resolves the `ConstructorHelpers`-vs-Blueprint-child question `SessionHandoff.md` flagged as open — `GameMode.DefaultPawnClass` repoints to it once it exists.
+
+### Milestone breakdown
+Front-loaded pure-C++ milestones (compile-verifiable, no editor content needed) before the necessarily content/editor-heavy tail.
+
+| # | Delivers | Editor/MCP weight | Status |
+|---|---|---|---|
+| M1 | `ZSCharacterTypes.h`, `ZSWeaponTypes.h`, `UZSWeaponConfig` (full field list) | Pure C++ | **Code-complete, uncompiled** |
+| M2 | `AZSWeapon` + supporting actors (`AZSMagazine`, `AZSPhysicsObject`/`Magazine`/`Casing`, `AZSLaserAttachment`), null-safe against an empty config | Pure C++ (+ smoke-test spawn) | **Code-complete, uncompiled** |
+| M3 | `AZSPlayerCharacter` Phase 2 additions: dual mesh/camera, perspective switching, spring offsets, action-state, combat/movement functions | Pure C++ | **Code-complete, uncompiled** |
+| M4 | 10 new `IA_*` assets (Fire/Aim/Reload/Crouch/Sprint/ToggleView/FireModeSwitch/Inspect/MagCheck/SwitchGrip) + `IMC_ZS_Default` mappings | Light editor/MCP | Not started — waiting on a clean compile of M1/M2/M3/M5 first |
+| M5 | 7 notify/notify-state classes; `UZSAnimInstanceBase` + FP subclass (native only, no AnimGraph content yet); **AnimGraph MCP-DSL risk spike** here to de-risk M8 early | Pure C++ (+ risk spike) | **Code-complete, uncompiled** (risk spike not yet run) |
+| M6 | `DA_ZS_WeaponConfig_AssaultRifle` fully populated; `BP_ZS_PlayerCharacter` created and wired into `GameMode` | Heavy content population | Not started |
+| M7 | Real mesh assembly, all 4 camera perspectives with real sockets/FOV, magazine spawn+reserve-hidden | Heavy editor/PIE | Not started |
+| M8 | `ABP_ZS_FirstPerson`/`ABP_ZS_ThirdPerson` AnimGraphs built to Guide 06/07's evaluation order | Heaviest — may need the dev's own hands if MCP can't reach AnimGraph editing (unconfirmed, see M5's risk spike) | Not started |
+| M9 | Notify placement on real montage frames, `OnMontageEnded` interruption fallback, multi-weapon regression check (duplicate the config, swap it in, confirm zero C++ changes needed) | Content/PIE-heavy | Not started |
 
 ---
 
