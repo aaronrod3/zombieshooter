@@ -55,16 +55,17 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	FollowCamera->bUsePawnControlRotation = false;
 
 	// First-person arms mesh + camera - always present as siblings of GetMesh(), not swapped
-	// in like Infima's demo (see class comment). Exact eye-height socket attachment is refined
-	// in M7 once FP_Mesh content is assigned; for now the camera sits at the mesh's own origin.
+	// in like Infima's demo (see class comment).
 	FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
 	FirstPersonMesh->SetupAttachment(GetCapsuleComponent());
 	FirstPersonMesh->SetOnlyOwnerSee(true);
 	FirstPersonMesh->bCastDynamicShadow = false;
 	FirstPersonMesh->CastShadow = false;
 
+	// SOCKET_CameraFP - confirmed present on the shared SKM_Manny_Simple skeleton (M7, via
+	// SkeletalMeshTools.get_socket_names), not a guess.
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
-	FirstPersonCamera->SetupAttachment(FirstPersonMesh);
+	FirstPersonCamera->SetupAttachment(FirstPersonMesh, TEXT("SOCKET_CameraFP"));
 	FirstPersonCamera->bUsePawnControlRotation = true;
 
 	// Default Input Actions. AZSPlayerCharacter has no mandatory Blueprint child
@@ -273,6 +274,20 @@ void AZSPlayerCharacter::EquipWeapon(UZSWeaponConfig* Config)
 	if (!Config || !GetWorld())
 	{
 		return;
+	}
+
+	// The character's own body meshes are config-driven too, per Infima guide 03's perspective
+	// switching (assigns FP_Mesh/TP_Mesh) - only actually wired here, not per-perspective, since
+	// both meshes stay assigned across every perspective switch under this project's dual-mesh
+	// design (see CoreLoopPlan.md's "Key architecture decisions").
+	if (Config->FP_Mesh)
+	{
+		FirstPersonMesh->SetSkeletalMesh(Config->FP_Mesh);
+	}
+
+	if (Config->TP_Mesh)
+	{
+		GetMesh()->SetSkeletalMesh(Config->TP_Mesh);
 	}
 
 	if (CurrentWeapon)
