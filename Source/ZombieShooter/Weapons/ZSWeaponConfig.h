@@ -17,20 +17,23 @@ class UBlendSpace1D;
 class UAnimInstance;
 class USoundBase;
 
-/**
- *  Per-weapon data contract. Every weapon-facing system (AZSWeapon, AZSPlayerCharacter,
- *  the FP/TP AnimBPs, the AN_ZS_*/ANS_ZS_* notify classes) reads from an instance of this
- *  class and never branches on which weapon is equipped. New weapon = new
- *  DA_ZS_WeaponConfig_<WeaponName> instance, never a new C++ branch (see CLAUDE.md's
- *  multi-weapon extensibility rule).
- *
- *  Field groups mirror the Infima Tactical FPS Animations pack's own BP_TFA_BaseConfig
- *  (Docs/Infima Pack - Official Implementation Guide/02_Core_Data_Asset.md) so this class's
- *  fields can be cross-referenced 1:1 against the pack's reference content when populating
- *  DA_ZS_WeaponConfig_AssaultRifle. ABP_Weapon/ABP_Magazine are intentionally left unset by
- *  content (Phase 2 doesn't require weapon/magazine-mesh AnimBPs) but the fields exist for
- *  field-group completeness.
- */
+
+/*
+	Per-weapon data contract. Every weapon-facing system (AZSWeapon, AZSPlayerCharacter,
+   the FP/TP AnimBPs, the AN_ZS_#1#ANS_ZS_* notify classes) reads from an instance of this
+   class and never branches on which weapon is equipped. New weapon = new
+   DA_ZS_WeaponConfig_<WeaponName> instance, never a new C++ branch (see CLAUDE.md's
+   multi-weapon extensibility rule).
+ 
+   Field groups mirror the Infima Tactical FPS Animations pack's own BP_TFA_BaseConfig
+   (Docs/Infima Pack - Official Implementation Guide/02_Core_Data_Asset.md) so this class's
+   fields can be cross-referenced 1:1 against the pack's reference content when populating
+   DA_ZS_WeaponConfig_AssaultRifle. ABP_Weapon/ABP_Magazine are intentionally left unset by
+   content (Phase 2 doesn't require weapon/magazine-mesh AnimBPs) but the fields exist for
+   field-group completeness.
+*/
+ 
+
 UCLASS(BlueprintType)
 class UZSWeaponConfig : public UPrimaryDataAsset
 {

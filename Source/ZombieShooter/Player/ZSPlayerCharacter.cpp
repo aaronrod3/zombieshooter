@@ -391,7 +391,7 @@ void AZSPlayerCharacter::AttachWeaponToActiveMesh()
 		return;
 	}
 
-	USkeletalMeshComponent* ActiveMesh = (CurrentCameraPerspective == EZSCameraPerspective::FirstPerson) ? FirstPersonMesh : GetMesh();
+	USkeletalMeshComponent* ActiveMesh = (CurrentCameraPerspective == EZSCameraPerspective::FirstPerson) ? FirstPersonMesh.Get() : GetMesh();
 	CurrentWeapon->AttachToComponent(ActiveMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, CurrentWeapon->GetConfig()->SocketGunAttachment);
 }
 
