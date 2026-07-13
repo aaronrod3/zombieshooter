@@ -48,3 +48,11 @@ Thumbs.db
 *.pem
 *.key
 .env
+
+# ---------------------------------------------------
+# Paid/licensed marketplace content - repo is public (for secret scanning),
+# but this content's license doesn't allow redistribution. Reinstall via the
+# editor's Fab window (see Docs/Infima Pack - Official Implementation Guide/
+# 01_Installation_And_Project_Structure.md) on a fresh clone.
+# ---------------------------------------------------
+Content/InfimaGames/

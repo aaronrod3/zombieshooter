@@ -79,6 +79,7 @@ Per the guide's own documented scope: Infima ships **zero multiplayer guidance**
 ## Off-Limits / DO NOT
 
 - `Content/**/*.uasset` — do not read/parse as raw binary via filesystem tools. Inspecting/editing via the live Unreal Editor (or a connected MCP server, if one is ever set up for this project) is fine.
+- `Content/InfimaGames/` — **gitignored, never commit.** Paid/licensed marketplace content (the Infima Tactical FPS Animations pack); the repo is public (for secret scanning), but this content's license doesn't permit redistribution. Reinstall via the editor's Fab window on a fresh clone — see `Docs/Infima Pack - Official Implementation Guide/01_Installation_And_Project_Structure.md`. This applies to any future paid marketplace content too, not just Infima.
 - Do not reference the `ShooterGame` project's code, assets, or conventions for design decisions here — this project was deliberately planned from scratch using only the Infima guide + Unreal's own 5.8 documentation. (This `CLAUDE.md` was seeded from `ShooterGame`'s structural shape once, per an explicit one-time request — that's the only intentional link between the two projects.)
 - Do not add wave/mission/economy/extraction systems without a dedicated planning pass first — explicitly out of scope for the current core-loop build.
 - Do not attempt dedicated-server packaging or an online subsystem (Steam/EOS) yet — listen-server/direct-IP is the target for now.
