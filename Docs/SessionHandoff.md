@@ -22,18 +22,21 @@ This was the first session actually rooted at `C:\Users\aaron\Documents\Unreal P
   - Wired `AZSPlayerCharacter` and `AZSPlayerController` constructors (`Source/ZombieShooter/Player/ZSPlayerCharacter.cpp`, `Source/ZombieShooter/Framework/ZSPlayerController.{h,cpp}`) via `ConstructorHelpers::FObjectFinder` to default-populate the `UInputAction`/`UInputMappingContext` `EditAnywhere` properties — **since neither class has a mandatory Blueprint child** (a deliberate Phase 0 decision), this is the idiomatic Epic pattern for giving a native-only class real asset defaults. `AZSPlayerController` didn't have a constructor before this session; one was added.
 - **`.github/` issue/PR templates added:** `ISSUE_TEMPLATE/bug_report.md`, `ISSUE_TEMPLATE/feature_request.md`, `ISSUE_TEMPLATE/config.yml`, `PULL_REQUEST_TEMPLATE.md`.
 - **Fixed stale facts in `CLAUDE.md`** found while working: branch was documented as `master`, actually `main`; the GitHub repo line still said "added once created" despite the repo being live since session 1.
+- **Remaining Phase 0 GitHub setup — now fully done:**
+  - Installed `gh` CLI (`winget install --id GitHub.cli`), dev authenticated it (`gh auth login`, then `gh auth refresh -s project,read:project` for Projects access).
+  - Added issue labels `phase-0` through `phase-6` on top of GitHub's defaults.
+  - Created a Projects (Kanban) board, ["ZombieShooter Core Loop"](https://github.com/users/aaronrod3/projects/2), linked to the repo, default Todo/In Progress/Done columns.
+  - **Secret scanning turned out to need the repo to go public first** — `Docs/CoreLoopPlan.md`'s planning-time claim that it was "free and unlimited regardless of visibility" was wrong, verified directly against the API (private user-owned repos can't get it at all short of GitHub Enterprise; only public repos get it free). **The dev made the repo public** specifically for this reason. Secret scanning + push protection are now both enabled.
+
+**GitHub setup is now fully closed out — this was the last open Phase 0 item besides Infima install and the LFS budget confirmation.**
 
 ### Not yet done (the very next steps, in order)
 1. **You:** the input-wiring C++ changes above are saved to disk but **not compiled into the running editor** — Claude Code's computer-use tooling couldn't attach to the Unreal Editor window this session (it's not resolvable as an "installed Start Menu app" by that tool, so it can't drive it). Press **Ctrl+Alt+F11** to run Live Coding, confirm no compile errors, then PIE-test: WASD movement, mouse look, gamepad look/move if you have a controller, and jump (SpaceBar).
 2. **Watch for inverted look on first playtest.** The Y-axis Negate modifiers on `IA_Look`'s gamepad-right-stick-Y mapping and `IA_MouseLook`'s mouse-Y mapping (both in `Content/ZS/Input/`) were set from best-confidence recall of Epic's stock template, not verified live. If look-up/look-down feels backwards, toggle (add/remove) the `InputModifierNegate` on that specific key mapping's modifiers array — everything else in the mapping should be correct.
 3. **You:** install the Infima Tactical FPS Animations pack via the editor's Fab window (Guide Step 1). Confirm the demo map runs. Still not done — unblocked by nothing above, just hasn't happened yet.
-4. **You:** set the Git LFS spending budget to $0 on GitHub (Settings → Billing → Spending limits) — billing-related, has to be you, not yet confirmed done.
-5. Remaining free-tier GitHub setup, **needs either `gh` CLI installed or manual web UI** (not done this session — no `gh` CLI on this machine, and these are account-level actions):
-   - Issue labels beyond GitHub's defaults (e.g. phase-tagged labels matching `Docs/CoreLoopPlan.md`).
-   - A Projects (Kanban) board.
-   - Secret scanning enablement (Settings → Code security).
-   - Issue/PR **templates are done** (see above) — only labels/Projects/secret-scanning remain.
-6. **You:** if you want GitHub-specific features from inside Rider (PR creation, issue linking), sign into your GitHub account under Rider's Settings → Version Control → GitHub — not yet confirmed done, low priority.
+4. **You:** set the Git LFS spending budget to $0 on GitHub (Settings → Billing → Spending limits) — billing-related, has to be you, not yet confirmed done. Slightly less urgent now that Actions minutes are unlimited on the now-public repo, but LFS storage/bandwidth budget is a separate cap and still applies regardless of visibility.
+5. **You:** if you want GitHub-specific features from inside Rider (PR creation, issue linking), sign into your GitHub account under Rider's Settings → Version Control → GitHub — not yet confirmed done, low priority.
+6. **Optional, not yet decided:** branch protection on `main` is now available for free (was Pro-only while private). Nobody's asked for it yet — flagging it exists, not recommending it unprompted for a solo-dev repo.
 7. Once 1–2 are confirmed working, Phase 1 is functionally done for its stated scope (`AZSGameMode`/`GameState`/`PlayerState`/`PlayerController` skeletons + working move/look/jump). Move to Phase 2 per `Docs/CoreLoopPlan.md` (camera/Infima integration) — but only after Infima is installed (item 3).
 
 ## Open decisions not yet made

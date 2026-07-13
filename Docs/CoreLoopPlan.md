@@ -19,7 +19,9 @@ From-scratch plan for a new Unreal Engine 5.8 project — a zombie multiplayer s
 - Branch protection/required reviewers/CODEOWNERS: Pro-plan-only for *private* repos, free on public.
 - GitHub Actions: 2,000 free minutes/month on private repos (unlimited on public).
 - Git LFS: 10 GiB storage + 10 GiB bandwidth per account per month, free, resettable, hard-cappable at $0 spend.
-- Issues, Projects (Kanban), templates, secret scanning: free and unlimited regardless of visibility.
+- Issues, Projects (Kanban), templates: free and unlimited regardless of visibility.
+
+**Correction, verified 2026-07-12 against the live API (not just docs):** secret scanning is **not** free/unlimited regardless of visibility — that planning-time assumption was wrong. It's free automatically on *public* repos only; for a private repo owned by a personal account it's unavailable outright (not paid-and-available, actually unavailable — `security_and_analysis` returns `null` and enabling it 422s) short of GitHub Enterprise. This is the actual reason the repo was switched from private to public.
 
 ---
 
@@ -70,13 +72,16 @@ Docs/
 - [x] `Docs/CoreLoopPlan.md` (this file) written.
 
 ### 0.5 — GitHub setup
-- [x] Repo created (private): [aaronrod3/zombieshooter](https://github.com/aaronrod3/zombieshooter).
+- [x] Repo created: [aaronrod3/zombieshooter](https://github.com/aaronrod3/zombieshooter) — **public** (switched from private 2026-07-12 so secret scanning would actually be available; see the correction above).
 - [x] `.gitignore` — done (standard UE template).
 - [x] `.gitattributes` / Git LFS — done, tracking binary asset types; **LFS spending budget still needs setting to $0 on GitHub's website — manual, billing-related, not yet confirmed**.
 - [x] Issue/PR templates — `.github/ISSUE_TEMPLATE/{bug_report,feature_request,config}` + `PULL_REQUEST_TEMPLATE.md`, added 2026-07-12.
-- [ ] Issue labels (beyond GitHub defaults), Projects (Kanban) board, secret scanning, lightweight Actions workflows — not yet done. Needs `gh` CLI (not installed on this machine) or manual GitHub web UI.
+- [x] Issue labels — `phase-0` through `phase-6` added on top of GitHub's defaults, 2026-07-12.
+- [x] Projects (Kanban) board — ["ZombieShooter Core Loop"](https://github.com/users/aaronrod3/projects/2), linked to the repo, default Todo/In Progress/Done columns, 2026-07-12.
+- [x] Secret scanning + push protection — enabled 2026-07-12 (only possible after the repo went public).
+- [ ] Lightweight Actions workflows — still not started, not blocking Phase 0 exit (explicitly out of scope per this doc's "Explicitly out of scope" section: "GitHub Actions-based engine compilation").
 
-**Phase 0 exit criteria:** empty-but-correctly-configured project, Infima demo running, `CLAUDE.md` + `SessionHandoff.md` committed, GitHub repo live with the above configured. **Blocking items left: Infima install/demo confirmation, LFS $0 budget confirmation, labels/Projects/secret-scanning.**
+**Phase 0 exit criteria:** empty-but-correctly-configured project, Infima demo running, `CLAUDE.md` + `SessionHandoff.md` committed, GitHub repo live with the above configured. **Blocking items left: Infima install/demo confirmation, LFS $0 budget confirmation.**
 
 ---
 

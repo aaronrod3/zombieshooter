@@ -101,7 +101,13 @@ Core-loop plan (see `Docs/SessionHandoff.md` for live status per phase):
 
 ## GitHub Workflow
 
-Repo: [aaronrod3/zombieshooter](https://github.com/aaronrod3/zombieshooter) (private). Free tier only — Git LFS budget and Actions spending limit both set to $0 deliberately, so usage fails safe instead of billing. Branch protection is Pro-only for private repos, so this repo relies on disciplined manual workflow (never force-push `main`, branch for features) instead of enforced protection. `gh` CLI is not installed on this machine — GitHub-web-UI-only actions (labels, Projects board, secret scanning) go through the site directly or wait for `gh` to be installed.
+Repo: [aaronrod3/zombieshooter](https://github.com/aaronrod3/zombieshooter) — **public** (changed from private 2026-07-12, specifically so secret scanning would actually be available — see note below). Free tier only — Git LFS budget and Actions spending limit both set to $0 deliberately, so usage fails safe instead of billing (Actions minutes are unlimited on public repos anyway, but the $0 cap stays as a belt-and-suspenders guard). Branch protection is now available for free (was Pro-only while private) but has **not** been enabled — would need a deliberate decision since it changes the push/merge workflow. Never force-push `main`, branch for features.
+
+`gh` CLI is installed and authenticated as `aaronrod3` (scopes: `gist`, `project`, `read:org`, `repo`, `workflow`) — installed via `winget install --id GitHub.cli` 2026-07-12. On Windows, a shell opened before the install won't see it on `PATH`; use the full path `"/c/Program Files/GitHub CLI/gh.exe"` (Git Bash) or open a fresh terminal.
+
+**Corrected 2026-07-12 — secret scanning is *not* "free and unlimited regardless of visibility"** as `Docs/CoreLoopPlan.md` originally assumed during planning. Verified directly against the GitHub API: for a private repo owned by a personal (non-Enterprise) account, `security_and_analysis` is `null` and enabling secret scanning 422s with `"Secret scanning is not available for this repository."` Per GitHub's own docs, secret scanning only runs automatically for free on **public** repos; for user-owned private repos it requires GitHub Enterprise Cloud/Server. This — not a stylistic preference — is why the repo is public. Once public, `security_and_analysis.secret_scanning` and `.secret_scanning_push_protection` became toggleable and both are now enabled.
+
+Issue labels (`phase-0` through `phase-6`, on top of GitHub's defaults) and a Projects (Kanban) board (["ZombieShooter Core Loop"](https://github.com/users/aaronrod3/projects/2), linked to the repo, default Todo/In Progress/Done columns) are both set up as of 2026-07-12.
 
 ## Reference Docs
 
