@@ -32,7 +32,7 @@ public:
 
 	AZSWeapon();
 
-	/** Assembles the receiver mesh, optional attachment parts, and grip from the config. Must be called before BeginPlay (e.g. right after SpawnActor). */
+	/** Assembles the receiver mesh, optional attachment parts, grip, starting ammo, and magazines from the config. Call right after SpawnActor - not BeginPlay, since SpawnActor invokes BeginPlay synchronously once the world has already begun play (the common case for EquipWeapon), which left this config-dependent setup unreachable when it lived in BeginPlay. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	void InitializeFromConfig(UZSWeaponConfig* Config);
 
@@ -87,8 +87,6 @@ public:
 	EZSFireMode GetCurrentFireMode() const { return CurrentFireMode; }
 
 protected:
-
-	virtual void BeginPlay() override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USkeletalMeshComponent> SK_Receiver;

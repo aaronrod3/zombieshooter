@@ -41,26 +41,16 @@ void AZSWeapon::InitializeFromConfig(UZSWeaponConfig* Config)
 	ScopeMesh = AssignNewStaticMesh(Config->SocketScope, Config->MeshScope, TEXT("ScopeMesh"));
 	FrontSightMesh = AssignNewStaticMesh(Config->SocketSightFront, Config->MeshSightFront, TEXT("FrontSightMesh"));
 	RearSightMesh = AssignNewStaticMesh(Config->SocketSightRear, Config->MeshSightRear, TEXT("RearSightMesh"));
-}
 
-void AZSWeapon::BeginPlay()
-{
-	Super::BeginPlay();
+	CurrentMagazineAmmo = Config->MagazineCapacity;
+	CurrentReserveAmmo = Config->StartingReserveAmmo;
 
-	if (!CurrentConfig)
+	if (Config->SupportedFireModes.Num() > 0)
 	{
-		return;
+		CurrentFireMode = Config->SupportedFireModes[0];
 	}
 
-	CurrentMagazineAmmo = CurrentConfig->MagazineCapacity;
-	CurrentReserveAmmo = CurrentConfig->StartingReserveAmmo;
-
-	if (CurrentConfig->SupportedFireModes.Num() > 0)
-	{
-		CurrentFireMode = CurrentConfig->SupportedFireModes[0];
-	}
-
-	if (SK_Receiver->DoesSocketExist(CurrentConfig->SocketLaserAttachment))
+	if (SK_Receiver->DoesSocketExist(Config->SocketLaserAttachment))
 	{
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.Owner = this;
@@ -68,18 +58,18 @@ void AZSWeapon::BeginPlay()
 		LaserAttachment = GetWorld()->SpawnActor<AZSLaserAttachment>(SpawnParams);
 		if (LaserAttachment)
 		{
-			LaserAttachment->AttachToComponent(SK_Receiver, FAttachmentTransformRules::SnapToTargetNotIncludingScale, CurrentConfig->SocketLaserAttachment);
-			LaserAttachment->InitializeFromConfig(CurrentConfig, SK_Receiver);
+			LaserAttachment->AttachToComponent(SK_Receiver, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Config->SocketLaserAttachment);
+			LaserAttachment->InitializeFromConfig(Config, SK_Receiver);
 		}
 	}
 
-	if (SK_Receiver->DoesSocketExist(CurrentConfig->SocketGripAttachment))
+	if (SK_Receiver->DoesSocketExist(Config->SocketGripAttachment))
 	{
 		SetGripAttachment(EZSGripAttachment::None);
 	}
 
-	MainMagazine = SpawnMagazine(CurrentConfig->SocketMagazineAttachment);
-	ReserveMagazine = SpawnMagazine(CurrentConfig->SocketMagazineReserveAttachment);
+	MainMagazine = SpawnMagazine(Config->SocketMagazineAttachment);
+	ReserveMagazine = SpawnMagazine(Config->SocketMagazineReserveAttachment);
 	SetMagazineVisibility(false, true);
 }
 
