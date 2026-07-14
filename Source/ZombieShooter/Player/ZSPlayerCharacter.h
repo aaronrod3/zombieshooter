@@ -161,7 +161,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	void EquipWeapon(UZSWeaponConfig* Config);
 
-	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon", meta = (BlueprintThreadSafe))
 	AZSWeapon* GetCurrentWeapon() const { return CurrentWeapon; }
 
 protected:
@@ -199,6 +199,19 @@ protected:
 
 	void UpdateThirdPersonCameraTick(float DeltaTime);
 	void UpdateAimFOV(float DeltaTime);
+
+	/** Keeps FirstPersonMesh camera-locked every frame: the capsule itself never rotates
+	 *  (bUseControllerRotationYaw/bOrientRotationToMovement are both false - see constructor),
+	 *  so nothing else makes the FP arms track look input. TP's CharacterMesh0 deliberately
+	 *  stays capsule-driven (frozen) for now - real TP locomotion/rotation behavior is Phase 6
+	 *  scope, not decided yet. */
+	void UpdateFirstPersonMeshRotation();
+
+	/** FirstPersonMesh's authored rest orientation relative to the capsule, cached once at
+	 *  BeginPlay - preserves whatever baseline the mesh is set up with (e.g. a corrective yaw
+	 *  offset from a skeleton/mesh authoring mismatch) as a constant added on top of live
+	 *  ControlRotation each frame, rather than overwriting it. */
+	FRotator FirstPersonMeshRestRotation;
 
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Camera")
 	EZSCameraPerspective CurrentCameraPerspective = EZSCameraPerspective::FirstPerson;

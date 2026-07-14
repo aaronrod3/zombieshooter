@@ -31,9 +31,14 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	// Configure character movement
-	GetCharacterMovement()->bOrientRotationToMovement = true;
-	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
+	// Configure character movement. bOrientRotationToMovement stays false (unlike the stock
+	// Third Person template default) - FirstPersonCamera is rigidly socket-attached to
+	// FirstPersonMesh, which is capsule-attached, so any capsule rotation directly drags the FP
+	// view with it. DoMove() already resolves movement input relative to ControlRotation, so
+	// turning the capsule to face net movement direction on top of that only fights the camera:
+	// pure strafing produces a movement vector 90 degrees off camera-forward, so the capsule (and
+	// FP arms) would visibly snap toward that 90-degree-off facing instead of staying camera-locked.
+	GetCharacterMovement()->bOrientRotationToMovement = false;
 
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
@@ -122,6 +127,7 @@ void AZSPlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	BaseWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+	FirstPersonMeshRestRotation = FirstPersonMesh->GetRelativeRotation();
 
 	ApplyCameraPerspective(CurrentCameraPerspective);
 
@@ -137,6 +143,7 @@ void AZSPlayerCharacter::Tick(float DeltaSeconds)
 
 	UpdateThirdPersonCameraTick(DeltaSeconds);
 	UpdateAimFOV(DeltaSeconds);
+	UpdateFirstPersonMeshRotation();
 
 	UpdateSpringOffset(CurrentCrouchOffset, TargetCrouchOffset, CrouchTranslationSpringState, CrouchRotationSpringState, CrouchSpringConfig, DeltaSeconds);
 	UpdateSpringOffset(CurrentAimDownSightsOffset, TargetAimDownSightsOffset, AimTranslationSpringState, AimRotationSpringState, AimDownSightsSpringConfig, DeltaSeconds);
@@ -439,6 +446,17 @@ void AZSPlayerCharacter::UpdateAimFOV(float DeltaTime)
 
 	const float TargetFOV = bIsAiming ? AimedFOV : DefaultFOV;
 	FirstPersonCamera->SetFieldOfView(FMath::FInterpTo(FirstPersonCamera->FieldOfView, TargetFOV, DeltaTime, FOVInterpSpeed));
+}
+
+void AZSPlayerCharacter::UpdateFirstPersonMeshRotation()
+{
+	if (!Controller)
+	{
+		return;
+	}
+
+	const float ControlYaw = Controller->GetControlRotation().Yaw;
+	FirstPersonMesh->SetWorldRotation(FRotator(FirstPersonMeshRestRotation.Pitch, ControlYaw + FirstPersonMeshRestRotation.Yaw, FirstPersonMeshRestRotation.Roll));
 }
 
 // =====================================================================

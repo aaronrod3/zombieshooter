@@ -74,7 +74,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void CycleFireMode();
 
-	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon", meta = (BlueprintThreadSafe))
 	UZSWeaponConfig* GetConfig() const { return CurrentConfig; }
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")

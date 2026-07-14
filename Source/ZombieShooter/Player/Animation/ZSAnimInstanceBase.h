@@ -31,6 +31,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Animation")
 	virtual void UpdateLeftHandGrip(bool bNewIsLeftHandOnWeapon, float BlendSpeed);
 
+	/** BlueprintThreadSafe getter, not a raw BlueprintReadOnly property - AnimGraph fast-path nodes (e.g. BlendspacePlayer's BlendSpace pin) warn on thread-unsafe object-pointer access otherwise. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Animation", meta = (BlueprintThreadSafe))
+	AZSPlayerCharacter* GetCharacterOwner() const { return CharacterOwner; }
+
 protected:
 
 	virtual void NativeInitializeAnimation() override;
@@ -41,7 +45,7 @@ protected:
 
 	void UpdateGripAlpha(float DeltaSeconds);
 
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
+	UPROPERTY()
 	TObjectPtr<AZSPlayerCharacter> CharacterOwner;
 
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
