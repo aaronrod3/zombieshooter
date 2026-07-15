@@ -229,6 +229,60 @@ Once the locomotion base pose above was actually visible in PIE for the first ti
 
 **Recompiled and PIE-verified successful** — FP arms now track camera look correctly both stationary and while moving, TP body stays independent as decided, no more directional pose bugs.
 
+### M8 build — FP mesh-space additive stack (Guide 06 stage 2), verified against Infima's own reference graph (session 5, 2026-07-14)
+
+Rather than guess at the implementation shape, read Infima's real `ABP_TFA_FP_BaseCharacter` AnimGraph directly (read-only, per `CLAUDE.md`'s off-limits rule) to confirm the actual pattern before building:
+
+- **All three offsets (Recoil, ADS, Crouch) are `Transform (Modify) Bone` nodes targeting the same bone: `ik_hand_gun`** — the exact IK effector bone FABRIK uses downstream (Guide 06 stage 3, not yet built). Confirmed `ik_hand_gun` exists on our own `SKM_FP_Manny_Simple` via `SkeletalMeshTools.get_bone_names`, not assumed just because it's the same skeleton family.
+- **Exact node settings read off Infima's real nodes, not guessed:** `translationMode`/`rotationMode = BMM_Additive`, `scaleMode = BMM_Ignore` (scale is never touched — matches that this project's `RecoilTransform`/`AimDownSightsTransform`/`CrouchTransform` never modify scale either), `translationSpace`/`rotationSpace = BCS_ComponentSpace`, `alpha = 1` (always fully applied; any smoothing happens upstream in the spring-interpolated transform values themselves, not at this node).
+- **Chained in sequence** (Recoil → ADS → Crouch, matching the guide's own stated order), each fed by this project's own `RecoilTransform`/`AimDownSightsTransform`/`CrouchTransform` (`UZSAnimInstanceBase`/`UZSFirstPersonAnimInstance` fields, same names as Infima's by design) via a `Get` + `Math|Transform|BreakTransform` pair — no dedicated "split struct pin" tool exists in this MCP toolset (checked; only `break_pins`, which disconnects wires, not the same operation Infima's single-node display suggested), so this is 2 nodes per transform instead of Infima's 1, functionally identical.
+- **Full pipeline:** `BlendspacePlayer.Pose → LocalToComponent → ModifyBone(Recoil) → ModifyBone(ADS) → ModifyBone(Crouch) → ComponentToLocal → OutputPose.Result`, replacing the direct locomotion→root connection from the previous stage. `connect_pins` correctly replaced the old input connection automatically, no explicit `break_pins` call needed.
+
+Compiled clean (only the same benign preview-time "Accessed None" noise as previous stages, no fatal errors), verified via full readback that all ~17 nodes and every connection survived, saved (`is_dirty == false`).
+
+**PIE-verified working** — recoil/ADS both produce visible reaction (ADS subtle by design — precise sight alignment, not a big pose change); crouch produces no visible change, confirmed correct rather than a bug: `DA_ZS_WeaponConfig_AssaultRifle.OffsetCrouch` is genuinely tiny `(1.5, -2, -1.5)` cm / `-4.3°` pitch (checked live via MCP, not assumed) — the *big* visible crouch motion is the character's capsule crouch system (unrelated to this AnimGraph work), and the actual crouched *arm pose* still needs `FP_Transition_CrouchStart`/`End` (separate `BlendSpace1D` assets) plus a stance-based locomotion swap, neither built yet.
+
+### M8 build — FP hand IK / FABRIK (Guide 06 stage 3), verified against Infima's reference graph (session 5, 2026-07-14)
+
+Same verify-before-build approach as stage 2:
+
+- **`Fabrik_0`/`Fabrik_1` in Infima's reference graph have their `EffectorTransform` *pin* unconnected** (literal identity value) — the actual IK target comes from `effectorTarget.boneReference` (a bone-name property, not a data pin) combined with `effectorTransformSpace = BCS_BoneSpace`, meaning FABRIK reads the *current pose position* of a named bone as its goal, live, every frame.
+- **That target bone is `ik_hand_r`/`ik_hand_l`, not `ik_hand_gun`** (the bone stage 2's `ModifyBone` chain actually offsets) — resolved via `get_bone_parent`: `ik_hand_r` and `ik_hand_l` are both direct children of `ik_hand_gun` in the skeleton. Stage 2's additive offsets on `ik_hand_gun` propagate to both automatically through normal parent-child bone inheritance — no explicit copy/bridge node needed, confirmed via the skeleton hierarchy rather than assumed.
+- **Exact settings copied from Infima's real nodes:** right arm (`tipBone=hand_r`, `rootBone=clavicle_r`, target=`ik_hand_r`), left arm (`tipBone=hand_l`, `rootBone=clavicle_l`, target=`ik_hand_l`), both `precision=0.01`, `maxIterations=10`, `effectorRotationSource=BRS_CopyFromTarget`, `alpha=1`.
+- **Simplified the pipeline vs. Infima's actual production graph on purpose:** their real graph round-trips through local space and back between the additive stack and FABRIK (`ComponentToLocalSpace_1` → ... → `LocalToComponentSpace_1`), but that gap is filled with grip-state-machine/stance content this project hasn't built yet — not a requirement of the additive→IK relationship itself. This project's graph stays in component space continuously from the additive stack straight into FABRIK (`ModifyBone(Crouch) → Fabrik(left) → Fabrik(right) → ComponentToLocal → OutputPose`), which is simpler and matches the guide's own textual summary ("Convert to component space, run FABRIK") more directly.
+
+Compiled clean, full chain verified via readback, saved (`is_dirty == false`). **PIE-verified working.**
+
+### M8 build — FP camera/head toggle (Guide 06 stage 4), a real polarity bug caught by cross-referencing (session 5, 2026-07-14)
+
+**Completes Guide 06's evaluation order — `ABP_ZS_FirstPerson`'s baseline AnimGraph is now fully built.** Same verify-before-build approach:
+
+- **`LayeredBoneBlend` (`BranchFilter` mode, single filter on the `head` bone, `blendDepth=0`) sits directly between the additive/FABRIK chain's output and `Output Pose`** — exact same insertion point in Infima's real graph as in ours. `BasePose` = the FABRIK chain's result, `BlendPoses_0` = a `LocalSpaceRefPose` node (the skeleton's bind/reference pose), `BlendWeights_0` = a float driven by `bAnimateCamera`.
+- **Caught a real, verified polarity discrepancy — did not blindly copy Infima's wiring.** Infima's graph feeds `BlendWeights_0 = ToFloat(bAnimateCamera)` directly, no inversion. But this project's own `bAnimateCamera` (set in `AZSPlayerCharacter::ApplyCameraPerspective`, checked directly in `ZSPlayerCharacter.cpp`) is `true` for FirstPerson/ThirdPerson and `false` for GunCamera/Bodycam — the opposite semantic of whatever Infima's own internal variable of the same name represents in their demo. Following the guide's own text (weight `0` = keep base-pose head motion, weight `1` = force reference pose) combined with this project's actual perspective semantics (GunCamera/Bodycam are reattached, stable views that shouldn't jiggle with head-bone motion), the correct wiring is `BlendWeights_0 = ToFloat(!bAnimateCamera)` — inverted from Infima's literal graph. Built with an explicit `NOTBoolean` node between `GetAnimateCamera` and `ToFloat(Boolean)`. **Worth flagging for `ABP_ZS_ThirdPerson`'s own eventual head/camera handling (if any) — don't assume Infima's raw wiring polarity carries over; re-derive from this project's actual semantics each time.**
+
+Compiled clean, full chain verified via readback (`LayeredBoneBlend` correctly sits between `ComponentToLocalSpace` and `Output Pose`, `BlendWeights_0` fed by the `NOT`→`ToFloat` chain), saved (`is_dirty == false`). **PIE-verified working** — this stage itself introduced no regressions.
+
+### Weapon disappears on returning to FirstPerson after a full camera cycle — real bug, found and fixed (session 5, 2026-07-14)
+
+Dev reported: after a full `V`-cycle (FirstPerson → ThirdPerson → GunCamera → Bodycam → FirstPerson), the weapon is **completely invisible** back in FirstPerson. Confirmed via `AskUserQuestion` this was full invisibility, not mispositioning, before investigating — ruled out a stale-pose/`VisibilityBasedAnimTickOption` theory this way (`FirstPersonMesh`'s setting is `AlwaysTickPoseAndRefreshBones`, checked live, not the cause).
+
+Attempted live reproduction via MCP (`StartPIE`, then drive camera cycling and inspect `CurrentWeapon` state directly) but hit real tooling friction: the PIE viewport isn't cleanly exposed as a clickable ref in `SlateInspectorToolset`'s accessibility tree (extensive exploration, no luck), and the fallback `ke <actor> <function>` console-command approach resolved to an **ambiguous, wrong actor instance** — multiple `BP_ZS_PlayerCharacter_C_0`-named objects exist across different transient worlds (almost certainly stray preview-world instances from the `ABP_ZS_FirstPerson`/`BP_ZS_PlayerCharacter` asset editor tabs being open simultaneously), and the log confirmed the call landed on the wrong one. Abandoned live repro and went back to static analysis instead.
+
+**Root cause, found via careful re-reading of `ApplyCameraPerspective`'s actual execution order:**
+```cpp
+void AZSPlayerCharacter::ApplyCameraPerspective(EZSCameraPerspective NewPerspective)
+{
+    CurrentCameraPerspective = NewPerspective;
+    switch (NewPerspective) { case FirstPerson: EnableFirstPersonPerspective(); break; ... }
+    AttachWeaponToActiveMesh();  // <-- runs AFTER the Enable*Perspective() call
+}
+```
+`EnableFirstPersonPerspective()` calls `GetMesh()->SetVisibility(false, true)` — `bPropagateToChildren=true` pushes `hidden` onto whatever is *currently* attached to `GetMesh()` at that instant, which is still `CurrentWeapon` (attached there during the outgoing TP/GunCamera/Bodycam perspective). Unreal's cross-actor `SetVisibility` propagation is a one-time push at call time, not a persistent binding — so when `AttachWeaponToActiveMesh()` runs *afterward* and re-parents the weapon onto the now-visible `FirstPersonMesh`, nothing re-asserts its visibility. It stays hidden from the earlier propagation. This only manifests on the specific transition *back into* FirstPerson (the only case where the weapon gets hidden by the outgoing mesh right before reattaching) — never seen earlier this session because every prior test stayed in FirstPerson the whole time (the default spawn perspective), and never caught in session 4's own camera-cycle test because that verified FOV/camera-attachment state, not weapon visibility specifically.
+
+**First fix attempt was wrong and didn't resolve it — dev recompiled and retested, weapon still invisible.** Root cause of the *fix* failing: `SetActorHiddenInGame()` and `SetVisibility()` toggle two genuinely different properties. The bug's actual mechanism is `GetMesh()->SetVisibility(false, true)` propagating `USceneComponent::bVisible = false` onto the weapon's attached root component. `AActor::SetActorHiddenInGame(false)` only resets `bHidden`/`bHiddenInGame` — a completely separate flag it never touches `bVisible` at all, so the weapon stayed invisible despite the "fix."
+
+**Corrected fix:** `AttachWeaponToActiveMesh()` now calls `CurrentWeapon->GetRootComponent()->SetVisibility(true, true)` after re-attaching — the same property (`bVisible`, propagated) that the bug actually changed, not the actor-level `bHidden` flag. **PIE-verified working** — full 4-perspective cycle back to FirstPerson now shows the weapon correctly.
+
 ---
 
 ## Phase 3 — Multiplayer-Enabling the Character/Weapon Systems

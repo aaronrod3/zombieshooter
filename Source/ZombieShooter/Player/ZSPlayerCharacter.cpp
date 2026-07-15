@@ -423,6 +423,18 @@ void AZSPlayerCharacter::AttachWeaponToActiveMesh()
 
 	USkeletalMeshComponent* ActiveMesh = (CurrentCameraPerspective == EZSCameraPerspective::FirstPerson) ? FirstPersonMesh.Get() : GetMesh();
 	CurrentWeapon->AttachToComponent(ActiveMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, CurrentWeapon->GetConfig()->SocketGunAttachment);
+
+	// The Enable*Perspective() functions run before this (see ApplyCameraPerspective) and call
+	// SetVisibility(..., true) on the outgoing mesh, which propagates bVisible=false to whatever
+	// is still attached to it at that moment - including the weapon, since it hasn't been
+	// re-parented yet. Re-attaching above doesn't retroactively restore bVisible, so it must be
+	// explicitly reasserted here. SetActorHiddenInGame() is NOT the inverse of this - it toggles
+	// the separate bHidden/bHiddenInGame flag, not bVisible - so it must go through the root
+	// component's own SetVisibility, matching the property that was actually changed.
+	if (USceneComponent* WeaponRoot = CurrentWeapon->GetRootComponent())
+	{
+		WeaponRoot->SetVisibility(true, true);
+	}
 }
 
 void AZSPlayerCharacter::UpdateThirdPersonCameraTick(float DeltaTime)

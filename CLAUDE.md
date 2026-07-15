@@ -114,4 +114,5 @@ Issue labels (`phase-0` through `phase-6`, on top of GitHub's defaults) and a Pr
 
 - `Docs/Infima Pack - Official Implementation Guide/` — the animation/weapon reference, described above.
 - `Docs/SessionHandoff.md` — current phase status, next concrete step, open decisions. **Read this before starting any new session's work.**
+- `Docs/TuningReference.md` — every gameplay-feel tunable (camera FOV, springs, per-weapon config, AnimGraph node settings) and exactly where to change it. Update it whenever a new system introduces a numeric tunable worth exposing.
 - Unreal Engine 5.8 official docs: https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-documentation
