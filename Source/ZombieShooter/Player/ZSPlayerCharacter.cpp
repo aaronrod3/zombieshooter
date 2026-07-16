@@ -14,6 +14,7 @@
 #include "InputAction.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Animation/AnimInstance.h"
 #include "ZSWeapon.h"
 #include "ZombieShooter.h"
 
@@ -617,8 +618,11 @@ void AZSPlayerCharacter::Fire_Implementation()
 	CurrentWeapon->ConsumeAmmoRound();
 	AddRecoil();
 
-	// Cosmetic fire montage playback (FP_FireSemi/FP_FireAuto/TP_Fire) is driven by the AnimBP
-	// layer (Phase 2 M8), not from here.
+	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	{
+		UAnimMontage* FPFireMontage = CurrentWeapon->GetCurrentFireMode() == EZSFireMode::Auto ? Config->FP_FireAuto : Config->FP_FireSemi;
+		PlayActionMontages(FPFireMontage, Config->TP_Fire);
+	}
 }
 
 void AZSPlayerCharacter::AddRecoil()
@@ -638,6 +642,44 @@ void AZSPlayerCharacter::AddRecoil()
 	TargetRecoil.SetRotation(FRotator(Pitch, Yaw, 0.f).Quaternion());
 }
 
+void AZSPlayerCharacter::PlayActionMontages(UAnimMontage* FPMontage, UAnimMontage* TPMontage, bool bClearsBusyOnEnd)
+{
+	if (FPMontage)
+	{
+		if (UAnimInstance* FPAnimInstance = FirstPersonMesh->GetAnimInstance())
+		{
+			FPAnimInstance->Montage_Play(FPMontage);
+
+			if (bClearsBusyOnEnd)
+			{
+				FOnMontageEnded EndDelegate;
+				EndDelegate.BindUFunction(this, FName("OnActionMontageEnded"));
+				FPAnimInstance->Montage_SetEndDelegate(EndDelegate, FPMontage);
+			}
+		}
+	}
+
+	if (TPMontage)
+	{
+		if (UAnimInstance* TPAnimInstance = GetMesh()->GetAnimInstance())
+		{
+			TPAnimInstance->Montage_Play(TPMontage);
+
+			if (bClearsBusyOnEnd)
+			{
+				FOnMontageEnded EndDelegate;
+				EndDelegate.BindUFunction(this, FName("OnActionMontageEnded"));
+				TPAnimInstance->Montage_SetEndDelegate(EndDelegate, TPMontage);
+			}
+		}
+	}
+}
+
+void AZSPlayerCharacter::OnActionMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	SetBusy(false);
+}
+
 bool AZSPlayerCharacter::CanReload() const
 {
 	return !bIsBusy && CurrentWeapon && CurrentWeapon->CanReload();
@@ -650,10 +692,15 @@ void AZSPlayerCharacter::StartReload_Implementation()
 		return;
 	}
 
-	// bIsBusy is cleared by UAN_ZS_UnlockActions once the (Phase 2 M8) reload montage finishes -
-	// it will stay stuck true if called before that content exists, which is expected until M8.
+	// bIsBusy is cleared by OnActionMontageEnded (see PlayActionMontages) as a fallback until
+	// UAN_ZS_UnlockActions is placed on a real montage frame (Phase 2 M9, not started).
 	SetBusy(true);
 	CurrentWeapon->PerformReload();
+
+	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	{
+		PlayActionMontages(Config->FP_Reload, Config->TP_Reload, /*bClearsBusyOnEnd=*/true);
+	}
 }
 
 void AZSPlayerCharacter::Inspect_Implementation()
@@ -663,8 +710,13 @@ void AZSPlayerCharacter::Inspect_Implementation()
 		return;
 	}
 
-	// See StartReload's comment - bIsBusy is only cleared by a real notify once M8's AnimBPs exist.
+	// See StartReload's comment.
 	SetBusy(true);
+
+	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	{
+		PlayActionMontages(Config->FP_Inspect, Config->TP_Inspect, /*bClearsBusyOnEnd=*/true);
+	}
 }
 
 void AZSPlayerCharacter::MagCheck_Implementation()
@@ -674,8 +726,13 @@ void AZSPlayerCharacter::MagCheck_Implementation()
 		return;
 	}
 
-	// See StartReload's comment - bIsBusy is only cleared by a real notify once M8's AnimBPs exist.
+	// See StartReload's comment.
 	SetBusy(true);
+
+	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	{
+		PlayActionMontages(Config->FP_MagCheck, Config->TP_MagCheck, /*bClearsBusyOnEnd=*/true);
+	}
 }
 
 void AZSPlayerCharacter::CycleFireMode_Implementation()

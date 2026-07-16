@@ -16,6 +16,7 @@ class UCameraComponent;
 class USkeletalMeshComponent;
 class UInputAction;
 class AZSWeapon;
+class UAnimMontage;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -441,6 +442,14 @@ protected:
 	void Fire();
 
 	void AddRecoil();
+
+	/** Plays FPMontage on FirstPersonMesh and TPMontage on GetMesh() (both meshes exist simultaneously regardless of current camera perspective - see class comment), so the correct animation is already playing no matter which view is active. Either montage may be null (a weapon config with that field unset just skips it).
+	 *  bClearsBusyOnEnd: pass true for actions that set bIsBusy (Reload/Inspect/MagCheck) - registers OnActionMontageEnded as a resilience fallback per Guide 08's own troubleshooting note (a notify's End isn't guaranteed to fire on interruption/section-jump/early blend-out), independent of the real UAN_ZS_UnlockActions notify placement (Phase 2 M9, not started). */
+	void PlayActionMontages(UAnimMontage* FPMontage, UAnimMontage* TPMontage, bool bClearsBusyOnEnd = false);
+
+	/** Bound via Montage_SetEndDelegate when PlayActionMontages is called with bClearsBusyOnEnd - see that function's comment. */
+	UFUNCTION()
+	void OnActionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	FTimerHandle AutoFireTimerHandle;
 };
