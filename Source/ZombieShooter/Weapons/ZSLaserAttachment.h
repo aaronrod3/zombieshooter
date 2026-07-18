@@ -30,6 +30,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Laser Attachment")
 	void InitializeFromConfig(UZSWeaponConfig* Config, USkeletalMeshComponent* InReceiverMesh);
 
+	/** Marks LaserBodyMesh/LaserBeamMesh SetOwnerNoSee - see AZSWeapon::SetHiddenFromOwner. Does NOT
+	 *  cover LaserLight: UPointLightComponent derives from ULightComponentBase, not
+	 *  UPrimitiveComponent, so SetOwnerNoSee isn't available on it - a small, accepted residual gap
+	 *  (the light itself may still be visible to the owner in FirstPerson view, without its body/beam
+	 *  meshes). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Laser Attachment")
+	void SetHiddenFromOwner(bool bHideFromOwner);
+
 protected:
 
 	virtual void Tick(float DeltaTime) override;

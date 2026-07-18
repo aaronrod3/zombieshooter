@@ -17,9 +17,15 @@ class USkeletalMeshComponent;
 class UInputAction;
 class AZSWeapon;
 class UAnimMontage;
+class UAnimNotify;
+class UAnimNotifyState;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
+
+/** Broadcast by every Phase 3 OnRep_X on this class - lets Blueprint/UI/AnimGraph bind to state changes instead of polling, per CLAUDE.md's replication convention. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnBoolStateChanged, bool, bNewValue);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnWeaponChanged, AZSWeapon*, NewWeapon);
 
 /**
  *  The player-controlled character for ZombieShooter.
@@ -113,6 +119,9 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Phase 3: server-authoritative state replicated to all clients - see CoreLoopPlan.md's Phase 3 state classification. */
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -158,12 +167,18 @@ public:
 
 public:
 
-	/** Spawns and initializes an AZSWeapon from Config, attaching it to the currently active mesh. */
+	/** Spawns and initializes an AZSWeapon from Config, attaching it to the currently active mesh. Server-only (Phase 3) - gated by HasAuthority(), replicates to clients via CurrentWeapon/AZSWeapon::CurrentConfig. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	void EquipWeapon(UZSWeaponConfig* Config);
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon", meta = (BlueprintThreadSafe))
 	AZSWeapon* GetCurrentWeapon() const { return CurrentWeapon; }
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Weapon")
+	FZSOnWeaponChanged OnWeaponChanged;
+
+	/** Assigns FirstPersonMesh/GetMesh() from CurrentWeapon->GetConfig() - the client-side counterpart to EquipWeapon's body-mesh assignment, since EquipWeapon itself only ever runs on the server now. Called from OnRep_CurrentWeapon and (cross-class, hence public) from AZSWeapon::OnRep_CurrentConfig. */
+	void RefreshBodyMeshesFromWeapon();
 
 protected:
 
@@ -171,8 +186,25 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Weapon")
 	TObjectPtr<UZSWeaponConfig> StartingWeaponConfig;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "ZS|Weapon")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentWeapon, Category = "ZS|Weapon")
 	TObjectPtr<AZSWeapon> CurrentWeapon;
+
+	UFUNCTION()
+	void OnRep_CurrentWeapon();
+
+	/** Phase 3: a second, purely cosmetic AZSWeapon instance, never replicated, spawned locally by
+	 *  EVERY machine (including the server for its own view) and attached to FirstPersonMesh.
+	 *  Exists because CurrentWeapon (the real, replicated weapon) can no longer be re-parented onto
+	 *  FirstPersonMesh at all - see AttachWeaponToActiveMesh's comment. Owner-only-visible, shown
+	 *  only in FirstPerson view (see Enable*Perspective). Spawned/refreshed alongside
+	 *  RefreshBodyMeshesFromWeapon; kept in sync with CurrentWeapon's grip via OnGripChanged. */
+	UPROPERTY()
+	TObjectPtr<AZSWeapon> FirstPersonWeaponVisual;
+
+	void RefreshFirstPersonWeaponVisual();
+
+	UFUNCTION()
+	void OnRealWeaponGripChanged(EZSGripAttachment NewGrip);
 
 	// =====================================================================
 	// Phase 2 - Camera / Perspective
@@ -187,6 +219,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Camera")
 	EZSCameraPerspective GetCameraPerspective() const { return CurrentCameraPerspective; }
 
+	/** Attaches CurrentWeapon to GetMesh() (TP body) at Config->SocketGunAttachment - always, regardless of perspective or which machine calls it. NOT perspective-dependent (Phase 3 fix): CurrentWeapon is a replicated actor, and actor attachment (AttachParent/AttachSocket) is itself replicated engine state pushed from the server to every client - re-parenting it onto FirstPersonMesh for the owner's own FirstPerson view would push that same attachment onto every OTHER client too, where FirstPersonMesh is SetOnlyOwnerSee(true) and effectively unposed (found live in 2-client PIE testing: the weapon rendered floating at a stale socket position on the other client). FirstPersonWeaponVisual (a second, never-replicated AZSWeapon spawned locally per-machine) is what actually renders in FirstPerson view now - see its own comment. Public (cross-class): also called from AZSWeapon::OnRep_CurrentConfig, since CurrentWeapon and AZSWeapon::CurrentConfig can replicate to a client in either order - both OnReps call this and RefreshBodyMeshesFromWeapon redundantly so whichever arrives second completes the setup. */
+	void AttachWeaponToActiveMesh();
+
 protected:
 
 	void ApplyCameraPerspective(EZSCameraPerspective NewPerspective);
@@ -194,9 +229,6 @@ protected:
 	void EnableThirdPersonPerspective();
 	void EnableGunCameraPerspective();
 	void EnableBodycamPerspective();
-
-	/** Re-attaches CurrentWeapon to whichever mesh is active for the current perspective, at Config->SocketGunAttachment. */
-	void AttachWeaponToActiveMesh();
 
 	void UpdateThirdPersonCameraTick(float DeltaTime);
 	void UpdateAimFOV(float DeltaTime);
@@ -340,27 +372,51 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Procedural Offsets")
 	FTransform GetCrouchTransform() const { return CurrentCrouchOffset; }
 
-	/** Single mutation point for bIsBusy - see CoreLoopPlan.md's Phase 3 replication-readiness note; every function that would set the flag calls this instead of touching it directly. */
+	/** Single mutation point for bIsBusy - server-authoritative (Phase 3): no-ops off HasAuthority(), then manually re-broadcasts OnRep_IsBusy since OnRep never fires on the authoring machine itself. Every function that would set the flag calls this instead of touching it directly. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Action State")
-	void SetBusy(bool bNewBusy) { bIsBusy = bNewBusy; }
+	void SetBusy(bool bNewBusy);
 
-	/** Single mutation point for bIsAimingBlocked - called by UANS_ZS_BlockADS. */
+	/** Single mutation point for bIsAimingBlocked - called by UANS_ZS_BlockADS. Server-authoritative (Phase 3), same pattern as SetBusy. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Action State")
 	void SetAimingBlocked(bool bNewAimingBlocked);
 
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Action State")
+	FZSOnBoolStateChanged OnBusyChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Action State")
+	FZSOnBoolStateChanged OnAimingBlockedChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Combat")
+	FZSOnBoolStateChanged OnAimingChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Movement")
+	FZSOnBoolStateChanged OnSprintingChanged;
+
 protected:
 
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Action State")
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_IsBusy, Category = "ZS|Action State")
 	bool bIsBusy = false;
 
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Action State")
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_IsAimingBlocked, Category = "ZS|Action State")
 	bool bIsAimingBlocked = false;
 
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Action State")
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_IsAiming, Category = "ZS|Action State")
 	bool bIsAiming = false;
 
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Action State")
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_IsSprinting, Category = "ZS|Action State")
 	bool bIsSprinting = false;
+
+	UFUNCTION()
+	void OnRep_IsBusy();
+
+	UFUNCTION()
+	void OnRep_IsAimingBlocked();
+
+	UFUNCTION()
+	void OnRep_IsAiming();
+
+	UFUNCTION()
+	void OnRep_IsSprinting();
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Movement")
 	float SprintSpeedMultiplier = 1.6f;
@@ -385,6 +441,13 @@ public:
 
 protected:
 
+	/** MaxWalkSpeed isn't one of UCharacterMovementComponent's auto-replicated fields (unlike bIsCrouched) - these are the only writers of bIsSprinting; OnRep_IsSprinting applies MaxWalkSpeed identically on every machine including the server itself. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Movement")
+	void Server_StartSprint();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Movement")
+	void Server_StopSprint();
+
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 
@@ -401,9 +464,18 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void StopAim();
 
-	/** Force-stops aiming without checking CanAim - called by UANS_ZS_BlockADS::NotifyBegin. Not a BlueprintNativeEvent: this is a system-triggered safety cutoff, not a player-facing gameplay action. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_StartAim();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_StopAim();
+
+	/** Force-stops aiming without checking CanAim - called by UANS_ZS_BlockADS::NotifyBegin, which fires on whichever machine is rendering that notify. Not a BlueprintNativeEvent: this is a system-triggered safety cutoff, not a player-facing gameplay action. The cosmetic offset reset runs unconditionally on every machine; the authoritative bIsAiming write is routed through Server_ForceStopAiming (a no-op on machines that aren't this character's owning connection or the server, per normal Server RPC routing). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
 	void ForceStopAiming();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_ForceStopAiming();
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
 	bool CanAim() const;
@@ -441,15 +513,52 @@ protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void Fire();
 
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_Fire();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_StartReload();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_Inspect();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_MagCheck();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_CycleFireMode();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_CycleGripAttachment();
+
+	/** Cosmetic TP montage broadcast - runs on the server and every client (including the owning client, whose FP view already played its own local copy immediately from X_Implementation - see PlayActionMontages). */
+	UFUNCTION(NetMulticast, Reliable, Category = "ZS|Combat")
+	void Multicast_PlayTPActionMontage(UAnimMontage* TPMontage);
+
 	void AddRecoil();
 
-	/** Plays FPMontage on FirstPersonMesh and TPMontage on GetMesh() (both meshes exist simultaneously regardless of current camera perspective - see class comment), so the correct animation is already playing no matter which view is active. Either montage may be null (a weapon config with that field unset just skips it).
-	 *  bClearsBusyOnEnd: pass true for actions that set bIsBusy (Reload/Inspect/MagCheck) - registers OnActionMontageEnded as a resilience fallback per Guide 08's own troubleshooting note (a notify's End isn't guaranteed to fire on interruption/section-jump/early blend-out), independent of the real UAN_ZS_UnlockActions notify placement (Phase 2 M9, not started). */
-	void PlayActionMontages(UAnimMontage* FPMontage, UAnimMontage* TPMontage, bool bClearsBusyOnEnd = false);
+	/** Plays FPMontage on FirstPersonMesh and TPMontage on GetMesh() (both meshes exist simultaneously regardless of current camera perspective - see class comment), so the correct animation is already playing no matter which view is active. Either montage may be null (a weapon config with that field unset just skips it). */
+	void PlayActionMontages(UAnimMontage* FPMontage, UAnimMontage* TPMontage);
 
-	/** Bound via Montage_SetEndDelegate when PlayActionMontages is called with bClearsBusyOnEnd - see that function's comment. */
-	UFUNCTION()
-	void OnActionMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	/** Shared by Server_StartReload/Server_Inspect/Server_MagCheck (Phase 3 M6): sets bIsBusy=true,
+	 *  then schedules its authoritative clear at the real UAN_ZS_UnlockActions notify's trigger
+	 *  time read directly off TPMontage's Notifies array (falls back to the montage's full
+	 *  GetPlayLength() if that notify isn't placed on it yet - never leaves bIsBusy stuck).
+	 *  Also schedules the ANS_ZS_BlockADS aim-block window the same way, independently - if that
+	 *  notify state isn't found, no window is scheduled at all (fails open; aim just isn't
+	 *  blocked, unlike the busy fallback which must fail closed to avoid a permanent softlock).
+	 *  TPMontage is canonical (the one actually multicast) - Phase 2 M9 confirmed FP/TP durations
+	 *  already match for all three existing actions. */
+	void BeginBusyAction(UAnimMontage* TPMontage);
+
+	/** Walks Montage->Notifies for a one-shot UAnimNotify of NotifyClass, returning its authored trigger time. Reads authored placement data off the asset directly - unrelated to whether anything is actually playing/ticking the montage right now. */
+	static bool FindNotifyTriggerTime(const UAnimMontage* Montage, TSubclassOf<UAnimNotify> NotifyClass, float& OutTriggerTime);
+
+	/** Same as FindNotifyTriggerTime but for a UAnimNotifyState's Begin/Duration window. */
+	static bool FindNotifyStateWindow(const UAnimMontage* Montage, TSubclassOf<UAnimNotifyState> NotifyStateClass, float& OutBeginTime, float& OutDuration);
 
 	FTimerHandle AutoFireTimerHandle;
+	FTimerHandle BusyClearTimerHandle;
+	FTimerHandle AimBlockBeginTimerHandle;
+	FTimerHandle AimBlockEndTimerHandle;
 };

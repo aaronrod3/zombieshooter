@@ -57,3 +57,16 @@ void AZSMagazine::InitializeFromConfig(UZSWeaponConfig* Config)
 		BulletMeshComponents.Add(BulletMesh);
 	}
 }
+
+void AZSMagazine::SetHiddenFromOwner(bool bHideFromOwner)
+{
+	MagazineMesh->SetOwnerNoSee(bHideFromOwner);
+
+	for (UStaticMeshComponent* BulletMesh : BulletMeshComponents)
+	{
+		if (BulletMesh)
+		{
+			BulletMesh->SetOwnerNoSee(bHideFromOwner);
+		}
+	}
+}

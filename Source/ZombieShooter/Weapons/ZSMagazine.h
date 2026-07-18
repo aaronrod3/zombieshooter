@@ -29,6 +29,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Magazine")
 	void InitializeFromConfig(UZSWeaponConfig* Config);
 
+	/** Marks MagazineMesh + every bullet mesh SetOwnerNoSee - see AZSWeapon::SetHiddenFromOwner, which calls this on the real weapon's MainMagazine/ReserveMagazine when it hides from the owner in FirstPerson view. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Magazine")
+	void SetHiddenFromOwner(bool bHideFromOwner);
+
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
