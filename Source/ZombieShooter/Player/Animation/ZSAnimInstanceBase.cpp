@@ -2,6 +2,8 @@
 
 #include "ZSAnimInstanceBase.h"
 #include "ZSPlayerCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/KismetAnimationLibrary.h"
 
 void UZSAnimInstanceBase::NativeInitializeAnimation()
 {
@@ -26,7 +28,20 @@ void UZSAnimInstanceBase::NativeUpdateAnimation(float DeltaSeconds)
 
 	bIsAiming = CharacterOwner->IsAiming();
 
+	UpdateLocomotionState();
 	UpdateGripAlpha(DeltaSeconds);
+}
+
+void UZSAnimInstanceBase::UpdateLocomotionState()
+{
+	const FVector Velocity = CharacterOwner->GetVelocity();
+	GroundSpeed = Velocity.Size2D();
+	Direction = UKismetAnimationLibrary::CalculateDirection(Velocity, CharacterOwner->GetActorRotation());
+
+	if (const UCharacterMovementComponent* MovementComponent = CharacterOwner->GetCharacterMovement())
+	{
+		bIsFalling = MovementComponent->IsFalling();
+	}
 }
 
 void UZSAnimInstanceBase::UpdateGripAlpha(float DeltaSeconds)

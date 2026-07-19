@@ -39,12 +39,27 @@ protected:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
 	void UpdateGripAlpha(float DeltaSeconds);
+	void UpdateLocomotionState();
 
 	UPROPERTY()
 	TObjectPtr<AZSPlayerCharacter> CharacterOwner;
 
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsAiming = false;
+
+	/** Movement state for the locomotion blend space(s) built in the P1 AnimGraph work - see
+	 *  Docs/GameDevPlan.md section 5.1. GroundSpeed is planar (XY) velocity magnitude; Direction
+	 *  is UKismetAnimationLibrary::CalculateDirection's standard -180..180 signed angle between
+	 *  velocity and actor forward, the convention Lyra's own imported blend spaces (e.g.
+	 *  BS_UnequippedIdleWalkRun) are built around. bIsFalling feeds the jump state. */
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
+	float GroundSpeed = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
+	float Direction = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
+	bool bIsFalling = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsLeftHandOnWeapon = true;

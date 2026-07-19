@@ -2,7 +2,31 @@
 
 > Read this first, every session. Plan of record: `Docs/GameDevPlan.md` (pivot phases P0–P10). Live task queue: `Docs/TaskTracker.md`. Historical pre-pivot plan: `Docs/CoreLoopPlan.md`. Project conventions: `CLAUDE.md`. Update this file at the end of every work session, not just phase boundaries.
 
-## Current status (2026-07-18, end of session 9)
+## Current status (2026-07-19, end of session 10)
+
+**Editor cleanup done, animation source imported, one real blocker found and diagnosed before Stage A locomotion can be built.** Full detail in `TaskTracker.md`'s Now section; summary below.
+
+### READ THIS FIRST NEXT SESSION — fix the missing skeleton, then build Stage A locomotion
+
+**Session 10 in full (2026-07-19):** dev confirmed the editor cleanup pass from session 9 (deleted `ABP_ZS_FirstPerson`, `IA_Inspect`, `IA_MagCheck` — `IA_SwitchGrip` is a small leftover, still present, low priority) and imported a large Lyra-style animation library into `/Game/Animation/`.
+
+**Investigated the imported content live via `unreal-mcp` (now connected) rather than trust the "imported all animations from Lyra" framing at face value — good thing, because it isn't fully usable yet:**
+- Confirmed via `get_asset_tags` on multiple assets (`BS_UnequippedIdleWalkRun`, `BS_EquippedIdleWalkRun`, `BS_UnequippedCrouchWalk`, `BS_EquippedCrouchWalking`, `AO_Ironsights_1D`, raw clips like `Act_Idle_00`, and the whole `/Game/Animation/Enemy/Zombie/` set) that **every one of them references a `Skeleton` at `/Game/Character/Characters/Mannequins/Meshes/SK_Mannequin`, which does not exist in this project** — `find_assets` on `/Game/Character` returns empty, and a direct lookup on that exact path errors "Asset does not exist." Not a redirector or stale-cache issue; genuinely missing.
+- **Root cause, confirmed from the assets' own `AssetImportData`** (not guessed): several assets' import metadata literally names the source path, e.g. `new_Zombie_Idle`'s reads `.../ShooterGame/Content/../../../../../../Users/aaron/Documents/Unreal Projects/Downloaded Animations (Move to Project)/Zombie Idle.fbx`. This content was originally imported into the dev's other project, **ShooterGame**, then migrated into ZombieShooter without its companion skeleton (`SK_Mannequin`) and mesh (`SKM_Manny_Simple`). (Ordinary personal-asset-library reuse across the dev's two projects — doesn't touch `CLAUDE.md`'s ShooterGame rule, which is about not borrowing its *design decisions*.)
+- **The fix, next session:** migrate `SK_Mannequin` + `SKM_Manny_Simple` (+ physics asset if any) from ShooterGame's `/Game/Character/Characters/Mannequins/Meshes/` into ZombieShooter at the identical path. Since the imported content was already authored against that exact skeleton, this should resolve every broken reference at once with **zero retargeting** — cheaper than this doc's earlier placeholder plan of retargeting everything onto a generic UE5 mannequin. `ABP_ZS_ThirdPerson` currently still targets the Infima skeleton (`SKEL_TFA_Mannequin`, confirmed via `BlueprintTools`) — whether the character mesh/AnimBP move onto the newly-migrated skeleton is a decision for next session, not yet made.
+- **Silver lining:** once fixed, there's a real head start already sitting in the project — matched idle/walk/run blend spaces for both relaxed and aiming states, plus crouch variants, plus aim-offset blend spaces, plus a **complete zombie animation set** (`BS_ZombieLocomotion`/`BS_ZombieCrawl` + walk/attack/death/crawl clips in both `new_anims`/`old_anims` variants) that's a P4 head start, found incidentally.
+- **Scope guardrail, explicit:** the rest of the imported library (`Folder2/Active`, `Folder2/Crouch`, `Folder2/Unequipped`, `Folder2/Sprint`, `Folder3`, `Folder4`) is Lyra's/ShooterGame's full traversal-and-combat set — dodges, cover system, prone, swimming, ladder/pole climbing, mantle/vault, finishers, valve/button interactions, flashlight equip. All explicitly out of scope for this game's simplified locomotion; its presence in the content browser isn't an invitation to wire it up. Full detail: `GameDevPlan.md` §5.1 (rewritten this session against the verified state, replacing the earlier speculative "download Game Animation Sample, retarget to generic UE5 mannequin" plan).
+
+**C++ prep done this session, not yet compiled:** `UZSAnimInstanceBase::NativeUpdateAnimation` now pulls `GroundSpeed` (planar velocity magnitude), `Direction` (`UKismetAnimationLibrary::CalculateDirection` — the standard -180..180 convention the imported blend spaces are built around), and `bIsFalling` every frame, via a new `UpdateLocomotionState()` helper. Deliberately did **not** add `UBlendSpace` fields to `UZSWeaponConfig` yet — which exact blend spaces feed the graph is a real design call for the collaborative locomotion session, not something to lock in solo. **A CLI `Build.bat` run failed only because the editor's Live Coding held the compile lock (not a code error) — needs a Ctrl+Alt+F11 hot-compile next time the editor's open**, or a CLI build if the editor's closed.
+
+**Concrete next steps, in order (full detail in `TaskTracker.md`):**
+1. Migrate `SK_Mannequin` + `SKM_Manny_Simple` from ShooterGame into ZombieShooter at `/Game/Character/Characters/Mannequins/Meshes/` — unblocks everything else.
+2. Decide whether the character body mesh + `ABP_ZS_ThirdPerson` move off the Infima skeleton onto the newly-migrated one.
+3. Compile the pending `UZSAnimInstanceBase` changes (Ctrl+Alt+F11).
+4. Build Stage A: `ABP_ZS_ThirdPerson`'s Idle/Move state machine + crouch layer + aim layer, wired to `BS_UnequippedIdleWalkRun`/`BS_EquippedIdleWalkRun`/`BS_UnequippedCrouchWalk`/`BS_EquippedCrouchWalking` (and optionally `AO_Ironsights` as an additive aim layer) — this is the actual collaborative "create locomotions and plan animations" session the dev asked to have.
+5. Delete the leftover `IA_SwitchGrip`, low priority.
+
+### Superseded — session 9's status (P0 de-scope, pre-cleanup)
 
 **THE PROJECT PIVOTED.** The FPS/TPS shooter is now a Project Zomboid-inspired co-op survival game — top-down camera (P1), needs/moodles, noise-as-threat, permadeath, investigation/cure arc. `GameDevPlan.md` (v0.2 + resolutions) is the plan of record; `CoreLoopPlan.md` is historical. This session: **P0's C++ de-scope is done and compiled clean; content cleanup + PIE verification are the next dev-at-editor steps.**
 
