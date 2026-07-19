@@ -106,7 +106,7 @@ The reference doc asks for exactly this markup; the dev's own notes refine sever
 | Trait point-buy (§4.2) | **REPLACE** | No creation-time point-buy in v1. Traits/aptitudes emerge from play instead (Notes §4.2) — see the new skills/attributes system below. Classic point-buy could return later as an optional sandbox/"hardcore" toggle. |
 | Moodles / needs (§5) | **KEEP, simplified** | **6 moodles v1:** Hunger, Thirst, Fatigue, Stamina, Injury/Pain, Infection/Sickness. Hunger/Thirst explicitly tuned as **debuff-first, not death-spiral-first** (Notes §1) — see Phase P2. Panic/Stress/Boredom/Temperature: deferred pool. Same 4-severity-tier readable iconography. |
 | Nutrition micro-sim (calories/protein/fat) (§5) | **CUT** | Food restores Hunger; quality = bigger/longer restore. |
-| Skills, learn-by-doing, books (§6) | **SIMPLIFY, still narrowing** | Dev's own note (§6): "narrow down later by asking questions." Working recommendation: ~8 skills (Melee, Firearms, Sprinting/Fitness, Carpentry, Medicine, Cooking, Scavenging, Mechanics-lite), learn-by-doing + magazine-style one-shot unlocks, no Vol 1–5 book grind. Treat as unconfirmed — see §7. |
+| Skills, learn-by-doing, books (§6) | **SIMPLIFY, finalized** | **6 skills v1** (Melee, Firearms, Fitness, Medicine, Carpentry, Survival), learn-by-doing + magazine-style one-shot unlocks, no Vol 1–5 book grind, 1–5 level range instead of PZ's 0–10. See §3.1 for the full breakdown and expansion path. |
 | Melee combat, stamina economy (§7.1) | **KEEP** | Core feel target. Shove + swing + stomp, stamina-gated, weapon durability-lite (break, no repair micro-sim). |
 | Firearms as loud/scarce power (§7.2) | **KEEP** | Already built mechanically; noise system makes it PZ-honest. |
 | Stealth/noise/vision model (§7.3) | **KEEP, simplified** | Crouch = quieter + slower; AI hearing radii per action; line-of-sight vision cones. No lightfootedness skill web in v1. |
@@ -130,6 +130,33 @@ The reference doc asks for exactly this markup; the dev's own notes refine sever
 | MP: dedicated servers, big counts (§19) | **SIMPLIFY** | 2–4 player listen-server co-op. Dedicated/Steam sockets: own planning pass later (per existing `CLAUDE.md` rule). |
 | Modding/Lua (§20) | **CUT v1** | Data-asset-driven design keeps the door open; actual mod support is post-launch. |
 | NPCs/factions (§19, §22.1) | **DEFER (past v1)** | Always-hostile wandering human roamers that fight zombies and players alike, never allies (Notes §19) are **confirmed design intent, but explicitly not part of the v1 slice** (Decision 5) — the dev chose to prove out the core survival loop first. First post-v1 addition, reusing the zombie AI pipeline (see Phase P10). Full NPC survivors/factions/dialogue/reputation/economy systems remain **deferred to a dedicated planning pass** of their own — a fundamentally different, much larger system than a hostile roamer variant. |
+
+### 3.1 — Skill system (finalized 2026-07-18)
+
+**Basic v1 list — 6 skills, one per major gameplay pillar already scoped elsewhere in this plan:**
+
+| Skill | XP source (learn-by-doing) | Effect as it levels |
+|---|---|---|
+| **Melee** | Landing hits/kills with melee weapons | ↑ damage, ↑ hit chance, ↓ stamina cost per swing, ↑ stagger/knockback chance |
+| **Firearms** | Landing hits/kills with ranged weapons, reloading | ↑ accuracy (tighter spread/recoil control), ↓ reload time |
+| **Fitness** | Sprinting, hauling weight, general movement | ↑ stamina pool & regen rate, ↑ carry capacity |
+| **Medicine** | Treating wounds — bandage/disinfect/splint/**amputation** (P3) | ↑ treatment effectiveness/speed, ↓ dirty-bandage infection risk, ↑ amputation success/speed |
+| **Carpentry** | Building/upgrading/repairing structures (P7) | ↑ build speed, ↑ structure HP/quality, ↓ material cost |
+| **Survival** | Foraging, farming-lite actions, cooking, scavenging containers (P6) | ↑ foraging yield/rarity, ↑ farming yield, ↑ food quality/hunger restore, ↑ chance of noticing rare loot |
+
+Design calls baked into this list:
+- **Melee and Firearms stay separate**, not merged into one Combat skill (an option this plan itself flagged) — different resource economies (stamina vs. ammo), different feel, and a real build-identity fork for the cost of one extra list entry.
+- **No dedicated Stealth skill** — consistent with the existing §7.3 disposition ("no lightfootedness skill web in v1"). Crouch/noise reduction stays purely mechanical (not skill-gated) in the basic list.
+- **Fitness absorbs PZ's separate Strength stat** — the calorie/weight simulation that justified splitting them in PZ is already cut (§5 disposition); one stat covers stamina + carry capacity, and melee damage scaling lives in the Melee skill instead.
+- **Level range 1–5**, not PZ's 0–10 — matches the "1/3 depth" simplification philosophy and the explicit non-grind design goal (Notes §1).
+- No skill covers Mechanics (no vehicles in v1) or Tailoring (no clothing-layer sim in v1) — both would be dead weight right now.
+
+**Expansion path (not built now — how this list grows later, only once the underlying system has enough depth to deserve separate progression):**
+- **Survival** splits into **Foraging / Cooking / Farming / Scavenging** once each has its own real depth.
+- **Melee** could split by weapon class (Blunt/Edged/Improvised) if weapon variety grows past P5's basic 4–6 archetypes.
+- **Stealth** becomes its own skill if noise/detection depth grows beyond the mechanical-only v1 model.
+- **Mechanics** arrives whenever vehicles do (post-v1, per §5's vehicle disposition).
+- **Tailoring** arrives if clothing protection ever grows past the single-outfit-slot simplification (§5).
 
 ---
 
@@ -201,7 +228,7 @@ Same working style as `CoreLoopPlan.md`: numbered phases, milestone tables, PIE-
 ### P8 — Dynamic events, objectives & the investigation arc (the differentiator)
 - `UZSEventDirector` (server): scheduled + random world events from data assets — helicopter flyover (drags hordes), distant gunshots/screams (ambient migration), crashed convoy/supply drop (timed loot beacon = risk/reward), house alarms. **Expanded roster relative to PZ's own set** (Notes §17) — event variety is a stated priority, not a nice-to-have.
 - **Radio channel:** scripted broadcast arc for days 1–7 (diegetic tutorial, PZ §16's trick) that transitions into dynamic event/objective announcements *and* the first investigation-arc clues.
-- **Investigation/cure questline** (Notes §1/§22): notes, documents, and items scattered through the world let players piece together how the outbreak started and pursue leads toward a cure. Resolve Decision 6 (does completion end/reset the world, or is it a persistent capstone?) before designing this system's back-end — the answer changes whether "completed" is per-character state, per-world state, or purely cosmetic/lore.
+- **Investigation/cure questline** (Notes §1/§22): notes, documents, and items scattered through the world let players piece together how the outbreak started and pursue leads toward a cure. Per Decision 6, completion is an optional capstone (epilogue + persistent world-state change), never a forced ending. **Clue placement (resolved 2026-07-18):** each clue is a `UZSItemConfig` instance flagged as an investigation item, carrying a predetermined pool of eligible spawn locations (same location-tag system as regular loot, P6) — but unlike ordinary rarity-pool loot, clue placement is **guaranteed, not probabilistic**: the system always spawns each clue at exactly one randomly-chosen location from its pool, so a world can never end up missing a clue entirely and the arc stays completable in every session. The random *pick* reuses P6's loot infrastructure directly; only the guarantee is clue-specific.
 - Radiant objective wrappers ("reach the drop before it's swarmed," "restore the station generator") — objectives are *invitations with stakes*, never mandatory quests.
   **Exit:** two co-op sessions on the same map play out differently because the director dealt different beats; a full playthrough of the investigation arc is possible and its ending behaves per Decision 6's resolution.
 
@@ -309,7 +336,7 @@ The dev asked to "come up with questions for each stage of development" — this
 3. Interior visibility for top-down — roof fade, hard cutaway, or a camera-ducks-inside solution? Worth a quick spike here even though the real answer lands in P7.
 
 ### P2 — Survival core (needs/moodles/skills/time)
-1. **(blocking, per Notes §6)** Final skill list — is the working ~8-skill cut right, or does the dev want a different split (e.g., merge Firearms+Melee into one Combat skill; fewer/more crafting sub-skills)?
+1. ~~Final skill list~~ **RESOLVED 2026-07-18** — 6 skills (Melee, Firearms, Fitness, Medicine, Carpentry, Survival), kept Firearms/Melee separate. See §3.1.
 2. Can a solo player sleep-skip time alone (no group check needed), with the "everyone must be ready" rule only applying in co-op?
 3. Is there a floor under Hunger/Thirst debuffs (never fully incapacitating), or should sustained, total neglect still be a real death path, just a much slower one than PZ's default?
 4. Weather (Notes §1: "players must adjust to survive") — real temperature/insulation mechanics in v1, or atmospheric/visibility-only for now with survival-temperature systems deferred to the pool?
@@ -338,8 +365,8 @@ The dev asked to "come up with questions for each stage of development" — this
 3. Confirm Decision 4's "scatter spawns" toggle as a lobby-level co-op setting, on by default or off by default?
 
 ### P8 — Dynamic events, objectives & investigation arc
-1. **(blocking) Decision 6** — does completing the investigation/cure arc end or meaningfully alter the save, or is it a pure capstone/epilogue with the sandbox continuing unchanged?
-2. Should the investigation arc's clues/locations be roughly fixed per playthrough (like a authored questline), or shuffle per world seed for replayability?
+1. ~~Decision 6~~ **RESOLVED** — optional capstone, world keeps running (see §1, Decision 6).
+2. ~~Clue placement~~ **RESOLVED 2026-07-18** — clues spawn like items: a predetermined pool of eligible locations per clue, actual spot randomized per session, but placement is guaranteed (not a probabilistic rarity roll) so the arc stays completable in every world. See Phase P8's own text.
 3. How many distinct meta-events (helicopter-class beats) are wanted at launch — a handful (3–5) tuned deeply, or a broader roster from day one given Notes §17's "create more meta events"?
 
 ### P9 — Onboarding & meta-loop
@@ -354,9 +381,9 @@ The dev asked to "come up with questions for each stage of development" — this
 
 ## 8. Immediate next steps (first session after the dev reviews this)
 
-**Decisions 4, 6, and the doc filename resolved 2026-07-18** (as recommended: both/scatter-toggle spawn points, optional-capstone cure arc, keep `GameDevPlan.md`). **Decision 5 resolved against this plan's own recommendation:** hostile human roamers are confirmed design intent but deliberately pushed past the v1 vertical slice — see Phase P4's note and Phase P10's post-v1 list.
+**Decisions 4, 6, and the doc filename resolved 2026-07-18** (as recommended: both/scatter-toggle spawn points, optional-capstone cure arc, keep `GameDevPlan.md`). **Decision 5 resolved against this plan's own recommendation:** hostile human roamers are confirmed design intent but deliberately pushed past the v1 vertical slice — see Phase P4's note and Phase P10's post-v1 list. **The P2 skill list and the P8 clue-placement question are also resolved 2026-07-18** — see §3.1 and Phase P8.
 
-1. Decisions 1–3 (camera, same-repo, art source) and the remaining §7 questions marked **(blocking)** — skill list (P2) and event-arc clue design (P8) — still need a pass; everything else in §7 can be answered as its phase approaches.
+1. Decisions 1–3 (camera, same-repo, art source) are still open recommendations, unconfirmed. The one remaining §7 question marked **(blocking)** — meta-event count for launch (P8) — still needs a pass; everything else in §7 can be answered as its phase approaches.
 2. Update `CLAUDE.md` (identity section, dev-order table → this doc, animation-scope rule) and `SessionHandoff.md`.
 3. Run P0 step 1: the already-pending Phase 3 M7 two-client PIE verification (checklist in `CoreLoopPlan.md`).
 4. Begin the P0 de-scope pass.
