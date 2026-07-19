@@ -45,6 +45,12 @@ void AZSLaserAttachment::InitializeFromConfig(UZSWeaponConfig* Config, USkeletal
 	}
 }
 
+void AZSLaserAttachment::SetHiddenFromOwner(bool bHideFromOwner)
+{
+	LaserBodyMesh->SetOwnerNoSee(bHideFromOwner);
+	LaserBeamMesh->SetOwnerNoSee(bHideFromOwner);
+}
+
 void AZSLaserAttachment::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
