@@ -61,6 +61,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsFalling = false;
 
+	/** Mirrors AZSPlayerCharacter::GetStance() == EZSStance::Crouching - pulled once per frame like
+	 *  every other locomotion flag on this class, rather than reached for from inside the AnimGraph. */
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
+	bool bIsCrouched = false;
+
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsLeftHandOnWeapon = true;
 

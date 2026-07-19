@@ -27,6 +27,7 @@ void UZSAnimInstanceBase::NativeUpdateAnimation(float DeltaSeconds)
 	}
 
 	bIsAiming = CharacterOwner->IsAiming();
+	bIsCrouched = CharacterOwner->GetStance() == EZSStance::Crouching;
 
 	UpdateLocomotionState();
 	UpdateGripAlpha(DeltaSeconds);
