@@ -331,7 +331,7 @@ The §2 rule made concrete: this is the **complete authorized animation list** u
 
 `bOrientRotationToMovement = true` (restored in P0) is the **permanent** default-movement facing, not just an interim placeholder — P1 adds a conditional cursor-facing override on top for the active-aim/attack/interact state (see the hybrid-facing note above), it doesn't replace the P0 default.
 
-**Remaining before Stage A is fully live:** compile the pending `bIsCrouched` C++ addition (Ctrl+Alt+F11) and wire it into the stance selector's `bActiveValue` pin — the one connection left. Everything else (both blend spaces, both pose selectors, the layered blend, the montage chain) is built, wired, and saved.
+**Stance selector's `bActiveValue` wired in-editor, 2026-07-20** — all Stage A connections are now in place. One honest caveat: MCP's own introspection couldn't independently confirm the new Get node is bound to the compiled `UZSAnimInstanceBase::bIsCrouched` specifically (`find_node_types` still doesn't list it as a native property getter even after further Blueprint recompiles) — it's confirmed to be a valid zero-input bool Get, just not conclusively which one. A quick PIE crouch test (does the pose actually change on crouch?) is the real verification here, more reliable than further tool queries.
 
 **Stage B — montages and calls (after locomotion works):**
 
