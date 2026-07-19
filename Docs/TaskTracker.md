@@ -39,7 +39,7 @@
 ## Next — P1: camera & control prototype (GameDevPlan §4 P1)
 
 - [ ] TopDown perspective entry in `ApplyCameraPerspective` — *Door Kickers 2*-framed per the 2026-07-19 dev reference: steeper pitch (~65–75°, not classic 45° isometric), zoom tight enough to read character/weapon detail — + OverShoulder aim variant
-- [ ] Cursor-projected aim (screen ray → ground plane → character faces aim point) — replaces the interim `bOrientRotationToMovement` facing
+- [ ] **Hybrid facing (confirmed 2026-07-20):** `bOrientRotationToMovement = true` (P0's existing default) stays permanent for plain WASD movement — no change needed there. Add cursor-projected aim (screen ray → ground plane → character faces aim point) as a **conditional override**, active only while aiming/attacking/interacting with the cursor. Full detail: GameDevPlan §4 P1.
 - [ ] `UZSInteractableComponent` + world interaction prompt v1
 - [ ] Gamepad input validation alongside mouse/keyboard (bindings exist; tune + test)
 - [ ] Graybox test map
@@ -59,6 +59,7 @@
 
 ## Done log (newest first)
 
+- **2026-07-20 (later):** hybrid facing model confirmed for P1 — movement-direction facing by default (already correct, no new work), cursor-facing only while actively aiming/attacking/interacting. Validated the animation-side `Direction`/`GroundSpeed` approach needs zero changes to support it.
 - **2026-07-20:** locomotion architecture confirmed against actual asset inventory — 2 shared blend spaces + Layered Blend Per Bone for equipped poses (not per-weapon blend spaces), no AO layer (cursor-facing), no jump (future mounting system), montages confirmed as the right tool for reload/fire/interact/melee. `ZS_BS_Unarmed_Idle_Walk_Run` renamed/retargeted. Asset needs list updated with the confirmed pack roster (LowPolyWeapons, Mega_Survival_Tools, Infima rifle-only pending pistol release).
 - **2026-07-19 (session 10):** editor cleanup confirmed (minus `IA_SwitchGrip` leftover) · Lyra-style animation library imported · found + diagnosed the missing-skeleton blocker (ShooterGame migration gap) via live MCP asset inspection · `UZSAnimInstanceBase` locomotion-state prep (`GroundSpeed`/`Direction`/`bIsFalling`) written, pending Live Coding compile · GameDevPlan §5.1 rewritten against verified asset state
 - **2026-07-18 (session 9):** LNK2019 fix · P0 C++ de-scope (−1,896 lines, compiled clean) · GameDevPlan §5.1 standard-animation contract · this tracker created · CLAUDE.md/SessionHandoff updated for the pivot
