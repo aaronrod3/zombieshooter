@@ -41,7 +41,7 @@
 - **3D fixed-angle top-down camera with direct WASD + mouse-aim control** — not PZ's menu-driven isometric interaction. Combat feels like a twin-stick/tactical shooter; survival feels like PZ. (This also happens to be the more console-friendly of the two — a stick-aim top-down camera translates to a gamepad far more directly than isometric-plus-right-click-context-menus does, which helps Notes §3's console want land for free later.)
 - **Co-op-first (2–4 players, listen server)** — every system built replicated from day one, which is already this codebase's DNA. Profession/background choice now also picks a **starting spawn location** (Notes §4.1) — see Decision 4.
 - **Dynamic events, radiant objectives, and a discoverable investigation arc** — helicopter-class events (PZ §17) as an expanded *system* (Notes §17: "create more meta events"), radio-driven objectives, and a questline built from notes/documents/items scattered through the world that lets players piece together the outbreak's origin and chase a cure (Notes §1/§22).
-- **Hostile human roamers** — always-hostile wandering human NPCs that fight zombies *and* players, never allies (Notes §19: "never friendly"). This is the "enemy variety Romero purism forbids" the reference doc's own §23 flags as a differentiation opportunity, and it's cheap here specifically because it reuses the zombie AI/perception/noise pipeline (see Phase P4 and Decision 5). Full NPC survivors/factions/dialogue/reputation systems are a different, much bigger system and stay deferred to their own planning pass.
+- **Hostile human roamers** — always-hostile wandering human NPCs that fight zombies *and* players, never allies (Notes §19: "never friendly"). This is the "enemy variety Romero purism forbids" the reference doc's own §23 flags as a differentiation opportunity. **Confirmed as the first post-v1 addition, not part of the v1 slice** (Decision 5) — the dev chose to prove out the core survival loop first, even though it's cheap specifically because it reuses the zombie AI/perception/noise pipeline. Full NPC survivors/factions/dialogue/reputation systems are a different, much bigger system and stay deferred to their own planning pass, same as before.
 - **Simplified simulation** — every PZ system ships here at roughly **1/3 of PZ's depth**, chosen for readability. Depth can grow later; opacity is not a feature we inherit.
 - **Modern, transparent UX** — direct interaction prompts, radial quick-menu, and (Notes §21) **items/actions show their actual mechanical effect on hover/preview** rather than hidden numbers — "player knowledge is mainly built on common sense and playing the game," not a wiki.
 
@@ -53,7 +53,7 @@
 
 **⚑ DECISION 4 (NEW) — Profession-based spawn points: solo too, or co-op-only?** Notes §4.1 wants players to start at a profession-tied spawn location, explicitly calling out the co-op "find each other" fun. Recommended: **apply to both, with a lobby-level "scatter spawns" toggle.** Solo players still get a profession-flavored starting location (keeps one system instead of two), but a co-op group can toggle scattered starts off if they'd rather just start playing together immediately. Confirm in §7.
 
-**⚑ DECISION 5 (NEW) — Hostile human roamers: ship in P4 alongside zombies, or a later stretch goal?** Notes §19 asks for them unconditionally, not conditionally — the open question is *timing*, not *whether*. Recommended: **ship a lightweight version in Phase P4**, reusing the Behavior Tree/Blackboard/`AIPerception`/noise-system infrastructure zombies already need — the incremental cost is a new pawn + "hostile to everyone" faction rule, not new AI architecture. Depth (varied loadouts, ranged AI behavior, camp setpieces) can still grow post-v1. Confirm timing in §7.
+**⚑ DECISION 5 — Hostile human roamers: timing.** *Resolved 2026-07-18, against this doc's own recommendation.* Notes §19 asks for them unconditionally, not conditionally — only *timing* was ever in question. This plan originally recommended building them alongside zombies in P4 (cheap AI reuse); **the dev chose to push them past the v1 vertical slice instead** — get the core survival loop (zombies, health, combat, loot) fully solid first, then add hostile roamers as the first post-v1 addition. See Phase P4 and Phase P10's post-v1 list — the AI-reuse argument for building them cheaply alongside zombies still holds and makes them a fast, low-risk follow-up once v1 ships, not a from-scratch system.
 
 **⚑ DECISION 6 (NEW) — Does the investigation/cure arc end or reset the world?** Notes §1 removes "no win condition" as a philosophy but doesn't say the game should *end* on completion — it says add an "end goal to survival," which reads as something to chase, not a game-over screen. Recommended: **the investigation arc is an optional capstone with no forced ending** — reaching its conclusion unlocks a lore epilogue and a meaningful, persistent world-state change (example: a rescue/evac becomes available, or a new sandbox modifier unlocks), but the world keeps running and the character can keep playing, same continuity spirit as PZ's own permadeath-into-new-character loop. This is the single highest-leverage open question in the whole plan — it shapes world-state/save architecture (can a "completed" flag exist per-character without breaking co-op persistence?) more than any individual system does. Confirm in §7 before Phase P8 design work starts in earnest.
 
@@ -129,7 +129,7 @@ The reference doc asks for exactly this markup; the dev's own notes refine sever
 | Modes/challenge presets (§18) | **CUT v1** | One tuned default. Sandbox sliders post-v1. |
 | MP: dedicated servers, big counts (§19) | **SIMPLIFY** | 2–4 player listen-server co-op. Dedicated/Steam sockets: own planning pass later (per existing `CLAUDE.md` rule). |
 | Modding/Lua (§20) | **CUT v1** | Data-asset-driven design keeps the door open; actual mod support is post-launch. |
-| NPCs/factions (§19, §22.1) | **SIMPLIFY (partial, retimed)** | **In scope for v1, but narrowly:** always-hostile wandering human roamers that fight zombies and players alike, never allies (Notes §19). Ships alongside zombies in Phase P4 (Decision 5), reusing the same AI pipeline. Full NPC survivors/factions/dialogue/reputation/economy systems remain **deferred to a dedicated planning pass** — that's a fundamentally different, much larger system than a hostile roamer variant. |
+| NPCs/factions (§19, §22.1) | **DEFER (past v1)** | Always-hostile wandering human roamers that fight zombies and players alike, never allies (Notes §19) are **confirmed design intent, but explicitly not part of the v1 slice** (Decision 5) — the dev chose to prove out the core survival loop first. First post-v1 addition, reusing the zombie AI pipeline (see Phase P10). Full NPC survivors/factions/dialogue/reputation/economy systems remain **deferred to a dedicated planning pass** of their own — a fundamentally different, much larger system than a hostile roamer variant. |
 
 ---
 
@@ -167,14 +167,14 @@ Same working style as `CoreLoopPlan.md`: numbered phases, milestone tables, PIE-
 - Player death → spectate/respawn-as-new-character flow (permadeath groundwork).
   **Exit:** a scripted damage source can wound (with the correct gameplay-effect mapping), infect, and kill a player who mismanages treatment — and a player who amputates in time survives a bite that would otherwise have killed them. Second client sees everything correctly.
 
-### P4 — Zombies & hostile roamers (the enemy, finally)
+### P4 — Zombies (the enemy, finally)
 - `AZombieCharacter` + `AZombieAIController`, classic **Behavior Tree + Blackboard** (per the standing `CLAUDE.md` decision), `UZSZombieConfig` data asset (speed/health/senses/damage — N zombie types, zero C++ branches, same rule as weapons). **Explicit performance target from the outset** (Notes §1): profile early, don't retrofit efficiency later.
 - Perception: `AIPerception` sight cone + hearing. **`UZSNoiseSystem`:** every loud act (gunshot, sprint, breaking glass) reports a noise event with a radius; this is the load-bearing system of the whole game.
 - Behaviors v1: wander, investigate noise, chase, attack (melee hit → P3 damage/infection), door-thumping (destructible door HP).
 - **Zombie reintroduction:** zone-based population from data, server-authoritative, respawn-into-cleared-zones on a slow timer — the concrete answer to Notes §1's "player can't just clear them all forever."
-- **Hostile human roamers** (Decision 5, Notes §19): a second AI variant sharing the same Behavior Tree/perception/noise pipeline, `UZSHostileConfig` data asset, always-hostile faction tag (attacks zombies and players alike, never allies with either). Simplest version first: melee-only or basic ranged, no camp/loadout variety yet — depth is a post-v1 lever.
-- Placeholder visuals: Mixamo/UE-mannequin zombie + Mixamo zombie animations (free) until the art phase; hostile roamers reuse the same base mannequin with a different outfit/color read.
-  **Exit:** a graybox block with a profiled zombie-count budget met; a gunshot visibly drags the neighborhood onto the shooter; a hostile roamer will fight either zombies or the player depending on who's closer; 2-client PIE holds up.
+- Placeholder visuals: Mixamo/UE-mannequin zombie + Mixamo zombie animations (free) until the art phase.
+- **Note (Decision 5):** build this phase's AI architecture (Behavior Tree/Blackboard structure, `AIPerception`, the noise system, config-driven "N enemy types, zero C++ branches" pattern) in a way that a second, always-hostile-to-everyone human variant can be added cheaply post-v1 without rearchitecting — but don't build that variant now. Hostile roamers are confirmed design intent, deliberately deferred past the v1 slice (see Phase P10).
+  **Exit:** a graybox block with a profiled zombie-count budget met; a gunshot visibly drags the neighborhood onto the shooter; 2-client PIE holds up.
 
 ### P5 — Combat completion (melee + the full loop feel)
 - **Melee weapon type** through the *same* `UZSWeaponConfig` pipeline (a melee config specifies swing montages, reach, stamina cost, damage, durability — the multi-weapon rule pays off here).
@@ -215,7 +215,7 @@ Same working style as `CoreLoopPlan.md`: numbered phases, milestone tables, PIE-
 ### P10 — Production hardening → public vertical slice
 - Audio pass (see §5 asset list), VFX pass (low-poly-friendly: flat-shaded blood/muzzle/impact), performance (zombie + hostile-roamer count profiling, LODs/HISM on the kit, net relevancy), fixed-tick save safety, crash/soak testing, packaged Windows build tested over real LAN/direct-IP.
 - Trailer-able vertical slice: 20–40 minutes of tuned co-op survival on the real map, including at least one meta event and a taste of the investigation arc.
-  **Exit:** shippable demo build. Post-v1 planning pass picks from: full NPC survivors/factions, vehicles, sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server, deferred-pool systems.
+  **Exit:** shippable demo build. **First post-v1 addition (per Decision 5): hostile human roamers**, built cheaply on top of P4's zombie AI architecture. Planning pass after that picks from: full NPC survivors/factions, vehicles, sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server, other deferred-pool systems.
 
 **Standing rules across all phases** (inherited, still binding): replication convention on every new stat/system; data-asset-driven everything (`N` of a thing, zero C++ branches); `BlueprintNativeEvent` for gameplay decisions; no magic numbers (`TuningReference.md` stays live); commit per sub-task; docs updated at phase end.
 
@@ -280,7 +280,7 @@ Blender 4.x LTS, free. The workflow that matches Synty-style art:
 | **Zombie counts vs. performance** | Low-poly + flat materials is half the answer; P4 sets a profiled budget (target: 60fps with ~150 active on-screen zombies on mid hardware, tune from there — confirm this number, see §7); crowd anim tricks (anim sharing/URO) if needed. |
 | **MP save/persistence complexity** | Listen-server-host-owns-the-save (PZ's own co-op model), single world save, no per-client saves. |
 | **The investigation arc vs. infinite sandbox tension** | This is PZ's own unresolved #1 design fork (per its reference doc's §22), and it's exactly what this project is now attempting to answer. Getting Decision 6 right matters more than any single system — it determines whether "completed the investigation" is per-character save state, per-world save state, or purely cosmetic, and that determination has to happen before P8's back-end is built, not after. |
-| **NPCs are a siren song** | Full factions/dialogue/allied-NPC systems stay hard-gated behind a post-v1 planning pass. Only the narrow, cheap hostile-roamer variant (Decision 5) is in v1 scope. |
+| **NPCs are a siren song** | Full factions/dialogue/allied-NPC systems stay hard-gated behind a post-v1 planning pass. The narrow, cheap hostile-roamer variant (Decision 5) is confirmed design intent but deliberately kept out of v1 scope too — first thing built after the vertical slice ships, not before. |
 | **Solo-dev art volume** | Buy the core (Decision 3), one region not a county-sized map, prop variety via palette recolors. |
 | **Animation scope re-creep** | The §2 rule: readable-at-camera-distance or gameplay-gating, else polish-phase. |
 
@@ -318,12 +318,11 @@ The dev asked to "come up with questions for each stage of development" — this
 1. Does amputation require a specific tool (hatchet/saw/machete), and is it solo-capable or does it need another player's help in co-op?
 2. Is there a timing window (must amputate within X minutes of infection) or is any time before the infection timer completes valid?
 3. Post-amputation: permanent capability loss only for v1, or is a later prosthetic/adaptation crafting chain worth flagging now so the data model doesn't need reworking to support it?
-4. Do hostile human roamers use the same wound/infection system as zombies (bleeding/fractures, no Knox infection), or are their attacks mechanically simpler (flat damage only)?
 
-### P4 — Zombies & hostile roamers
+### P4 — Zombies
 1. Is ~150 concurrent on-screen zombies (this plan's placeholder performance target) the right ballpark, or does the dev have a different number in mind?
-2. Hostile roamer spawn logic — pure ambient/random encounters, or tied to specific setpieces (e.g., a raider camp location type)?
-3. Do hostile roamers drop loot (weapons/ammo), creating a deliberate risk/reward incentive to fight them?
+
+**Post-v1 backlog (hostile roamers, once Phase P10 revisits them per Decision 5):** spawn logic — pure ambient/random encounters, or tied to specific setpieces (e.g., a raider camp location type)? Do they drop loot (weapons/ammo), creating a deliberate risk/reward incentive to fight them? Do they share the zombie wound/infection system, or simpler flat damage? (This last one was originally a P3 question — moved here since it only matters once roamers actually exist.)
 
 ### P5 — Combat completion
 1. Melee weapon variety for v1 — a curated set (4–6 archetypes: blunt/edged/axe/improvised) or closer to PZ's full breadth from the start?
@@ -355,7 +354,9 @@ The dev asked to "come up with questions for each stage of development" — this
 
 ## 8. Immediate next steps (first session after the dev reviews this)
 
-1. Dev resolves the ⚑ decisions (1–6) and the §7 questions marked **(blocking)** at minimum — everything else in §7 can be answered as its phase approaches.
+**Decisions 4, 6, and the doc filename resolved 2026-07-18** (as recommended: both/scatter-toggle spawn points, optional-capstone cure arc, keep `GameDevPlan.md`). **Decision 5 resolved against this plan's own recommendation:** hostile human roamers are confirmed design intent but deliberately pushed past the v1 vertical slice — see Phase P4's note and Phase P10's post-v1 list.
+
+1. Decisions 1–3 (camera, same-repo, art source) and the remaining §7 questions marked **(blocking)** — skill list (P2) and event-arc clue design (P8) — still need a pass; everything else in §7 can be answered as its phase approaches.
 2. Update `CLAUDE.md` (identity section, dev-order table → this doc, animation-scope rule) and `SessionHandoff.md`.
 3. Run P0 step 1: the already-pending Phase 3 M7 two-client PIE verification (checklist in `CoreLoopPlan.md`).
 4. Begin the P0 de-scope pass.
