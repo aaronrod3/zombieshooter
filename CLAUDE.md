@@ -1,6 +1,6 @@
 # ZombieShooter
 
-UE5.8 zombie multiplayer shooter (working title — "ZombieShooter" is a placeholder project name, not the final game name). Solo dev. C++ core / Blueprint for content. Currently building the **core loop only** (see Development Order below) — mission/wave/economy structure is explicitly deferred to a future planning pass, not yet designed.
+UE5.8 **co-op zombie survival game** (working title — "ZombieShooter" is a placeholder project name, not the final game name). Solo dev. C++ core / Blueprint for content. **Pivoted 2026-07-18** from a first/third-person shooter to a Project Zomboid-inspired low-poly survival game: top-down 3D camera, needs/moodles simulation, noise-as-threat, permadeath + persistent world, an investigation/cure arc, 2–4 player listen-server co-op. **`Docs/GameDevPlan.md` is the plan of record** (phases P0–P10, scope contract, decisions); `Docs/TaskTracker.md` is the live work queue; `Docs/CoreLoopPlan.md` is the historical build log for the pre-pivot Phases 0–3 (whose framework/replication/weapon code the pivot keeps).
 
 This file is a living document — **update it at the end of every phase**, not just when something breaks. A future session (possibly with zero memory of how this project started) should be able to read this file plus `Docs/SessionHandoff.md` and continue with no other context.
 
@@ -32,11 +32,14 @@ Source control: Git + Git LFS, branch `main`. Commit after each completed sub-ta
 - `AZSPlayerController` — owns Enhanced Input setup (`IMC_ZS_Default` + `IMC_ZS_MouseLook`), possesses `AZSPlayerCharacter`. Both classes have no mandatory Blueprint child, so their default `UInputAction`/`UInputMappingContext` references are wired via `ConstructorHelpers::FObjectFinder` in the C++ constructor rather than a Blueprint CDO — see each class's constructor comment before changing these paths.
 
 ### Player (`Source/ZombieShooter/Player/`)
-- `AZSPlayerCharacter` — the player pawn. Currently just the UE5.8 template's base (camera boom + follow camera + move/look/jump), with Move/Look/MouseLook/Jump wired to real `IA_*` assets under `Content/ZS/Input/`. FP/TP camera pair, procedural ADS/Recoil/Crouch offsets, and Infima-config-driven setup land in Phase 2.
-- `Player/Animation/` — reserved for `UZSAnimInstanceBase` (native FP/TP shared logic), not yet created.
+- `AZSPlayerCharacter` — the player pawn. Third-person only after the P0 de-scope (2026-07-18): camera boom + follow camera, move/look/jump/crouch/sprint, aim/fire/reload/fire-mode actions with the full Phase 3 server-RPC + `OnRep_` replication layer, config-driven weapon equip. The FirstPerson rig, GunCamera/Bodycam perspectives, procedural spring offsets, and Inspect/MagCheck/grip actions were **removed** (git history has them) — P1 replaces the camera with the top-down rig + cursor-projected aim.
+- `Player/Animation/` — `UZSAnimInstanceBase`, the native parent of the TP AnimBP (per-frame character-state pull, left-hand-grip blend for reload). The FP subclass is deleted.
 
-### Combat, Weapons, Zombies (`Source/ZombieShooter/{Combat,Weapons,Zombies}/`)
-Empty, reserved per the planned folder structure. Populated in Phases 2 (Weapons, Combat) and 5 (Zombies).
+### Weapons (`Source/ZombieShooter/Weapons/`)
+- `AZSWeapon` (replicated: config/fire-mode/ammo), `UZSWeaponConfig` (lean ~22-field data contract after P0 — TP mesh/montages/poses, ammo, fire modes, receiver cosmetics), `AZSMagazine` (cosmetic prop), and the three kept notify classes (`AN_ZS_UnlockActions`, `ANS_ZS_BlockADS`, `ANS_ZS_LeftHandGrip`) — the montage-timing action system, which generalizes to every future timed action (melee, bandaging, barricading).
+
+### Combat, Zombies (`Source/ZombieShooter/{Combat,Zombies}/`)
+Empty, reserved. Populated per `GameDevPlan.md` P3 (health/damage) and P4 (zombies).
 
 ### Replication convention (apply from Phase 1 onward, no exceptions)
 `UPROPERTY(ReplicatedUsing=OnRep_X)` + server-only `Server_X()` mutator gated by `HasAuthority()` + `GetLifetimeReplicatedProps()`/`DOREPLIFETIME()` + `OnRep_X()` re-broadcasting a delegate. Never poll replicated state directly.
@@ -57,11 +60,11 @@ Every weapon-facing system must work for an arbitrary number of weapon types bef
 
 **Per-machine trust note:** `.mcp.json` only *proposes* the server (that's why it's safe to commit). The actual enablement (`enabledMcpjsonServers`) and the base tool permissions live in `.claude/settings.local.json`, which is gitignored globally (`~/.config/git/ignore`) by design — this is a deliberate Claude Code security boundary (a cloned repo shouldn't be able to silently auto-trust an MCP server). **On a new machine, this file won't exist and MCP won't be active until it's recreated** — see this section for its exact contents if that ever needs redoing.
 
-## Animation / Weapon Reference
+## Animation
 
-**`Docs/Infima Pack - Official Implementation Guide/`** is the reference of record for how the Infima Tactical FPS Animations pack works and how to implement it — compiled entirely from Infima's own official documentation, verified against no other project. Read `00_Overview_And_Prerequisites.md` first, then follow in numeric order. This project's own weapon/animation classes (`UZSWeaponConfig`, `AZSWeapon`, the FP/TP AnimBPs, `AN_ZS_*`/`ANS_ZS_*` notify classes) reimplement that guide's *concepts* natively in C++ — they are not literal Blueprint ports of Infima's demo Blueprints.
+**Animation scope rule (binding since the 2026-07-18 pivot):** an animation earns its place only if it's *readable at gameplay camera distance* or *gates gameplay timing* (reload lockout, swing timing, action channels). Everything else is polish-phase-only. The complete authorized animation list is **`Docs/GameDevPlan.md` §5.1** (base locomotion → montages → zombies; UE5 mannequin skeleton as the one retarget hub; sources: Game Animation Sample, Lyra, Mixamo, stock template).
 
-Per the guide's own documented scope: Infima ships **zero multiplayer guidance**, **zero third-person locomotion content**, **zero root motion**, and **zero real reload gameplay logic** (its "ammo" is cosmetic-only). All four of those are this project's own responsibility — see `Docs/SessionHandoff.md` for current status on each.
+**Infima pack status: demoted to prototype placeholder.** `Docs/Infima Pack - Official Implementation Guide/` is kept for history but no longer drives new work; the Infima skeleton (`SKEL_TFA_Mannequin`) is being retired with the FP rig. What the project permanently keeps from the Infima era is the *architecture* extracted from it: the config-driven weapon contract, notify-timing concepts, and real (non-cosmetic) reload flow. `Content/InfimaGames/` stays gitignored regardless (license — see Off-Limits).
 
 ## Conventions
 
@@ -74,31 +77,21 @@ Per the guide's own documented scope: Infima ships **zero multiplayer guidance**
 - Damage: always through `TakeDamage()`/`UGameplayStatics::ApplyDamage`, never applied directly.
 - No commented-out code in commits — use branches.
 - Module deps: check `Build.cs` before adding heavy modules — confirm first, matching this dev's usual practice.
-- **Tech stack (revised 2026-07-12):** C++ builds the base classes, data contracts, and anything C++ is meaningfully more efficient for — performance-sensitive per-frame work (spring/math interpolation, camera/attachment updates), engine API integration, and the shared machinery every weapon/character uses (notify classes, `UZSWeaponConfig`, `UZSAnimInstanceBase`). **Blueprint is where gameplay gets configured and executed** — tuning values and iterating on behavior without a C++ recompile. Concretely: player/weapon action functions (`Fire`, `StartAim`/`StopAim`, `StartReload`, `Inspect`, `MagCheck`, `CycleFireMode`, `CycleGripAttachment`, `DoToggleCrouch`, `StartSprint`/`StopSprint`, `ToggleCameraPerspective` on `AZSPlayerCharacter`; `PerformReload`, `CycleFireMode`, `RandomizeGripAttachment`, `SpawnDroppedMagazine`, `EjectCasing` on `AZSWeapon`) are `UFUNCTION(BlueprintNativeEvent)` — C++ provides the default `_Implementation`, and `BP_ZS_PlayerCharacter`/per-weapon Blueprint children can override or extend them with zero recompiles. AnimGraphs, data asset instances, and Behavior Tree/Blackboard assets stay Blueprint as before. If you're about to hardcode a gameplay decision or tunable directly in C++ with no Blueprint override point, stop and ask whether it should be a `BlueprintNativeEvent`/exposed property instead.
+- **Tech stack (revised 2026-07-12):** C++ builds the base classes, data contracts, and anything C++ is meaningfully more efficient for — performance-sensitive per-frame work, engine API integration, and the shared machinery every weapon/character uses (notify classes, `UZSWeaponConfig`, `UZSAnimInstanceBase`). **Blueprint is where gameplay gets configured and executed** — tuning values and iterating on behavior without a C++ recompile. Concretely: player/weapon action functions (`Fire`, `StartAim`/`StopAim`, `StartReload`, `CycleFireMode`, `DoToggleCrouch`, `StartSprint`/`StopSprint`, `ToggleCameraPerspective` on `AZSPlayerCharacter`; `PerformReload`, `CycleFireMode` on `AZSWeapon`) are `UFUNCTION(BlueprintNativeEvent)` — C++ provides the default `_Implementation`, and `BP_ZS_PlayerCharacter`/per-weapon Blueprint children can override or extend them with zero recompiles. AnimGraphs, data asset instances, and Behavior Tree/Blackboard assets stay Blueprint as before. If you're about to hardcode a gameplay decision or tunable directly in C++ with no Blueprint override point, stop and ask whether it should be a `BlueprintNativeEvent`/exposed property instead.
 
 ## Off-Limits / DO NOT
 
 - `Content/**/*.uasset` — do not read/parse as raw binary via filesystem tools. Inspecting/editing via the live Unreal Editor (or a connected MCP server, if one is ever set up for this project) is fine.
 - `Content/InfimaGames/` — **gitignored, never commit.** Paid/licensed marketplace content (the Infima Tactical FPS Animations pack); the repo is public (for secret scanning), but this content's license doesn't permit redistribution. Reinstall via the editor's Fab window on a fresh clone — see `Docs/Infima Pack - Official Implementation Guide/01_Installation_And_Project_Structure.md`. This applies to any future paid marketplace content too, not just Infima.
 - Do not reference the `ShooterGame` project's code, assets, or conventions for design decisions here — this project was deliberately planned from scratch using only the Infima guide + Unreal's own 5.8 documentation. (This `CLAUDE.md` was seeded from `ShooterGame`'s structural shape once, per an explicit one-time request — that's the only intentional link between the two projects.)
-- Do not add wave/mission/economy/extraction systems without a dedicated planning pass first — explicitly out of scope for the current core-loop build.
+- Scope is a contract: **`Docs/GameDevPlan.md` §3's KEEP/SIMPLIFY/REPLACE/CUT table governs what exists.** Anything marked CUT or sitting in the deferred pool (vehicles, full NPC survivors/factions, deep crafting, sandbox sliders, seasons/temperature) needs a dedicated planning pass before entering scope — don't build it because it seems adjacent.
 - Do not attempt dedicated-server packaging or an online subsystem (Steam/EOS) yet — listen-server/direct-IP is the target for now.
 
 ## Development Order
 
-Core-loop plan (see `Docs/SessionHandoff.md` for live status per phase):
+**`Docs/GameDevPlan.md` §4 is the plan of record** — phases P0 (de-scope/close-out) through P10 (vertical slice), each with milestones and PIE-verified exit criteria. Live task status: `Docs/TaskTracker.md`. The pre-pivot plan (`Docs/CoreLoopPlan.md`, Phases 0–3 complete) is historical — its framework, replication layer, and weapon architecture carry forward into the pivot.
 
-| Phase | Scope |
-|---|---|
-| 0 | Project foundation, folder structure, `CLAUDE.md`/`SessionHandoff.md`, GitHub — **in progress** |
-| 1 | Core gameplay framework (`AZSGameMode`/`GameState`/`PlayerState`/`PlayerController`, Enhanced Input) |
-| 2 | Character/camera/Infima integration, multi-weapon-ready from day one |
-| 3 | Multiplayer-enable everything Phase 2 built |
-| 4 | Damage and health |
-| 5 | Basic zombie AI (classic Behavior Tree + Blackboard, not StateTree — see note below) |
-| 6 | Core loop integration + verification (end of current plan's scope) |
-
-**Note on StateTree:** the UE5.8 Third Person template ships a StateTree-based AI example (in the now-deleted `Variant_Combat`). This project uses classic Behavior Trees + Blackboard instead (per the approved plan, grounded in Epic's own Behavior Tree Quick Start docs) — StateTree is a valid alternative worth reconsidering later, but changing this mid-plan wasn't discussed with the dev, so Phase 5 sticks with the original decision.
+**Note on StateTree:** the UE5.8 Third Person template ships a StateTree-based AI example (in the now-deleted `Variant_Combat`). This project uses classic Behavior Trees + Blackboard instead for zombie AI (GameDevPlan P4) — StateTree is a valid alternative worth reconsidering later, but the standing decision is Behavior Trees.
 
 ## GitHub Workflow
 
@@ -112,7 +105,11 @@ Issue labels (`phase-0` through `phase-6`, on top of GitHub's defaults) and a Pr
 
 ## Reference Docs
 
-- `Docs/Infima Pack - Official Implementation Guide/` — the animation/weapon reference, described above.
-- `Docs/SessionHandoff.md` — current phase status, next concrete step, open decisions. **Read this before starting any new session's work.**
-- `Docs/TuningReference.md` — every gameplay-feel tunable (camera FOV, springs, per-weapon config, AnimGraph node settings) and exactly where to change it. Update it whenever a new system introduces a numeric tunable worth exposing.
+- `Docs/GameDevPlan.md` — **the plan of record**: phases P0–P10, PZ-systems scope contract (§3), skill system (§3.1), asset strategy + standard animation set (§5/§5.1), decisions and open questions (§7).
+- `Docs/TaskTracker.md` — the live work queue (Now/Next/Later + per-session content-cleanup checklists). **Update every session.**
+- `Docs/SessionHandoff.md` — session-by-session technical log: what actually happened, what a fresh session must know first. **Read this before starting any new session's work.**
+- `Docs/ProjectZomboid_DesignReference.md` + `Docs/DevMarkupNotes.md` — the PZ systems breakdown and the dev's own section-by-section markup on it; the two inputs `GameDevPlan.md` synthesizes.
+- `Docs/CoreLoopPlan.md` — historical: the pre-pivot Phases 0–3 build log (framework/replication/weapon systems that carry forward).
+- `Docs/TuningReference.md` — every gameplay-feel tunable and exactly where to change it. Update it whenever a new system introduces a numeric tunable worth exposing.
+- `Docs/Infima Pack - Official Implementation Guide/` — historical; Infima is a prototype placeholder now (see Animation section).
 - Unreal Engine 5.8 official docs: https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-documentation

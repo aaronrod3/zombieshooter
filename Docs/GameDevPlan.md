@@ -295,6 +295,40 @@ Blender 4.x LTS, free. The workflow that matches Synty-style art:
 
 **Skeleton rule (important, learned the hard way with `SKEL_TFA_Mannequin`):** everything humanoid in the new art pipeline targets the **UE5 mannequin skeleton** (or a Synty rig retarget-mapped to it once, via IK Retargeter). One skeleton family, one retarget hub — never again a system built against a pack-specific skeleton.
 
+### 5.1 — Standard animation set (the "for right now" contract, added 2026-07-18 at P0)
+
+The §2 rule made concrete: this is the **complete authorized animation list** until a phase explicitly adds to it. An animation earns its place only by being readable at gameplay camera distance or by gating gameplay timing — nothing else gets built, bought, or retargeted.
+
+**Skeleton/base:** the UE5 mannequin skeleton (the stock Third Person template's Manny is already in the project). The Infima skeleton (`SKEL_TFA_Mannequin`) retires with the FP rig — anything still wanted from Infima's TP set gets IK-retargeted onto the UE5 mannequin once, per the skeleton rule above. All free sources: **Game Animation Sample** (500+ locomotion anims incl. full strafe sets), the **stock TP template**, **Lyra** (free Epic sample — full rifle idle/aim/fire/reload set on the UE5 mannequin, migrate just the anims), **Mixamo**.
+
+**Stage A — base locomotion (build first: movement in all directions + aiming):**
+
+| # | Animation | Source | Notes |
+|---|---|---|---|
+| 1 | Idle | GASP / stock template | |
+| 2 | Walk/jog directional set (fwd/back/L/R strafes) | GASP | 2D blendspace on local velocity X/Y |
+| 3 | Sprint fwd | GASP | gated by existing `bIsSprinting` |
+| 4 | Jump (start/land, minimal) | Stock template / GASP | |
+| 5 | Crouch idle + crouch walk | GASP | feeds existing `EZSStance` |
+| 6 | Aim idle + aim walk (weapon raised) | Lyra rifle set, or Infima TP retarget | the "aiming" half — upper-body blend driven by the already-replicated `bIsAiming` |
+
+Implementation shape (next editor session): repoint the character body mesh to UE5 Manny; fresh `ABP_ZS_ThirdPerson` on the UE5 skeleton, parented to `UZSAnimInstanceBase` (unchanged C++); simple state machine (Idle/Move) + crouch layer + aim upper-body blend. Interim facing is `bOrientRotationToMovement = true` (restored in P0); P1's cursor-aim flips facing to aim-driven and the strafe blendspace becomes the star.
+
+**Stage B — montages and calls (after locomotion works):**
+
+| # | Animation | Source | Notes |
+|---|---|---|---|
+| 7 | Fire (upper-body) | Lyra / Infima retarget | plays via existing `Multicast_PlayTPActionMontage` |
+| 8 | Reload | Lyra / Infima retarget | re-place `AN_ZS_UnlockActions` + `ANS_ZS_BlockADS` on the new montage — the timing system carries over untouched |
+| 9 | Generic use/channel loop | Mixamo / GASP | ONE kneel-and-work loop reused for bandage/loot/barricade/repair at different durations — bespoke per-action anims are polish-phase |
+| 10 | Hit reaction (single flinch) | Mixamo / Lyra | P3 |
+| 11 | Death (1–2 variants) | Mixamo | P3 |
+| 12 | Melee swing (1H/2H generic) | Mixamo / Lyra | P5 |
+
+**Stage C — zombies (P4):** the Mixamo zombie set (walk/chase/attack/scream/death) per §5's free-sources table; MoCap Online packs only if P4 proves a variety gap.
+
+**Explicitly out (cut in P0 — do not re-add without a phase decision):** inspect/mag-check, grip-attachment swaps and pose variants, procedural spring ADS/recoil/crouch layers, weapon-mesh and magazine AnimBPs/montages, casing/magazine physics props, per-perspective animation duplicates.
+
 ---
 
 ## 6. Scope guardrails & risks
