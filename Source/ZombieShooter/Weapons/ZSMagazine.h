@@ -7,14 +7,13 @@
 #include "ZSMagazine.generated.h"
 
 class USkeletalMeshComponent;
-class UStaticMeshComponent;
 class UZSWeaponConfig;
 
 /**
- *  Cosmetic magazine prop attached to a weapon (main and reserve). Not the source of truth
- *  for ammo count - AZSWeapon owns CurrentMagazineAmmo/CurrentReserveAmmo. This actor only
- *  represents the magazine visually, including per-round bullet meshes at sockets prefixed
- *  with the config's PrefixBulletSocket.
+ *  Cosmetic magazine prop attached to the weapon. Not the source of truth for ammo count -
+ *  AZSWeapon owns CurrentMagazineAmmo/CurrentReserveAmmo. This actor only represents the
+ *  magazine visually. Never replicated - each machine spawns its own from
+ *  AZSWeapon's cosmetic assembly.
  */
 UCLASS()
 class AZSMagazine : public AActor
@@ -25,13 +24,9 @@ public:
 
 	AZSMagazine();
 
-	/** Assigns mesh/anim class from the config and spawns one bullet mesh per matching socket. */
+	/** Assigns the magazine mesh from the config. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Magazine")
 	void InitializeFromConfig(UZSWeaponConfig* Config);
-
-	/** Marks MagazineMesh + every bullet mesh SetOwnerNoSee - see AZSWeapon::SetHiddenFromOwner, which calls this on the real weapon's MainMagazine/ReserveMagazine when it hides from the owner in FirstPerson view. */
-	UFUNCTION(BlueprintCallable, Category = "ZS|Magazine")
-	void SetHiddenFromOwner(bool bHideFromOwner);
 
 protected:
 
@@ -40,9 +35,4 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Magazine")
 	TObjectPtr<UZSWeaponConfig> WeaponConfig;
-
-private:
-
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> BulletMeshComponents;
 };

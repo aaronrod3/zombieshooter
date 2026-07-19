@@ -2,8 +2,6 @@
 
 #include "ZSAnimInstanceBase.h"
 #include "ZSPlayerCharacter.h"
-#include "ZSWeapon.h"
-#include "Kismet/KismetMathLibrary.h"
 
 void UZSAnimInstanceBase::NativeInitializeAnimation()
 {
@@ -27,21 +25,8 @@ void UZSAnimInstanceBase::NativeUpdateAnimation(float DeltaSeconds)
 	}
 
 	bIsAiming = CharacterOwner->IsAiming();
-	RecoilTransform = CharacterOwner->GetRecoilTransform();
 
-	if (AZSWeapon* Weapon = CharacterOwner->GetCurrentWeapon())
-	{
-		CurrentGrip = Weapon->GetCurrentGrip();
-	}
-
-	PullPerspectiveState(DeltaSeconds);
 	UpdateGripAlpha(DeltaSeconds);
-}
-
-void UZSAnimInstanceBase::PullPerspectiveState(float DeltaSeconds)
-{
-	// Empty in the base class - TP needs nothing beyond the state pulled above.
-	// See UZSFirstPersonAnimInstance for the FP-only additions.
 }
 
 void UZSAnimInstanceBase::UpdateGripAlpha(float DeltaSeconds)

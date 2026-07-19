@@ -13,7 +13,6 @@
 #include "InputActionValue.h"
 #include "InputAction.h"
 #include "UObject/ConstructorHelpers.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimNotifies/AnimNotify.h"
@@ -26,8 +25,7 @@
 
 AZSPlayerCharacter::AZSPlayerCharacter()
 {
-	// Phase 2 needs Tick() for the procedural spring offsets and camera FOV interpolation -
-	// ACharacter doesn't enable ticking by default.
+	// Tick drives the third-person camera-distance interpolation.
 	PrimaryActorTick.bCanEverTick = true;
 
 	// Set size for collision capsule
@@ -38,14 +36,12 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
-	// Configure character movement. bOrientRotationToMovement stays false (unlike the stock
-	// Third Person template default) - FirstPersonCamera is rigidly socket-attached to
-	// FirstPersonMesh, which is capsule-attached, so any capsule rotation directly drags the FP
-	// view with it. DoMove() already resolves movement input relative to ControlRotation, so
-	// turning the capsule to face net movement direction on top of that only fights the camera:
-	// pure strafing produces a movement vector 90 degrees off camera-forward, so the capsule (and
-	// FP arms) would visibly snap toward that 90-degree-off facing instead of staying camera-locked.
-	GetCharacterMovement()->bOrientRotationToMovement = false;
+	// Stock Third Person behavior: the character turns to face its net movement direction.
+	// Restored in the P0 de-scope (it was false while the first-person rig existed - a
+	// camera-locked FP mesh can't tolerate the capsule chasing movement direction; that rig is
+	// gone). P1's top-down cursor-aim will drive facing from the aim point instead - revisit then.
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 500.f, 0.f);
 
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
@@ -54,9 +50,6 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
-	// Camera boom + FollowCamera - used for ThirdPerson/GunCamera/Bodycam, FollowCamera is
-	// re-attached to a different socket per perspective in ApplyCameraPerspective rather than
-	// duplicated (see class comment).
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
@@ -65,20 +58,6 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
-
-	// First-person arms mesh + camera - always present as siblings of GetMesh(), not swapped
-	// in like Infima's demo (see class comment).
-	FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
-	FirstPersonMesh->SetupAttachment(GetCapsuleComponent());
-	FirstPersonMesh->SetOnlyOwnerSee(true);
-	FirstPersonMesh->bCastDynamicShadow = false;
-	FirstPersonMesh->CastShadow = false;
-
-	// SOCKET_CameraFP - confirmed present on the shared SKM_Manny_Simple skeleton (M7, via
-	// SkeletalMeshTools.get_socket_names), not a guess.
-	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
-	FirstPersonCamera->SetupAttachment(FirstPersonMesh, TEXT("SOCKET_CameraFP"));
-	FirstPersonCamera->bUsePawnControlRotation = true;
 
 	// Default Input Actions. AZSPlayerCharacter has no mandatory Blueprint child
 	// (see class comment), so these EditAnywhere references need a constructor-time
@@ -95,9 +74,9 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> MouseLookActionFinder(TEXT("/Game/ZS/Input/IA_MouseLook.IA_MouseLook"));
 	if (MouseLookActionFinder.Succeeded()) { MouseLookAction = MouseLookActionFinder.Object; }
 
-	// Phase 2 Input Actions - assets are created in Phase 2 M4. Until then these finders simply
-	// fail (Succeeded() == false) and the corresponding bindings are skipped in
-	// SetupPlayerInputComponent, same no-op-until-content-exists pattern as Phase 1 above.
+	// Actions whose assets may not exist yet simply fail their finders (Succeeded() == false)
+	// and the corresponding bindings are skipped in SetupPlayerInputComponent - the standard
+	// no-op-until-content-exists pattern used since Phase 1.
 	static ConstructorHelpers::FObjectFinder<UInputAction> FireActionFinder(TEXT("/Game/ZS/Input/IA_Fire.IA_Fire"));
 	if (FireActionFinder.Succeeded()) { FireAction = FireActionFinder.Object; }
 
@@ -118,15 +97,6 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> FireModeSwitchActionFinder(TEXT("/Game/ZS/Input/IA_FireModeSwitch.IA_FireModeSwitch"));
 	if (FireModeSwitchActionFinder.Succeeded()) { FireModeSwitchAction = FireModeSwitchActionFinder.Object; }
-
-	static ConstructorHelpers::FObjectFinder<UInputAction> InspectActionFinder(TEXT("/Game/ZS/Input/IA_Inspect.IA_Inspect"));
-	if (InspectActionFinder.Succeeded()) { InspectAction = InspectActionFinder.Object; }
-
-	static ConstructorHelpers::FObjectFinder<UInputAction> MagCheckActionFinder(TEXT("/Game/ZS/Input/IA_MagCheck.IA_MagCheck"));
-	if (MagCheckActionFinder.Succeeded()) { MagCheckAction = MagCheckActionFinder.Object; }
-
-	static ConstructorHelpers::FObjectFinder<UInputAction> SwitchGripActionFinder(TEXT("/Game/ZS/Input/IA_SwitchGrip.IA_SwitchGrip"));
-	if (SwitchGripActionFinder.Succeeded()) { SwitchGripAction = SwitchGripActionFinder.Object; }
 }
 
 void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -145,7 +115,6 @@ void AZSPlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	BaseWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
-	FirstPersonMeshRestRotation = FirstPersonMesh->GetRelativeRotation();
 
 	ApplyCameraPerspective(CurrentCameraPerspective);
 
@@ -160,17 +129,6 @@ void AZSPlayerCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	UpdateThirdPersonCameraTick(DeltaSeconds);
-	UpdateAimFOV(DeltaSeconds);
-	UpdateFirstPersonMeshRotation();
-
-	UpdateSpringOffset(CurrentCrouchOffset, TargetCrouchOffset, CrouchTranslationSpringState, CrouchRotationSpringState, CrouchSpringConfig, DeltaSeconds);
-	UpdateSpringOffset(CurrentAimDownSightsOffset, TargetAimDownSightsOffset, AimTranslationSpringState, AimRotationSpringState, AimDownSightsSpringConfig, DeltaSeconds);
-
-	const float RecoilDeltaTime = FMath::Min(DeltaSeconds, MaxRecoilDecayDeltaTime);
-	UpdateSpringOffset(CurrentRecoil, TargetRecoil, RecoilTranslationSpringState, RecoilRotationSpringState, RecoilSpringConfig, RecoilDeltaTime);
-
-	// The recoil target decays back to identity every frame; each shot re-kicks it via AddRecoil.
-	TargetRecoil = FTransform::Identity;
 }
 
 void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -221,21 +179,6 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		if (FireModeSwitchAction)
 		{
 			EnhancedInputComponent->BindAction(FireModeSwitchAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::CycleFireMode);
-		}
-
-		if (InspectAction)
-		{
-			EnhancedInputComponent->BindAction(InspectAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::Inspect);
-		}
-
-		if (MagCheckAction)
-		{
-			EnhancedInputComponent->BindAction(MagCheckAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::MagCheck);
-		}
-
-		if (SwitchGripAction)
-		{
-			EnhancedInputComponent->BindAction(SwitchGripAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::CycleGripAttachment);
 		}
 	}
 	else
@@ -325,28 +268,23 @@ void AZSPlayerCharacter::EquipWeapon(UZSWeaponConfig* Config)
 
 		// OnRep_CurrentWeapon never fires on the server itself - apply its client-side
 		// counterpart logic directly here too, same pattern used throughout Phase 3.
-		RefreshBodyMeshesFromWeapon();
-		AttachWeaponToActiveMesh();
-		RefreshFirstPersonWeaponVisual();
+		RefreshBodyMeshFromWeapon();
+		AttachWeaponToBodyMesh();
 	}
 }
 
 void AZSPlayerCharacter::OnRep_CurrentWeapon()
 {
-	RefreshBodyMeshesFromWeapon();
-	AttachWeaponToActiveMesh();
-	RefreshFirstPersonWeaponVisual();
+	RefreshBodyMeshFromWeapon();
+	AttachWeaponToBodyMesh();
 	OnWeaponChanged.Broadcast(CurrentWeapon);
 }
 
-void AZSPlayerCharacter::RefreshBodyMeshesFromWeapon()
+void AZSPlayerCharacter::RefreshBodyMeshFromWeapon()
 {
-	// The character's own body meshes are config-driven too, per Infima guide 03's perspective
-	// switching (assigns FP_Mesh/TP_Mesh) - only actually wired here, not per-perspective, since
-	// both meshes stay assigned across every perspective switch under this project's dual-mesh
-	// design (see CoreLoopPlan.md's "Key architecture decisions"). Phase 3: this is the only path
-	// that assigns them now, since EquipWeapon itself is server-only - called from both
-	// EquipWeapon (server) and OnRep_CurrentWeapon (clients).
+	// The character's body mesh is config-driven too - Phase 3: this is the only path that
+	// assigns it, since EquipWeapon itself is server-only. Called from both EquipWeapon (server)
+	// and OnRep_CurrentWeapon (clients).
 	if (!CurrentWeapon || !CurrentWeapon->GetConfig())
 	{
 		return;
@@ -354,63 +292,9 @@ void AZSPlayerCharacter::RefreshBodyMeshesFromWeapon()
 
 	const UZSWeaponConfig* Config = CurrentWeapon->GetConfig();
 
-	if (Config->FP_Mesh)
-	{
-		FirstPersonMesh->SetSkeletalMesh(Config->FP_Mesh);
-	}
-
 	if (Config->TP_Mesh)
 	{
 		GetMesh()->SetSkeletalMesh(Config->TP_Mesh);
-	}
-}
-
-void AZSPlayerCharacter::RefreshFirstPersonWeaponVisual()
-{
-	// Runs on EVERY machine (server for its own view, every client for theirs) - see this
-	// property's header comment for why CurrentWeapon itself can no longer serve this role.
-	if (!CurrentWeapon || !CurrentWeapon->GetConfig())
-	{
-		return;
-	}
-
-	if (FirstPersonWeaponVisual)
-	{
-		FirstPersonWeaponVisual->Destroy();
-		FirstPersonWeaponVisual = nullptr;
-	}
-
-	UZSWeaponConfig* Config = CurrentWeapon->GetConfig();
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-
-	TSubclassOf<AZSWeapon> ClassToSpawn = AZSWeapon::StaticClass();
-	if (Config->WeaponClass)
-	{
-		ClassToSpawn = Config->WeaponClass;
-	}
-
-	FirstPersonWeaponVisual = GetWorld()->SpawnActor<AZSWeapon>(ClassToSpawn, SpawnParams);
-	if (FirstPersonWeaponVisual)
-	{
-		FirstPersonWeaponVisual->AttachToComponent(FirstPersonMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Config->SocketGunAttachment);
-		FirstPersonWeaponVisual->InitializeAsFirstPersonVisual(Config);
-		FirstPersonWeaponVisual->SetActorHiddenInGame(CurrentCameraPerspective != EZSCameraPerspective::FirstPerson);
-	}
-
-	// Keep the visual's grip in sync with the real weapon's - CycleGripAttachment only ever
-	// mutates CurrentWeapon (the replicated, authoritative one), never this local twin directly.
-	CurrentWeapon->OnGripChanged.RemoveDynamic(this, &AZSPlayerCharacter::OnRealWeaponGripChanged);
-	CurrentWeapon->OnGripChanged.AddDynamic(this, &AZSPlayerCharacter::OnRealWeaponGripChanged);
-	OnRealWeaponGripChanged(CurrentWeapon->GetCurrentGrip());
-}
-
-void AZSPlayerCharacter::OnRealWeaponGripChanged(EZSGripAttachment NewGrip)
-{
-	if (FirstPersonWeaponVisual)
-	{
-		FirstPersonWeaponVisual->SetGripAttachment(NewGrip);
 	}
 }
 
@@ -420,8 +304,9 @@ void AZSPlayerCharacter::OnRealWeaponGripChanged(EZSGripAttachment NewGrip)
 
 void AZSPlayerCharacter::ToggleCameraPerspective_Implementation()
 {
-	const uint8 NextPerspective = (static_cast<uint8>(CurrentCameraPerspective) + 1) % 4;
-	ApplyCameraPerspective(static_cast<EZSCameraPerspective>(NextPerspective));
+	// One perspective exists after the P0 de-scope, so this just re-applies it. P1's
+	// TopDown/OverShoulder pair restores the real cycle.
+	ApplyCameraPerspective(CurrentCameraPerspective);
 }
 
 void AZSPlayerCharacter::ApplyCameraPerspective(EZSCameraPerspective NewPerspective)
@@ -430,174 +315,35 @@ void AZSPlayerCharacter::ApplyCameraPerspective(EZSCameraPerspective NewPerspect
 
 	switch (NewPerspective)
 	{
-	case EZSCameraPerspective::FirstPerson:
-		EnableFirstPersonPerspective();
-		break;
 	case EZSCameraPerspective::ThirdPerson:
+	default:
 		EnableThirdPersonPerspective();
 		break;
-	case EZSCameraPerspective::GunCamera:
-		EnableGunCameraPerspective();
-		break;
-	case EZSCameraPerspective::Bodycam:
-		EnableBodycamPerspective();
-		break;
 	}
-
-	AttachWeaponToActiveMesh();
-
-	// FirstPersonWeaponVisual is owner-only-visible already (see its header comment) - this only
-	// ever runs from the owning player's own perspective-change input, so gating its visibility on
-	// CurrentCameraPerspective here (rather than in each Enable*Perspective, matching how
-	// FirstPersonMesh itself is toggled) keeps it in one place instead of four.
-	if (FirstPersonWeaponVisual)
-	{
-		FirstPersonWeaponVisual->SetActorHiddenInGame(NewPerspective != EZSCameraPerspective::FirstPerson);
-	}
-}
-
-void AZSPlayerCharacter::EnableFirstPersonPerspective()
-{
-	FirstPersonMesh->SetVisibility(true, true);
-
-	// SetOwnerNoSee, not SetVisibility(false) - the latter is a global (all-viewers) flag, which
-	// in multiplayer would hide this player's TP body from every OTHER client too, not just from
-	// themselves. SetOwnerNoSee only ever affects this one component's own owning connection -
-	// see CoreLoopPlan.md's Phase 3 M2 visibility fix.
-	GetMesh()->SetOwnerNoSee(true);
-
-	FollowCamera->Deactivate();
-	FirstPersonCamera->Activate();
-
-	bAnimateCamera = true;
 }
 
 void AZSPlayerCharacter::EnableThirdPersonPerspective()
 {
-	FirstPersonMesh->SetVisibility(false, true);
-	GetMesh()->SetOwnerNoSee(false);
-
-	FirstPersonCamera->Deactivate();
 	FollowCamera->AttachToComponent(CameraBoom, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
 	FollowCamera->SetFieldOfView(ThirdPersonFOV);
 	FollowCamera->Activate();
-
-	bAnimateCamera = true;
 }
 
-void AZSPlayerCharacter::EnableGunCameraPerspective()
-{
-	FirstPersonMesh->SetVisibility(false, true);
-	GetMesh()->SetOwnerNoSee(false);
-
-	FirstPersonCamera->Deactivate();
-
-	if (CurrentWeapon && CurrentWeapon->GetConfig() && CurrentWeapon->GetReceiverMesh())
-	{
-		FollowCamera->AttachToComponent(CurrentWeapon->GetReceiverMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, CurrentWeapon->GetConfig()->SocketGunCamera);
-	}
-	FollowCamera->SetFieldOfView(GunCameraFOV);
-	FollowCamera->Activate();
-
-	bAnimateCamera = false;
-}
-
-void AZSPlayerCharacter::EnableBodycamPerspective()
-{
-	FirstPersonMesh->SetVisibility(false, true);
-	GetMesh()->SetOwnerNoSee(false);
-
-	FirstPersonCamera->Deactivate();
-
-	if (CurrentWeapon && CurrentWeapon->GetConfig())
-	{
-		const FName BodycamSocket = bUseChestCameraForBodycam ? CurrentWeapon->GetConfig()->SocketChestCamera : CurrentWeapon->GetConfig()->SocketHelmetCamera;
-		FollowCamera->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, BodycamSocket);
-	}
-	FollowCamera->SetFieldOfView(BodycamFOV);
-	FollowCamera->Activate();
-
-	bAnimateCamera = false;
-}
-
-void AZSPlayerCharacter::AttachWeaponToActiveMesh()
+void AZSPlayerCharacter::AttachWeaponToBodyMesh()
 {
 	if (!CurrentWeapon || !CurrentWeapon->GetConfig())
 	{
 		return;
 	}
 
-	// Always GetMesh() (TP body), regardless of perspective or which machine calls this - see this
-	// function's header comment for why. FirstPersonWeaponVisual is the actual FirstPerson-view
-	// visual now.
 	CurrentWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, CurrentWeapon->GetConfig()->SocketGunAttachment);
-
-	// GetMesh()'s own SetOwnerNoSee (see Enable*Perspective) doesn't propagate to the weapon
-	// attached to it - without this, the owner would see BOTH the real weapon (now permanently at
-	// GetMesh()'s socket - a different height than the FP arms' own socket) AND
-	// FirstPersonWeaponVisual simultaneously whenever they're in FirstPerson view (found live in
-	// 2-client PIE testing). Only hide it from the owner specifically, and only in FirstPerson -
-	// everyone else, and every other perspective, should keep seeing it normally.
-	CurrentWeapon->SetHiddenFromOwner(CurrentCameraPerspective == EZSCameraPerspective::FirstPerson);
-
-	// The Enable*Perspective() functions run before this (see ApplyCameraPerspective) and call
-	// SetVisibility(..., true) on the outgoing mesh, which propagates bVisible=false to whatever
-	// is still attached to it at that moment - including the weapon, since it hasn't been
-	// re-parented yet. Re-attaching above doesn't retroactively restore bVisible, so it must be
-	// explicitly reasserted here. SetActorHiddenInGame() is NOT the inverse of this - it toggles
-	// the separate bHidden/bHiddenInGame flag, not bVisible - so it must go through the root
-	// component's own SetVisibility, matching the property that was actually changed.
-	if (USceneComponent* WeaponRoot = CurrentWeapon->GetRootComponent())
-	{
-		WeaponRoot->SetVisibility(true, true);
-	}
 }
 
 void AZSPlayerCharacter::UpdateThirdPersonCameraTick(float DeltaTime)
 {
-	if (CurrentCameraPerspective != EZSCameraPerspective::ThirdPerson)
-	{
-		return;
-	}
-
 	// Zoom in/out (Min/MaxCameraDistance, CameraZoomStep) isn't wired to an input action yet -
-	// none was planned for Phase 2. This just holds the arm at InitialCameraDistance for now.
+	// P1's camera work owns that. This just holds the arm at InitialCameraDistance for now.
 	CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, InitialCameraDistance, DeltaTime, FOVInterpSpeed);
-}
-
-void AZSPlayerCharacter::UpdateAimFOV(float DeltaTime)
-{
-	if (CurrentCameraPerspective != EZSCameraPerspective::FirstPerson)
-	{
-		return;
-	}
-
-	const float TargetFOV = bIsAiming ? AimedFOV : DefaultFOV;
-	FirstPersonCamera->SetFieldOfView(FMath::FInterpTo(FirstPersonCamera->FieldOfView, TargetFOV, DeltaTime, FOVInterpSpeed));
-}
-
-void AZSPlayerCharacter::UpdateFirstPersonMeshRotation()
-{
-	if (!Controller)
-	{
-		return;
-	}
-
-	const float ControlYaw = Controller->GetControlRotation().Yaw;
-	FirstPersonMesh->SetWorldRotation(FRotator(FirstPersonMeshRestRotation.Pitch, ControlYaw + FirstPersonMeshRestRotation.Yaw, FirstPersonMeshRestRotation.Roll));
-}
-
-// =====================================================================
-// Phase 2 - Procedural Offsets
-// =====================================================================
-
-void AZSPlayerCharacter::UpdateSpringOffset(FTransform& Current, const FTransform& Target, FVectorSpringState& TranslationState, FQuaternionSpringState& RotationState, const FZSSpringConfig& Config, float DeltaTime) const
-{
-	const FVector NewTranslation = UKismetMathLibrary::VectorSpringInterp(Current.GetTranslation(), Target.GetTranslation(), TranslationState, Config.Stiffness, Config.CriticalDampingFactor, DeltaTime, Config.Mass);
-	const FQuat NewRotation = UKismetMathLibrary::QuaternionSpringInterp(Current.GetRotation(), Target.GetRotation(), RotationState, Config.Stiffness, Config.CriticalDampingFactor, DeltaTime, Config.Mass);
-
-	Current.SetTranslation(NewTranslation);
-	Current.SetRotation(NewRotation);
 }
 
 // =====================================================================
@@ -703,23 +449,6 @@ void AZSPlayerCharacter::Server_StopSprint_Implementation()
 	OnRep_IsSprinting();
 }
 
-void AZSPlayerCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
-{
-	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
-
-	if (CurrentWeapon && CurrentWeapon->GetConfig())
-	{
-		TargetCrouchOffset = CurrentWeapon->GetConfig()->OffsetCrouch;
-	}
-}
-
-void AZSPlayerCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
-{
-	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
-
-	TargetCrouchOffset = FTransform::Identity;
-}
-
 // =====================================================================
 // Phase 2 - Aim / Combat
 // =====================================================================
@@ -734,15 +463,6 @@ void AZSPlayerCharacter::StartAim_Implementation()
 	if (!CanAim())
 	{
 		return;
-	}
-
-	// Purely cosmetic (FP-only, owner-only-visible) - safe to apply immediately, no need to wait
-	// on the server round trip. bIsAiming itself is server-authoritative (see Server_StartAim);
-	// the TP AnimGraph on every client (including this one) picks it up via its own live poll of
-	// IsAiming() the moment it replicates, a frame or two later.
-	if (CurrentWeapon && CurrentWeapon->GetConfig())
-	{
-		TargetAimDownSightsOffset = CurrentWeapon->GetConfig()->OffsetAimDownSights;
 	}
 
 	Server_StartAim();
@@ -761,7 +481,6 @@ void AZSPlayerCharacter::Server_StartAim_Implementation()
 
 void AZSPlayerCharacter::StopAim_Implementation()
 {
-	TargetAimDownSightsOffset = FTransform::Identity;
 	Server_StopAim();
 }
 
@@ -778,7 +497,6 @@ void AZSPlayerCharacter::Server_StopAim_Implementation()
 
 void AZSPlayerCharacter::ForceStopAiming()
 {
-	TargetAimDownSightsOffset = FTransform::Identity;
 	Server_ForceStopAiming();
 }
 
@@ -817,7 +535,6 @@ void AZSPlayerCharacter::HandleFireStarted()
 void AZSPlayerCharacter::HandleFireStopped()
 {
 	GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
-	RecoilRampCount = 0;
 }
 
 void AZSPlayerCharacter::Fire_Implementation()
@@ -826,17 +543,6 @@ void AZSPlayerCharacter::Fire_Implementation()
 	{
 		GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
 		return;
-	}
-
-	// AddRecoil + the FP muzzle montage are pure client-local cosmetic (FirstPersonMesh is
-	// owner-only-visible), so they fire instantly here with no need to wait on Server_Fire's
-	// round trip - see CoreLoopPlan.md's Phase 3 state classification.
-	AddRecoil();
-
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
-	{
-		UAnimMontage* FPFireMontage = CurrentWeapon->GetCurrentFireMode() == EZSFireMode::Auto ? Config->FP_FireAuto : Config->FP_FireSemi;
-		PlayActionMontages(FPFireMontage, nullptr);
 	}
 
 	Server_Fire();
@@ -857,45 +563,22 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 	}
 }
 
-void AZSPlayerCharacter::AddRecoil()
+void AZSPlayerCharacter::PlayTPMontage(UAnimMontage* Montage)
 {
-	if (!CurrentWeapon || !CurrentWeapon->GetConfig())
+	if (!Montage)
 	{
 		return;
 	}
 
-	const UZSWeaponConfig* Config = CurrentWeapon->GetConfig();
-
-	RecoilRampCount = FMath::Clamp(RecoilRampCount + 1, Config->RecoilRampMinShots, Config->RecoilRampMaxShots);
-
-	const float Pitch = FMath::RandRange(Config->RecoilPitchRange.X, Config->RecoilPitchRange.Y);
-	const float Yaw = FMath::RandRange(Config->RecoilYawRange.X, Config->RecoilYawRange.Y);
-
-	TargetRecoil.SetRotation(FRotator(Pitch, Yaw, 0.f).Quaternion());
-}
-
-void AZSPlayerCharacter::PlayActionMontages(UAnimMontage* FPMontage, UAnimMontage* TPMontage)
-{
-	if (FPMontage)
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
-		if (UAnimInstance* FPAnimInstance = FirstPersonMesh->GetAnimInstance())
-		{
-			FPAnimInstance->Montage_Play(FPMontage);
-		}
-	}
-
-	if (TPMontage)
-	{
-		if (UAnimInstance* TPAnimInstance = GetMesh()->GetAnimInstance())
-		{
-			TPAnimInstance->Montage_Play(TPMontage);
-		}
+		AnimInstance->Montage_Play(Montage);
 	}
 }
 
 void AZSPlayerCharacter::Multicast_PlayTPActionMontage_Implementation(UAnimMontage* TPMontage)
 {
-	PlayActionMontages(nullptr, TPMontage);
+	PlayTPMontage(TPMontage);
 }
 
 bool AZSPlayerCharacter::FindNotifyTriggerTime(const UAnimMontage* Montage, TSubclassOf<UAnimNotify> NotifyClass, float& OutTriggerTime)
@@ -983,11 +666,6 @@ void AZSPlayerCharacter::StartReload_Implementation()
 		return;
 	}
 
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
-	{
-		PlayActionMontages(Config->FP_Reload, nullptr);
-	}
-
 	Server_StartReload();
 }
 
@@ -1007,64 +685,6 @@ void AZSPlayerCharacter::Server_StartReload_Implementation()
 	}
 }
 
-void AZSPlayerCharacter::Inspect_Implementation()
-{
-	if (bIsBusy || !CurrentWeapon)
-	{
-		return;
-	}
-
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
-	{
-		PlayActionMontages(Config->FP_Inspect, nullptr);
-	}
-
-	Server_Inspect();
-}
-
-void AZSPlayerCharacter::Server_Inspect_Implementation()
-{
-	if (!HasAuthority() || bIsBusy || !CurrentWeapon)
-	{
-		return;
-	}
-
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
-	{
-		Multicast_PlayTPActionMontage(Config->TP_Inspect);
-		BeginBusyAction(Config->TP_Inspect);
-	}
-}
-
-void AZSPlayerCharacter::MagCheck_Implementation()
-{
-	if (bIsBusy || !CurrentWeapon)
-	{
-		return;
-	}
-
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
-	{
-		PlayActionMontages(Config->FP_MagCheck, nullptr);
-	}
-
-	Server_MagCheck();
-}
-
-void AZSPlayerCharacter::Server_MagCheck_Implementation()
-{
-	if (!HasAuthority() || bIsBusy || !CurrentWeapon)
-	{
-		return;
-	}
-
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
-	{
-		Multicast_PlayTPActionMontage(Config->TP_MagCheck);
-		BeginBusyAction(Config->TP_MagCheck);
-	}
-}
-
 void AZSPlayerCharacter::CycleFireMode_Implementation()
 {
 	Server_CycleFireMode();
@@ -1075,18 +695,5 @@ void AZSPlayerCharacter::Server_CycleFireMode_Implementation()
 	if (HasAuthority() && CurrentWeapon)
 	{
 		CurrentWeapon->CycleFireMode();
-	}
-}
-
-void AZSPlayerCharacter::CycleGripAttachment_Implementation()
-{
-	Server_CycleGripAttachment();
-}
-
-void AZSPlayerCharacter::Server_CycleGripAttachment_Implementation()
-{
-	if (HasAuthority() && CurrentWeapon)
-	{
-		CurrentWeapon->RandomizeGripAttachment();
 	}
 }

@@ -4,9 +4,6 @@
 #include "ZSWeaponConfig.h"
 #include "ZSPlayerCharacter.h"
 #include "ZSMagazine.h"
-#include "ZSPhysicsMagazine.h"
-#include "ZSPhysicsCasing.h"
-#include "ZSLaserAttachment.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -16,9 +13,8 @@ AZSWeapon::AZSWeapon()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 
-	// This actor never moves independently - it's always attached to GetMesh() (see
-	// AttachWeaponToActiveMesh's comment for why that attachment is now permanent, never
-	// per-perspective) - so it has no absolute position/velocity that ever needs replicating.
+	// This actor never moves independently - it's always attached to the character's body mesh -
+	// so it has no absolute position/velocity that ever needs replicating.
 	SetReplicateMovement(false);
 
 	SK_Receiver = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SK_Receiver"));
@@ -30,7 +26,6 @@ void AZSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AZSWeapon, CurrentConfig);
-	DOREPLIFETIME(AZSWeapon, CurrentGrip);
 	DOREPLIFETIME(AZSWeapon, CurrentFireMode);
 	DOREPLIFETIME(AZSWeapon, CurrentMagazineAmmo);
 	DOREPLIFETIME(AZSWeapon, CurrentReserveAmmo);
@@ -62,12 +57,6 @@ void AZSWeapon::InitializeFromConfig(UZSWeaponConfig* Config)
 
 void AZSWeapon::AssembleCosmeticsFromConfig()
 {
-	AssembleReceiverCosmetics();
-	AssembleMagazinesAndLaser();
-}
-
-void AZSWeapon::AssembleReceiverCosmetics()
-{
 	if (!CurrentConfig)
 	{
 		return;
@@ -80,98 +69,17 @@ void AZSWeapon::AssembleReceiverCosmetics()
 		SK_Receiver->SetSkeletalMesh(Config->MeshReceiver);
 	}
 
-	if (Config->ABP_Weapon)
-	{
-		SK_Receiver->SetAnimInstanceClass(Config->ABP_Weapon);
-	}
-
 	HandguardMesh = AssignNewStaticMesh(Config->SocketHandguard, Config->MeshHandguard, TEXT("HandguardMesh"));
 	SilencerMesh = AssignNewStaticMesh(Config->SocketMuzzle, Config->MeshSilencer, TEXT("SilencerMesh"));
 	ScopeMesh = AssignNewStaticMesh(Config->SocketScope, Config->MeshScope, TEXT("ScopeMesh"));
 	FrontSightMesh = AssignNewStaticMesh(Config->SocketSightFront, Config->MeshSightFront, TEXT("FrontSightMesh"));
 	RearSightMesh = AssignNewStaticMesh(Config->SocketSightRear, Config->MeshSightRear, TEXT("RearSightMesh"));
 
-	if (SK_Receiver->DoesSocketExist(Config->SocketGripAttachment))
-	{
-		UpdateGripVisual();
-	}
-
-	if (bIsFirstPersonVisual)
-	{
-		SetOwnerOnlyVisible(true);
-	}
-}
-
-void AZSWeapon::AssembleMagazinesAndLaser()
-{
-	if (!CurrentConfig)
-	{
-		return;
-	}
-
-	UZSWeaponConfig* Config = CurrentConfig;
-
-	if (SK_Receiver->DoesSocketExist(Config->SocketLaserAttachment))
-	{
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = this;
-
-		LaserAttachment = GetWorld()->SpawnActor<AZSLaserAttachment>(SpawnParams);
-		if (LaserAttachment)
-		{
-			LaserAttachment->AttachToComponent(SK_Receiver, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Config->SocketLaserAttachment);
-			LaserAttachment->InitializeFromConfig(Config, SK_Receiver);
-		}
-	}
-
-	// Each machine (server and every client) spawns its own local, unreplicated magazine
-	// actors here - AZSMagazine is deliberately never a replicated actor (see CoreLoopPlan.md's
-	// Phase 3 state classification), so this runs once per machine via whichever path got it
-	// here (InitializeFromConfig on the server, OnRep_CurrentConfig on clients).
+	// Each machine (server and every client) spawns its own local, unreplicated magazine actor
+	// here - AZSMagazine is deliberately never a replicated actor (see CoreLoopPlan.md's Phase 3
+	// state classification), so this runs once per machine via whichever path got it here
+	// (InitializeFromConfig on the server, OnRep_CurrentConfig on clients).
 	MainMagazine = SpawnMagazine(Config->SocketMagazineAttachment);
-	ReserveMagazine = SpawnMagazine(Config->SocketMagazineReserveAttachment);
-	SetMagazineVisibility(false, true);
-}
-
-void AZSWeapon::InitializeAsFirstPersonVisual(UZSWeaponConfig* Config)
-{
-	if (!Config)
-	{
-		return;
-	}
-
-	bIsFirstPersonVisual = true;
-	SetReplicateMovement(false);
-	SetReplicates(false);
-
-	CurrentConfig = Config;
-	AssembleReceiverCosmetics();
-}
-
-void AZSWeapon::SetOwnerOnlyVisible(bool bOwnerOnly)
-{
-	SK_Receiver->SetOnlyOwnerSee(bOwnerOnly);
-
-	for (UStaticMeshComponent* Cosmetic : { HandguardMesh.Get(), SilencerMesh.Get(), ScopeMesh.Get(), FrontSightMesh.Get(), RearSightMesh.Get(), GripMesh.Get() })
-	{
-		if (Cosmetic)
-		{
-			Cosmetic->SetOnlyOwnerSee(bOwnerOnly);
-		}
-	}
-}
-
-void AZSWeapon::SetHiddenFromOwner(bool bHideFromOwner)
-{
-	SK_Receiver->SetOwnerNoSee(bHideFromOwner);
-
-	for (UStaticMeshComponent* Cosmetic : { HandguardMesh.Get(), SilencerMesh.Get(), ScopeMesh.Get(), FrontSightMesh.Get(), RearSightMesh.Get(), GripMesh.Get() })
-	{
-		if (Cosmetic)
-		{
-			Cosmetic->SetOwnerNoSee(bHideFromOwner);
-		}
-	}
 }
 
 void AZSWeapon::OnRep_CurrentConfig()
@@ -184,17 +92,11 @@ void AZSWeapon::OnRep_CurrentConfig()
 	// completes the setup, regardless of which one that is.
 	if (AZSPlayerCharacter* Character = GetOwner<AZSPlayerCharacter>())
 	{
-		Character->RefreshBodyMeshesFromWeapon();
-		Character->AttachWeaponToActiveMesh();
+		Character->RefreshBodyMeshFromWeapon();
+		Character->AttachWeaponToBodyMesh();
 	}
 
 	OnConfigChanged.Broadcast(CurrentConfig);
-}
-
-void AZSWeapon::OnRep_CurrentGrip()
-{
-	UpdateGripVisual();
-	OnGripChanged.Broadcast(CurrentGrip);
 }
 
 void AZSWeapon::OnRep_CurrentFireMode()
@@ -246,128 +148,6 @@ AZSMagazine* AZSWeapon::SpawnMagazine(FName SocketName)
 	}
 
 	return NewMagazine;
-}
-
-void AZSWeapon::SetMagazineVisibility(bool bVisible, bool bIsReserve)
-{
-	AZSMagazine* Target = bIsReserve ? ReserveMagazine : MainMagazine;
-	if (Target)
-	{
-		Target->SetActorHiddenInGame(!bVisible);
-	}
-}
-
-AZSPhysicsMagazine* AZSWeapon::SpawnDroppedMagazine_Implementation(float ImpulseForce, float RotationForce)
-{
-	// Not HasAuthority()-gated: currently only ever called by AN_ZS_DropMagazine, a weapon-owned
-	// notify class deferred since Phase 2 M9 (SK_Receiver has no AnimInstance yet, so this is
-	// unreachable dead code for now). When that gap is closed, this is meant to run per-machine
-	// as a local, unreplicated cosmetic spawn (same as AZSMagazine/AZSPhysicsCasing) - see
-	// CoreLoopPlan.md's Phase 3 state classification.
-	if (!CurrentConfig || !MainMagazine)
-	{
-		return nullptr;
-	}
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-
-	const FTransform SpawnTransform = MainMagazine->GetActorTransform();
-	AZSPhysicsMagazine* DroppedMagazine = GetWorld()->SpawnActor<AZSPhysicsMagazine>(SpawnTransform.GetLocation(), SpawnTransform.Rotator(), SpawnParams);
-	if (DroppedMagazine)
-	{
-		DroppedMagazine->InitializeVisuals(CurrentConfig->MeshMagazine, CurrentConfig->SoundCue_WEP_MagDrop);
-		DroppedMagazine->ApplyLaunchImpulse(-SpawnTransform.GetRotation().GetUpVector(), ImpulseForce, RotationForce);
-	}
-
-	return DroppedMagazine;
-}
-
-AZSPhysicsCasing* AZSWeapon::EjectCasing_Implementation(FRotator RotationOffset, float MinEjectForce, float MaxEjectForce, float RotationSpeed)
-{
-	// Same deferred-dead-code note as SpawnDroppedMagazine_Implementation above.
-	if (!CurrentConfig || !SK_Receiver->DoesSocketExist(CurrentConfig->SocketCasingEject))
-	{
-		return nullptr;
-	}
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-
-	const FTransform EjectTransform = SK_Receiver->GetSocketTransform(CurrentConfig->SocketCasingEject);
-	AZSPhysicsCasing* Casing = GetWorld()->SpawnActor<AZSPhysicsCasing>(EjectTransform.GetLocation(), EjectTransform.Rotator(), SpawnParams);
-	if (Casing)
-	{
-		Casing->InitializeVisuals(CurrentConfig->MeshBulletCasing, CurrentConfig->SoundCue_WEP_CasingEject);
-
-		const FVector EjectDirection = (EjectTransform.GetRotation() * RotationOffset.Quaternion()).GetUpVector();
-		const float EjectForce = FMath::RandRange(MinEjectForce, MaxEjectForce);
-		Casing->ApplyLaunchImpulse(EjectDirection, EjectForce, RotationSpeed);
-	}
-
-	return Casing;
-}
-
-void AZSWeapon::SetGripAttachment_Implementation(EZSGripAttachment NewGrip)
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	CurrentGrip = NewGrip;
-
-	// OnRep_CurrentGrip never fires on the authority machine itself - apply the visual directly
-	// here too, same pattern as InitializeFromConfig/AssembleCosmeticsFromConfig above.
-	UpdateGripVisual();
-}
-
-void AZSWeapon::UpdateGripVisual()
-{
-	if (!CurrentConfig)
-	{
-		return;
-	}
-
-	UStaticMesh* GripVisual = nullptr;
-	switch (CurrentGrip)
-	{
-	case EZSGripAttachment::Vertical:
-		GripVisual = CurrentConfig->MeshGripVertical;
-		break;
-	case EZSGripAttachment::Angled:
-		GripVisual = CurrentConfig->MeshGripAngled;
-		break;
-	case EZSGripAttachment::None:
-	default:
-		break;
-	}
-
-	if (!GripMesh)
-	{
-		GripMesh = AssignNewStaticMesh(CurrentConfig->SocketGripAttachment, GripVisual, TEXT("GripMesh"));
-
-		// GripMesh is created lazily here, on whatever the first non-nothing-relevant call happens
-		// to be - if that's after InitializeAsFirstPersonVisual's own one-time SetOwnerOnlyVisible
-		// pass already ran (e.g. the real weapon's grip changes later and the FirstPerson twin
-		// mirrors it via OnGripChanged - see AZSPlayerCharacter::RefreshFirstPersonWeaponVisual),
-		// this brand new component still needs marking too.
-		if (bIsFirstPersonVisual && GripMesh)
-		{
-			GripMesh->SetOnlyOwnerSee(true);
-		}
-
-		return;
-	}
-
-	GripMesh->SetStaticMesh(GripVisual);
-	GripMesh->SetVisibility(GripVisual != nullptr);
-}
-
-void AZSWeapon::RandomizeGripAttachment_Implementation()
-{
-	const uint8 NextGrip = (static_cast<uint8>(CurrentGrip) + 1) % 3;
-	SetGripAttachment(static_cast<EZSGripAttachment>(NextGrip));
 }
 
 bool AZSWeapon::CanFire() const

@@ -4,16 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
-#include "ZSWeaponTypes.h"
 #include "ZSAnimInstanceBase.generated.h"
 
 class AZSPlayerCharacter;
 
 /**
- *  Native shared logic for both the FP and TP AnimBPs. Per Infima guide 06/07's own
- *  "Variables" tables, TP needs nothing beyond what's common to both perspectives, so this
- *  class is directly usable as the TP AnimGraph's parent class - only FP needs a dedicated
- *  subclass (UZSFirstPersonAnimInstance) for its extra locomotion/stance/ADS/crouch fields.
+ *  Native shared logic for the character AnimBP. Third-person only after the P0 de-scope
+ *  (the UZSFirstPersonAnimInstance subclass and the FP AnimBP are removed - see
+ *  Docs/GameDevPlan.md section 2); ABP_ZS_ThirdPerson parents directly to this class.
  *
  *  No BPI_TFA_AnimationState-equivalent interface (see CoreLoopPlan.md Phase 2 "Key
  *  architecture decisions") - UpdateLeftHandGrip is a plain virtual function, called directly
@@ -40,9 +38,6 @@ protected:
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
-	/** Empty in the base class (TP needs nothing extra); overridden by UZSFirstPersonAnimInstance to pull FP-only state each frame. */
-	virtual void PullPerspectiveState(float DeltaSeconds);
-
 	void UpdateGripAlpha(float DeltaSeconds);
 
 	UPROPERTY()
@@ -50,12 +45,6 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsAiming = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
-	EZSGripAttachment CurrentGrip = EZSGripAttachment::None;
-
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
-	FTransform RecoilTransform;
 
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsLeftHandOnWeapon = true;

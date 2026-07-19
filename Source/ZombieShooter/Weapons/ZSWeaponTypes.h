@@ -13,12 +13,3 @@ enum class EZSFireMode : uint8
 	Semi,
 	Auto
 };
-
-/** Weapon-agnostic left-hand grip attachment category. */
-UENUM(BlueprintType)
-enum class EZSGripAttachment : uint8
-{
-	None,
-	Vertical,
-	Angled
-};
