@@ -259,19 +259,22 @@ Same working style as `CoreLoopPlan.md`: numbered phases, milestone tables, PIE-
 
 ### Asset needs list (running — update as sourced, not a shopping list of specific products)
 
-| Category | Needed for | Status (2026-07-19) |
+| Category | Needed for | Status (updated 2026-07-20) |
 |---|---|---|
-| Player character base mesh + rig | P1 (locomotion), ongoing | Skeleton migration from ShooterGame in progress (§5.1) — final mesh/look TBD, dev sourcing |
-| Zombie character mesh(es) + rig | P4 | Animation set already imported and confirmed (§5.1); mesh/skin not yet sourced |
-| Melee weapons (4–6 archetypes per P5 §7) | P5 | Not sourced |
-| Firearms | P1 onward | Infima rifle is a graybox stand-in only; real dark/earthy/detailed-texture models not sourced |
+| Player character base mesh + rig | P1 (locomotion), ongoing | Staying on `SKEL_TFA_Mannequin` (confirmed direction, §5.1) — final mesh/look TBD, dev sourcing |
+| Locomotion animation | P1/Stage A | **In progress** — `ZS_BS_Unarmed_Idle_Walk_Run` + crouch equivalent retargeted from Lyra; Layered-Blend-Per-Bone architecture confirmed (§5.1) |
+| Firearms — rifle | P1 onward | Poses/montages sourced from **Infima** (`Content/InfimaGames/`) — graybox mesh, real dark/earthy/detailed-texture model still not sourced |
+| Firearms — pistol | P1 onward | **Blocked on Infima** — pack hasn't released pistol animations yet; rifle-only for now |
+| Melee weapons (4–6 archetypes per P5 §7) | P5 | Placeholder sourced: `Content/LowPolyWeapons/` (100MB, untracked), `Content/Mega_Survival_Tools/` (48MB, untracked) — may stay as final assets or get replaced, dev's call |
+| Zombie character mesh(es) + rig | P4 | Animation set already imported (§5.1); mesh/skin not yet sourced |
 | Hostile human roamer visuals | Post-v1 (Decision 5) | Not needed yet |
 | Environment/building modular kit (residential, commercial row, gas station, church, farm — P7 §4) | P7 | Not sourced |
 | Rural/forest/mountain biome props (Adirondacks setting) | P7 | Not sourced |
 | Interactable world props (containers, furniture, barricade materials) | P6–P7 | Not sourced |
-| VFX (muzzle flash, blood, impact) | P10, but placeholder content already present (`Content/VFX_Muzzle_Flashes/`, `Content/Impacts/`) | Present, not yet evaluated against the new art direction |
-| Audio (gunshots, zombies, ambience, footsteps) | P10, placeholder content already present (`Content/BulletSFX_BasicCollection/`, `Content/Footsteps_Volume_02/`) | Present, not yet evaluated |
-| `Content/Characters/Heroes/` (untracked, already in the project) | Unclear | Exists but not yet inspected/evaluated against the new art direction |
+| VFX — muzzle flash | P10-final-pass, placeholder present | `Content/VFX_Muzzle_Flashes/` — sourced, not yet evaluated against final art direction |
+| VFX — impacts | P10-final-pass, placeholder present | `Content/Impacts/` — sourced (impact VFX for attacks on different surfaces) |
+| Audio — bullet impacts | P10-final-pass, placeholder present | `Content/BulletSFX_BasicCollection/` — sourced (surface-dependent bullet impact sounds) |
+| Audio — footsteps | P10-final-pass, placeholder present | `Content/Footsteps_Volume_02/` — sourced (surface-dependent footstep cues) |
 
 Add rows as new categories become concrete; update the status column (or note "sourced: <where>") as the dev finds fits — this list, not a curated pack recommendation, is what this section maintains going forward.
 
@@ -297,52 +300,44 @@ Blender 4.x LTS, free.
 
 The §2 rule made concrete: this is the **complete authorized animation list** until a phase explicitly adds to it. An animation earns its place only by being readable at gameplay camera distance or by gating gameplay timing — nothing else gets built, bought, or retargeted.
 
-**Status as of 2026-07-19 (updated same day, mid-session): the dev is fixing this by hand, one asset at a time, directly onto the project's real skeleton — not via a cross-project migration. Direction confirmed, partially done.**
+**Status as of 2026-07-20: real production underway, architecture settled around the assets actually on hand.** Superseded almost everything this section originally guessed (Lyra `BS_Equipped*`/`AO_Ironsights` blend spaces, a 2-blend-space-per-stance plan) — see below for what's actually true now.
 
-**Original blocker (context):** the imported Lyra-style animation content's blend spaces all referenced a `Skeleton` at `/Game/Character/Characters/Mannequins/Meshes/SK_Mannequin`, which didn't exist in this project (traced to a migration from the dev's ShooterGame project that dropped the companion skeleton — see prior write-up in git history if needed).
-
-**What's actually happening now, confirmed directly (not guessed):** the dev renamed/consolidated `Content/Characters/Mannequins/` + `Content/Characters/Heroes/` into a new **`Content/LyraAnims/`** folder (`Mannequins/` + `Heroes/` subfolders, ~397MB total — large, not committed, per the established policy that big re-downloadable content doesn't need to live in the repo). Checked directly:
-- `/Game/LyraAnims/Mannequins/Meshes/SK_Mannequin` (+ `SKM_Manny_Simple`, `SKM_Quinn_Simple`) — **real, valid, self-consistent** now, confirmed via `get_asset_tags`. This specific dangling-reference problem is fixed for this folder.
-- But the individual clips under `/Game/LyraAnims/Heroes/Mannequin/Animations/Actions/` (checked `MM_Pistol_Reload`, `MM_Rifle_Melee`) still show `Skeleton: None` — imported but not yet linked to the now-present `SK_Mannequin`. Not usable as-is; low priority, since most of this folder is Lyra's full action/combat library and out of scope anyway (see the guardrail below) — only a few clips are actually wanted (Rifle_Melee for Stage B's melee swing, the HitReact set for P3).
-- **The real fix direction, confirmed by checking the actually-used blend spaces (still at their original `/Game/Animation/BlendSpace/` location, untouched by the rename):** `BS_UnequippedIdleWalkRun` now correctly resolves its `Skeleton` to the project's **real, existing `SKEL_TFA_Mannequin`** (the Infima skeleton) — the dev has manually retargeted it. **This resolves the open "does the character move to a new skeleton" question: no — the plan is to retarget useful imported content onto the existing `SKEL_TFA_Mannequin`, keep the character where it is.** Confirm this explicitly if that read is wrong.
-- **Still pending the same fix** (checked directly, still broken as of this update): `BS_EquippedIdleWalkRun`, `BS_UnequippedCrouchWalk`, `AO_Ironsights_1D` all still reference the old missing path. `BS_EquippedCrouchWalking`/`AO_Ironsights_2D` not individually re-checked but likely the same state. **1 of ~6 needed blend spaces fixed so far — this is the critical path right now.**
-
-**Confirmed usable once each is retargeted — no need to build these from scratch:**
-- `BS_UnequippedIdleWalkRun` — ✅ **fixed** — base idle/walk/run directional blend (unarmed/relaxed state)
-- `BS_EquippedIdleWalkRun` — pending — same, weapon-raised/aiming state
-- `BS_UnequippedCrouchWalk` / `BS_EquippedCrouchWalking` — pending — crouch variants of the above two
-- `AO_Ironsights_1D` / `AO_Ironsights_2D` — pending — additive aim-offset blend spaces; worth considering as an alternative (or supplement) to a full aim-pose blend, and relevant to P1's cursor-aim work later
-- `/Game/Animation/Enemy/Zombie/` — a full zombie locomotion/attack/death/crawl set (both `new_anims` and `old_anims` variants) plus `BS_ZombieLocomotion`/`BS_ZombieCrawl` — not needed until P4, not yet re-checked this update.
+**Locomotion architecture, confirmed (not the original plan):**
+- **`ZS_BS_Unarmed_Idle_Walk_Run`** — the dev's renamed/retargeted copy of Lyra's unarmed blend space, onto the project's real `SKEL_TFA_Mannequin`. This is the **one and only full-body directional walk-cycle asset set that exists** — there are no equivalent "IPC" (in-place-cycle) walk/run assets for the rifle- or pistol-equipped states, only static idle/aim **poses** and **action montages** (fire/reload/etc., mostly rifle so far — Infima hasn't released pistol animations yet). Building a second, third, fourth full directional blend space per weapon/stance (the original plan) isn't possible with what's actually on hand.
+- **The fix: Layered Blend Per Bone, not more blend spaces.** `ZS_BS_Unarmed_Idle_Walk_Run` drives the **legs for every state** (unarmed, rifle, pistol, standing, crouched) — it's the shared locomotion foundation. A **Layered Blend Per Bone** node, split at the upper spine (`spine_01` or `spine_03` — pick based on how much shoulder/arm motion should come from the walk cycle vs. the held pose), composites the currently-equipped weapon's idle/aim **pose** on top for the upper body only. Same technique, reused as-is, for the crouched case (blend per bone over `ZS_BS_UnequippedCrouchWalk`, one shared crouch-legs asset). **Net result: 2 base locomotion blend spaces total (standing, crouched), not 6** — a real simplification over this section's original guess, and the correct call given the actual asset inventory, not just a fallback.
+- **No Aim Offset layer** (`AO_Ironsights_1D`/`2D` dropped from the plan) — confirmed by the dev: the player faces the cursor directly (P1), so there's no independent look-direction-vs-movement-direction split that an AO layer exists to solve. The `Direction`/`GroundSpeed` pair already on `UZSAnimInstanceBase` (via `CalculateDirection`, relative to actor facing) already carries the full "which way am I walking relative to which way I'm facing" information a cursor-facing character needs.
+- Weapon action montages (fire/reload/melee) still play through **Slot nodes** exactly as already built (`Multicast_PlayTPActionMontage`/`PlayTPMontage`, `AN_ZS_UnlockActions`/`ANS_ZS_BlockADS` timing) — montages, not sequences, confirmed as the right tool for one-shot triggered actions (independent play/stop/blend lifecycle, Slot-blending with the locomotion graph underneath, Sections for looping/branching — e.g. the Stage B "generic interact loop" needs a loop section + an end section, which only a Montage supports). AnimSequences stay the right tool for locomotion/blend-space inputs and additive layers, nothing else.
+- **No jump.** Confirmed design direction (forward-looking, not urgent): the player won't have a jump verb at all — replaced conceptually by a future **mounting** system (climbing onto/into things) rather than a free jump button. Stage A's row 4 below is cut; `bIsFalling` (already on `UZSAnimInstanceBase`) stays harmless dead weight for now rather than being ripped out — still potentially useful for off-ledge falls even without player-initiated jump.
+- Assets are landing in a curated **`Content/ZSAnims/`** folder (renamed/reorganized, project-owned), separate from the raw `Content/LyraAnims/` import — the right instinct, keeps curated-and-in-use content distinct from the raw source library.
+- **Naming, minor:** `ZS_BS_Unarmed_Idle_Walk_Run` puts the `ZS` prefix before the asset-type prefix (`BS_`); every other convention in this project (per `CLAUDE.md`) puts type first (`DA_ZS_*`, `WBP_ZS_*`) — i.e. `BS_ZS_UnarmedIdleWalkRun` would match. Not worth renaming already-done work over, just worth holding to `BS_ZS_*` for anything named from here.
 
 **Stage A — base locomotion (build first: movement in all directions + aiming):**
 
 | # | Animation | Source | Notes |
 |---|---|---|---|
-| 1 | Idle | `BS_UnequippedIdleWalkRun` (zero velocity) | no separate idle asset needed — a 2D directional blend space already includes idle at (0,0) |
-| 2 | Walk/jog directional set (fwd/back/L/R strafes) | `BS_UnequippedIdleWalkRun` | drive with the `GroundSpeed`/`Direction` pair added to `UZSAnimInstanceBase` this session (`Direction` = `UKismetAnimationLibrary::CalculateDirection`, the same convention this blend space was authored against) |
+| 1 | Idle | `ZS_BS_Unarmed_Idle_Walk_Run` (zero velocity) | shared across every weapon state — see architecture above |
+| 2 | Walk/jog directional set (fwd/back/L/R strafes) | `ZS_BS_Unarmed_Idle_Walk_Run` | drive with the `GroundSpeed`/`Direction` pair on `UZSAnimInstanceBase` (`Direction` = `UKismetAnimationLibrary::CalculateDirection`, the convention this blend space was authored against) |
 | 3 | Sprint fwd | same blend space, or a dedicated sprint sample if the blend feels wrong at top speed | gated by existing `bIsSprinting` |
-| 4 | Jump (start/land, minimal) | check `Folder2/Active/Act_Jump_*` set once unblocked | `bIsFalling` (added this session) feeds the jump state |
-| 5 | Crouch idle + crouch walk | `BS_UnequippedCrouchWalk` | feeds existing `EZSStance` |
-| 6 | Aim idle + aim walk (weapon raised) | `BS_EquippedIdleWalkRun` / `BS_EquippedCrouchWalking`, or `AO_Ironsights` as an additive layer instead | driven by the already-replicated `bIsAiming` |
+| ~~4~~ | ~~Jump~~ | — | **cut — no jump verb, see above** |
+| 5 | Crouch idle + crouch walk | `ZS_BS_UnequippedCrouchWalk` | feeds existing `EZSStance` |
+| 6 | Rifle/pistol idle + aim pose, layered over the walk cycle | Infima (rifle currently; pistol pending Infima's own release) | **Layered Blend Per Bone over the blend spaces above, not a separate blend space** — see architecture note |
 
-**C++ prep done this session** (needs a Live Coding compile — see Docs/TaskTracker.md): `UZSAnimInstanceBase` now pulls `GroundSpeed`, `Direction`, and `bIsFalling` every frame, ready to wire into whichever blend space(s) tomorrow's session picks. Deliberately did **not** add `UBlendSpace` fields to `UZSWeaponConfig` yet — which exact blend spaces feed the graph (a straight 2-state Idle/Move + separate crouch graph vs. a single blend space per stance with an aim layer on top) is a real design call for the collaborative session, not something to lock in unilaterally.
-
-Implementation shape (once the remaining blend spaces are retargeted): `ABP_ZS_ThirdPerson` stays on `SKEL_TFA_Mannequin` (no character mesh swap — see above), parented to `UZSAnimInstanceBase` (unchanged C++); simple state machine (Idle/Move) + crouch layer + aim layer, using the blend spaces above. Interim facing is `bOrientRotationToMovement = true` (restored in P0); P1's cursor-aim flips facing to aim-driven and the strafe blend space becomes the star.
+Implementation shape: `ABP_ZS_ThirdPerson` stays on `SKEL_TFA_Mannequin` (no character mesh swap), parented to `UZSAnimInstanceBase` (unchanged C++); Idle/Move state machine (or direct blend-space-into-output for the simplest version) + a crouch branch, each with the equipped-pose Layered Blend Per Bone on top. Interim facing is `bOrientRotationToMovement = true` (restored in P0); P1's cursor-aim flips facing to aim/cursor-driven, and — per the dev's confirmation above — that's also why no AO layer is needed.
 
 **Stage B — montages and calls (after locomotion works):**
 
 | # | Animation | Source | Notes |
 |---|---|---|---|
-| 7 | Fire (upper-body) | check the imported set first; Mixamo/Infima retarget as fallback | plays via existing `Multicast_PlayTPActionMontage` |
-| 8 | Reload | check the imported set first; Mixamo/Infima retarget as fallback | re-place `AN_ZS_UnlockActions` + `ANS_ZS_BlockADS` on the new montage — the timing system carries over untouched |
-| 9 | Generic use/channel loop | Mixamo, or `Folder3`/`Folder4`'s pickup/interaction clips | ONE kneel-and-work loop reused for bandage/loot/barricade/repair at different durations — bespoke per-action anims are polish-phase |
-| 10 | Hit reaction (single flinch) | `Folder2`'s `Act_Hit_*`/`St_Hit_*` set | P3 |
-| 11 | Death (1–2 variants) | `Folder2`'s `Act_Death_*`/`St_Death_*` set | P3 |
-| 12 | Melee swing (1H/2H generic) | Mixamo, or check for a strike/attack clip in the imported set | P5 |
+| 7 | Fire (upper-body) | Infima (rifle) | Montage, plays via existing `Multicast_PlayTPActionMontage` |
+| 8 | Reload | Infima (rifle); pistol pending Infima's release | Montage — re-place `AN_ZS_UnlockActions` + `ANS_ZS_BlockADS` on it — the timing system carries over untouched |
+| 9 | Generic use/channel loop | TBD (dev sourcing) | ONE Montage, loop section + end section, reused for bandage/loot/barricade/repair at different durations — bespoke per-action anims are polish-phase |
+| 10 | Hit reaction (single flinch) | TBD (dev sourcing) | P3 |
+| 11 | Death (1–2 variants) | TBD (dev sourcing) | P3 |
+| 12 | Melee swing (1H/2H generic) | Infima (rifle melee) or TBD | P5 |
 
-**Stage C — zombies (P4):** `/Game/Animation/Enemy/Zombie/` (confirmed above) — walk/chase/attack/scream/death/crawl, already imported. MoCap Online packs only if P4 proves a real variety gap on top of this.
+**Stage C — zombies (P4):** `/Game/Animation/Enemy/Zombie/` — walk/chase/attack/scream/death/crawl, already imported (not yet re-verified against the current skeleton work).
 
-**Explicitly out — a hard guardrail, not a suggestion.** The imported library (`Folder2/Active`, `Folder2/Crouch`, `Folder2/Unequipped`, `Folder2/Sprint`, `Folder3`, `Folder4`) is Lyra's/ShooterGame's **full traversal-and-combat library**: dodges, a full cover system, prone, swimming, ladder/pole climbing, mantle/vault, finishers, valve/button interactions, flashlight equip. All of it is out of scope for this survival game's simplified locomotion (§2's rule: readable-at-distance or gameplay-gating, nothing else) — its presence in the content browser is not an invitation to wire it up. Also still out, unchanged from P0: inspect/mag-check, grip-attachment swaps and pose variants, procedural spring ADS/recoil/crouch layers, weapon-mesh and magazine AnimBPs/montages, casing/magazine physics props, per-perspective animation duplicates.
+**Explicitly out — a hard guardrail, not a suggestion.** The raw `Content/LyraAnims/` library (`Heroes/Mannequin/Animations/Actions/` and anything else not deliberately curated into `Content/ZSAnims/`) is Lyra's **full traversal-and-combat library**: dodges, a full cover system, prone, swimming, ladder/pole climbing, mantle/vault, finishers, valve/button interactions, flashlight equip, jump (now cut entirely, see above). All of it is out of scope for this survival game's simplified locomotion (§2's rule: readable-at-distance or gameplay-gating, nothing else) — its presence in the content browser is not an invitation to wire it up. Also still out, unchanged from P0: inspect/mag-check, grip-attachment swaps and pose variants, procedural spring ADS/recoil/crouch layers, weapon-mesh and magazine AnimBPs/montages, casing/magazine physics props, per-perspective animation duplicates.
 
 ---
 
