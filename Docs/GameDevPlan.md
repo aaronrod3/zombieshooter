@@ -49,7 +49,7 @@
 
 **⚑ DECISION 2 — Same repo vs. fresh project.** Recommended: **same repo, same UE project.** Unchanged from v0.1.
 
-**⚑ DECISION 3 — Art source.** Recommended: **hybrid — buy the Synty POLYGON core, fill gaps in Blender.** See §5 for the full breakdown, revised 2026-07-19 with a *Door Kickers 2* art-style reference (dev-supplied): low-poly forms, but with **real surface detail carried by printed/decal texture work rather than modeled geometry** — DK2's own look reads like painted miniatures, not flat color-blocked toys. This lands closer to how weapons/props are usually called out specifically, and needs a deliberate texturing pass on top of (or instead of) Synty's flatter default look for those asset categories — see §5's revised guidance. (The Adirondacks setting still strengthens the Synty-for-environments half of this: rural/wasteland and forest-biome packs fit a mountain-and-lakes region better than the original flat-Kentucky placeholder would have.)
+**⚑ DECISION 3 — Art source.** **Resolved 2026-07-19, superseding v0.1's Synty recommendation entirely** — the dev doesn't like Synty's style and won't use it for anything. Direction instead: **dark, earthy tones with slight realism, kept low-poly** (low-poly as a production/performance choice that also keeps hand-modeling in Blender viable later, not a cartoon-toy look). This sits naturally under the *Door Kickers 2* reference above rather than in tension with it — DK2's own look is grounded and quietly detailed, not bright/flat, so the printed/decal-texture-detail note for weapons/props still holds, it just isn't contrasted against a flat Synty environment style anymore. **Sourcing is the dev's own** (ArtStation and elsewhere) — see §5, which now tracks *what's needed* rather than *where to buy it*.
 
 **⚑ DECISION 4 (NEW) — Profession-based spawn points: solo too, or co-op-only?** Notes §4.1 wants players to start at a profession-tied spawn location, explicitly calling out the co-op "find each other" fun. Recommended: **apply to both, with a lobby-level "scatter spawns" toggle.** Solo players still get a profession-flavored starting location (keeps one system instead of two), but a co-op group can toggle scattered starts off if they'd rather just start playing together immediately. Confirm in §7.
 
@@ -251,42 +251,36 @@ Same working style as `CoreLoopPlan.md`: numbered phases, milestone tables, PIE-
 ## 5. Asset strategy
 
 ### The style decision
-**⚑ DECISION 3 — Art source.** Recommended: **hybrid — buy the Synty POLYGON core, fill gaps in Blender to match it.** Unchanged from v0.1.
+**⚑ DECISION 3 — Art source. Resolved 2026-07-19** (supersedes v0.1's Synty recommendation entirely — dev's own words: "I do not like that style," "I am not using Synty for anything"). Direction: **dark, earthy tones, slight realism, kept low-poly.** Low-poly here is a production/performance choice — and keeps hand-modeling in Blender genuinely viable if the dev starts making assets directly — not a cartoon-toy aesthetic. This unifies cleanly with the *Door Kickers 2* camera/art reference already in §1: DK2's own overall look is grounded and quietly detailed rather than bright/flat, so the earlier "printed/decal texture detail on weapons and items" guidance still holds — it just isn't a contrast against a flat Synty environment style anymore, since there isn't one. One direction across the board: low-poly geometry, dark/earthy/muted materials, with weapons and hand-held items in particular carrying real surface detail via texture work (rail lines, dials, wear, brand markings) rather than modeled geometry.
 
-**Art-style reference, added 2026-07-19 (dev-supplied): *Door Kickers 2*.** Two distinct pieces of guidance follow from this, and they don't point at the same technique:
-- **Environments/buildings/props at large:** Synty's flat/gradient-atlas approach (§5's existing Blender pipeline guidance below) still fits — DK2's own environments are simple, low-detail forms too, and this keeps the "one style anchor, low draw-call, solo-dev-affordable" plan intact.
-- **Weapons and hand-held items specifically — the dev's explicit callout ("mainly images printed on low poly gun/item assets"):** these need **real surface detail carried by the texture, not the geometry.** DK2's own look reads like painted tabletop miniatures: simple low-poly forms (a rifle is still just a handful of boxes/cylinders) but the diffuse texture has actual printed detail baked in — rail lines, dials, brand markings, wear, grip texture — so it reads as detailed at the game's camera distance despite near-zero extra geometry. This is a well-established, budget-friendly technique (texture-baked detail over geometric simplicity), and it's a different asset-production approach than the flat-color-block atlas used for environment kit pieces. **Practical implication:** don't expect Synty's own weapon models (built for its own flatter house style) to automatically deliver this look — budget a dedicated texture pass (custom bake, or a supplementary weapon-specific pack chosen for exactly this printed-detail quality) for the weapon/item category specifically, separate from the environment-kit purchase.
+**Sourcing is the dev's own — ArtStation and wherever else fits, not a research task for this document going forward.** §5 no longer recommends specific packs or vendors; its job is to track **what's needed**, tagged by phase, so the dev knows what to go shopping for. See the running list below — update it as things get sourced.
 
-Whatever is chosen for environments: **pick one style anchor and make everything else conform to it** (proportions, texel-less flat/gradient-atlas texturing, palette). Mixed low-poly styles read worse than consistent mediocre ones. Weapons/items are the deliberate, called-out exception to "flat atlas everywhere."
+> **Licensing/repo rule (existing `CLAUDE.md` pattern, unchanged):** paid marketplace content is **gitignored, never committed** to the public repo — same as `Content/InfimaGames/`. Large free content that would blow the $0 LFS budget doesn't need to be committed either (confirmed policy, 2026-07-19 — see `TaskTracker.md`) since it's re-downloadable from its source; only commit what comfortably fits the budget.
 
-> **Licensing/repo rule (existing `CLAUDE.md` pattern, applies to all of these):** paid marketplace content is **gitignored, never committed** to the public repo — same as `Content/InfimaGames/`. CC0 content may be committed.
+### Asset needs list (running — update as sourced, not a shopping list of specific products)
 
-### Paid core (Fab / Synty Store — watch for Humble Synty bundles, they recur and are drastically cheaper)
-| Pack | What it covers | Notes |
+| Category | Needed for | Status (2026-07-19) |
 |---|---|---|
-| **[POLYGON Apocalypse](https://syntystore.com/products/polygon-apocalypse-pack)** | The bulk of the game: 1,800+ prefabs, **modular buildings with enterable interiors**, modular bunker/quarantine walls, **modular gun system** (build our weapon variety from parts), 86 complete weapons incl. melee | The single highest-value purchase; UE-native version on Fab. Its modular gun system slots straight into `UZSWeaponConfig`-per-weapon. |
-| **[POLYGON City Zombies](https://syntystore.com/products/polygon-city-zombies-pack)** | 50 zombie characters w/ color variants | Rigged compatible with the Synty/UE-mannequin-style skeleton → retargets to the MoCap Online / Mixamo zombie sets. Also the obvious base for hostile-human-roamer visuals (recolor/re-outfit variants). |
-| [POLYGON Apocalypse Wasteland](https://syntystore.com/products/polygon-apocalypse-wasteland) | Rural/outskirts biome variety | Fits the new Adirondacks-region setting well — mountain/forest fringe, not just urban decay. |
-| POLYGON City / Town packs (Synty store) | Extra civilian building/prop variety | Optional, only if Apocalypse's coverage feels thin after the P7 blockout. |
-| [Zombie Starter / Basic / Pro — MoCap Online](https://mocaponline.com/products/zombie) ([Fab listing](https://www.fab.com/listings/c4ed6ca8-f8b1-438c-98cb-66f8a4783b91)) | 26 / 119 / 265 pro-mocap zombie animations (walks, chases, attacks, deaths, crawls) | Start with **Starter or Basic**; Pro only if zombie variety becomes a focus. Mixamo (below) may be enough for v1 — defer this purchase until P4 shows the gap. |
+| Player character base mesh + rig | P1 (locomotion), ongoing | Skeleton migration from ShooterGame in progress (§5.1) — final mesh/look TBD, dev sourcing |
+| Zombie character mesh(es) + rig | P4 | Animation set already imported and confirmed (§5.1); mesh/skin not yet sourced |
+| Melee weapons (4–6 archetypes per P5 §7) | P5 | Not sourced |
+| Firearms | P1 onward | Infima rifle is a graybox stand-in only; real dark/earthy/detailed-texture models not sourced |
+| Hostile human roamer visuals | Post-v1 (Decision 5) | Not needed yet |
+| Environment/building modular kit (residential, commercial row, gas station, church, farm — P7 §4) | P7 | Not sourced |
+| Rural/forest/mountain biome props (Adirondacks setting) | P7 | Not sourced |
+| Interactable world props (containers, furniture, barricade materials) | P6–P7 | Not sourced |
+| VFX (muzzle flash, blood, impact) | P10, but placeholder content already present (`Content/VFX_Muzzle_Flashes/`, `Content/Impacts/`) | Present, not yet evaluated against the new art direction |
+| Audio (gunshots, zombies, ambience, footsteps) | P10, placeholder content already present (`Content/BulletSFX_BasicCollection/`, `Content/Footsteps_Volume_02/`) | Present, not yet evaluated |
+| `Content/Characters/Heroes/` (untracked, already in the project) | Unclear | Exists but not yet inspected/evaluated against the new art direction |
 
-### Free / CC0
-| Source | What it covers |
-|---|---|
-| **[Game Animation Sample](https://www.fab.com/listings/880e319a-a59e-4ed2-b268-b32dac7fa016)** (Epic, free) | 500+ AAA locomotion animations for the UE5 mannequin skeleton — the new TP locomotion base (walk/run/crouch/jump). Use its animations with a simple state machine first; its motion-matching setup is optional depth later. |
-| **[Mixamo](https://www.mixamo.com)** (free, Adobe account) | The classic zombie animation set (walk/attack/scream/death) + human fillers (also usable for hostile roamers); auto-rigs too. v1 zombie animation plan. |
-| [Kenney](https://kenney.nl/assets/survival-kit) (CC0) | Survival Kit (80 modular survival props), [modular characters w/ 17 anims + accessories](https://www.kaylousberg.com/work/kenney-character-assets), blaster/prop kits |
-| [Quaternius](https://quaternius.com/) (CC0) | Thousands of low-poly models incl. rigged/animated characters, buildings, props — worth checking specifically for forest/mountain/winter sets given the setting change |
-| [Poly Pizza](https://poly.pizza/bundles) (CC0 aggregator) | Search engine over Kenney/Quaternius/Google Poly-era packs, FBX/GLTF |
-| [itch.io low-poly + post-apocalyptic tags](https://itch.io/game-assets/tag-low-poly/tag-post-apocalyptic), [OpenGameArt CC0](https://opengameart.org/content/cc0-assets-3d-low-poly) | Gap-filling; check licenses per pack on itch |
-| Audio: Sonniss GDC bundles (free GB of pro SFX), freesound.org (CC0 filter), Kenney audio packs | Gunshots/zombies/ambience for P10; a paid horror-ambience pack can wait |
+Add rows as new categories become concrete; update the status column (or note "sourced: <where>") as the dev finds fits — this list, not a curated pack recommendation, is what this section maintains going forward.
 
-### Blender pipeline (the fill-the-gaps plan)
-Blender 4.x LTS, free. The workflow that matches Synty-style art:
+### Blender pipeline (the DIY path, if/when hand-modeling starts)
+Blender 4.x LTS, free.
 
 1. **Model on-grid:** modular kit pieces authored to a strict grid (1 m / 0.5 m increments, matching UE's grid) with pivots at floor-corner — this is what makes "modular" actually snap in-editor.
-2. **Texture with a gradient/flat-color atlas:** one shared 256–1024 px palette texture for the *whole game*; UV islands are just dropped onto color blocks. No baking, no per-asset materials, automatic style consistency with Synty (theirs works the same way), and it keeps draw calls trivial.
-3. **Match the anchor's proportions** (import a Synty building into Blender as reference scale before modeling anything).
+2. **Texture toward the dark/earthy/slight-realism direction, not flat cartoon color:** a shared palette/material atlas per asset category is still the efficient, solo-dev-friendly production technique (trivial draw calls, fast iteration) — what changes from a typical low-poly-toy approach is *what's on the atlas*: muted, desaturated earthy tones (browns, greens, grays, rust) with subtle painted-in grime/wear/noise, not pure flat saturated blocks. Weapons/items still get their own dedicated printed-detail textures rather than sharing the environment atlas (per Decision 3 above).
+3. **Pick one style anchor and hold everything to it** (proportions, palette, texture treatment) — once the first real hero asset exists, it becomes the reference for everything after it. Mixed low-poly styles read worse than consistent mediocre ones.
 
 **Addons — essential (all free):**
 - **[Send to Unreal](https://epicgames.github.io/BlenderTools/send2ue/)** (Epic official) — one-click Blender→open-UE-project push, correct scale/axes/LODs, batch animation export.
@@ -295,9 +289,9 @@ Blender 4.x LTS, free. The workflow that matches Synty-style art:
 - **TexTools** — UV layout/align tools that make atlas-palette UV work fast.
 - **Machin3tools** — general modeling QoL (mirror, align, focus) that speeds low-poly work disproportionately.
 
-**Addons — worth paying for only if Blender becomes a main lane:** UVPackmaster (best-in-class packing), Hard Ops/Boxcutter (hard-surface speed; overkill for flat-shaded low-poly), Auto-Rig Pro (alternative rig+UE export path if UE to Rigify frustrates).
+**Addons — worth paying for only if Blender becomes a main lane:** UVPackmaster (best-in-class packing), Hard Ops/Boxcutter (hard-surface speed), Auto-Rig Pro (alternative rig+UE export path if UE to Rigify frustrates).
 
-**Skeleton rule (important, learned the hard way with `SKEL_TFA_Mannequin`):** everything humanoid in the new art pipeline targets the **UE5 mannequin skeleton** (or a Synty rig retarget-mapped to it once, via IK Retargeter). One skeleton family, one retarget hub — never again a system built against a pack-specific skeleton.
+**Skeleton rule (important, learned the hard way with `SKEL_TFA_Mannequin`):** everything humanoid in the art pipeline targets **one shared skeleton hub** (the UE5 mannequin family — see §5.1's ShooterGame-sourced `SK_Mannequin` migration) — any purchased/found/hand-rigged humanoid gets IK-retargeted onto it once. One skeleton family, one retarget hub — never again a system built against a pack-specific skeleton.
 
 ### 5.1 — Standard animation set (the "for right now" contract, added 2026-07-18 at P0, revised 2026-07-19)
 
@@ -440,4 +434,4 @@ The dev asked to "come up with questions for each stage of development" — this
 2. Update `CLAUDE.md` (identity section, dev-order table → this doc, animation-scope rule) and `SessionHandoff.md`.
 3. Run P0 step 1: the already-pending Phase 3 M7 two-client PIE verification (checklist in `CoreLoopPlan.md`).
 4. Begin the P0 de-scope pass.
-5. (Parallel, dev-paced) Wishlist/watch the Synty packs on Fab; grab the free Game Animation Sample and Kenney/Quaternius kits so P1's graybox has stand-ins; start a naming brainstorm for the Adirondacks-region setting (P7 §7 question 1) whenever it's fun to think about, no rush.
+5. (Parallel, dev-paced) Asset sourcing is the dev's own from here (ArtStation and elsewhere) — track finds against §5's running needs list. Start a naming brainstorm for the Adirondacks-region setting (P7 §7 question 1) whenever it's fun to think about, no rush.

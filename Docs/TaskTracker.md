@@ -47,7 +47,8 @@
 
 - P2–P10 backlogs live in [`GameDevPlan.md`](GameDevPlan.md) §4 — don't mirror them here until they enter Next.
 - Open questions per phase: GameDevPlan §7. **Still blocking for P8:** launch meta-event count (deep handful vs. broad roster).
-- Unconfirmed recommendations: Decisions 1–3 (camera, same-repo, art source) — camera is effectively being confirmed by P1's gate; art purchase timing is a P7-adjacent call (watch for Synty Humble bundles meanwhile).
+- Decisions 1–3 status: camera (DK2-framed top-down) and art source (dark/earthy/low-poly, dev-sourced via ArtStation, no Synty) both resolved 2026-07-19 — camera still gets its final go/no-go from P1's gate. Same-repo (Decision 2) unconfirmed but unchallenged.
+- Asset sourcing: dev's own from here — GameDevPlan §5's asset needs list tracks what's required by phase; not a Claude research task anymore.
 - Hostile human roamers: first post-v1 addition (Decision 5) — design questions parked in GameDevPlan §7 P4.
 
 ---
