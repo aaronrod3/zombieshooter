@@ -68,285 +68,235 @@ The pivot **keeps the repo, the project, and the C++ core.** What we've built is
 ### Carries over as-is (the pivot's foundation)
 | System | Why it survives |
 |---|---|
-| `AZSGameMode/GameState/PlayerState/PlayerController` + Enhanced Input | Camera-agnostic framework. Input actions get remapped, not rebuilt. Enhanced Input already abstracts keyboard/mouse vs. gamepad bindings, which is most of what "console-playable later" (Notes §3) actually needs at the input layer — the remaining console work is UI navigation and platform certification, both later/separate concerns. |
-| **Phase 3 replication layer** (server RPCs, `OnRep_` convention, cross-client fixes) | The single most valuable asset for a co-op-first game. Finish M7 verification before pivoting — see Phase P0. |
+| `AZSGameMode/GameState/PlayerState/PlayerController` + Enhanced Input | Camera-agnostic framework. Input actions get remapped, not rebuilt. |
+| **Phase 3 replication layer** (server RPCs, `OnRep_` convention, cross-client fixes) | The single most valuable asset for a co-op-first game. |
 | `UZSWeaponConfig` data-driven weapon architecture + "N weapons, zero C++ branches" rule | Extends beyond guns: the same pattern becomes `UZSItemConfig`, `UZSZombieConfig`, and now a shared config for hostile human roamers too. |
 | Real ammo/magazine state on `AZSWeapon` | PZ-style scarcity needs real ammo. Already built, already replicated. |
-| Notify architecture (`AN_ZS_UnlockActions`, `ANS_ZS_BlockADS`, montage-driven action flow, `bIsBusy` + fallback) | Generalizes to every timed action this game will ever have: melee swings, bandaging, amputating, barricading, crafting. This is *not* wasted animation work — it's the action system. |
+| Notify architecture (`AN_ZS_UnlockActions`, `ANS_ZS_BlockADS`, montage-driven action flow, `bIsBusy` + fallback) | Generalizes to every timed action this game will ever have: melee swings, bandaging, amputating, barricading, crafting. |
 | `BlueprintNativeEvent` policy, replication convention, naming rules, docs discipline, MCP workflow | Unchanged. |
 
 ### Simplified or repurposed
 | Current | Disposition |
 |---|---|
-| 4-perspective camera system | Cut to TopDown + OverShoulder (Decision 1). `ToggleCameraPerspective` stays as the toggle between the two. |
-| FP arms mesh/AnimBP (`ABP_ZS_FirstPerson`, FABRIK, additive stacks, camera/head toggle) | **Shelved, not deleted** — disconnect from the spawn path. No further investment. |
-| TP AnimBP (`ABP_ZS_ThirdPerson`) | Becomes the *only* character view. Gets rebuilt against the new art skeleton (see §5) using Epic's free Game Animation Sample locomotion — replacing the Infima-skeleton-specific graph. |
-| Infima pack | **Demoted from "reference of record" to "prototype placeholder."** Keep using its weapons/animations in graybox until low-poly art lands, then it exits the runtime entirely (it stays gitignored either way). What we permanently keep from Infima is what we already extracted: the config-driven weapon architecture, notify concepts, and real-reload flow. |
-| `Docs/Infima Pack - Official Implementation Guide/` | Kept for history; no longer drives new work. |
+| 4-perspective camera system | Cut to TopDown + OverShoulder (Decision 1). |
+| FP arms mesh/AnimBP | **Cut outright** — dev directive, stronger than "shelve" (see P0). |
+| TP AnimBP (`ABP_ZS_ThirdPerson`) | Becomes the *only* character view, built on **Infima's own skeleton (`SKEL_TFA_Mannequin`)** — confirmed direction, not the generic UE5 mannequin originally guessed here (see §5.1). |
+| Infima pack | **Confirmed as the production skeleton/animation source of record** — not a prototype placeholder. Infima's skeleton and its bundled animations are what the project actually builds on. |
+| `Docs/Infima Pack - Official Implementation Guide/` | Actively relevant — Infima is the real animation source, not history. |
 
 ### Cut outright (the animation de-scope the dev asked for)
-- **`Inspect`, `MagCheck`, `CycleGripAttachment`** — actions, input bindings, montage wiring. (The montages/notify classes they exercised stay; they're generic.)
+- **`Inspect`, `MagCheck`, `CycleGripAttachment`** — actions, input bindings, montage wiring.
 - **`AZSLaserAttachment`**, grip-attachment randomization/variants.
-- **Weapon-owned cosmetic notifies + `ABP_Weapon`/`ABP_Magazine`** (`AN_ZS_DropMagazine`, `AN_ZS_EjectCasing`, `ANS_ZS_HideMainMag`, `ANS_ZS_ShowReserveMag`) — already deferred in M9; now formally cut. At top-down camera distance nobody sees a magazine hide/show swap.
-- **`AZSPhysicsCasing`/`AZSPhysicsMagazine`/`AZSPhysicsObject`** cosmetic ejects — cut from the runtime path (class files can stay until they're in the way).
-- `FP_ReloadEmpty`/`TP_ReloadEmpty` variants, gun-camera/bodycam content, procedural ADS/recoil/crouch **spring-offset system** (top-down recoil is a crosshair/spread concern, not a skeletal-pose concern).
+- **Weapon-owned cosmetic notifies + `ABP_Weapon`/`ABP_Magazine`**.
+- **`AZSPhysicsCasing`/`AZSPhysicsMagazine`/`AZSPhysicsObject`** cosmetic ejects.
+- `FP_ReloadEmpty`/`TP_ReloadEmpty` variants, gun-camera/bodycam content, procedural ADS/recoil/crouch **spring-offset system**.
 
-**Rule going forward:** an animation earns its place only if it's *readable at gameplay camera distance* or *gates gameplay timing* (reload lockout, swing timing, bandage/amputation channel). Everything else is polish-phase-only.
+**Rule going forward:** an animation earns its place only if it's *readable at gameplay camera distance* or *gates gameplay timing*. Everything else is polish-phase-only.
 
 ---
 
 ## 3. PZ systems disposition (KEEP / SIMPLIFY / REPLACE / CUT)
 
-The reference doc asks for exactly this markup; the dev's own notes refine several rows further. This is the scope contract — anything marked CUT stays cut until a dedicated planning pass revives it.
-
 | PZ system (ref §) | Disposition | Our version |
 |---|---|---|
-| Isometric camera, menu-driven interaction (§3) | **REPLACE** | 3D top-down, direct control, world interaction prompts + radial quick-menu. Controller-compatible from P1 onward (Notes §3). |
-| Professions/occupations (§4.1) | **SIMPLIFY** | 5–7 starting "backgrounds" = stat template + 1 unique unlock + **a tied starting spawn location** (Notes §4.1, Decision 4). Data-asset-driven (`DA_ZS_Background_*`). |
-| Trait point-buy (§4.2) | **REPLACE** | No creation-time point-buy in v1. Traits/aptitudes emerge from play instead (Notes §4.2) — see the new skills/attributes system below. Classic point-buy could return later as an optional sandbox/"hardcore" toggle. |
-| Moodles / needs (§5) | **KEEP, simplified** | **6 moodles v1:** Hunger, Thirst, Fatigue, Stamina, Injury/Pain, Infection/Sickness. Hunger/Thirst explicitly tuned as **debuff-first, not death-spiral-first** (Notes §1) — see Phase P2. Panic/Stress/Boredom/Temperature: deferred pool. Same 4-severity-tier readable iconography. |
-| Nutrition micro-sim (calories/protein/fat) (§5) | **CUT** | Food restores Hunger; quality = bigger/longer restore. |
-| Skills, learn-by-doing, books (§6) | **SIMPLIFY, finalized** | **6 skills v1** (Melee, Firearms, Fitness, Medicine, Carpentry, Survival), learn-by-doing + magazine-style one-shot unlocks, no Vol 1–5 book grind, 1–5 level range instead of PZ's 0–10. See §3.1 for the full breakdown and expansion path. |
-| Melee combat, stamina economy (§7.1) | **KEEP** | Core feel target. Shove + swing + stomp, stamina-gated, weapon durability-lite (break, no repair micro-sim). |
+| Isometric camera, menu-driven interaction (§3) | **REPLACE** | 3D top-down, direct control, world interaction prompts + radial quick-menu. |
+| Professions/occupations (§4.1) | **SIMPLIFY** | 5–7 starting "backgrounds" = stat template + 1 unique unlock + a tied starting spawn location (Decision 4). |
+| Trait point-buy (§4.2) | **REPLACE** | No creation-time point-buy in v1. Traits/aptitudes emerge from play — see §3.1. |
+| Moodles / needs (§5) | **KEEP, simplified** | **6 moodles v1:** Hunger, Thirst, Fatigue, Stamina, Injury/Pain, Infection/Sickness. |
+| Nutrition micro-sim (§5) | **CUT** | Food restores Hunger; quality = bigger/longer restore. |
+| Skills, learn-by-doing, books (§6) | **SIMPLIFY, revised 2026-07-19** | Attributes (Strength, Stamina, Sneak, Sprint) + per-weapon-class melee skill bars + Maintenance + Aiming/Reloading + First Aid. See §3.1. |
+| Melee combat, stamina economy (§7.1) | **KEEP** | Shove + swing + stomp, stamina-gated, durability-lite. |
 | Firearms as loud/scarce power (§7.2) | **KEEP** | Already built mechanically; noise system makes it PZ-honest. |
-| Stealth/noise/vision model (§7.3) | **KEEP, simplified** | Crouch = quieter + slower; AI hearing radii per action; line-of-sight vision cones. No lightfootedness skill web in v1. |
-| Zombie lore + hordes + migration (§8) | **KEEP, simplified** | Shamblers, hearing/sight, door-banging, crawlers (later), zone population + wander. **Explicit performance requirement** (Notes §1): zombie AI must be CPU-cheap enough to support massive hordes, and the game needs a believable ongoing zombie-reintroduction mechanism so an area can't be permanently cleared. Full sandbox lore sliders (§8.3): CUT for v1, revisit as a cheap post-launch win. |
-| Per-body-part health, 17 zones (§9) | **SIMPLIFY** | **4 zones:** Head, Torso, Arms, Legs. Wound types: scratch/bite/laceration/fracture, each mapped to a concrete gameplay effect (Notes §1: leg wounds → mobility/speed, arm wounds → attack speed/reload time). Bandage cleanliness + the two-tier infection dread: KEPT. **New:** emergency amputation as an infection-stopping "second chance" (Notes §1/§9) — see Phase P3. |
-| Hand-built mega-map (§10.1) | **REPLACE** | A fictional county modeled on Upstate NY's Adirondacks (Notes §10.1/§11) — mountains, lakes, forest, small towns — keeping the same *location archetypes* PZ uses (small town, dense town, quiet suburb, mall analog, military-adjacent area, farm fringe). One dense playable area + rural fringe (~1×1 km v1, size TBD — see §7), modular-kit built, World Partition. Final naming is its own open question, not yet settled. |
-| Container/zone loot tables (§10.2) | **KEEP, refined** | Data-asset loot tables per building/container archetype. **Item categories** (Notes §10.2): equip-only slots vs. carry-only items, one item per container slot. **Scarcity via a finite world-count pool per rarity tier**, layered under per-zone quality tiers (good/bad/in-between areas) with slight randomization plus common-sense placement — not just a percentage roll per table. Annotated-map stash hints: KEEP. |
-| World persistence + erosion (§10.3) | **SIMPLIFY** | Persistence: yes (saves are Phase P7). Erosion visuals: CUT v1. |
-| Utilities shutoff phase transition (§10.3) | **KEEP** | Power/water die on a randomized day — our mid-game bell too. |
-| Seasons/weather/temperature (§11) | **SIMPLIFY** | Day/night + rain/fog v1, tuned to the Adirondacks setting (colder, more snow) rather than the original Kentucky climate. Weather has real mechanical teeth (Notes §1: "players must adjust to survive"), scope TBD — see §7. Full seasonal calendar + temperature-layer survival: deferred pool. |
-| Weight encumbrance + bags (§12) | **KEEP, simplified** | Weight + bag slots. No bags-in-bags recursion, no clothing-layer insulation matrix. |
-| Clothing protection layers (§12) | **SIMPLIFY** | Single outfit slot-set with protection values. No layering sim. |
-| Carpentry/base-building (§13.1) | **SIMPLIFY** | v1: barricades, door/window reinforcement, crates, rain collector. Freeform wall-building: deferred (big system, PZ's answer to late-game — ours is events + the investigation arc). |
-| Metalworking/electrical/plumbing chains (§13.2) | **CUT v1** | Generator-as-item (fuel logistics) without the wiring sim. |
-| B42-style deep crafting web (§13.3) | **CUT** | Explicitly the direction we *don't* chase — events/missions/investigation are our late game. |
-| Farming/foraging/fishing/trapping (§14) | **SIMPLIFY** | v1: farming-lite (plant/water/harvest) + foraging zones. Fishing/trapping: deferred pool. |
-| Vehicles (§15) | **CUT v1, plan later** | Big, physics-fiddly, and PZ+HumanitZ's shared weak spot. Deferred to its own planning pass post-v1. Map is sized to be walkable. |
-| TV/radio diegetic media (§16) | **KEEP, repurposed** | The radio is our tutorial *and* our mission-giver — broadcast schedule teaches systems early, then becomes the dynamic-objective and investigation-arc-clue channel. |
-| Meta events (helicopter etc.) (§17) | **KEEP, expanded ambition** | Notes §17: "create more meta events" — treat event *variety* as a primary content lever, not an afterthought. See Phase P8. |
-| Modes/challenge presets (§18) | **CUT v1** | One tuned default. Sandbox sliders post-v1. |
-| MP: dedicated servers, big counts (§19) | **SIMPLIFY** | 2–4 player listen-server co-op. Dedicated/Steam sockets: own planning pass later (per existing `CLAUDE.md` rule). |
-| Modding/Lua (§20) | **CUT v1** | Data-asset-driven design keeps the door open; actual mod support is post-launch. |
-| NPCs/factions (§19, §22.1) | **DEFER (past v1)** | Always-hostile wandering human roamers that fight zombies and players alike, never allies (Notes §19) are **confirmed design intent, but explicitly not part of the v1 slice** (Decision 5) — the dev chose to prove out the core survival loop first. First post-v1 addition, reusing the zombie AI pipeline (see Phase P10). Full NPC survivors/factions/dialogue/reputation/economy systems remain **deferred to a dedicated planning pass** of their own — a fundamentally different, much larger system than a hostile roamer variant. |
+| Stealth/noise/vision model (§7.3) | **KEEP, simplified** | Crouch = quieter + slower; hearing radii; vision cones. Sneak is now a stat, not a dedicated skill tree. |
+| Zombie lore + hordes + migration (§8) | **KEEP, simplified** | Shamblers, hearing/sight, door-banging, zone population + wander. |
+| Per-body-part health, 17 zones (§9) | **SIMPLIFY** | 4 zones: Head, Torso, Arms, Legs. Emergency amputation as an infection-stopping "second chance." |
+| Hand-built mega-map (§10.1) | **REPLACE** | A fictional Adirondacks-modeled county, one dense area + rural fringe, World Partition. |
+| Container/zone loot tables (§10.2) | **KEEP, refined** | Data-asset loot tables, equip-only vs. carry-only categories, finite world-count rarity pools. |
+| World persistence + erosion (§10.3) | **SIMPLIFY** | Persistence yes; erosion visuals cut v1. |
+| Utilities shutoff phase transition (§10.3) | **KEEP** | Power/water die on a randomized day. |
+| Seasons/weather/temperature (§11) | **SIMPLIFY** | Day/night + rain/fog v1, Adirondacks-tuned. |
+| Weight encumbrance + bags (§12) | **KEEP, simplified** | Weight + bag slots, no bags-in-bags recursion. |
+| Clothing protection layers (§12) | **SIMPLIFY** | Single outfit slot-set with protection values. |
+| Carpentry/base-building (§13.1) | **SIMPLIFY** | v1: barricades, reinforcement, crates, rain collector. |
+| Metalworking/electrical/plumbing chains (§13.2) | **CUT v1** | Generator-as-item without wiring sim. |
+| B42-style deep crafting web (§13.3) | **CUT** | Events/missions/investigation are our late game instead. |
+| Farming/foraging/fishing/trapping (§14) | **SIMPLIFY** | v1: farming-lite + foraging zones. Fishing/trapping deferred. |
+| Vehicles (§15) | **CUT v1, plan later** | Deferred to its own planning pass. |
+| TV/radio diegetic media (§16) | **KEEP, repurposed** | Tutorial + mission-giver. |
+| Meta events (§17) | **KEEP, expanded ambition** | Event variety a stated priority. |
+| Modes/challenge presets (§18) | **CUT v1** | Sandbox sliders post-v1. |
+| MP: dedicated servers, big counts (§19) | **SIMPLIFY** | 2–4 player listen-server co-op. |
+| Modding/Lua (§20) | **CUT v1** | Data-asset-driven design keeps the door open. |
+| NPCs/factions (§19, §22.1) | **DEFER (past v1)** | Hostile roamers first post-v1 addition (Decision 5). |
 
-### 3.1 — Skill system (finalized 2026-07-18)
+### 3.1 — Skill system (revised 2026-07-19)
 
-**Basic v1 list — 6 skills, one per major gameplay pillar already scoped elsewhere in this plan:**
+**Core attributes (not skills — passive stat pools):**
+- **Strength** — increases melee damage and weight capacity. Grows from performing strength-relevant actions (melee kills, carrying heavy loads), not a separate "use strength" action.
+- **Stamina** — governs the melee/sprint resource economy (Phase P2/P5). Increases both from leveling up generally and from repeatedly performing stamina-costing actions (sprinting, swinging).
+- **Sneak** — reduces detection radius/noise while crouched. Grows through use.
+- **Sprint** — affects sprint speed/endurance cost. Grows through use.
 
-| Skill | XP source (learn-by-doing) | Effect as it levels |
-|---|---|---|
-| **Melee** | Landing hits/kills with melee weapons | ↑ damage, ↑ hit chance, ↓ stamina cost per swing, ↑ stagger/knockback chance |
-| **Firearms** | Landing hits/kills with ranged weapons, reloading | ↑ accuracy (tighter spread/recoil control), ↓ reload time |
-| **Fitness** | Sprinting, hauling weight, general movement | ↑ stamina pool & regen rate, ↑ carry capacity |
-| **Medicine** | Treating wounds — bandage/disinfect/splint/**amputation** (P3) | ↑ treatment effectiveness/speed, ↓ dirty-bandage infection risk, ↑ amputation success/speed |
-| **Carpentry** | Building/upgrading/repairing structures (P7) | ↑ build speed, ↑ structure HP/quality, ↓ material cost |
-| **Survival** | Foraging, farming-lite actions, cooking, scavenging containers (P6) | ↑ foraging yield/rarity, ↑ farming yield, ↑ food quality/hunger restore, ↑ chance of noticing rare loot |
+**Combat skills:**
+- **Melee weapons** — each weapon *class* gets its own skill bar, leveled by landing hits with that class. Higher level: faster attack speed, increased damage, increased critical damage chance.
+- **Maintenance** — reduces weapon wear rate; leveled by performing maintenance actions, which also become faster to perform at higher levels. Weapons gain an increased usage meter (more actions before breaking) as this skill rises.
 
-Design calls baked into this list:
-- **Melee and Firearms stay separate**, not merged into one Combat skill (an option this plan itself flagged) — different resource economies (stamina vs. ammo), different feel, and a real build-identity fork for the cost of one extra list entry.
-- **No dedicated Stealth skill** — consistent with the existing §7.3 disposition ("no lightfootedness skill web in v1"). Crouch/noise reduction stays purely mechanical (not skill-gated) in the basic list.
-- **Fitness absorbs PZ's separate Strength stat** — the calorie/weight simulation that justified splitting them in PZ is already cut (§5 disposition); one stat covers stamina + carry capacity, and melee damage scaling lives in the Melee skill instead.
-- **Level range 1–5**, not PZ's 0–10 — matches the "1/3 depth" simplification philosophy and the explicit non-grind design goal (Notes §1).
-- No skill covers Mechanics (no vehicles in v1) or Tailoring (no clothing-layer sim in v1) — both would be dead weight right now.
+**Firearm skills:**
+- **Aiming** — increases with weapon usage (shots fired/hits landed). Affects accuracy, time-to-aim, and effective range.
+- **Reloading** — increases reload speed and the speed of loading/unloading individual rounds into a magazine.
 
-**Expansion path (not built now — how this list grows later, only once the underlying system has enough depth to deserve separate progression):**
-- **Survival** splits into **Foraging / Cooking / Farming / Scavenging** once each has its own real depth.
-- **Melee** could split by weapon class (Blunt/Edged/Improvised) if weapon variety grows past P5's basic 4–6 archetypes.
-- **Stealth** becomes its own skill if noise/detection depth grows beyond the mechanical-only v1 model.
-- **Mechanics** arrives whenever vehicles do (post-v1, per §5's vehicle disposition).
-- **Tailoring** arrives if clothing protection ever grows past the single-outfit-slot simplification (§5).
+**Medical skill:**
+- **First Aid** — increases with use. Higher levels unlock more effective use of medical items and faster application speed (ties into P3's bandage/splint/amputation actions).
+
+**Deferred skills (post-v1, own planning pass):**
+- Fishing, Building, Foraging, Cooking, Mechanics — confirmed direction, not part of the v1 slice. Added to the Phase P10 post-v1 backlog alongside hostile roamers.
+
+**Design calls baked into this revision (supersedes the 2026-07-18 six-skill list):**
+- **Melee splits per weapon class**, not one flat Melee skill — a real build-identity fork, matches PZ's own per-weapon-type skill model more closely than the original simplification did.
+- **Maintenance is its own skill**, separated out from a generic Melee skill — weapon durability/wear management is a distinct player decision from combat proficiency.
+- **Firearms splits into Aiming and Reloading** — same rationale as PZ, two different resource/skill economies (accuracy vs. logistics speed).
+- **Strength and Stamina reclassified as attributes, not skills** — they're passive stat pools that grow from broad play rather than a dedicated action loop, closer to PZ's own Fitness/Strength core-stat model than a learn-by-doing skill bar.
+- **Sneak and Sprint are stats, not a dedicated skill tree** — consistent with the existing §7.3 disposition ("no lightfootedness skill web in v1").
+- **First Aid stands alone**, unchanged in spirit from the prior Medicine skill.
+- **Carpentry and Survival move to the deferred list** as Building and Foraging/Cooking respectively — dev's stated priority is proving out the core combat/survival loop first; these return in their own planning pass alongside Fishing and Mechanics.
+- **Level range 1–5** still applies where a visible level makes sense (per-weapon melee bars, Aiming, Reloading, Maintenance, First Aid) — matches the non-grind design goal (Notes §1).
+
+**Expansion path (not built now):**
+- Deferred skills (Fishing, Building, Foraging, Cooking, Mechanics) get their own planning pass once the v1 combat/survival loop is proven.
+- Melee weapon-class skill bars can grow in number as weapon variety grows past P5's basic archetypes — the system already supports N classes with zero rework.
+- Mechanics arrives whenever vehicles do (post-v1).
 
 ---
 
 ## 4. Development phases
 
-Same working style as `CoreLoopPlan.md`: numbered phases, milestone tables, PIE-verified exit criteria, commit per sub-task, docs updated at phase end. Phases are ordered so **every phase ends in something playable** and the risky/identity-defining systems come early. **Read §7's questions for a phase before starting it** — several phases have decisions embedded that change their own scope.
-
 ### P0 — Close out, clean up, re-aim (the simplification pass)
-1. **Finish Phase 3 M7** (2-client PIE verification of the existing replication layer, dev-driven, checklist already in `CoreLoopPlan.md`). Verify what's built *before* surgery, so post-surgery breakage has a known-good baseline.
+1. **Finish Phase 3 M7** (2-client PIE verification of the existing replication layer). Verify what's built *before* surgery.
 2. Commit the currently-uncommitted session-8 work (already compiled clean).
-3. **De-scope pass** per §2's cut list: remove Inspect/MagCheck/SwitchGrip input actions + bindings; strip the actions and laser/grip/physics-cosmetic paths from `AZSPlayerCharacter`/`AZSWeapon`; retire the FP spawn path (keep `FirstPersonMesh` component dormant or remove — smallest safe diff wins); reduce perspective enum. Compile + PIE after each removal cluster.
+3. **De-scope pass** per §2's cut list: remove Inspect/MagCheck/SwitchGrip; strip laser/grip/physics-cosmetic paths; retire the FP spawn path; reduce perspective enum. Compile + PIE after each removal cluster.
 4. Update `CLAUDE.md`, `SessionHandoff.md`; this doc becomes plan of record.
    **Exit:** clean build, 2-client PIE still passes fire/reload/aim/sprint/crouch with the slimmed action set.
 
 ### P1 — Camera & control prototype (identity test #1)
-- TopDown perspective in `ApplyCameraPerspective` (pitch/zoom/step-rotation), movement relative to camera, OverShoulder aim-zoom toggle.
-- **Hybrid facing (confirmed 2026-07-20):** WASD alone faces movement direction (`bOrientRotationToMovement = true`, already the P0 default — no change needed). Cursor-projected aim (screen ray → ground plane → character faces aim point) only overrides that **while actively aiming/attacking/interacting with the cursor** — full actor rotation, not a spine-twist. Keeps plain movement comfortable without fighting the mouse, matches how the animation side (`Direction`/`GroundSpeed`, §5.1) already expects to be driven either way with no changes.
+- TopDown perspective in `ApplyCameraPerspective`, movement relative to camera, OverShoulder aim-zoom toggle.
+- **Hybrid facing (confirmed 2026-07-20):** WASD alone faces movement direction (`bOrientRotationToMovement = true`, already the P0 default). Cursor-projected aim only overrides facing while actively aiming/attacking/interacting — full actor rotation, not a spine-twist.
 - Interaction system v1: `UZSInteractableComponent` + world prompt ("E — Open").
-- Input scheme validated with both mouse+keyboard and a gamepad from day one (Enhanced Input already supports the dual bindings; this is a tuning/testing task here, not new plumbing) — real console porting/certification stays a later, separate decision.
+- Input scheme validated with both mouse+keyboard and a gamepad from day one.
 - Graybox test map. Infima rifle still the stand-in weapon.
-  **Exit:** moving/aiming/shooting *feels good* at top-down distance with both input methods, 2-client PIE. **This is the go/no-go gate on Decision 1 — settle the camera before any art money is spent.**
+  **Exit:** moving/aiming/shooting *feels good* at top-down distance with both input methods, 2-client PIE. **This is the go/no-go gate on Decision 1.**
 
 ### P2 — Survival simulation core (identity test #2)
-- `UZSNeedsComponent` (ActorComponent, replicated, data-asset-tuned): Hunger/Thirst/Fatigue/Stamina + rate curves. **Consequence model per Notes §1:** Hunger/Thirst degrade stamina regen, healing rate, aim accuracy, and attack recovery *before* they ever threaten health directly — health drain only at sustained, deep neglect, not the default outcome of forgetting to eat for a day.
-- World clock (`AZSGameState`): day/night, configurable compression, the utilities-shutoff timer.
-- **Sleep/time-skip** (Notes §2, Minecraft-style): sleeping requires being safe within a radius of hostiles; in co-op, time only advances once every player is asleep/ready, for a duration the initiating player sets.
-- Moodle UI stack (UMG, 4 severity tiers) + first-pass HUD, with the transparent stat-preview rule (Notes §21) established here for the first time — every consumable/action shows its actual effect on hover, not a hidden number.
-- Items exist minimally: eat/drink consumables via a first `UZSItemConfig`.
-  **Exit:** a character's hunger/thirst visibly degrades performance (not health) under normal neglect, and sleep-based time-skip works solo and with a multi-player readiness check; replicated, 2-client PIE.
+- `UZSNeedsComponent`: Hunger/Thirst/Fatigue/Stamina + rate curves. Consequence model: needs degrade performance before health.
+- World clock (`AZSGameState`): day/night, compression, utilities-shutoff timer.
+- **Sleep/time-skip** (Minecraft-style, co-op readiness check).
+- Moodle UI stack (UMG, 4 severity tiers) + transparent stat-preview rule established here.
+- Items exist minimally: eat/drink consumables via first `UZSItemConfig`.
+  **Exit:** hunger/thirst visibly degrades performance under normal neglect; sleep-based time-skip works solo and multi-player; replicated, 2-client PIE.
 
 ### P3 — Health, damage & medical-lite
-- `UZSHealthComponent`: 4 zones, wound records (scratch/bite/laceration/fracture) each mapped to a real gameplay effect (leg wounds → move speed/mobility, arm wounds → attack speed/reload time — Notes §1), bleed-over-time, all damage through `TakeDamage`.
-- Treatment actions (montage + notify-gated, reusing the action system): bandage (cleanliness flag), disinfect, splint.
-- **Knox-style infection:** bite → hidden infection roll → delayed queasy→fever→death arc; deliberately UI-ambiguous vs. ordinary sickness.
-- **Emergency amputation** (Notes §1/§9, new mechanic): removing a bitten/infected limb before the infection timer completes stops that infection source outright, at the cost of permanent capability loss to that limb (mobility/attack-speed penalties from the zone mapping above, now permanent rather than healing). Scope questions (tool required? solo-capable or co-op-assist-only? timing window?) are in §7 — build the simplest version first (any bladed/tool item, solo-capable, works any time before the infection timer expires) and refine once played.
-- Player death → spectate/respawn-as-new-character flow (permadeath groundwork).
-  **Exit:** a scripted damage source can wound (with the correct gameplay-effect mapping), infect, and kill a player who mismanages treatment — and a player who amputates in time survives a bite that would otherwise have killed them. Second client sees everything correctly.
+- `UZSHealthComponent`: 4 zones, wound types mapped to gameplay effects, bleed-over-time, all damage through `TakeDamage`.
+- Treatment actions: bandage (cleanliness flag), disinfect, splint.
+- Knox-style infection: bite → hidden roll → delayed queasy→fever→death arc.
+- Emergency amputation: stops infection source, permanent capability loss.
+- Player death → spectate/respawn-as-new-character flow.
+  **Exit:** a scripted damage source can wound, infect, and kill a player who mismanages treatment; amputation-in-time survives a bite that would otherwise kill. Second client sees everything correctly.
 
 ### P4 — Zombies (the enemy, finally)
-- `AZombieCharacter` + `AZombieAIController`, classic **Behavior Tree + Blackboard** (per the standing `CLAUDE.md` decision), `UZSZombieConfig` data asset (speed/health/senses/damage — N zombie types, zero C++ branches, same rule as weapons). **Explicit performance target from the outset** (Notes §1): profile early, don't retrofit efficiency later.
-- Perception: `AIPerception` sight cone + hearing. **`UZSNoiseSystem`:** every loud act (gunshot, sprint, breaking glass) reports a noise event with a radius; this is the load-bearing system of the whole game.
-- Behaviors v1: wander, investigate noise, chase, attack (melee hit → P3 damage/infection), door-thumping (destructible door HP).
-- **Zombie reintroduction:** zone-based population from data, server-authoritative, respawn-into-cleared-zones on a slow timer — the concrete answer to Notes §1's "player can't just clear them all forever."
-- Placeholder visuals: Mixamo/UE-mannequin zombie + Mixamo zombie animations (free) until the art phase.
-- **Note (Decision 5):** build this phase's AI architecture (Behavior Tree/Blackboard structure, `AIPerception`, the noise system, config-driven "N enemy types, zero C++ branches" pattern) in a way that a second, always-hostile-to-everyone human variant can be added cheaply post-v1 without rearchitecting — but don't build that variant now. Hostile roamers are confirmed design intent, deliberately deferred past the v1 slice (see Phase P10).
+- `AZombieCharacter` + `AZombieAIController`, Behavior Tree + Blackboard, `UZSZombieConfig` data asset.
+- Perception: `AIPerception` sight cone + hearing. `UZSNoiseSystem`: every loud act reports a noise event.
+- Behaviors v1: wander, investigate noise, chase, attack, door-thumping.
+- Zombie reintroduction: zone-based population, respawn-into-cleared-zones.
+- Placeholder visuals: Mixamo/UE-mannequin zombie + Mixamo zombie animations (already imported, per §5.1 Stage C).
+- Architecture built so hostile human roamers can be added cheaply post-v1 without rearchitecting.
   **Exit:** a graybox block with a profiled zombie-count budget met; a gunshot visibly drags the neighborhood onto the shooter; 2-client PIE holds up.
 
 ### P5 — Combat completion (melee + the full loop feel)
-- **Melee weapon type** through the *same* `UZSWeaponConfig` pipeline (a melee config specifies swing montages, reach, stamina cost, damage, durability — the multi-weapon rule pays off here).
-- Swing timing via the existing notify system; shove + stomp as always-available options; stamina economy tuned against P2.
-- Firearms integration with noise + zombie mass: ammo scarcity tuning, simple hit-reaction/knockdown.
-- Weapon durability-lite (melee breaks; no repair sim v1).
+- Melee weapon type through the same `UZSWeaponConfig` pipeline.
+- Swing timing via existing notify system; shove + stomp; stamina economy tuned against P2.
+- Firearms integration with noise + zombie mass.
+- Weapon durability-lite.
   **Exit:** the PZ death loop exists — greed + noise + stamina mismanagement kills a player who had every tool to survive.
 
 ### P6 — Inventory, loot & scavenging
-- `UZSInventoryComponent` (replicated), weight-based encumbrance, bag equip slots; `UZSItemConfig` grows into the general item contract with **equip-only vs. carry-only categories** (Notes §10.2) so weapons/armor claim dedicated slots while general loot doesn't.
-- Container actors + data-asset **loot tables** keyed by building/container archetype, one item per container slot; **per-zone quality tiers** (good/bad/in-between areas) with slight randomization, plus a **finite world-count pool per rarity tier** so genuinely rare items stay rare across a whole session, not just per-roll (Notes §10.2).
-- Inventory UI (list-based dual-pane, bulk actions, favorite/junk — beat PZ's UI, don't copy it) + radial quick-use, with the transparent stat-preview rule from P2 carried through every item tooltip.
-- Dropped-item persistence in the running session.
-  **Exit:** full scavenge loop in graybox: run out, loot under threat, haul back, stash; item scarcity feels intentional, not just random.
+- `UZSInventoryComponent`, weight-based encumbrance, bag equip slots; `UZSItemConfig` equip-only vs. carry-only categories.
+- Container actors + data-asset loot tables; per-zone quality tiers; finite world-count rarity pools.
+- Inventory UI + radial quick-use, transparent stat-preview rule carried through.
+- Dropped-item persistence.
+  **Exit:** full scavenge loop in graybox: run out, loot under threat, haul back, stash; item scarcity feels intentional.
 
 ### P7 — World building & persistence
-- **Art integration phase** (see §5): replace graybox with the chosen modular kit; build the region (World Partition) — residential streets, main-street commercial row (hardware/pharmacy/gun store/grocery — the loot-archetype anchors), gas station, church, farm fringe, mountain/forest terrain, at least one larger "dense town" analog. Naming and exact scale are open questions — see §7.
-- **Multiple profession-tied spawn points** (Decision 4) placed across the map, with the "scatter spawns" co-op toggle wired.
-- Enterable buildings as the rule; interior visibility solution for top-down (roof fade/cutaway — prototype early in P1 if it worries us).
-- **Save/persistence v1** (single "world continues" save per server): world item/container/door state, character sheets, clock, zombie population coarse state. Host-side SaveGame; permadeath = character deleted, world persists.
-- Utilities shutoff goes live against the real map (powered lights/fridges/pumps flip off).
-  **Exit:** the real map plays end-to-end co-op, including a scattered multi-spawn start; quit → relaunch → world remembered; day ~10 the lights die.
+- Art integration phase: replace graybox with the chosen modular kit; build the region.
+- Multiple profession-tied spawn points, scatter-spawns toggle wired.
+- Enterable buildings; interior visibility solution for top-down.
+- Save/persistence v1 (single "world continues" save per server).
+- Utilities shutoff goes live against the real map.
+  **Exit:** the real map plays end-to-end co-op, including scattered multi-spawn start; quit → relaunch → world remembered; day ~10 the lights die.
 
 ### P8 — Dynamic events, objectives & the investigation arc (the differentiator)
-- `UZSEventDirector` (server): scheduled + random world events from data assets — helicopter flyover (drags hordes), distant gunshots/screams (ambient migration), crashed convoy/supply drop (timed loot beacon = risk/reward), house alarms. **Expanded roster relative to PZ's own set** (Notes §17) — event variety is a stated priority, not a nice-to-have.
-- **Radio channel:** scripted broadcast arc for days 1–7 (diegetic tutorial, PZ §16's trick) that transitions into dynamic event/objective announcements *and* the first investigation-arc clues.
-- **Investigation/cure questline** (Notes §1/§22): notes, documents, and items scattered through the world let players piece together how the outbreak started and pursue leads toward a cure. Per Decision 6, completion is an optional capstone (epilogue + persistent world-state change), never a forced ending. **Clue placement (resolved 2026-07-18):** each clue is a `UZSItemConfig` instance flagged as an investigation item, carrying a predetermined pool of eligible spawn locations (same location-tag system as regular loot, P6) — but unlike ordinary rarity-pool loot, clue placement is **guaranteed, not probabilistic**: the system always spawns each clue at exactly one randomly-chosen location from its pool, so a world can never end up missing a clue entirely and the arc stays completable in every session. The random *pick* reuses P6's loot infrastructure directly; only the guarantee is clue-specific.
-- Radiant objective wrappers ("reach the drop before it's swarmed," "restore the station generator") — objectives are *invitations with stakes*, never mandatory quests.
-  **Exit:** two co-op sessions on the same map play out differently because the director dealt different beats; a full playthrough of the investigation arc is possible and its ending behaves per Decision 6's resolution.
+- `UZSEventDirector`: scheduled + random world events.
+- Radio channel: scripted broadcast arc days 1–7, transitioning into dynamic events + investigation clues.
+- Investigation/cure questline: guaranteed clue placement (predetermined pool, random pick, never missing). Optional capstone per Decision 6.
+- Radiant objective wrappers — invitations with stakes, never mandatory.
+  **Exit:** two co-op sessions on the same map play out differently; a full playthrough of the investigation arc is possible.
 
 ### P9 — Meta-loop, onboarding & difficulty
-- Character creation v1: backgrounds (§3) + spawn point (Decision 4) + appearance from the art kit's modular characters. No trait point-buy in v1 (§3) — build variety comes from background choice and emergent play-driven aptitudes instead.
-- Death → new character → same world flow polished (find your old corpse — keep PZ's beloved beat).
-- First-hour experience pass: radio-guided first days, interaction hints, transparent stat/action previews everywhere (Notes §21 as a hard onboarding requirement, not just a UI nicety).
-- Skill XP hookup (learn-by-doing across P2–P6 systems) — finalize the actual skill list here if it wasn't already nailed down in P2 (§7).
+- Character creation v1: backgrounds (§3) + spawn point (Decision 4) + appearance from the art kit's modular characters. No trait point-buy — build variety from background choice and emergent play-driven attribute/skill growth (§3.1).
+- Death → new character → same world flow polished.
+- First-hour experience pass: radio-guided first days, interaction hints, transparent stat/action previews everywhere.
+- **Skill/attribute XP hookup** (learn-by-doing across P2–P6 systems): Strength/Stamina/Sneak/Sprint attributes, per-weapon-class Melee bars, Maintenance, Aiming, Reloading, First Aid — all per §3.1's revised list, wired to their respective P2–P6 systems.
   **Exit:** a stranger survives their first 30 minutes without a wiki and dies to something they understand.
 
 ### P10 — Production hardening → public vertical slice
-- Audio pass (see §5 asset list), VFX pass (low-poly-friendly: flat-shaded blood/muzzle/impact), performance (zombie + hostile-roamer count profiling, LODs/HISM on the kit, net relevancy), fixed-tick save safety, crash/soak testing, packaged Windows build tested over real LAN/direct-IP.
+- Audio pass, VFX pass, performance profiling, fixed-tick save safety, crash/soak testing, packaged Windows build tested over real LAN/direct-IP.
 - Trailer-able vertical slice: 20–40 minutes of tuned co-op survival on the real map, including at least one meta event and a taste of the investigation arc.
-  **Exit:** shippable demo build. **First post-v1 addition (per Decision 5): hostile human roamers**, built cheaply on top of P4's zombie AI architecture. Planning pass after that picks from: full NPC survivors/factions, vehicles, sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server, other deferred-pool systems.
+  **Exit:** shippable demo build. **First post-v1 addition (Decision 5): hostile human roamers**, built cheaply on top of P4's zombie AI architecture. Post-v1 backlog also includes the deferred skills from §3.1 (Fishing, Building, Foraging, Cooking, Mechanics), full NPC survivors/factions, vehicles, sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server.
 
-**Standing rules across all phases** (inherited, still binding): replication convention on every new stat/system; data-asset-driven everything (`N` of a thing, zero C++ branches); `BlueprintNativeEvent` for gameplay decisions; no magic numbers (`TuningReference.md` stays live); commit per sub-task; docs updated at phase end.
+**Standing rules across all phases:** replication convention on every new stat/system; data-asset-driven everything; `BlueprintNativeEvent` for gameplay decisions; no magic numbers (`TuningReference.md` stays live); commit per sub-task; docs updated at phase end.
 
 ---
 
 ## 5. Asset strategy
 
 ### The style decision
-**⚑ DECISION 3 — Art source. Resolved 2026-07-19** (supersedes v0.1's Synty recommendation entirely — dev's own words: "I do not like that style," "I am not using Synty for anything"). Direction: **dark, earthy tones, slight realism, kept low-poly.** Low-poly here is a production/performance choice — and keeps hand-modeling in Blender genuinely viable if the dev starts making assets directly — not a cartoon-toy aesthetic. This unifies cleanly with the *Door Kickers 2* camera/art reference already in §1: DK2's own overall look is grounded and quietly detailed rather than bright/flat, so the earlier "printed/decal texture detail on weapons and items" guidance still holds — it just isn't a contrast against a flat Synty environment style anymore, since there isn't one. One direction across the board: low-poly geometry, dark/earthy/muted materials, with weapons and hand-held items in particular carrying real surface detail via texture work (rail lines, dials, wear, brand markings) rather than modeled geometry.
+**⚑ DECISION 3 — Resolved 2026-07-19.** Direction: **dark, earthy tones, slight realism, kept low-poly.** Sourcing is the dev's own.
 
-**Sourcing is the dev's own — ArtStation and wherever else fits, not a research task for this document going forward.** §5 no longer recommends specific packs or vendors; its job is to track **what's needed**, tagged by phase, so the dev knows what to go shopping for. See the running list below — update it as things get sourced.
+> **Licensing/repo rule:** paid marketplace content is gitignored, never committed. Large free content that would blow the $0 LFS budget doesn't need to be committed either since it's re-downloadable from its source.
 
-> **Licensing/repo rule (existing `CLAUDE.md` pattern, unchanged):** paid marketplace content is **gitignored, never committed** to the public repo — same as `Content/InfimaGames/`. Large free content that would blow the $0 LFS budget doesn't need to be committed either (confirmed policy, 2026-07-19 — see `TaskTracker.md`) since it's re-downloadable from its source; only commit what comfortably fits the budget.
+### Asset needs list (running — update as sourced)
 
-### Asset needs list (running — update as sourced, not a shopping list of specific products)
-
-| Category | Needed for | Status (updated 2026-07-20) |
+| Category | Needed for | Status |
 |---|---|---|
-| Player character base mesh + rig | P1 (locomotion), ongoing | Staying on `SKEL_TFA_Mannequin` (confirmed direction, §5.1) — final mesh/look TBD, dev sourcing |
-| Locomotion animation | P1/Stage A | **In progress** — `ZS_BS_Unarmed_Idle_Walk_Run` + crouch equivalent retargeted from Lyra; Layered-Blend-Per-Bone architecture confirmed (§5.1) |
-| Firearms — rifle | P1 onward | Poses/montages sourced from **Infima** (`Content/InfimaGames/`) — graybox mesh, real dark/earthy/detailed-texture model still not sourced |
-| Firearms — pistol | P1 onward | **Blocked on Infima** — pack hasn't released pistol animations yet; rifle-only for now |
-| Melee weapons (4–6 archetypes per P5 §7) | P5 | Placeholder sourced: `Content/LowPolyWeapons/` (100MB, untracked), `Content/Mega_Survival_Tools/` (48MB, untracked) — may stay as final assets or get replaced, dev's call |
-| Zombie character mesh(es) + rig | P4 | Animation set already imported (§5.1); mesh/skin not yet sourced |
-| Hostile human roamer visuals | Post-v1 (Decision 5) | Not needed yet |
-| Environment/building modular kit (residential, commercial row, gas station, church, farm — P7 §4) | P7 | Not sourced |
-| Rural/forest/mountain biome props (Adirondacks setting) | P7 | Not sourced |
-| Interactable world props (containers, furniture, barricade materials) | P6–P7 | Not sourced |
-| VFX — muzzle flash | P10-final-pass, placeholder present | `Content/VFX_Muzzle_Flashes/` — sourced, not yet evaluated against final art direction |
-| VFX — impacts | P10-final-pass, placeholder present | `Content/Impacts/` — sourced (impact VFX for attacks on different surfaces) |
-| Audio — bullet impacts | P10-final-pass, placeholder present | `Content/BulletSFX_BasicCollection/` — sourced (surface-dependent bullet impact sounds) |
-| Audio — footsteps | P10-final-pass, placeholder present | `Content/Footsteps_Volume_02/` — sourced (surface-dependent footstep cues) |
-
-Add rows as new categories become concrete; update the status column (or note "sourced: <where>") as the dev finds fits — this list, not a curated pack recommendation, is what this section maintains going forward.
+| Player character base mesh + rig | P1 (locomotion), ongoing | **On `SKEL_TFA_Mannequin` (Infima's own skeleton)** — confirmed direction; final mesh/look TBD |
+| Locomotion animation | P1/Stage A | Retargeted from Lyra onto `SKEL_TFA_Mannequin`; Layered Blend Per Bone architecture confirmed |
+| Firearms — rifle | P1 onward | Poses/montages sourced from Infima; graybox mesh, final dark/earthy model still not sourced |
+| Firearms — pistol | P1 onward | Blocked on Infima — pack hasn't released pistol animations yet |
+| Melee weapons | P5 | Placeholder sourced: `Content/LowPolyWeapons/`, `Content/Mega_Survival_Tools/` |
+| Zombie character mesh(es) + rig | P4 | Animation set already imported; mesh/skin not yet sourced |
+| Hostile human roamer visuals | Post-v1 | Not needed yet |
+| Environment/building modular kit | P7 | Not sourced |
+| Rural/forest/mountain biome props | P7 | Not sourced |
+| Interactable world props | P6–P7 | Not sourced |
+| VFX — muzzle flash / impacts | P10-final-pass | Sourced |
+| Audio — bullet impacts / footsteps | P10-final-pass | Sourced |
 
 ### Blender pipeline (the DIY path, if/when hand-modeling starts)
-Blender 4.x LTS, free.
+Blender 4.x LTS, free. Model on-grid; texture toward dark/earthy/slight-realism; pick one style anchor and hold everything to it.
 
-1. **Model on-grid:** modular kit pieces authored to a strict grid (1 m / 0.5 m increments, matching UE's grid) with pivots at floor-corner — this is what makes "modular" actually snap in-editor.
-2. **Texture toward the dark/earthy/slight-realism direction, not flat cartoon color:** a shared palette/material atlas per asset category is still the efficient, solo-dev-friendly production technique (trivial draw calls, fast iteration) — what changes from a typical low-poly-toy approach is *what's on the atlas*: muted, desaturated earthy tones (browns, greens, grays, rust) with subtle painted-in grime/wear/noise, not pure flat saturated blocks. Weapons/items still get their own dedicated printed-detail textures rather than sharing the environment atlas (per Decision 3 above).
-3. **Pick one style anchor and hold everything to it** (proportions, palette, texture treatment) — once the first real hero asset exists, it becomes the reference for everything after it. Mixed low-poly styles read worse than consistent mediocre ones.
+**Skeleton rule:** everything humanoid in the art pipeline targets **`SKEL_TFA_Mannequin`** (Infima's skeleton) as the one shared hub — imported content gets retargeted onto it, the character never moves to a different skeleton.
 
-**Addons — essential (all free):**
-- **[Send to Unreal](https://epicgames.github.io/BlenderTools/send2ue/)** (Epic official) — one-click Blender→open-UE-project push, correct scale/axes/LODs, batch animation export.
-- **[UE to Rigify](https://addons.cgdive.com/tools/ue2rigify)** (same Epic [BlenderTools repo](https://github.com/EpicGames/BlenderTools)) — full Rigify control rig over UE mannequin skeletons; the path for authoring/adjusting any custom character animation that stays retarget-compatible.
-- **Game Rig Tools** — lightweight deform-rig generation for game export where full Rigify is overkill.
-- **TexTools** — UV layout/align tools that make atlas-palette UV work fast.
-- **Machin3tools** — general modeling QoL (mirror, align, focus) that speeds low-poly work disproportionately.
+### 5.1 — Standard animation set (revised 2026-07-20)
 
-**Addons — worth paying for only if Blender becomes a main lane:** UVPackmaster (best-in-class packing), Hard Ops/Boxcutter (hard-surface speed), Auto-Rig Pro (alternative rig+UE export path if UE to Rigify frustrates).
+**Status: real production underway.** Locomotion architecture confirmed: `ZS_BS_Unarmed_Idle_Walk_Run` drives legs for every state; Layered Blend Per Bone (split at `spine_02`) composites the equipped weapon's pose over it. Two base locomotion blend spaces total (standing, crouched). No Aim Offset layer needed — hybrid facing (movement-direction default, cursor-facing only while actively aiming/attacking) covers it. No jump verb — replaced conceptually by a future mounting system.
 
-**Skeleton rule (important, learned the hard way with `SKEL_TFA_Mannequin`):** everything humanoid in the art pipeline targets **one shared skeleton hub — the project's existing `SKEL_TFA_Mannequin`** (confirmed direction, §5.1: imported content gets retargeted onto it, the character does not move to a different skeleton). Any purchased/found/hand-rigged humanoid gets IK-retargeted onto it once. One skeleton family, one retarget hub — never again a system built against a pack-specific skeleton.
+**AnimGraph built and compiled clean, 2026-07-20:** `ABP_ZS_ThirdPerson`'s stale pre-pivot graph cleared; new graph built on `BS_ZS_Unarmed_Idle_Walk_Run` / `BS_ZS_UnequippedCrouchWalk` + Infima's rifle idle/aim poses via Layered Blend Per Bone. Stance selector's `bIsCrouched` pin wired.
 
-### 5.1 — Standard animation set (the "for right now" contract, added 2026-07-18 at P0, revised 2026-07-19)
+**Stage A — base locomotion:** idle, directional walk/jog, sprint, crouch idle/walk, rifle/pistol idle+aim pose layered over the walk cycle. Jump cut entirely.
 
-The §2 rule made concrete: this is the **complete authorized animation list** until a phase explicitly adds to it. An animation earns its place only by being readable at gameplay camera distance or by gating gameplay timing — nothing else gets built, bought, or retargeted.
+**Stage B — montages:** fire, reload, generic use/channel loop, hit reaction, death, melee swing — Infima where available, TBD sourcing otherwise.
 
-**Status as of 2026-07-20: real production underway, architecture settled around the assets actually on hand.** Superseded almost everything this section originally guessed (Lyra `BS_Equipped*`/`AO_Ironsights` blend spaces, a 2-blend-space-per-stance plan) — see below for what's actually true now.
+**Stage C — zombies (P4):** `/Game/Animation/Enemy/Zombie/` walk/chase/attack/scream/death/crawl, already imported.
 
-**Locomotion architecture, confirmed (not the original plan):**
-- **`ZS_BS_Unarmed_Idle_Walk_Run`** — the dev's renamed/retargeted copy of Lyra's unarmed blend space, onto the project's real `SKEL_TFA_Mannequin`. This is the **one and only full-body directional walk-cycle asset set that exists** — there are no equivalent "IPC" (in-place-cycle) walk/run assets for the rifle- or pistol-equipped states, only static idle/aim **poses** and **action montages** (fire/reload/etc., mostly rifle so far — Infima hasn't released pistol animations yet). Building a second, third, fourth full directional blend space per weapon/stance (the original plan) isn't possible with what's actually on hand.
-- **The fix: Layered Blend Per Bone, not more blend spaces.** `ZS_BS_Unarmed_Idle_Walk_Run` drives the **legs for every state** (unarmed, rifle, pistol, standing, crouched) — it's the shared locomotion foundation. A **Layered Blend Per Bone** node, split at the upper spine (`spine_01` or `spine_03` — pick based on how much shoulder/arm motion should come from the walk cycle vs. the held pose), composites the currently-equipped weapon's idle/aim **pose** on top for the upper body only. Same technique, reused as-is, for the crouched case (blend per bone over `ZS_BS_UnequippedCrouchWalk`, one shared crouch-legs asset). **Net result: 2 base locomotion blend spaces total (standing, crouched), not 6** — a real simplification over this section's original guess, and the correct call given the actual asset inventory, not just a fallback.
-- **No Aim Offset layer** (`AO_Ironsights_1D`/`2D` dropped from the plan) — confirmed by the dev, refined 2026-07-20: facing is a **hybrid, not always-cursor**. Default (just moving, no active aim/attack/interact): the character faces its own movement direction — normal `bOrientRotationToMovement` behavior, already the P0 default, so **this needs zero new work in P1, it's already correct**. Only while actively aiming/attacking/interacting with the cursor does facing switch to the cursor/aim point instead — full **actor rotation**, not a spine-only twist, so there's still no scenario where the spine needs to diverge independently from the body's own facing. That's why no AO layer is needed in either mode. The `Direction`/`GroundSpeed` pair already on `UZSAnimInstanceBase` (via `CalculateDirection`, relative to actor facing) needs **no changes either** — it's computed fresh every frame regardless of which facing mode is currently driving actor rotation, so it already produces the right blend-space input in both states (mostly forward while just walking, genuine strafing while aiming with the cursor).
-- Weapon action montages (fire/reload/melee) still play through **Slot nodes** exactly as already built (`Multicast_PlayTPActionMontage`/`PlayTPMontage`, `AN_ZS_UnlockActions`/`ANS_ZS_BlockADS` timing) — montages, not sequences, confirmed as the right tool for one-shot triggered actions (independent play/stop/blend lifecycle, Slot-blending with the locomotion graph underneath, Sections for looping/branching — e.g. the Stage B "generic interact loop" needs a loop section + an end section, which only a Montage supports). AnimSequences stay the right tool for locomotion/blend-space inputs and additive layers, nothing else.
-- **No jump.** Confirmed design direction (forward-looking, not urgent): the player won't have a jump verb at all — replaced conceptually by a future **mounting** system (climbing onto/into things) rather than a free jump button. Stage A's row 4 below is cut; `bIsFalling` (already on `UZSAnimInstanceBase`) stays harmless dead weight for now rather than being ripped out — still potentially useful for off-ledge falls even without player-initiated jump.
-- Assets are landing in a curated **`Content/ZSAnims/`** folder (renamed/reorganized, project-owned), separate from the raw `Content/LyraAnims/` import — the right instinct, keeps curated-and-in-use content distinct from the raw source library. Both locomotion blend spaces (`BS_ZS_Unarmed_Idle_Walk_Run`, `BS_ZS_UnequippedCrouchWalk`) correctly follow the `BS_ZS_*` (type-first) naming convention and are retargeted onto `SKEL_TFA_Mannequin`, confirmed directly.
-
-**AnimGraph built and compiled clean — 2026-07-20.** `ABP_ZS_ThirdPerson`'s stale pre-pivot graph (stance `BlendListByBool`, `SM_AimingTransitions` state machine, breathing additive, hand-IK FABRIK — all built for the now-removed procedural ADS/grip system) was cleared per the dev's call, keeping only the two existing Montage `Slot` nodes (`DefaultSlot` → `Aiming`, unaffected — fire/reload still play through them). New graph, verified via a clean Blueprint compile with zero warnings:
-- `BS_ZS_Unarmed_Idle_Walk_Run` (2D, X=`GroundSpeed`/Y=`Direction`) and `BS_ZS_UnequippedCrouchWalk` (1D, X=`GroundSpeed` only — confirmed via inspection, no strafe axis exists for the crouch blend space) each feed a `BlendListByBool` stance selector.
-- Infima's `A_TFA_TP_AR_Idle_Pose`/`A_TFA_TP_AR_Aim_Pose` each feed a second `BlendListByBool`, selected by `bIsAiming`.
-- A `Layered Blend Per Bone` node (split at `spine_02`) composites the aim-selector's output over the stance-selector's output, feeding into the existing Slot chain → Output Pose.
-- **One documented, project-specific gotcha reused here:** session 6 found `BlendListByBool`'s `BlendPose_0`/`BlendPose_1` map to `bActiveValue` *opposite* the textbook 0=false/1=true reading — confirmed via live PIE testing at the time. Applied the same reversed mapping again on both selectors (`True` → `BlendPose_0`, `False` → `BlendPose_1`) rather than assume the intuitive order.
-- **Not yet wired: the stance selector's `bActiveValue` pin** (needs `bIsCrouched`, added to `UZSAnimInstanceBase` this session but not yet compiled — see below). Left unconnected, it safely defaults to `False` → standing locomotion, so the graph is fully functional in the meantime, just always-standing until that one pin gets wired.
-
-**Stage A — base locomotion (build first: movement in all directions + aiming):**
-
-| # | Animation | Source | Notes |
-|---|---|---|---|
-| 1 | Idle | `ZS_BS_Unarmed_Idle_Walk_Run` (zero velocity) | shared across every weapon state — see architecture above |
-| 2 | Walk/jog directional set (fwd/back/L/R strafes) | `ZS_BS_Unarmed_Idle_Walk_Run` | drive with the `GroundSpeed`/`Direction` pair on `UZSAnimInstanceBase` (`Direction` = `UKismetAnimationLibrary::CalculateDirection`, the convention this blend space was authored against) |
-| 3 | Sprint fwd | same blend space, or a dedicated sprint sample if the blend feels wrong at top speed | gated by existing `bIsSprinting` |
-| ~~4~~ | ~~Jump~~ | — | **cut — no jump verb, see above** |
-| 5 | Crouch idle + crouch walk | `ZS_BS_UnequippedCrouchWalk` | feeds existing `EZSStance` |
-| 6 | Rifle/pistol idle + aim pose, layered over the walk cycle | Infima (rifle currently; pistol pending Infima's own release) | **Layered Blend Per Bone over the blend spaces above, not a separate blend space** — see architecture note |
-
-`bOrientRotationToMovement = true` (restored in P0) is the **permanent** default-movement facing, not just an interim placeholder — P1 adds a conditional cursor-facing override on top for the active-aim/attack/interact state (see the hybrid-facing note above), it doesn't replace the P0 default.
-
-**Stance selector's `bActiveValue` wired in-editor, 2026-07-20** — all Stage A connections are now in place. One honest caveat: MCP's own introspection couldn't independently confirm the new Get node is bound to the compiled `UZSAnimInstanceBase::bIsCrouched` specifically (`find_node_types` still doesn't list it as a native property getter even after further Blueprint recompiles) — it's confirmed to be a valid zero-input bool Get, just not conclusively which one. A quick PIE crouch test (does the pose actually change on crouch?) is the real verification here, more reliable than further tool queries.
-
-**Stage B — montages and calls (after locomotion works):**
-
-| # | Animation | Source | Notes |
-|---|---|---|---|
-| 7 | Fire (upper-body) | Infima (rifle) | Montage, plays via existing `Multicast_PlayTPActionMontage` |
-| 8 | Reload | Infima (rifle); pistol pending Infima's release | Montage — re-place `AN_ZS_UnlockActions` + `ANS_ZS_BlockADS` on it — the timing system carries over untouched |
-| 9 | Generic use/channel loop | TBD (dev sourcing) | ONE Montage, loop section + end section, reused for bandage/loot/barricade/repair at different durations — bespoke per-action anims are polish-phase |
-| 10 | Hit reaction (single flinch) | TBD (dev sourcing) | P3 |
-| 11 | Death (1–2 variants) | TBD (dev sourcing) | P3 |
-| 12 | Melee swing (1H/2H generic) | Infima (rifle melee) or TBD | P5 |
-
-**Stage C — zombies (P4):** `/Game/Animation/Enemy/Zombie/` — walk/chase/attack/scream/death/crawl, already imported (not yet re-verified against the current skeleton work).
-
-**Explicitly out — a hard guardrail, not a suggestion.** The raw `Content/LyraAnims/` library (`Heroes/Mannequin/Animations/Actions/` and anything else not deliberately curated into `Content/ZSAnims/`) is Lyra's **full traversal-and-combat library**: dodges, a full cover system, prone, swimming, ladder/pole climbing, mantle/vault, finishers, valve/button interactions, flashlight equip, jump (now cut entirely, see above). All of it is out of scope for this survival game's simplified locomotion (§2's rule: readable-at-distance or gameplay-gating, nothing else) — its presence in the content browser is not an invitation to wire it up. Also still out, unchanged from P0: inspect/mag-check, grip-attachment swaps and pose variants, procedural spring ADS/recoil/crouch layers, weapon-mesh and magazine AnimBPs/montages, casing/magazine physics props, per-perspective animation duplicates.
+**Explicitly out:** Lyra's full traversal-and-combat library (dodges, cover, prone, swimming, climbing, mantle/vault, finishers) — not an invitation to wire up.
 
 ---
 
@@ -354,90 +304,86 @@ The §2 rule made concrete: this is the **complete authorized animation list** u
 
 | Risk | Mitigation |
 |---|---|
-| **Pivot whiplash** — rebuilding presentation while systems half-exist | P0 verifies + commits a known-good baseline first; cuts are surgical and each compile/PIE-gated. |
-| **Top-down doesn't feel right** | P1 is a cheap identity gate *before* art spend; over-shoulder TP is the pre-agreed fallback (Decision 1). |
-| **Simulation creep** (PZ gravity: every system invites 3 more) | §3's table is a contract; "deferred pool" items need a planning pass to enter scope, same rule `CLAUDE.md` already uses for missions/economy. |
-| **Zombie counts vs. performance** | Low-poly + flat materials is half the answer; P4 sets a profiled budget (target: 60fps with ~150 active on-screen zombies on mid hardware, tune from there — confirm this number, see §7); crowd anim tricks (anim sharing/URO) if needed. |
-| **MP save/persistence complexity** | Listen-server-host-owns-the-save (PZ's own co-op model), single world save, no per-client saves. |
-| **The investigation arc vs. infinite sandbox tension** | This is PZ's own unresolved #1 design fork (per its reference doc's §22), and it's exactly what this project is now attempting to answer. Getting Decision 6 right matters more than any single system — it determines whether "completed the investigation" is per-character save state, per-world save state, or purely cosmetic, and that determination has to happen before P8's back-end is built, not after. |
-| **NPCs are a siren song** | Full factions/dialogue/allied-NPC systems stay hard-gated behind a post-v1 planning pass. The narrow, cheap hostile-roamer variant (Decision 5) is confirmed design intent but deliberately kept out of v1 scope too — first thing built after the vertical slice ships, not before. |
-| **Solo-dev art volume** | Buy the core (Decision 3), one region not a county-sized map, prop variety via palette recolors. |
+| **Pivot whiplash** | P0 verifies + commits a known-good baseline first. |
+| **Top-down doesn't feel right** | P1 is a cheap identity gate before art spend; over-shoulder TP is the fallback. |
+| **Simulation creep** | §3's table is a contract. |
+| **Zombie counts vs. performance** | Low-poly + flat materials; P4 sets a profiled budget. |
+| **MP save/persistence complexity** | Listen-server-host-owns-the-save, single world save. |
+| **The investigation arc vs. infinite sandbox tension** | Decision 6 resolved before P8's back-end is built. |
+| **NPCs are a siren song** | Full factions stay hard-gated behind a post-v1 planning pass. |
+| **Solo-dev art volume** | Buy the core, one region not a county-sized map. |
 | **Animation scope re-creep** | The §2 rule: readable-at-camera-distance or gameplay-gating, else polish-phase. |
 
-**Rough shape of the calendar** (solo dev + Claude sessions, part-time cadence like the last two weeks — adjust freely): P0–P1 ≈ 2–3 weeks · P2–P3 ≈ 3–4 weeks · P4–P5 ≈ 4–6 weeks · P6 ≈ 2–3 weeks · P7 ≈ 4–6 weeks (art-heavy) · P8 ≈ 3–4 weeks · P9–P10 ≈ 4–6 weeks. **Order-of-magnitude: a tuned co-op vertical slice in ~6–9 months.** Estimates are for pacing honesty, not commitments.
+**Rough shape of the calendar:** P0–P1 ≈ 2–3 weeks · P2–P3 ≈ 3–4 weeks · P4–P5 ≈ 4–6 weeks · P6 ≈ 2–3 weeks · P7 ≈ 4–6 weeks · P8 ≈ 3–4 weeks · P9–P10 ≈ 4–6 weeks. **Order-of-magnitude: ~6–9 months.**
 
 ---
 
 ## 7. Open questions by development stage
 
-The dev asked to "come up with questions for each stage of development" — this is that list. Not every question needs an answer before its phase starts; some are fine to resolve mid-phase through play-testing. The ones marked **(blocking)** genuinely shape the phase's architecture and are worth settling first.
-
 ### Cross-cutting / foundational
-1. **This document's filename/title** — the dev's own markup left "rename GameDevPlan to: ___" blank. Real working title for the *document*, distinct from the game's eventual name?
-2. Is a real marketing/working title for the *game itself* wanted now, or is that a later-phase problem (current lean: later)?
-3. **Platform commitment (blocking for P1):** PC/Steam-only for v1 with console as an explicit-but-later goal, confirmed? If so, do we design UI navigation (menus, radial wheel, inventory) gamepad-first from the start, or keyboard/mouse-first with a gamepad pass retrofitted before P10?
-4. Team-size reality check: should phase-length estimates in §4/§6 assume solo + AI-assisted sessions throughout, or could an artist/contractor/composer join at some point (changes the P7/P10 estimates significantly)?
-5. Save architecture: one world/save per hosted server (matches PZ, matches the plan as written), or do we also want multiple concurrent save slots per install (host manages several distinct worlds)?
+1. Document filename — still blank.
+2. Real marketing title for the game — later.
+3. **Platform commitment (blocking for P1):** PC/Steam-only for v1?
+4. Team-size reality check.
+5. Save architecture: one world/save per server, or multiple concurrent slots?
 
 ### P0 — Close-out / re-aim
-1. Is the current Infima-based FP animation investment a total write-off once shelved, or is there a version of it (e.g., over-shoulder ADS) still worth keeping alive as a fallback rather than fully dormant?
-2. Any specific content/code the dev wants explicitly untouched during the de-scope pass (e.g., don't touch the weapon config data assets yet, even the ones tied to cut features)?
+1. Is the Infima FP investment a total write-off? — **Resolved: no, Infima is the confirmed skeleton/animation source of record, not shelved.**
+2. Any content the dev wants explicitly untouched during de-scope?
 
 ### P1 — Camera & control prototype
-1. Controller or KBM as the *primary* tuning target for aim-assist curves and sensitivity defaults?
-2. Prototype the "scattered profession spawn" co-op flow here (cheap, camera-adjacent) or wait for the real map in P7?
-3. Interior visibility for top-down — roof fade, hard cutaway, or a camera-ducks-inside solution? Worth a quick spike here even though the real answer lands in P7.
+1. Controller or KBM as primary tuning target?
+2. Prototype scattered profession spawn here or wait for P7?
+3. Interior visibility for top-down — worth a spike here?
 
-### P2 — Survival core (needs/moodles/skills/time)
-1. ~~Final skill list~~ **RESOLVED 2026-07-18** — 6 skills (Melee, Firearms, Fitness, Medicine, Carpentry, Survival), kept Firearms/Melee separate. See §3.1.
-2. Can a solo player sleep-skip time alone (no group check needed), with the "everyone must be ready" rule only applying in co-op?
-3. Is there a floor under Hunger/Thirst debuffs (never fully incapacitating), or should sustained, total neglect still be a real death path, just a much slower one than PZ's default?
-4. Weather (Notes §1: "players must adjust to survive") — real temperature/insulation mechanics in v1, or atmospheric/visibility-only for now with survival-temperature systems deferred to the pool?
+### P2 — Survival core
+1. ~~Final skill list~~ **RESOLVED 2026-07-19** — see §3.1 (revised from the original six-skill list).
+2. Solo sleep-skip without a group check?
+3. Floor under Hunger/Thirst debuffs?
+4. Weather — real mechanics in v1 or atmospheric-only?
 
 ### P3 — Health, damage, medical, amputation
-1. Does amputation require a specific tool (hatchet/saw/machete), and is it solo-capable or does it need another player's help in co-op?
-2. Is there a timing window (must amputate within X minutes of infection) or is any time before the infection timer completes valid?
-3. Post-amputation: permanent capability loss only for v1, or is a later prosthetic/adaptation crafting chain worth flagging now so the data model doesn't need reworking to support it?
+1. Amputation tool requirement + solo vs. co-op-assist?
+2. Timing window for amputation?
+3. Post-amputation: permanent-only for v1, or flag for later prosthetics?
 
 ### P4 — Zombies
-1. Is ~150 concurrent on-screen zombies (this plan's placeholder performance target) the right ballpark, or does the dev have a different number in mind?
-
-**Post-v1 backlog (hostile roamers, once Phase P10 revisits them per Decision 5):** spawn logic — pure ambient/random encounters, or tied to specific setpieces (e.g., a raider camp location type)? Do they drop loot (weapons/ammo), creating a deliberate risk/reward incentive to fight them? Do they share the zombie wound/infection system, or simpler flat damage? (This last one was originally a P3 question — moved here since it only matters once roamers actually exist.)
+1. Is ~150 concurrent on-screen zombies the right target?
+- Post-v1 backlog: hostile roamer spawn logic, loot drops, wound/infection system parity.
 
 ### P5 — Combat completion
-1. Melee weapon variety for v1 — a curated set (4–6 archetypes: blunt/edged/axe/improvised) or closer to PZ's full breadth from the start?
-2. Durability: break-only with no repair (matches PZ's scarcity pressure) or is a basic repair mechanic wanted sooner than PZ shipped one?
+1. Melee weapon variety — curated 4–6 archetypes or PZ's full breadth?
+2. Durability: break-only or basic repair sooner?
 
 ### P6 — Inventory & loot
-1. Bag/equip-slot depth — flat capacity plus a couple of bag-upgrade tiers, or PZ's fuller bags-in-bags nesting?
-2. Is the finite-rarity-pool model per-world-instance (each server tracks its own scarcity) or a fixed design target validated per building type (simpler, fully table-driven)?
+1. Bag/equip-slot depth?
+2. Finite-rarity-pool model — per-world-instance or fixed design target?
 
 ### P7 — World & persistence
-1. Naming pass — does the dev want to brainstorm the fictional county/town names together, or already have names in mind?
-2. Map scale — is ~1×1 km still right, or does having multiple profession spawn points (Decision 4) argue for something larger so starts feel meaningfully separated?
-3. Confirm Decision 4's "scatter spawns" toggle as a lobby-level co-op setting, on by default or off by default?
+1. Naming pass for the fictional county/towns?
+2. Map scale — still ~1×1 km?
+3. Scatter-spawns default on or off?
 
 ### P8 — Dynamic events, objectives & investigation arc
-1. ~~Decision 6~~ **RESOLVED** — optional capstone, world keeps running (see §1, Decision 6).
-2. ~~Clue placement~~ **RESOLVED 2026-07-18** — clues spawn like items: a predetermined pool of eligible locations per clue, actual spot randomized per session, but placement is guaranteed (not a probabilistic rarity roll) so the arc stays completable in every world. See Phase P8's own text.
-3. How many distinct meta-events (helicopter-class beats) are wanted at launch — a handful (3–5) tuned deeply, or a broader roster from day one given Notes §17's "create more meta events"?
+1. ~~Decision 6~~ **RESOLVED** — optional capstone.
+2. ~~Clue placement~~ **RESOLVED 2026-07-18.**
+3. **(blocking)** How many distinct meta-events wanted at launch?
 
 ### P9 — Onboarding & meta-loop
-1. Any lightweight build-variety system wanted at character creation beyond background + spawn point, now that full trait point-buy is deferred (e.g., a small number of simple perk picks)?
-2. Keep the "how you died" death-recap screen as a fun PZ callback even though the underlying philosophy line was removed, or should that framing go too?
+1. Lightweight build-variety at character creation beyond background + spawn point?
+2. Keep the death-recap screen?
 
 ### P10 — Hardening & vertical slice
-1. What's the target audience for the public vertical slice — a Steam Early Access launch candidate, a demo/playtest build, or a portfolio/pitch piece? Changes what "done" means for P10.
-2. Any external date (convention, publisher pitch, community playtest) that should anchor or compress the ~6–9 month estimate?
+1. Target audience for the public vertical slice?
+2. Any external anchor date?
 
 ---
 
-## 8. Immediate next steps (first session after the dev reviews this)
+## 8. Immediate next steps
 
-**Decisions 4, 6, and the doc filename resolved 2026-07-18** (as recommended: both/scatter-toggle spawn points, optional-capstone cure arc, keep `GameDevPlan.md`). **Decision 5 resolved against this plan's own recommendation:** hostile human roamers are confirmed design intent but deliberately pushed past the v1 vertical slice — see Phase P4's note and Phase P10's post-v1 list. **The P2 skill list and the P8 clue-placement question are also resolved 2026-07-18** — see §3.1 and Phase P8.
+**Resolved as of 2026-07-19/20:** Decisions 4, 5, 6, doc filename (keep), P2 skill list (revised per §3.1), P8 clue placement, P0's Infima question (confirmed as the animation source of record, not shelved), P1's hybrid facing, P1's animation architecture (Layered Blend Per Bone).
 
-1. Decisions 1–3 (camera, same-repo, art source) are still open recommendations, unconfirmed. The one remaining §7 question marked **(blocking)** — meta-event count for launch (P8) — still needs a pass; everything else in §7 can be answered as its phase approaches.
-2. Update `CLAUDE.md` (identity section, dev-order table → this doc, animation-scope rule) and `SessionHandoff.md`.
-3. Run P0 step 1: the already-pending Phase 3 M7 two-client PIE verification (checklist in `CoreLoopPlan.md`).
-4. Begin the P0 de-scope pass.
-5. (Parallel, dev-paced) Asset sourcing is the dev's own from here (ArtStation and elsewhere) — track finds against §5's running needs list. Start a naming brainstorm for the Adirondacks-region setting (P7 §7 question 1) whenever it's fun to think about, no rush.
+1. Decisions 1–3 confirmed. Remaining **(blocking)** §7 question: P8 meta-event count for launch.
+2. `CLAUDE.md` and `SessionHandoff.md` updated 2026-07-19/20 to reflect current state.
+3. P0 de-scope pass complete; Stage A locomotion in active progress (see `SessionHandoff.md` for exact next step).
+4. Asset sourcing ongoing, dev-paced.
