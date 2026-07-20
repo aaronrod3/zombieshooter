@@ -10,10 +10,13 @@
 - [ ] Performance pass: zombie + hostile-roamer count profiling, LODs/HISM on the kit, net relevancy.
 - [ ] Fixed-tick save safety, crash/soak testing.
 - [ ] Packaged Windows build tested over real LAN/direct-IP.
-- [ ] Trailer-able vertical slice: 20-40 minutes of tuned co-op survival on the real map, including at least one meta event and a taste of the investigation arc.
+- [ ] Trailer-able vertical slice: 20–40 minutes of tuned co-op survival on the real map, including at least one meta event and a taste of the investigation arc.
 
 ## Exit criteria
 Shippable demo build.
 
-## First post-v1 addition
-Hostile human roamers, built cheaply on top of P4's zombie AI architecture (Decision 5). Planning pass after that picks from: full NPC survivors/factions, vehicles, sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server, other deferred-pool systems.
+## Post-v1 backlog (this phase gates entry into it, doesn't build it)
+- **First addition (Decision 5): hostile human roamers**, built cheaply on top of P4's zombie AI architecture.
+- **Deferred skills** (per `GameDevPlan.md` §3.1, revised 2026-07-19): Fishing, Building, Foraging, Cooking, Mechanics.
+- Full NPC survivors/factions/dialogue/reputation systems.
+- Vehicles, sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server.
