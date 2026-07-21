@@ -17,6 +17,8 @@ class AZSWeapon;
 class UAnimMontage;
 class UAnimNotify;
 class UAnimNotifyState;
+class UZSInteractableComponent;
+class UZSNeedsComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -24,6 +26,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 /** Broadcast by every Phase 3 OnRep_X on this class - lets Blueprint/UI/AnimGraph bind to state changes instead of polling, per CLAUDE.md's replication convention. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnBoolStateChanged, bool, bNewValue);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnWeaponChanged, AZSWeapon*, NewWeapon);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnNearestInteractableChanged, UZSInteractableComponent*, NewInteractable);
 
 /**
  *  The player-controlled character for ZombieShooter. Kept non-abstract (no mandatory
@@ -88,6 +91,16 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> FireModeSwitchAction;
+
+	// ---- P1 Input Actions (interaction) ----
+
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> InteractAction;
+
+	// ---- P2 Input Actions (survival) ----
+
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> SleepAction;
 
 public:
 
@@ -190,11 +203,13 @@ protected:
 
 	void ApplyCameraPerspective(EZSCameraPerspective NewPerspective);
 	void EnableThirdPersonPerspective();
+	void EnableTopDownPerspective();
 
 	void UpdateThirdPersonCameraTick(float DeltaTime);
 
+	/** Defaults to TopDown - the survival pivot's real camera per GameDevPlan.md Decision 1. ThirdPerson remains reachable via ToggleCameraPerspective as the "OverShoulder" fallback. */
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Camera")
-	EZSCameraPerspective CurrentCameraPerspective = EZSCameraPerspective::ThirdPerson;
+	EZSCameraPerspective CurrentCameraPerspective = EZSCameraPerspective::TopDown;
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
 	float ThirdPersonFOV = 105.f;
@@ -214,6 +229,156 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
 	float CameraZoomStep = 50.f;
+
+	// ---- P1: TopDown camera tunables (GameDevPlan.md Decision 1 / Docs/Phases/P1_CameraControl.md) ----
+
+	/** Boom pitch while in TopDown, degrees (negative = looking down). Door Kickers 2 reference: steeper than a classic ~45deg isometric. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
+	float TopDownCameraPitch = -70.f;
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
+	float TopDownCameraDistance = 900.f;
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
+	float TopDownMinCameraDistance = 600.f;
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
+	float TopDownMaxCameraDistance = 1400.f;
+
+	/** TopDown yaw is fixed, not player-rotatable - captured once in EnableTopDownPerspective and never changed. Camera-rotation input (Q/E, 45-degree steps) was removed 2026-07-20 at the dev's request - it was suspected of interfering with movement. Revisit later if TopDown rotation is wanted again. */
+	float TopDownFixedYaw = 0.f;
+
+	// =====================================================================
+	// P1 - Hybrid cursor facing (GameDevPlan.md P1, confirmed 2026-07-20)
+	// =====================================================================
+	// WASD alone faces movement direction (bOrientRotationToMovement = true, the P0 default,
+	// unchanged). This section adds a conditional override on top: while actively aiming,
+	// attacking, or interacting with the cursor, the actor's full rotation (not a spine-twist)
+	// instead faces the cursor's projected ground position. Runs from Tick(), after Super::Tick()
+	// so it overrides whatever CharacterMovementComponent's own bOrientRotationToMovement pass
+	// computed that frame - same post-super-tick pattern UpdateThirdPersonCameraTick already uses.
+
+protected:
+
+	/** Locally-controlled only (each client's own mouse cursor is meaningless for other clients' pawns - their rotation arrives via normal movement replication instead). No-op if inactive - see IsCursorFacingActive. */
+	void UpdateCursorFacing(float DeltaTime);
+
+	/** True while aiming, or within CursorFacingActionWindow seconds of a fire/interact input - GameDevPlan.md's "aiming/attacking/interacting with the cursor" gate. */
+	bool IsCursorFacingActive() const;
+
+	/** Projects the player controller's mouse cursor onto a horizontal plane at the character's own Z - "screen ray -> ground plane" per the plan. Returns false if there's no local player controller (e.g. a remote proxy) or the deprojected ray is parallel to the plane. */
+	bool GetCursorGroundLocation(FVector& OutLocation) const;
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
+	float CursorFacingRotationRate = 20.f;
+
+	/** How long after a fire/interact input cursor-facing stays active, so hip-fire (no ADS held) and interacting still turn the character to face the cursor rather than only covering the ADS-held case. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
+	float CursorFacingActionWindow = 0.5f;
+
+	float LastCursorActionTime = -1000.f;
+
+	// =====================================================================
+	// P1 - Interaction system v1 (GameDevPlan.md P1, Docs/Phases/P1_CameraControl.md)
+	// =====================================================================
+
+public:
+
+	/** Client-callable entry point, bound to InteractAction. Routes through Server_Interact - the actual OnInteract call only ever runs with HasAuthority(), per CLAUDE.md's replication convention. No-op if NearestInteractable is unset or out of range. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Interaction")
+	void TryInteract();
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Interaction")
+	UZSInteractableComponent* GetNearestInteractable() const { return NearestInteractable; }
+
+	/** Broadcasts whenever NearestInteractable changes (including to/from null) - a HUD Blueprint binds this to show/hide the "<key> - <Verb>" world prompt without any further C++. */
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Interaction")
+	FZSOnNearestInteractableChanged OnNearestInteractableChanged;
+
+protected:
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Interaction")
+	void Server_Interact(UZSInteractableComponent* Target);
+
+	/** Sphere-overlap scan for the nearest in-range, enabled UZSInteractableComponent - called from Tick(). Local-only (each client only needs its own nearest-interactable for its own prompt/input); the server re-derives/re-validates the target itself in Server_Interact rather than trusting replicated client state. */
+	void UpdateNearestInteractable();
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Interaction")
+	float InteractionTraceRadius = 200.f;
+
+	/** Local-only, not replicated - each client tracks its own nearest interactable for its own prompt/input; other clients don't need to know. */
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Interaction")
+	TObjectPtr<UZSInteractableComponent> NearestInteractable;
+
+	// =====================================================================
+	// P2 - Needs (GameDevPlan.md P2, Docs/Phases/P2_SurvivalCore.md)
+	// =====================================================================
+
+public:
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	UZSNeedsComponent* GetNeedsComponent() const { return NeedsComponent; }
+
+protected:
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UZSNeedsComponent> NeedsComponent;
+
+	// =====================================================================
+	// P2 - Sleep / time-skip (GameDevPlan.md P2)
+	// =====================================================================
+	// Minecraft-style: in co-op, world time only advances once every connected player is ready,
+	// for a duration the first (initiating) player requested - aggregated on AZSGameState since
+	// it's the one place with visibility over every connected player. "Being safe within a radius
+	// of hostiles" is stubbed true below (IsSafeToSleep) until P4's zombies exist to check against.
+
+public:
+
+	/** Client-callable entry point - marks this player ready to sleep and requests SleepHours as the skip duration if no request is already pending. No-op if !IsSafeToSleep(). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Survival")
+	void RequestSleep(float SleepHours);
+
+	/** Client-callable entry point - un-readies this player, cancelling the pending sleep request if nobody else is ready either. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Survival")
+	void CancelSleepReady();
+
+	/** Bound to SleepAction - toggles ready-to-sleep on/off (RequestSleep(DefaultSleepHours) or CancelSleepReady() depending on current state). No UI to pick a custom duration yet (v1 scope) - DefaultSleepHours is a flat tunable. Gameplay execution point - overridable in BP_ZS_PlayerCharacter (see CLAUDE.md's tech-stack convention). */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Survival")
+	void ToggleSleepReady();
+	virtual void ToggleSleepReady_Implementation();
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Survival")
+	float DefaultSleepHours = 8.f;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Survival")
+	bool IsReadyToSleep() const { return bIsReadyToSleep; }
+
+	/** Stub - always true until P4 wires a real "no hostiles within a radius" check; zombies (the only hostiles planned for v1) don't exist yet. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Survival")
+	bool IsSafeToSleep() const { return true; }
+
+	/** Called by AZSGameState once every player is ready and the clock has advanced - clears this player's ready flag. Public (cross-class, same pattern as AZSWeapon/AZSPlayerCharacter's OnRep_ cross-calls), not itself a Server RPC since AZSGameState only ever calls this from server-authoritative code. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Survival")
+	void ResetSleepReady();
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Survival")
+	FZSOnBoolStateChanged OnReadyToSleepChanged;
+
+protected:
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Survival")
+	void Server_RequestSleep(float SleepHours);
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Survival")
+	void Server_CancelSleepReady();
+
+	// VisibleAnywhere (not just BlueprintReadOnly) deliberately - BlueprintReadOnly alone doesn't
+	// put a property in the Details panel at all, and this needs to be live-inspectable in PIE.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_IsReadyToSleep, Category = "ZS|Survival")
+	bool bIsReadyToSleep = false;
+
+	UFUNCTION()
+	void OnRep_IsReadyToSleep();
 
 	// =====================================================================
 	// Phase 2 - Action State

@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
@@ -22,6 +23,12 @@
 #include "AN_ZS_UnlockActions.h"
 #include "ANS_ZS_BlockADS.h"
 #include "ZombieShooter.h"
+#include "../Interaction/ZSInteractableComponent.h"
+#include "../Survival/ZSNeedsComponent.h"
+#include "../Framework/ZSGameState.h"
+#include "Engine/OverlapResult.h"
+#include "CollisionQueryParams.h"
+#include "CollisionShape.h"
 
 AZSPlayerCharacter::AZSPlayerCharacter()
 {
@@ -58,6 +65,8 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	NeedsComponent = CreateDefaultSubobject<UZSNeedsComponent>(TEXT("NeedsComponent"));
 
 	// Default Input Actions. AZSPlayerCharacter has no mandatory Blueprint child
 	// (see class comment), so these EditAnywhere references need a constructor-time
@@ -97,6 +106,17 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> FireModeSwitchActionFinder(TEXT("/Game/ZS/Input/IA_FireModeSwitch.IA_FireModeSwitch"));
 	if (FireModeSwitchActionFinder.Succeeded()) { FireModeSwitchAction = FireModeSwitchActionFinder.Object; }
+
+	// P1 action - same graceful-if-missing pattern as above; created via MCP alongside this
+	// commit, but the finder degrades safely if that asset creation step is ever redone from scratch.
+	static ConstructorHelpers::FObjectFinder<UInputAction> InteractActionFinder(TEXT("/Game/ZS/Input/IA_Interact.IA_Interact"));
+	if (InteractActionFinder.Succeeded()) { InteractAction = InteractActionFinder.Object; }
+
+	// P2 action - same graceful-if-missing pattern as above; IA_Sleep doesn't exist yet as of this
+	// commit (needs manual creation in-editor, unreal-mcp wasn't available this session) - the
+	// finder degrades safely (SleepAction stays null, binding below is skipped) until it does.
+	static ConstructorHelpers::FObjectFinder<UInputAction> SleepActionFinder(TEXT("/Game/ZS/Input/IA_Sleep.IA_Sleep"));
+	if (SleepActionFinder.Succeeded()) { SleepAction = SleepActionFinder.Object; }
 }
 
 void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -108,6 +128,7 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(AZSPlayerCharacter, bIsAimingBlocked);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsAiming);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsSprinting);
+	DOREPLIFETIME(AZSPlayerCharacter, bIsReadyToSleep);
 }
 
 void AZSPlayerCharacter::BeginPlay()
@@ -129,6 +150,8 @@ void AZSPlayerCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	UpdateThirdPersonCameraTick(DeltaSeconds);
+	UpdateCursorFacing(DeltaSeconds);
+	UpdateNearestInteractable();
 }
 
 void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -180,6 +203,16 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		{
 			EnhancedInputComponent->BindAction(FireModeSwitchAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::CycleFireMode);
 		}
+
+		if (InteractAction)
+		{
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::TryInteract);
+		}
+
+		if (SleepAction)
+		{
+			EnhancedInputComponent->BindAction(SleepAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::ToggleSleepReady);
+		}
 	}
 	else
 	{
@@ -203,8 +236,13 @@ void AZSPlayerCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
-		const FRotator Rotation = GetController()->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
+		// TopDown: the boom's own yaw (fixed/stepped, not chasing the controller - see
+		// EnableTopDownPerspective) is "camera" for movement-relative-to-camera purposes.
+		// ThirdPerson: unchanged, the controller's continuously mouse-orbited look rotation.
+		const float MovementYaw = (CurrentCameraPerspective == EZSCameraPerspective::TopDown)
+			? CameraBoom->GetComponentRotation().Yaw
+			: GetController()->GetControlRotation().Yaw;
+		const FRotator YawRotation(0, MovementYaw, 0);
 
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
@@ -304,9 +342,11 @@ void AZSPlayerCharacter::RefreshBodyMeshFromWeapon()
 
 void AZSPlayerCharacter::ToggleCameraPerspective_Implementation()
 {
-	// One perspective exists after the P0 de-scope, so this just re-applies it. P1's
-	// TopDown/OverShoulder pair restores the real cycle.
-	ApplyCameraPerspective(CurrentCameraPerspective);
+	// P1: real TopDown/ThirdPerson(OverShoulder) toggle, per Decision 1 - GameDevPlan.md.
+	const EZSCameraPerspective NextPerspective = (CurrentCameraPerspective == EZSCameraPerspective::TopDown)
+		? EZSCameraPerspective::ThirdPerson
+		: EZSCameraPerspective::TopDown;
+	ApplyCameraPerspective(NextPerspective);
 }
 
 void AZSPlayerCharacter::ApplyCameraPerspective(EZSCameraPerspective NewPerspective)
@@ -315,6 +355,9 @@ void AZSPlayerCharacter::ApplyCameraPerspective(EZSCameraPerspective NewPerspect
 
 	switch (NewPerspective)
 	{
+	case EZSCameraPerspective::TopDown:
+		EnableTopDownPerspective();
+		break;
 	case EZSCameraPerspective::ThirdPerson:
 	default:
 		EnableThirdPersonPerspective();
@@ -324,9 +367,51 @@ void AZSPlayerCharacter::ApplyCameraPerspective(EZSCameraPerspective NewPerspect
 
 void AZSPlayerCharacter::EnableThirdPersonPerspective()
 {
+	CameraBoom->bUsePawnControlRotation = true;
 	FollowCamera->AttachToComponent(CameraBoom, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
 	FollowCamera->SetFieldOfView(ThirdPersonFOV);
 	FollowCamera->Activate();
+
+	// ThirdPerson's boom orbits via captured mouse delta (bUsePawnControlRotation) - a visible,
+	// OS-cursor-following mouse fights that, so hide/capture it here. Local-only: a cursor mode
+	// change is meaningless (and GetController() may not even be a PlayerController) on a remote
+	// proxy's copy of this pawn.
+	if (IsLocallyControlled())
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			PC->SetInputMode(FInputModeGameOnly());
+			PC->SetShowMouseCursor(false);
+		}
+	}
+}
+
+void AZSPlayerCharacter::EnableTopDownPerspective()
+{
+	// TopDown's boom doesn't chase the controller's look rotation the way ThirdPerson's does -
+	// pitch and yaw are both fixed (TopDownFixedYaw captured once here, camera rotation input
+	// removed 2026-07-20 at the dev's request). Movement direction (DoMove) and facing
+	// (UpdateCursorFacing) take over the job continuous mouse-look orbit used to do.
+	CameraBoom->bUsePawnControlRotation = false;
+	TopDownFixedYaw = CameraBoom->GetComponentRotation().Yaw;
+	FollowCamera->AttachToComponent(CameraBoom, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
+	FollowCamera->SetFieldOfView(ThirdPersonFOV);
+	FollowCamera->Activate();
+
+	// GetCursorGroundLocation needs a real, visible OS cursor to deproject - GameAndUI keeps
+	// gameplay input (WASD etc.) flowing to the pawn while still tracking the cursor, unlike
+	// UIOnly which would eat it.
+	if (IsLocallyControlled())
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			FInputModeGameAndUI InputMode;
+			InputMode.SetHideCursorDuringCapture(false);
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			PC->SetInputMode(InputMode);
+			PC->SetShowMouseCursor(true);
+		}
+	}
 }
 
 void AZSPlayerCharacter::AttachWeaponToBodyMesh()
@@ -341,9 +426,173 @@ void AZSPlayerCharacter::AttachWeaponToBodyMesh()
 
 void AZSPlayerCharacter::UpdateThirdPersonCameraTick(float DeltaTime)
 {
+	if (CurrentCameraPerspective == EZSCameraPerspective::TopDown)
+	{
+		// Zoom in/out (TopDownMin/MaxCameraDistance) isn't wired to an input action yet - holds
+		// at TopDownCameraDistance for now, same "not yet wired" state ThirdPerson's zoom is in.
+		CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, TopDownCameraDistance, DeltaTime, FOVInterpSpeed);
+
+		// Pitch and yaw are both fixed (TopDownFixedYaw, captured once in EnableTopDownPerspective)
+		// - no player-driven rotation. Reapplied every tick as a safety net against anything else
+		// nudging the boom's rotation, not because it's expected to drift.
+		CameraBoom->SetWorldRotation(FRotator(TopDownCameraPitch, TopDownFixedYaw, 0.f));
+		return;
+	}
+
 	// Zoom in/out (Min/MaxCameraDistance, CameraZoomStep) isn't wired to an input action yet -
 	// P1's camera work owns that. This just holds the arm at InitialCameraDistance for now.
 	CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, InitialCameraDistance, DeltaTime, FOVInterpSpeed);
+}
+
+// =====================================================================
+// P1 - Hybrid cursor facing
+// =====================================================================
+
+bool AZSPlayerCharacter::GetCursorGroundLocation(FVector& OutLocation) const
+{
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC || !PC->IsLocalController())
+	{
+		return false;
+	}
+
+	FVector RayOrigin, RayDirection;
+	if (!PC->DeprojectMousePositionToWorld(RayOrigin, RayDirection))
+	{
+		return false;
+	}
+
+	// Ground plane at the character's own Z - matches the plan's "screen ray -> ground plane"
+	// wording exactly; P7's real terrain can refine this to an actual line trace later.
+	const FPlane GroundPlane(GetActorLocation(), FVector::UpVector);
+	const float Distance = FMath::RayPlaneIntersectionParam(RayOrigin, RayDirection, GroundPlane);
+	if (!FMath::IsFinite(Distance) || Distance < 0.f)
+	{
+		// Ray parallel to (or pointing away from) the ground plane - shouldn't happen with a
+		// sane camera pitch, but a top-down camera looking near-horizontal is possible mid-transition.
+		return false;
+	}
+
+	OutLocation = RayOrigin + RayDirection * Distance;
+	return true;
+}
+
+bool AZSPlayerCharacter::IsCursorFacingActive() const
+{
+	if (bIsAiming)
+	{
+		return true;
+	}
+
+	return (GetWorld()->GetTimeSeconds() - LastCursorActionTime) < CursorFacingActionWindow;
+}
+
+void AZSPlayerCharacter::UpdateCursorFacing(float DeltaTime)
+{
+	if (!IsLocallyControlled() || !IsCursorFacingActive())
+	{
+		return;
+	}
+
+	FVector CursorGroundLocation;
+	if (!GetCursorGroundLocation(CursorGroundLocation))
+	{
+		return;
+	}
+
+	const FVector ToCursor = CursorGroundLocation - GetActorLocation();
+	if (ToCursor.IsNearlyZero())
+	{
+		return;
+	}
+
+	const FRotator TargetRotation(0.f, ToCursor.Rotation().Yaw, 0.f);
+	const FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, CursorFacingRotationRate);
+	SetActorRotation(NewRotation);
+}
+
+// =====================================================================
+// P1 - Interaction system v1
+// =====================================================================
+
+void AZSPlayerCharacter::UpdateNearestInteractable()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
+	// WorldStatic + WorldDynamic: an interactable could be either (a static door mesh, a dynamic
+	// loot container) - no dedicated "Interactable" trace channel exists yet (would need a
+	// DefaultEngine.ini collision-channel addition, not just C++; deliberately not adding one for
+	// v1 to avoid touching project settings unreviewed - see this session's blocker notes).
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionShape Sphere = FCollisionShape::MakeSphere(InteractionTraceRadius);
+	GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, ObjectQueryParams, Sphere);
+
+	UZSInteractableComponent* Best = nullptr;
+	float BestDistSq = FLT_MAX;
+
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		if (!Overlap.GetActor())
+		{
+			continue;
+		}
+
+		UZSInteractableComponent* Interactable = Overlap.GetActor()->FindComponentByClass<UZSInteractableComponent>();
+		if (!Interactable || !Interactable->CanInteract())
+		{
+			continue;
+		}
+
+		const float DistSq = FVector::DistSquared(GetActorLocation(), Interactable->GetComponentLocation());
+		if (DistSq <= FMath::Square(Interactable->InteractionRadius) && DistSq < BestDistSq)
+		{
+			Best = Interactable;
+			BestDistSq = DistSq;
+		}
+	}
+
+	if (Best != NearestInteractable)
+	{
+		NearestInteractable = Best;
+		OnNearestInteractableChanged.Broadcast(NearestInteractable);
+	}
+}
+
+void AZSPlayerCharacter::TryInteract()
+{
+	if (!NearestInteractable)
+	{
+		return;
+	}
+
+	LastCursorActionTime = GetWorld()->GetTimeSeconds();
+	Server_Interact(NearestInteractable);
+}
+
+void AZSPlayerCharacter::Server_Interact_Implementation(UZSInteractableComponent* Target)
+{
+	if (!Target || !Target->CanInteract())
+	{
+		return;
+	}
+
+	// Server re-validates range itself rather than trusting the client's NearestInteractable -
+	// InteractionTraceRadius plus the interactable's own InteractionRadius as a generous bound,
+	// since the two may have moved a little between the client's scan and this RPC arriving.
+	const float MaxValidDistSq = FMath::Square(InteractionTraceRadius + Target->InteractionRadius);
+	if (FVector::DistSquared(GetActorLocation(), Target->GetComponentLocation()) > MaxValidDistSq)
+	{
+		return;
+	}
+
+	Target->OnInteract(this);
 }
 
 // =====================================================================
@@ -414,7 +663,7 @@ void AZSPlayerCharacter::DoToggleCrouch_Implementation()
 
 void AZSPlayerCharacter::StartSprint_Implementation()
 {
-	if (bIsAiming)
+	if (bIsAiming || (NeedsComponent && !NeedsComponent->CanSprint()))
 	{
 		return;
 	}
@@ -424,7 +673,7 @@ void AZSPlayerCharacter::StartSprint_Implementation()
 
 void AZSPlayerCharacter::Server_StartSprint_Implementation()
 {
-	if (!HasAuthority() || bIsAiming)
+	if (!HasAuthority() || bIsAiming || (NeedsComponent && !NeedsComponent->CanSprint()))
 	{
 		return;
 	}
@@ -447,6 +696,80 @@ void AZSPlayerCharacter::Server_StopSprint_Implementation()
 
 	bIsSprinting = false;
 	OnRep_IsSprinting();
+}
+
+// =====================================================================
+// P2 - Sleep / time-skip
+// =====================================================================
+
+void AZSPlayerCharacter::RequestSleep(float SleepHours)
+{
+	if (!IsSafeToSleep())
+	{
+		return;
+	}
+
+	Server_RequestSleep(SleepHours);
+}
+
+void AZSPlayerCharacter::CancelSleepReady()
+{
+	Server_CancelSleepReady();
+}
+
+void AZSPlayerCharacter::ToggleSleepReady_Implementation()
+{
+	if (bIsReadyToSleep)
+	{
+		CancelSleepReady();
+	}
+	else
+	{
+		RequestSleep(DefaultSleepHours);
+	}
+}
+
+void AZSPlayerCharacter::ResetSleepReady()
+{
+	bIsReadyToSleep = false;
+	OnRep_IsReadyToSleep();
+}
+
+void AZSPlayerCharacter::Server_RequestSleep_Implementation(float SleepHours)
+{
+	if (!HasAuthority() || !IsSafeToSleep())
+	{
+		return;
+	}
+
+	bIsReadyToSleep = true;
+	OnRep_IsReadyToSleep();
+
+	if (AZSGameState* GameState = GetWorld()->GetGameState<AZSGameState>())
+	{
+		GameState->Server_RequestSleep(this, SleepHours);
+	}
+}
+
+void AZSPlayerCharacter::Server_CancelSleepReady_Implementation()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	bIsReadyToSleep = false;
+	OnRep_IsReadyToSleep();
+
+	if (AZSGameState* GameState = GetWorld()->GetGameState<AZSGameState>())
+	{
+		GameState->Server_NotifySleepReadyChanged();
+	}
+}
+
+void AZSPlayerCharacter::OnRep_IsReadyToSleep()
+{
+	OnReadyToSleepChanged.Broadcast(bIsReadyToSleep);
 }
 
 // =====================================================================
@@ -522,6 +845,10 @@ void AZSPlayerCharacter::HandleFireStarted()
 	{
 		return;
 	}
+
+	// P1: hip-fire (no ADS held) still turns the character to face the cursor - see
+	// IsCursorFacingActive/CursorFacingActionWindow.
+	LastCursorActionTime = GetWorld()->GetTimeSeconds();
 
 	Fire();
 

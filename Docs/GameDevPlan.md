@@ -80,9 +80,9 @@ The pivot **keeps the repo, the project, and the C++ core.** What we've built is
 |---|---|
 | 4-perspective camera system | Cut to TopDown + OverShoulder (Decision 1). |
 | FP arms mesh/AnimBP | **Cut outright** — dev directive, stronger than "shelve" (see P0). |
-| TP AnimBP (`ABP_ZS_ThirdPerson`) | Becomes the *only* character view, built on **Infima's own skeleton (`SKEL_TFA_Mannequin`)** — confirmed direction, not the generic UE5 mannequin originally guessed here (see §5.1). |
-| Infima pack | **Confirmed as the production skeleton/animation source of record** — not a prototype placeholder. Infima's skeleton and its bundled animations are what the project actually builds on. |
-| `Docs/Infima Pack - Official Implementation Guide/` | Actively relevant — Infima is the real animation source, not history. |
+| TP AnimBP (`ABP_ZS_ThirdPerson`) | Becomes the *only* character view, built on **`SKEL_TFA_Mannequin`** (Infima's skeleton, confirmed as the one shared retarget hub — not the generic UE5 mannequin originally guessed here). Rebuilt 2026-07-20: Lyra locomotion blend spaces + Infima idle/aim poses via Layered Blend Per Bone (see §5.1). |
+| Infima pack | **Confirmed as the skeleton hub and the source for weapon idle/aim poses + fire/reload montages** — not a prototype placeholder. Not the sole animation source: Infima has no full directional walk-cycle assets, so locomotion itself comes from Lyra blend spaces retargeted onto Infima's skeleton (see §5.1). |
+| `Docs/Infima Pack - Official Implementation Guide/` | Actively relevant — Infima is a real, load-bearing animation source (skeleton + poses/montages), not history. |
 
 ### Cut outright (the animation de-scope the dev asked for)
 - **`Inspect`, `MagCheck`, `CycleGripAttachment`** — actions, input bindings, montage wiring.

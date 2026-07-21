@@ -17,7 +17,8 @@ public class ZombieShooter : ModuleRules
 			"AIModule",
 			"GameplayTasks",
 			"UMG",
-			"Slate"
+			"Slate",
+			"PhysicsCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "AnimGraphRuntime" });
@@ -30,7 +31,9 @@ public class ZombieShooter : ModuleRules
 			"ZombieShooter/Combat",
 			"ZombieShooter/Weapons",
 			"ZombieShooter/Weapons/Notifies",
-			"ZombieShooter/Zombies"
+			"ZombieShooter/Zombies",
+			"ZombieShooter/Interaction",
+			"ZombieShooter/Survival"
 		});
 
 		// Uncomment if you are using online features

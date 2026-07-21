@@ -1,6 +1,6 @@
 # Tuning Reference
 
-> A map of every gameplay-feel tunable in the project and exactly where to change it — not a design doc, just "where do I go to make X feel different." Update this whenever a new system introduces a numeric tunable worth exposing here. Values shown are current defaults as of 2026-07-19 (post-pivot, TP-only) — check the actual asset/class for the live value before relying on a number here.
+> A map of every gameplay-feel tunable in the project and exactly where to change it — not a design doc, just "where do I go to make X feel different." Update this whenever a new system introduces a numeric tunable worth exposing here. Values shown are current defaults as of 2026-07-20 — check the actual asset/class for the live value before relying on a number here.
 
 ## Camera (`AZSPlayerCharacter`, Category `ZS|Camera`)
 Set on `BP_ZS_PlayerCharacter`'s CDO or a C++ default in `ZSPlayerCharacter.h`. FirstPerson/GunCamera/Bodycam perspectives and their FOV/spring-offset tunables were removed in the P0 de-scope — this section now covers ThirdPerson only, pending P1's TopDown addition.
@@ -35,11 +35,36 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `OffsetCrouch` | loc(1.5,-2,-1.5) rot(-4.3°,0,0) | Crouch weapon-position nudge on `ik_hand_gun` |
 | `TotalAmmoCount` | 0 | **Cosmetic only** — starting fill for the magazine's visual bullet count, not the real ammo source of truth |
 
+## TopDown Camera (`AZSPlayerCharacter`, Category `ZS|Camera|TopDown`)
+| Property | Default | Effect |
+|---|---|---|
+| `TopDownCameraPitch` | -70° | Boom pitch while in TopDown (steeper than a classic ~45° isometric) |
+| `TopDownCameraDistance` | 900 | Boom length while in TopDown |
+| `TopDownMinCameraDistance`/`TopDownMaxCameraDistance` | 600 / 1400 | TopDown zoom bounds — not yet wired to an input action |
+| `TopDownFixedYaw` | captured once per `EnableTopDownPerspective()` call | Not player-rotatable — the Q/E yaw-rotation feature was built then removed 2026-07-20 at dev request |
+
 ## AnimGraph (`ABP_ZS_ThirdPerson`, on Infima's `SKEL_TFA_Mannequin`)
 No tunables documented yet — Stage A locomotion (Idle/Move state machine, crouch layer, aim layer) is not built as of this file's last update. This section will fill in as Stage A lands; use Infima's own animation set as the source, not the broken Lyra-sourced import (see `CLAUDE.md`).
 
+## Needs (`UZSNeedsConfig` — e.g. `DA_ZS_NeedsConfig_Default`, read by `UZSNeedsComponent`)
+| Field | Default | Effect |
+|---|---|---|
+| `HungerDecayPerGameHour` | 2 | Hunger lost per in-game hour |
+| `ThirstDecayPerGameHour` | 3 | Thirst lost per in-game hour |
+| `FatigueRisePerGameHour` | 4 | Fatigue gained per in-game hour awake |
+| `FatigueRecoveryPerSleptGameHour` | 12.5 | Fatigue lost per in-game hour slept |
+| `StaminaDrainPerSecondSprinting` | 12 | Stamina lost per real second sprinting |
+| `StaminaRegenPerSecondIdle` | 8 | Stamina regained per real second not sprinting, scaled by `GetPerformanceMultiplier()` |
+| `HungerPerformanceCurve`/`ThirstPerformanceCurve`/`FatiguePerformanceCurve` | unset (= no penalty) | `UCurveFloat` assets, need value (0-100) → performance multiplier (0-1); multiplied together into `GetPerformanceMultiplier()`. Not authored yet — content task, not a code task. |
+| `SeverityTier2Max`/`SeverityTier3Max`/`SeverityTier4Max` | 75 / 50 / 25 | 4-tier moodle severity thresholds shared across Hunger/Thirst/Fatigue |
+
+## World Clock (`AZSGameState`, Category `ZS|WorldClock`)
+| Property | Default | Effect |
+|---|---|---|
+| `RealSecondsPerGameDay` | 1440 (24 real min/game day) | Time compression — lower = faster |
+| `MinUtilitiesShutoffDay`/`MaxUtilitiesShutoffDay` | 8 / 12 | Randomized-once-per-session range for the utilities-shutoff day |
+
 ## Not yet built / no tunables exist yet
-- TopDown camera pitch/zoom/yaw-step tunables — P1, not yet implemented.
-- Stage A locomotion state machine and its blend-space feeds — in progress.
-- Needs/moodle rate curves (`UZSNeedsComponent`) — P2, not started.
+- Stage A locomotion state machine and its blend-space feeds — in progress, crouch pose bug open (see `SessionHandoff.md`).
+- `UZSItemConfig` (`HungerRestore`/`ThirstRestore`) — per-consumable, no `DA_ZS_ItemConfig_*` instances authored yet.
 - Zombie config (`UZSZombieConfig`) speed/health/senses/damage tunables — P4, not started.
