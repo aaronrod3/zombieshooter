@@ -25,3 +25,6 @@ Moving/aiming/shooting *feels good* at top-down distance with both input methods
 
 ## Non-negotiable constraint
 Full direct player control and normal movement at all times — this camera decision borrows only *Door Kickers 2*'s angle/framing, never its squad-command/pause-and-plan gameplay layer.
+
+## Note for future fixes
+Camera shakes when changing aimpoint.
