@@ -26,7 +26,13 @@
 #include "../Interaction/ZSInteractableComponent.h"
 #include "../Survival/ZSNeedsComponent.h"
 #include "../Framework/ZSGameState.h"
+#include "../Combat/ZSHealthComponent.h"
+#include "../Combat/ZSDamageTypes.h"
+#include "../Survival/ZSItemConfig.h"
+#include "../Zombies/ZSNoiseSystem.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/DamageEvents.h"
+#include "GameFramework/GameModeBase.h"
 #include "CollisionQueryParams.h"
 #include "CollisionShape.h"
 
@@ -67,6 +73,7 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	FollowCamera->bUsePawnControlRotation = false;
 
 	NeedsComponent = CreateDefaultSubobject<UZSNeedsComponent>(TEXT("NeedsComponent"));
+	HealthComponent = CreateDefaultSubobject<UZSHealthComponent>(TEXT("HealthComponent"));
 
 	// Default Input Actions. AZSPlayerCharacter has no mandatory Blueprint child
 	// (see class comment), so these EditAnywhere references need a constructor-time
@@ -142,6 +149,12 @@ void AZSPlayerCharacter::BeginPlay()
 	if (StartingWeaponConfig)
 	{
 		EquipWeapon(StartingWeaponConfig);
+	}
+
+	if (HealthComponent)
+	{
+		HealthComponent->OnDeath.AddDynamic(this, &AZSPlayerCharacter::HandleDeath);
+		HealthComponent->OnBodyZonesChanged.AddDynamic(this, &AZSPlayerCharacter::HandleBodyZonesChanged);
 	}
 }
 
@@ -641,7 +654,7 @@ void AZSPlayerCharacter::OnRep_IsAiming()
 
 void AZSPlayerCharacter::OnRep_IsSprinting()
 {
-	GetCharacterMovement()->MaxWalkSpeed = bIsSprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed;
+	UpdateMovementSpeed();
 	OnSprintingChanged.Broadcast(bIsSprinting);
 }
 
@@ -680,6 +693,11 @@ void AZSPlayerCharacter::Server_StartSprint_Implementation()
 
 	bIsSprinting = true;
 	OnRep_IsSprinting();
+
+	// P4: one noise event on sprint start, not a per-tick report while sprinting - "every loud
+	// act reports a noise event" (GameDevPlan.md P4) doesn't mean flooding the perception system
+	// every frame for one continuous action.
+	UZSNoiseSystem::ReportNoise(this, GetActorLocation(), 1.f, this, SprintNoiseRadius);
 }
 
 void AZSPlayerCharacter::StopSprint_Implementation()
@@ -773,6 +791,181 @@ void AZSPlayerCharacter::OnRep_IsReadyToSleep()
 }
 
 // =====================================================================
+// P3 - Health / Damage / Medical
+// =====================================================================
+
+float AZSPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	if (!HasAuthority() || !HealthComponent || ActualDamage <= 0.f)
+	{
+		return ActualDamage;
+	}
+
+	EZSBodyZone Zone = EZSBodyZone::Torso;
+	if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
+	{
+		const FPointDamageEvent& PointDamageEvent = static_cast<const FPointDamageEvent&>(DamageEvent);
+		Zone = BodyZoneFromBoneName(PointDamageEvent.HitInfo.BoneName);
+	}
+
+	const EZSWoundType WoundType = WoundTypeFromDamageTypeClass(DamageEvent.DamageTypeClass);
+
+	HealthComponent->Server_ApplyDamage(ActualDamage, Zone, WoundType, EventInstigator, DamageCauser);
+
+	return ActualDamage;
+}
+
+void AZSPlayerCharacter::HandleDeath()
+{
+	GetCharacterMovement()->DisableMovement();
+	SetActorEnableCollision(false);
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		DisableInput(PC);
+	}
+
+	if (HasAuthority())
+	{
+		GetWorldTimerManager().SetTimer(RespawnTimerHandle, this, &AZSPlayerCharacter::Server_RespawnAsNewCharacter, RespawnDelaySeconds, false);
+	}
+}
+
+void AZSPlayerCharacter::Server_RespawnAsNewCharacter()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	AController* PlayerController = GetController();
+	AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+
+	// Genuinely destroyed, not healed-and-reused - AActor::Destroyed() auto-unpossesses
+	// PlayerController, so RestartPlayer below spawns and possesses a fresh pawn (fresh
+	// Needs/Health state) via the standard DefaultPawnClass/PlayerStart flow. This is the
+	// "respawn as a new character" half of permadeath - deeper persistence (carried-over
+	// world/loot state) is P7, not built here.
+	Destroy();
+
+	if (GameMode && PlayerController)
+	{
+		GameMode->RestartPlayer(PlayerController);
+	}
+}
+
+void AZSPlayerCharacter::HandleBodyZonesChanged()
+{
+	UpdateMovementSpeed();
+}
+
+void AZSPlayerCharacter::UpdateMovementSpeed()
+{
+	const float MobilityMultiplier = HealthComponent ? HealthComponent->GetMobilityMultiplier() : 1.f;
+	GetCharacterMovement()->MaxWalkSpeed = (bIsSprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * MobilityMultiplier;
+}
+
+EZSBodyZone AZSPlayerCharacter::BodyZoneFromBoneName(FName BoneName)
+{
+	const FString BoneString = BoneName.ToString().ToLower();
+
+	if (BoneString.Contains(TEXT("head")) || BoneString.Contains(TEXT("neck")))
+	{
+		return EZSBodyZone::Head;
+	}
+	if (BoneString.Contains(TEXT("arm")) || BoneString.Contains(TEXT("hand")) || BoneString.Contains(TEXT("clavicle")))
+	{
+		return EZSBodyZone::Arms;
+	}
+	if (BoneString.Contains(TEXT("leg")) || BoneString.Contains(TEXT("foot")) || BoneString.Contains(TEXT("thigh")) || BoneString.Contains(TEXT("calf")))
+	{
+		return EZSBodyZone::Legs;
+	}
+
+	return EZSBodyZone::Torso;
+}
+
+EZSWoundType AZSPlayerCharacter::WoundTypeFromDamageTypeClass(TSubclassOf<UDamageType> DamageTypeClass)
+{
+	if (!DamageTypeClass)
+	{
+		return EZSWoundType::Laceration;
+	}
+	if (DamageTypeClass->IsChildOf(UZSDamageType_Bite::StaticClass()))
+	{
+		return EZSWoundType::Bite;
+	}
+	if (DamageTypeClass->IsChildOf(UZSDamageType_Fracture::StaticClass()))
+	{
+		return EZSWoundType::Fracture;
+	}
+	if (DamageTypeClass->IsChildOf(UZSDamageType_Scratch::StaticClass()))
+	{
+		return EZSWoundType::Scratch;
+	}
+
+	return EZSWoundType::Laceration;
+}
+
+void AZSPlayerCharacter::AmputateZone(EZSBodyZone Zone)
+{
+	Server_AmputateZone(Zone);
+}
+
+void AZSPlayerCharacter::Server_AmputateZone_Implementation(EZSBodyZone Zone)
+{
+	if (!HasAuthority() || !HealthComponent)
+	{
+		return;
+	}
+
+	HealthComponent->Server_AmputateZone(Zone);
+}
+
+void AZSPlayerCharacter::UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone)
+{
+	Server_UseItem(Item, TargetZone);
+}
+
+void AZSPlayerCharacter::Server_UseItem_Implementation(UZSItemConfig* Item, EZSBodyZone TargetZone)
+{
+	if (!HasAuthority() || !Item)
+	{
+		return;
+	}
+
+	switch (Item->ItemUseType)
+	{
+	case EZSItemUseType::Consumable:
+		if (NeedsComponent)
+		{
+			NeedsComponent->Server_ConsumeItem(Item);
+		}
+		break;
+	case EZSItemUseType::Bandage:
+		if (HealthComponent)
+		{
+			HealthComponent->Server_ApplyBandage(TargetZone, Item->bIsCleanBandage);
+		}
+		break;
+	case EZSItemUseType::Disinfectant:
+		if (HealthComponent)
+		{
+			HealthComponent->Server_Disinfect(TargetZone);
+		}
+		break;
+	case EZSItemUseType::Splint:
+		if (HealthComponent)
+		{
+			HealthComponent->Server_Splint(TargetZone);
+		}
+		break;
+	}
+}
+
+// =====================================================================
 // Phase 2 - Aim / Combat
 // =====================================================================
 
@@ -854,7 +1047,10 @@ void AZSPlayerCharacter::HandleFireStarted()
 
 	if (CurrentWeapon && CurrentWeapon->GetConfig() && CurrentWeapon->GetConfig()->RoundsPerMinute > 0.f)
 	{
-		const float FireInterval = 60.f / CurrentWeapon->GetConfig()->RoundsPerMinute;
+		// P3: an Arms wound slows fire rate (GetAttackSpeedMultiplier < 1 lengthens the interval) -
+		// see UZSHealthComponent's "leg wounds -> mobility, arm wounds -> attack speed" mapping.
+		const float AttackSpeedMultiplier = HealthComponent ? FMath::Max(HealthComponent->GetAttackSpeedMultiplier(), 0.01f) : 1.f;
+		const float FireInterval = (60.f / CurrentWeapon->GetConfig()->RoundsPerMinute) / AttackSpeedMultiplier;
 		GetWorldTimerManager().SetTimer(AutoFireTimerHandle, this, &AZSPlayerCharacter::Fire, FireInterval, true);
 	}
 }
@@ -887,6 +1083,7 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
 	{
 		Multicast_PlayTPActionMontage(Config->TP_Fire);
+		UZSNoiseSystem::ReportNoise(this, GetActorLocation(), 1.f, this, Config->FireNoiseRadius);
 	}
 }
 

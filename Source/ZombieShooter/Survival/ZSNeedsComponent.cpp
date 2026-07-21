@@ -73,7 +73,7 @@ float UZSNeedsComponent::GetPerformanceMultiplier() const
 
 void UZSNeedsComponent::Server_ConsumeItem(UZSItemConfig* Item)
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority() || !Item || !Item->bIsConsumable)
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !Item || Item->ItemUseType != EZSItemUseType::Consumable)
 	{
 		return;
 	}

@@ -136,4 +136,8 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fire Modes")
 	float RoundsPerMinute = 600.f;
+
+	/** P4: how far a shot's noise event (UZSNoiseSystem::ReportNoise, called from AZSPlayerCharacter::Server_Fire) reaches - "every loud act reports a noise event with a radius" (GameDevPlan.md P4). Per-weapon, not a global constant: a shotgun should carry further than a suppressed pistol without a C++ branch. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Noise", meta = (ClampMin = "0"))
+	float FireNoiseRadius = 3000.f;
 };

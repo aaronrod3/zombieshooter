@@ -34,6 +34,7 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `RecoilRecoverySpeed` | 22 | How fast recoil pulls back toward identity between shots |
 | `OffsetCrouch` | loc(1.5,-2,-1.5) rot(-4.3°,0,0) | Crouch weapon-position nudge on `ik_hand_gun` |
 | `TotalAmmoCount` | 0 | **Cosmetic only** — starting fill for the magazine's visual bullet count, not the real ammo source of truth |
+| `FireNoiseRadius` | 3000 | P4: how far a shot's noise event reaches (`UZSNoiseSystem::ReportNoise`, called from `Server_Fire`) |
 
 ## TopDown Camera (`AZSPlayerCharacter`, Category `ZS|Camera|TopDown`)
 | Property | Default | Effect |
@@ -64,7 +65,31 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `RealSecondsPerGameDay` | 1440 (24 real min/game day) | Time compression — lower = faster |
 | `MinUtilitiesShutoffDay`/`MaxUtilitiesShutoffDay` | 8 / 12 | Randomized-once-per-session range for the utilities-shutoff day |
 
+## Health / Medical (`UZSHealthConfig` — e.g. `DA_ZS_HealthConfig_Default`, read by `UZSHealthComponent`)
+| Field | Default | Effect |
+|---|---|---|
+| `MaxHealth` | 100 | Overall health pool |
+| `BleedDamagePerSecond_Scratch`/`_Laceration`/`_Bite` | 0.1 / 0.4 / 0.3 | Per-second drain while that zone is bleeding (Fracture never bleeds) |
+| `DirtyWoundBleedMultiplier` | 1.5 | Bleed rate multiplier while a wound is dirty (not disinfected/clean-bandaged) |
+| `LegLacerationMobilityMultiplier` | 0.75 | Move speed multiplier, any non-Fracture Legs wound |
+| `LegFractureMobilityMultiplier`/`LegSplintedFractureMobilityMultiplier` | 0.35 / 0.7 | Move speed multiplier, Legs Fracture unsplinted/splinted |
+| `ArmWoundedAttackSpeedMultiplier`/`ArmWoundedReloadSpeedMultiplier` | 0.75 / 0.7 | Fire-rate / reload-speed multiplier, any active Arms wound |
+| `AmputatedZoneMultiplier` | 0.25 | Overrides all of the above once a zone is permanently amputated |
+| `BiteInfectionChance` | 0.4 | Hidden per-Bite roll (0-1) |
+| `IncubatingDurationGameHours`/`QueasyDurationGameHours`/`FeverDurationGameHours`/`CriticalDurationGameHours` | 6 / 8 / 6 / 4 | Game-hours per infection stage — death at the end of Critical if not amputated first |
+
+## Zombies (`UZSZombieConfig` — e.g. `DA_ZS_ZombieConfig_Shambler`, read by `AZombieCharacter`/`AZombieAIController`)
+| Field | Default | Effect |
+|---|---|---|
+| `MaxHealth` | 100 | Zombie's flat health pool (not `UZSHealthComponent` - see `CLAUDE.md`'s Zombies/ note) |
+| `MeleeDamage`/`MeleeRange`/`AttackInterval` | 15 / 150 / 1.5s | `Server_MeleeAttack`'s damage, self-validated range, and cooldown |
+| `AttackDamageTypeClass` | unset (falls back to `UZSDamageType_Bite`) | Which `EZSWoundType` a hit applies to a bitten player |
+| `WalkSpeed`/`ChaseSpeed` | 150 / 300 | `MaxWalkSpeed` at rest / while `SetChasing(true)` (not yet called by anything - no BT exists) |
+| `SightRadius`/`LoseSightRadius`/`PeripheralVisionAngleDegrees` | 1500 / 1800 / 90° | `AISenseConfig_Sight`, applied at `OnPossess` |
+| `HearingRange` | 3000 | `AISenseConfig_Hearing`, applied at `OnPossess` - this is what picks up `UZSNoiseSystem::ReportNoise` events |
+| `BehaviorTree` | unset | **No BT asset exists yet** - `RunBehaviorTree` no-ops until one is authored and assigned |
+
 ## Not yet built / no tunables exist yet
 - Stage A locomotion state machine and its blend-space feeds — in progress, crouch pose bug open (see `SessionHandoff.md`).
-- `UZSItemConfig` (`HungerRestore`/`ThirstRestore`) — per-consumable, no `DA_ZS_ItemConfig_*` instances authored yet.
-- Zombie config (`UZSZombieConfig`) speed/health/senses/damage tunables — P4, not started.
+- `UZSItemConfig` (`HungerRestore`/`ThirstRestore`/`bIsCleanBandage`) — per-item, no `DA_ZS_ItemConfig_*` instances authored yet.
+- `UZSHealthConfig`/`UZSZombieConfig` content instances — fields above are code defaults, not authored/tuned data assets yet.

@@ -8,6 +8,7 @@
 #include "TimerManager.h"
 #include "ZSCharacterTypes.h"
 #include "ZSWeaponConfig.h"
+#include "../Combat/ZSHealthTypes.h"
 #include "ZSPlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -19,7 +20,11 @@ class UAnimNotify;
 class UAnimNotifyState;
 class UZSInteractableComponent;
 class UZSNeedsComponent;
+class UZSHealthComponent;
+class UZSItemConfig;
+class UDamageType;
 struct FInputActionValue;
+struct FDamageEvent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -381,6 +386,74 @@ protected:
 	void OnRep_IsReadyToSleep();
 
 	// =====================================================================
+	// P3 - Health / Damage / Medical (GameDevPlan.md P3, Docs/Phases/P3_HealthDamageMedical.md)
+	// =====================================================================
+
+public:
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	UZSHealthComponent* GetHealthComponent() const { return HealthComponent; }
+
+	/** Client-callable entry point - GameDevPlan.md P3's "simplest version first" amputation: any zone context, solo-capable, no tool-item requirement enforced here (open questions on tool/timing/co-op-assist are refinements in GameDevPlan.md §7, not blockers). Routes through Server_AmputateZone to HealthComponent->Server_AmputateZone, which is the actual authority on whether it's valid (Arms/Legs only, not already amputated). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Health")
+	void AmputateZone(EZSBodyZone Zone);
+
+protected:
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Health")
+	void Server_AmputateZone(EZSBodyZone Zone);
+
+public:
+
+	/** The one entry point for all incoming damage (engine standard) - infers EZSBodyZone from the hit bone name (BodyZoneFromBoneName) and EZSWoundType from DamageEvent.DamageTypeClass (WoundTypeFromDamageTypeClass), then routes into HealthComponent->Server_ApplyDamage. Per CLAUDE.md: "Damage only via TakeDamage()/ApplyDamage" - nothing else should mutate health/wounds directly. */
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+protected:
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UZSHealthComponent> HealthComponent;
+
+	/** Bound to HealthComponent->OnDeath in BeginPlay - runs on every machine (OnDeath broadcasts everywhere, see UZSHealthComponent::OnRep_IsDead), so cosmetic reactions (disabling input/collision) apply on every client. Only the server branch schedules the actual respawn - permadeath-as-a-new-character, not a heal-and-continue revive. */
+	UFUNCTION()
+	void HandleDeath();
+
+	/** Bound to HealthComponent->OnBodyZonesChanged in BeginPlay - re-applies MaxWalkSpeed (via UpdateMovementSpeed) whenever a Legs wound appears/heals/gets splinted, not just when sprint toggles. */
+	UFUNCTION()
+	void HandleBodyZonesChanged();
+
+	/** Shared by OnRep_IsSprinting and HandleBodyZonesChanged - MaxWalkSpeed = (sprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * HealthComponent->GetMobilityMultiplier(). */
+	void UpdateMovementSpeed();
+
+	/** Server-only, fired by RespawnTimerHandle after RespawnDelaySeconds. Destroys this (dead) pawn - AActor::Destroyed() auto-unpossesses the controller - then calls AGameModeBase::RestartPlayer, the engine's standard respawn flow (spawns a fresh AZSPlayerCharacter at a PlayerStart via DefaultPawnClass). A genuinely fresh character (new Needs/Health state), not the same one healed - matches the permadeath framing; deeper persistence (carried-over world/loot state) is P7, not this. */
+	void Server_RespawnAsNewCharacter();
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Health")
+	float RespawnDelaySeconds = 5.f;
+
+	FTimerHandle RespawnTimerHandle;
+
+	/** Maps a hit's bone name to a body zone via common mannequin bone-name substrings (spine/pelvis -> Torso, head/neck -> Head, arm/hand/clavicle -> Arms, leg/foot/thigh/calf -> Legs). Falls back to Torso if unrecognized - a safe, central-mass default. */
+	static EZSBodyZone BodyZoneFromBoneName(FName BoneName);
+
+	/** Maps DamageTypeClass to a EZSWoundType via the UZSDamageType_* marker classes (ZSDamageTypes.h) - a zombie's bite attack (P4) applies UZSDamageType_Bite. Falls back to Laceration for a generic/unrecognized DamageTypeClass (e.g. the base UDamageType, or none specified) rather than erroring. */
+	static EZSWoundType WoundTypeFromDamageTypeClass(TSubclassOf<UDamageType> DamageTypeClass);
+
+	// ---- P3: item use dispatch - one entry point for both P2's eat/drink and P3's medical items,
+	// per UZSItemConfig::EZSItemUseType. TargetZone is ignored for Consumable items. No inventory
+	// yet (P6) - the caller (a future UI/hotbar) is expected to already hold a valid UZSItemConfig
+	// reference, not look one up by name/slot. ----
+
+public:
+
+	UFUNCTION(BlueprintCallable, Category = "ZS|Item")
+	void UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone);
+
+protected:
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Item")
+	void Server_UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone);
+
+	// =====================================================================
 	// Phase 2 - Action State
 	// =====================================================================
 
@@ -449,6 +522,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Movement")
 	float SprintSpeedMultiplier = 1.6f;
+
+	/** P4: noise radius reported once when sprint starts - see UZSNoiseSystem::ReportNoise, GameDevPlan.md P4's "every loud act reports a noise event". */
+	UPROPERTY(EditAnywhere, Category = "ZS|Movement")
+	float SprintNoiseRadius = 1200.f;
 
 	float BaseWalkSpeed = 0.f;
 
