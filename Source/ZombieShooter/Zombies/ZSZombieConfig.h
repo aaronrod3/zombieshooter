@@ -76,6 +76,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AI")
 	TObjectPtr<UBehaviorTree> BehaviorTree;
 
+	/** How long AZombieAIController::StartInvestigationTimer keeps investigating a lost target's last known location before giving up (BB_Zombie's "bInvestigationTimerStarted"/"LastKnownLocation" keys). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AI", meta = (ClampMin = "0"))
+	float InvestigationDurationSeconds = 10.f;
+
+	/** How long AZombieAIController::StartIdleDwell pauses between wander moves (BB_Zombie's "bIsIdling" key). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AI", meta = (ClampMin = "0"))
+	float IdleDwellDurationSeconds = 3.f;
+
 	// ---- Visuals (placeholder Mixamo/UE-mannequin per GameDevPlan.md P4, not sourced yet) ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals")

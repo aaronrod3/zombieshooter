@@ -196,7 +196,7 @@ The pivot **keeps the repo, the project, and the C++ core.** What we've built is
 ### P3 — Health, damage & medical-lite
 - `UZSHealthComponent`: 4 zones, wound types mapped to gameplay effects, bleed-over-time, all damage through `TakeDamage`.
 - Treatment actions: bandage (cleanliness flag), disinfect, splint.
-- Knox-style infection: bite → hidden roll → delayed queasy→fever→death arc.
+- Delayed-onset infection: bite → hidden roll → delayed queasy→fever→death arc.
 - Emergency amputation: stops infection source, permanent capability loss.
 - Player death → spectate/respawn-as-new-character flow.
   **Exit:** a scripted damage source can wound, infect, and kill a player who mismanages treatment; amputation-in-time survives a bite that would otherwise kill. Second client sees everything correctly.
@@ -346,6 +346,12 @@ Blender 4.x LTS, free. Model on-grid; texture toward dark/earthy/slight-realism;
 1. Amputation tool requirement + solo vs. co-op-assist?
 2. Timing window for amputation?
 3. Post-amputation: permanent-only for v1, or flag for later prosthetics?
+- **Post-initial-completion backlog** (dev notes, 2026-07-20 - refine once P2-4's core loop is proven, not before):
+  - Amputation/cutting needs its own player animation - currently a bare C++ mutator (`Server_AmputateZone`) with no montage.
+  - Amputating causes a blackout. Solo: game time accelerates ~12 real hours forward during the blackout - a real risk window (enemies can find and kill the incapacitated player), so picking a safe spot to amputate becomes a genuine tactical decision. Co-op: still a blackout, but another player can move the downed body, and a revive from a teammate shortens the blackout duration.
+  - Arm amputation restricts weapon use to one-handed options only (handgun or a one-handed melee weapon) - two-handed weapons become unusable with that arm gone.
+  - Medical item tier delays bite→infection conversion (extends the incubation window), giving more time to decide on amputation - a new per-tier delay field on `UZSItemConfig`'s Bandage/Disinfectant entries, not built yet.
+  - **Player death, loot, and world continuity** (also touches P4/persistence): on death, dropped loot stays at the death location, and the player's character becomes a zombie (P4 - `AZombieCharacter` doesn't support death-triggered spawning yet, only placement/config-driven). Co-op: the party continues in the same world with a fresh character *unless the entire party has died*, in which case that world is over. Solo: death ends that world outright - a fresh world + fresh character, not just a fresh character in the same world. **This is a real, notable change from what `AZSPlayerCharacter::Server_RespawnAsNewCharacter` currently does** (always respawns into the same world, regardless of solo/co-op or how many players remain) - flagged here so it isn't silently lost; revisit `HandleDeath`/`Server_RespawnAsNewCharacter` when this is scheduled.
 
 ### P4 — Zombies
 1. Is ~150 concurrent on-screen zombies the right target?

@@ -62,7 +62,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects", meta = (ClampMin = "0", ClampMax = "1"))
 	float AmputatedZoneMultiplier = 0.25f;
 
-	// ---- Infection (Knox-style delayed arc, game-hour scaled - reads AZSGameState's world clock same as UZSNeedsComponent) ----
+	// ---- Infection (delayed-onset arc, game-hour scaled - reads AZSGameState's world clock same as UZSNeedsComponent) ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection", meta = (ClampMin = "0", ClampMax = "1"))
 	float BiteInfectionChance = 0.4f;

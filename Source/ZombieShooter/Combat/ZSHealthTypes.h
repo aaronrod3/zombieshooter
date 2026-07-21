@@ -31,7 +31,7 @@ enum class EZSWoundType : uint8
 	Bite
 };
 
-/** Knox-style delayed infection arc (GameDevPlan.md P3) - deliberately UI-ambiguous vs. ordinary sickness; a moodle/UI layer should not display this enum name verbatim to the player. */
+/** Delayed-onset infection arc (GameDevPlan.md P3) - deliberately UI-ambiguous vs. ordinary sickness; a moodle/UI layer should not display this enum name verbatim to the player. */
 UENUM(BlueprintType)
 enum class EZSInfectionStage : uint8
 {

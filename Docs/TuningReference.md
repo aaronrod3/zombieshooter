@@ -87,7 +87,9 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `WalkSpeed`/`ChaseSpeed` | 150 / 300 | `MaxWalkSpeed` at rest / while `SetChasing(true)` (not yet called by anything - no BT exists) |
 | `SightRadius`/`LoseSightRadius`/`PeripheralVisionAngleDegrees` | 1500 / 1800 / 90° | `AISenseConfig_Sight`, applied at `OnPossess` |
 | `HearingRange` | 3000 | `AISenseConfig_Hearing`, applied at `OnPossess` - this is what picks up `UZSNoiseSystem::ReportNoise` events |
-| `BehaviorTree` | unset | **No BT asset exists yet** - `RunBehaviorTree` no-ops until one is authored and assigned |
+| `BehaviorTree` | unset | Assign `BT_Zombie` (`/Game/ZS/Enemy/AI/`) to activate - `RunBehaviorTree` no-ops until then |
+| `InvestigationDurationSeconds` | 10 | How long `AZombieAIController::StartInvestigationTimer` investigates a lost target's last known location before giving up |
+| `IdleDwellDurationSeconds` | 3 | How long `StartIdleDwell` pauses between wander moves |
 
 ## Not yet built / no tunables exist yet
 - Stage A locomotion state machine and its blend-space feeds — in progress, crouch pose bug open (see `SessionHandoff.md`).
