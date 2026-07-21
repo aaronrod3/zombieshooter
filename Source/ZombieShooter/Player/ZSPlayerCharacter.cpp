@@ -103,11 +103,11 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReloadActionFinder(TEXT("/Game/ZS/Input/IA_Reload.IA_Reload"));
 	if (ReloadActionFinder.Succeeded()) { ReloadAction = ReloadActionFinder.Object; }
 
-	// P4 action - same graceful-if-missing pattern as above; IA_Melee doesn't exist yet as of this
-	// commit (needs manual creation in-editor and an IMC_ZS_Default mapping) - the finder degrades
-	// safely (MeleeAction stays null, binding below is skipped) until it does.
-	static ConstructorHelpers::FObjectFinder<UInputAction> MeleeActionFinder(TEXT("/Game/ZS/Input/IA_Melee.IA_Melee"));
-	if (MeleeActionFinder.Succeeded()) { MeleeAction = MeleeActionFinder.Object; }
+	// Same graceful-if-missing pattern as above; IA_Attack is dev-authored content (not created by
+	// this commit) - the finder degrades safely (AttackAction stays null, binding below is skipped)
+	// if it's ever missing.
+	static ConstructorHelpers::FObjectFinder<UInputAction> AttackActionFinder(TEXT("/Game/ZS/Input/IA_Attack.IA_Attack"));
+	if (AttackActionFinder.Succeeded()) { AttackAction = AttackActionFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> CrouchActionFinder(TEXT("/Game/ZS/Input/IA_Crouch.IA_Crouch"));
 	if (CrouchActionFinder.Succeeded()) { CrouchAction = CrouchActionFinder.Object; }
@@ -203,9 +203,9 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartReload);
 		}
 
-		if (MeleeAction)
+		if (AttackAction)
 		{
-			EnhancedInputComponent->BindAction(MeleeAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleMeleeAttack);
+			EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleAttack);
 		}
 
 		if (CrouchAction)
@@ -1129,37 +1129,39 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 }
 
 // =====================================================================
-// P4 - Melee combat
+// P4 - Attack input / bare-fist melee (P5's loadout/unified-combat system will add real dispatch)
 // =====================================================================
 
-bool AZSPlayerCharacter::CanMelee() const
+bool AZSPlayerCharacter::CanAttack() const
 {
 	return !bIsSprinting && !bIsBusy;
 }
 
-void AZSPlayerCharacter::HandleMeleeAttack()
+void AZSPlayerCharacter::HandleAttack()
 {
-	if (!CanMelee())
+	if (!CanAttack())
 	{
 		return;
 	}
 
-	// Same "hip-fire still turns to face the cursor" window HandleFireStarted uses - a melee swing
+	// Same "hip-fire still turns to face the cursor" window HandleFireStarted uses - an attack
 	// is an attack too, per P1's cursor-facing gate (IsCursorFacingActive).
 	LastCursorActionTime = GetWorld()->GetTimeSeconds();
 
+	// No dispatch yet (P5) - IA_Attack is unconditionally bare-fist melee until the loadout system
+	// exists to say what's actually equipped.
 	Server_MeleeAttack();
 }
 
 void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 {
-	if (!HasAuthority() || !CanMelee())
+	if (!HasAuthority() || !CanAttack())
 	{
 		return;
 	}
 
 	const float Now = GetWorld()->GetTimeSeconds();
-	if (Now - LastMeleeAttackTime < MeleeAttackInterval)
+	if (Now - LastAttackTime < UnarmedMeleeAttackInterval)
 	{
 		return;
 	}
@@ -1170,7 +1172,7 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 
 	TArray<FOverlapResult> Overlaps;
-	const FCollisionShape Sphere = FCollisionShape::MakeSphere(MeleeRange);
+	const FCollisionShape Sphere = FCollisionShape::MakeSphere(UnarmedMeleeRange);
 	GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, ObjectQueryParams, Sphere);
 
 	AActor* BestTarget = nullptr;
@@ -1187,7 +1189,7 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 
 		const FVector ToCandidate = Candidate->GetActorLocation() - GetActorLocation();
 		const float DistSq = ToCandidate.SizeSquared();
-		if (DistSq > FMath::Square(MeleeRange) || FVector::DotProduct(GetActorForwardVector(), ToCandidate.GetSafeNormal()) < 0.f)
+		if (DistSq > FMath::Square(UnarmedMeleeRange) || FVector::DotProduct(GetActorForwardVector(), ToCandidate.GetSafeNormal()) < 0.f)
 		{
 			// Outside range, or behind the character (rear half of the sphere) - a melee swing is a forward-facing action.
 			continue;
@@ -1205,17 +1207,17 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 		return;
 	}
 
-	LastMeleeAttackTime = Now;
+	LastAttackTime = Now;
 
-	Multicast_PlayTPActionMontage(MeleeMontage);
+	Multicast_PlayTPActionMontage(UnarmedMeleeMontage);
 
-	const TSubclassOf<UDamageType> DamageTypeClass = MeleeDamageTypeClass
-		? MeleeDamageTypeClass
+	const TSubclassOf<UDamageType> DamageTypeClass = UnarmedMeleeDamageTypeClass
+		? UnarmedMeleeDamageTypeClass
 		: TSubclassOf<UDamageType>(UZSDamageType_Laceration::StaticClass());
 
 	const FVector HitDirection = (BestTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 	const FHitResult HitResult;
-	UGameplayStatics::ApplyPointDamage(BestTarget, MeleeDamage, HitDirection, HitResult, GetController(), this, DamageTypeClass);
+	UGameplayStatics::ApplyPointDamage(BestTarget, UnarmedMeleeDamage, HitDirection, HitResult, GetController(), this, DamageTypeClass);
 }
 
 void AZSPlayerCharacter::PlayTPMontage(UAnimMontage* Montage)

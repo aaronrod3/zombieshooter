@@ -39,16 +39,16 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `FireRange` | 5000 | P4: hitscan trace distance from `SocketMuzzle` (falls back to eye height if the socket's missing) |
 | `FireDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a gunshot applies to a player target |
 
-## Player Melee (`AZSPlayerCharacter`, Category `ZS|Combat|Melee`)
-Independent of `CurrentWeapon` — one flat melee attack, not a per-weapon system yet (v1 scope).
+## Player Unarmed Melee (`AZSPlayerCharacter`, Category `ZS|Combat|Melee`)
+Bound to `IA_Attack`, independent of `CurrentWeapon` — today this is unconditionally bare-fist melee (no dispatch by equipped weapon yet). This is the "unarmed" fallback P5's loadout/unified-combat system (`Docs/Phases/P5_CombatCompletion.md`) will keep once a real `Server_Attack` dispatch exists — named `Unarmed*` for that reason, not a temporary name.
 
 | Property | Default | Effect |
 |---|---|---|
-| `MeleeDamage` | 20 | Damage applied to the nearest valid target in range |
-| `MeleeRange` | 150 | Sphere-overlap radius + max target distance |
-| `MeleeAttackInterval` | 1s | Cooldown between swings |
-| `MeleeDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a melee hit applies to a player target |
-| `MeleeMontage` | unset | Cosmetic TP swing montage — no-op until authored |
+| `UnarmedMeleeDamage` | 20 | Damage applied to the nearest valid target in range |
+| `UnarmedMeleeRange` | 150 | Sphere-overlap radius + max target distance |
+| `UnarmedMeleeAttackInterval` | 1s | Cooldown between swings |
+| `UnarmedMeleeDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a melee hit applies to a player target |
+| `UnarmedMeleeMontage` | unset | Cosmetic TP swing montage — no-op until authored |
 
 ## TopDown Camera (`AZSPlayerCharacter`, Category `ZS|Camera|TopDown`)
 | Property | Default | Effect |

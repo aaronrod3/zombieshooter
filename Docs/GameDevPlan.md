@@ -210,15 +210,26 @@ The pivot **keeps the repo, the project, and the C++ core.** What we've built is
 - Architecture built so hostile human roamers can be added cheaply post-v1 without rearchitecting.
   **Exit:** a graybox block with a profiled zombie-count budget met; a gunshot visibly drags the neighborhood onto the shooter; 2-client PIE holds up.
 
-### P5 — Combat completion (melee + the full loop feel)
-- Melee weapon type through the same `UZSWeaponConfig` pipeline.
-- Swing timing via existing notify system; shove + stomp; stamina economy tuned against P2.
-- Firearms integration with noise + zombie mass.
-- Weapon durability-lite.
-  **Exit:** the PZ death loop exists — greed + noise + stamina mismanagement kills a player who had every tool to survive.
+### P5 — Loadout & unified combat (expanded 2026-07-21 — dev request: "a proven loadout plan" + "attacking is one button, changes per weapon")
+The equip-slot/hotbar machinery is combat-facing (it decides what a single Attack button *does*), so it's scoped here rather than folded into P6's inventory work — P6 still owns full inventory/weight/containers/loot tables; this phase owns the slots that reference into that inventory and the combat dispatch built on top of them.
+
+**Loadout system** — researched against the two closest proven references for a real-time (no pause-and-plan, per Decision 1) survival game: PZ's own primary/secondary-hand equip model and DayZ's hand-slots + numbered hotbar. Recommended synthesis:
+- **Two hand slots**: `PrimaryHand` + `SecondaryHand`. A two-handed item (rifle, two-handed melee) occupies both; a one-handed item (pistol, one-handed melee, a flashlight) can pair with another one-handed item in the other slot. This isn't just a genre convention — it's a **prerequisite for the amputation backlog item already recorded in §7 P3** ("arm amputation restricts weapon use to one-handed options only"): that rule is meaningless without a real one-handed/two-handed slot model to enforce it against.
+- **Unarmed is the default, always-available state** — empty `PrimaryHand` means bare-fist melee. Satisfies "player starts unequipped." (Today's `AZSPlayerCharacter::Server_MeleeAttack`/`Unarmed*` tunables, built pre-P5 to unblock P3/P4 testing, become exactly this fallback.)
+- **A small real-time hotbar** (numbered quick-slots, no menu/pause) bound to specific inventory item references, for instant re-equip without opening P6's full inventory UI — matches Notes §21's "modern, transparent UX" and Decision 1's explicit rejection of a pause-and-plan layer (ruling out a Resident-Evil-style ring menu, which stops real-time play to select).
+- **Equip/holster/switch takes real time**, choreographed through the existing notify/montage/`bIsBusy` system (same pattern as reload) — not instant, matching PZ's own equip-time model.
+- Hotbar/hand-slots hold *references* into P6's `UZSInventoryComponent`; equipping moves/assigns a reference rather than duplicating item state — this phase depends on P6 existing for the item data to reference, even though the slot/dispatch machinery itself lives here.
+
+**Unified attack input** — one `IA_Attack` button (already renamed from a placeholder `IA_Melee` this session) whose effect depends on what's in `PrimaryHand`:
+- Generalize `UZSWeaponConfig` to cover melee weapons too (add `EZSAttackType { Unarmed, Melee, Ranged }`), rather than a parallel melee-config hierarchy — consistent with the existing multi-weapon rule ("N weapon types, zero C++ branches").
+- `Server_Attack()` (replacing today's placeholder `Server_MeleeAttack`) dispatches on `PrimaryHand`'s config: null → bare-fist (today's logic, unchanged); `Melee` → a swing using that weapon's own damage/range/interval (not the flat `Unarmed*` character tunables); `Ranged` → today's `Server_Fire` hitscan logic. `HandleFireStarted`'s auto-fire timer plumbing moves under this same dispatch (a `Ranged` weapon with `SupportedFireModes` including `Auto` still holds-to-fire; melee/unarmed is a single swing per press) — this is what actually retires the separate `IA_Fire` action.
+- Melee weapon types through this same pipeline: swing timing via the existing notify system; shove + stomp as always-available options; stamina economy tuned against P2's `UZSNeedsComponent`.
+- Firearms integration with noise + zombie mass: ammo scarcity tuning, simple hit-reaction/knockdown.
+- Weapon durability-lite (melee breaks; no repair sim v1).
+  **Exit:** a player starts unarmed, equips a weapon from the hotbar in real time, and one Attack button does the right thing whether they're bare-handed, swinging a bat, or holding a rifle — the PZ death loop exists on top of that (greed + noise + stamina mismanagement kills a player who had every tool to survive).
 
 ### P6 — Inventory, loot & scavenging
-- `UZSInventoryComponent`, weight-based encumbrance, bag equip slots; `UZSItemConfig` equip-only vs. carry-only categories.
+- `UZSInventoryComponent`, weight-based encumbrance, bag equip slots (clothing/carry capacity — **not** the `PrimaryHand`/`SecondaryHand`/hotbar combat loadout slots, which are P5's, since they're what a single Attack button dispatches on); `UZSItemConfig` equip-only vs. carry-only categories.
 - Container actors + data-asset loot tables; per-zone quality tiers; finite world-count rarity pools.
 - Inventory UI + radial quick-use, transparent stat-preview rule carried through.
 - Dropped-item persistence.
@@ -326,6 +337,7 @@ Blender 4.x LTS, free. Model on-grid; texture toward dark/earthy/slight-realism;
 3. **Platform commitment (blocking for P1):** PC/Steam-only for v1?
 4. Team-size reality check.
 5. Save architecture: one world/save per server, or multiple concurrent slots?
+6. **Left-click's dual meaning (dev note, 2026-07-21):** once any menu/radial/inventory UI exists (P1's radial quick-menu, P6's inventory), left-click needs to mean "select the focused UI option" while a menu has focus, and "attack/interact per IA_Attack" otherwise — the same physical input, gated by whether a menu currently has focus. **Not built yet** — no menu system exists to gate against (P1's world-prompt interaction is keybound to `E`/`IA_Interact`, not mouse click). The standard Enhanced Input mechanism for this is an input-context swap: an `IMC_ZS_UI` mapping context (left-click → UI select) that gets `AddMappingContext`'d with higher priority than `IMC_ZS_Default` while a menu is open, and removed on close — not a per-click `bIsMenuOpen` branch inside `HandleAttack`. Revisit when P1's radial menu or P6's inventory UI actually gets built.
 
 ### P0 — Close-out / re-aim
 1. Is the Infima FP investment a total write-off? — **Resolved: no, Infima is the confirmed skeleton/animation source of record, not shelved.**
@@ -357,9 +369,12 @@ Blender 4.x LTS, free. Model on-grid; texture toward dark/earthy/slight-realism;
 1. Is ~150 concurrent on-screen zombies the right target?
 - Post-v1 backlog: hostile roamer spawn logic, loot drops, wound/infection system parity.
 
-### P5 — Combat completion
+### P5 — Loadout & unified combat
 1. Melee weapon variety — curated 4–6 archetypes or PZ's full breadth?
 2. Durability: break-only or basic repair sooner?
+3. **(new, 2026-07-21)** Hotbar size and key scheme — fixed number keys (1–9, PZ/DayZ-style) or scroll-wheel cycle, or both?
+4. **(new)** Can `SecondaryHand` hold an active item usable on its own (offhand pistol/flashlight/shield), or is it purely "the other half of a two-handed item's grip" for v1? Affects whether `Server_Attack` ever needs to consider two equipped items instead of one.
+5. **(new)** Equip/holster timing values — flat per-item-weight-class duration, or a per-`UZSWeaponConfig` field like `FireDamage`/`FireRange`?
 
 ### P6 — Inventory & loot
 1. Bag/equip-slot depth?
