@@ -13,3 +13,5 @@
 
 ## Exit criteria
 A scripted damage source can wound (with the correct gameplay-effect mapping), infect, and kill a player who mismanages treatment — and a player who amputates in time survives a bite that would otherwise have killed them. Second client sees everything correctly. See `Docs/SessionHandoff.md` for current status against this bar.
+
+**Real damage sources now exist to test against** (P4 work): `AZombieCharacter::Server_MeleeAttack` (bite, was already built), `AZSPlayerCharacter::Server_Fire`'s hitscan (gunshot), and `AZSPlayerCharacter::Server_MeleeAttack` (player melee vs. zombies). All three route through the same `TakeDamage`/`ApplyPointDamage` pipeline this phase built — see `Docs/Phases/P4_Zombies.md`.

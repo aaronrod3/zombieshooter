@@ -35,6 +35,20 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `OffsetCrouch` | loc(1.5,-2,-1.5) rot(-4.3°,0,0) | Crouch weapon-position nudge on `ik_hand_gun` |
 | `TotalAmmoCount` | 0 | **Cosmetic only** — starting fill for the magazine's visual bullet count, not the real ammo source of truth |
 | `FireNoiseRadius` | 3000 | P4: how far a shot's noise event reaches (`UZSNoiseSystem::ReportNoise`, called from `Server_Fire`) |
+| `FireDamage` | 25 | P4: hitscan damage per shot, applied via `ApplyPointDamage` |
+| `FireRange` | 5000 | P4: hitscan trace distance from `SocketMuzzle` (falls back to eye height if the socket's missing) |
+| `FireDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a gunshot applies to a player target |
+
+## Player Melee (`AZSPlayerCharacter`, Category `ZS|Combat|Melee`)
+Independent of `CurrentWeapon` — one flat melee attack, not a per-weapon system yet (v1 scope).
+
+| Property | Default | Effect |
+|---|---|---|
+| `MeleeDamage` | 20 | Damage applied to the nearest valid target in range |
+| `MeleeRange` | 150 | Sphere-overlap radius + max target distance |
+| `MeleeAttackInterval` | 1s | Cooldown between swings |
+| `MeleeDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a melee hit applies to a player target |
+| `MeleeMontage` | unset | Cosmetic TP swing montage — no-op until authored |
 
 ## TopDown Camera (`AZSPlayerCharacter`, Category `ZS|Camera|TopDown`)
 | Property | Default | Effect |

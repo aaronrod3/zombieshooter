@@ -12,6 +12,7 @@ class UStaticMesh;
 class UAnimMontage;
 class UAnimSequenceBase;
 class AZSWeapon;
+class UDamageType;
 
 /*
 	Per-weapon data contract. Every weapon-facing system (AZSWeapon, AZSPlayerCharacter,
@@ -140,4 +141,18 @@ public:
 	/** P4: how far a shot's noise event (UZSNoiseSystem::ReportNoise, called from AZSPlayerCharacter::Server_Fire) reaches - "every loud act reports a noise event with a radius" (GameDevPlan.md P4). Per-weapon, not a global constant: a shotgun should carry further than a suppressed pistol without a C++ branch. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Noise", meta = (ClampMin = "0"))
 	float FireNoiseRadius = 3000.f;
+
+	// ---- Damage (P4: hitscan fire damage, Server_Fire) ----
+
+	/** Per-shot hitscan damage, applied via UGameplayStatics::ApplyPointDamage. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (ClampMin = "0"))
+	float FireDamage = 25.f;
+
+	/** Hitscan trace distance from the weapon's SocketMuzzle (falls back to eye height if the socket isn't found). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (ClampMin = "0"))
+	float FireRange = 5000.f;
+
+	/** Which EZSWoundType a hit applies to a player target, via AZSPlayerCharacter::WoundTypeFromDamageTypeClass (ZSDamageTypes.h). Unset falls back to UZSDamageType_Laceration at the call site (Server_Fire) - same "unset = generic marker" pattern as UZSZombieConfig::AttackDamageTypeClass. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage")
+	TSubclassOf<UDamageType> FireDamageTypeClass;
 };

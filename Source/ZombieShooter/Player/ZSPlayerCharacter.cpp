@@ -35,6 +35,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "CollisionQueryParams.h"
 #include "CollisionShape.h"
+#include "Kismet/GameplayStatics.h"
 
 AZSPlayerCharacter::AZSPlayerCharacter()
 {
@@ -101,6 +102,12 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReloadActionFinder(TEXT("/Game/ZS/Input/IA_Reload.IA_Reload"));
 	if (ReloadActionFinder.Succeeded()) { ReloadAction = ReloadActionFinder.Object; }
+
+	// P4 action - same graceful-if-missing pattern as above; IA_Melee doesn't exist yet as of this
+	// commit (needs manual creation in-editor and an IMC_ZS_Default mapping) - the finder degrades
+	// safely (MeleeAction stays null, binding below is skipped) until it does.
+	static ConstructorHelpers::FObjectFinder<UInputAction> MeleeActionFinder(TEXT("/Game/ZS/Input/IA_Melee.IA_Melee"));
+	if (MeleeActionFinder.Succeeded()) { MeleeAction = MeleeActionFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> CrouchActionFinder(TEXT("/Game/ZS/Input/IA_Crouch.IA_Crouch"));
 	if (CrouchActionFinder.Succeeded()) { CrouchAction = CrouchActionFinder.Object; }
@@ -194,6 +201,11 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		if (ReloadAction)
 		{
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartReload);
+		}
+
+		if (MeleeAction)
+		{
+			EnhancedInputComponent->BindAction(MeleeAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleMeleeAttack);
 		}
 
 		if (CrouchAction)
@@ -1084,7 +1096,126 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 	{
 		Multicast_PlayTPActionMontage(Config->TP_Fire);
 		UZSNoiseSystem::ReportNoise(this, GetActorLocation(), 1.f, this, Config->FireNoiseRadius);
+
+		// Hitscan trace from the weapon's muzzle socket if it exists, else eye height - direction is
+		// the character's current forward vector, which P1's cursor-facing override (UpdateCursorFacing)
+		// has already turned toward the mouse cursor while firing (IsCursorFacingActive() includes the
+		// CursorFacingActionWindow after a fire input, set in HandleFireStarted).
+		FVector TraceStart = GetActorLocation() + FVector(0.f, 0.f, BaseEyeHeight);
+		if (USkeletalMeshComponent* ReceiverMesh = CurrentWeapon->GetReceiverMesh())
+		{
+			if (ReceiverMesh->DoesSocketExist(Config->SocketMuzzle))
+			{
+				TraceStart = ReceiverMesh->GetSocketLocation(Config->SocketMuzzle);
+			}
+		}
+		const FVector TraceEnd = TraceStart + GetActorForwardVector() * Config->FireRange;
+
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(this);
+		QueryParams.AddIgnoredActor(CurrentWeapon);
+
+		FHitResult Hit;
+		if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams) && Hit.GetActor())
+		{
+			const TSubclassOf<UDamageType> DamageTypeClass = Config->FireDamageTypeClass
+				? Config->FireDamageTypeClass
+				: TSubclassOf<UDamageType>(UZSDamageType_Laceration::StaticClass());
+
+			const FVector HitFromDirection = (Hit.ImpactPoint - TraceStart).GetSafeNormal();
+			UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Config->FireDamage, HitFromDirection, Hit, GetController(), this, DamageTypeClass);
+		}
 	}
+}
+
+// =====================================================================
+// P4 - Melee combat
+// =====================================================================
+
+bool AZSPlayerCharacter::CanMelee() const
+{
+	return !bIsSprinting && !bIsBusy;
+}
+
+void AZSPlayerCharacter::HandleMeleeAttack()
+{
+	if (!CanMelee())
+	{
+		return;
+	}
+
+	// Same "hip-fire still turns to face the cursor" window HandleFireStarted uses - a melee swing
+	// is an attack too, per P1's cursor-facing gate (IsCursorFacingActive).
+	LastCursorActionTime = GetWorld()->GetTimeSeconds();
+
+	Server_MeleeAttack();
+}
+
+void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
+{
+	if (!HasAuthority() || !CanMelee())
+	{
+		return;
+	}
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Now - LastMeleeAttackTime < MeleeAttackInterval)
+	{
+		return;
+	}
+
+	// ECC_Pawn object query, same pattern as UpdateNearestInteractable's ECC_WorldStatic/WorldDynamic
+	// scan - AZombieCharacter::Die() disables collision on death, so corpses never appear here.
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+
+	TArray<FOverlapResult> Overlaps;
+	const FCollisionShape Sphere = FCollisionShape::MakeSphere(MeleeRange);
+	GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, ObjectQueryParams, Sphere);
+
+	AActor* BestTarget = nullptr;
+	float BestDistSq = FLT_MAX;
+
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AActor* Candidate = Overlap.GetActor();
+		if (!Candidate || Candidate == this || Candidate->IsA(AZSPlayerCharacter::StaticClass()))
+		{
+			// No PvP melee in v1 - excludes self and every other player pawn.
+			continue;
+		}
+
+		const FVector ToCandidate = Candidate->GetActorLocation() - GetActorLocation();
+		const float DistSq = ToCandidate.SizeSquared();
+		if (DistSq > FMath::Square(MeleeRange) || FVector::DotProduct(GetActorForwardVector(), ToCandidate.GetSafeNormal()) < 0.f)
+		{
+			// Outside range, or behind the character (rear half of the sphere) - a melee swing is a forward-facing action.
+			continue;
+		}
+
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			BestTarget = Candidate;
+		}
+	}
+
+	if (!BestTarget)
+	{
+		return;
+	}
+
+	LastMeleeAttackTime = Now;
+
+	Multicast_PlayTPActionMontage(MeleeMontage);
+
+	const TSubclassOf<UDamageType> DamageTypeClass = MeleeDamageTypeClass
+		? MeleeDamageTypeClass
+		: TSubclassOf<UDamageType>(UZSDamageType_Laceration::StaticClass());
+
+	const FVector HitDirection = (BestTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+	const FHitResult HitResult;
+	UGameplayStatics::ApplyPointDamage(BestTarget, MeleeDamage, HitDirection, HitResult, GetController(), this, DamageTypeClass);
 }
 
 void AZSPlayerCharacter::PlayTPMontage(UAnimMontage* Montage)
