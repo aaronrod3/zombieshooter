@@ -36,6 +36,7 @@
 #include "CollisionQueryParams.h"
 #include "CollisionShape.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/Engine.h"
 
 AZSPlayerCharacter::AZSPlayerCharacter()
 {
@@ -1123,6 +1124,14 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 
 			const FVector HitFromDirection = (Hit.ImpactPoint - TraceStart).GetSafeNormal();
 			UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Config->FireDamage, HitFromDirection, Hit, GetController(), this, DamageTypeClass);
+
+			// Temporary confirmation while no impact VFX/hit-reaction exists yet - remove once real
+			// feedback is built (same note as Server_MeleeAttack_Implementation).
+			UE_LOG(LogZombieShooter, Log, TEXT("%s: shot hit %s for %.1f damage"), *GetName(), *Hit.GetActor()->GetName(), Config->FireDamage);
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Green, FString::Printf(TEXT("Shot hit %s for %.0f"), *Hit.GetActor()->GetName(), Config->FireDamage));
+			}
 		}
 	}
 }
@@ -1219,6 +1228,13 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 
 	if (!BestTarget)
 	{
+		// Temporary confirmation while no hit-reaction VFX/animations exist yet (see the on-screen
+		// message below) - remove both once real feedback (impact FX, hit-react montage) is built.
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: bare-fist swing found no target in range"), *GetName());
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Yellow, TEXT("Punch: no target in range"));
+		}
 		return;
 	}
 
@@ -1233,6 +1249,13 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 	const FVector HitDirection = (BestTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 	const FHitResult HitResult;
 	UGameplayStatics::ApplyPointDamage(BestTarget, UnarmedMeleeDamage, HitDirection, HitResult, GetController(), this, DamageTypeClass);
+
+	// Same temporary-feedback note as above.
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: bare-fist hit %s for %.1f damage"), *GetName(), *BestTarget->GetName(), UnarmedMeleeDamage);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Green, FString::Printf(TEXT("Punch hit %s for %.0f"), *BestTarget->GetName(), UnarmedMeleeDamage));
+	}
 }
 
 void AZSPlayerCharacter::PlayTPMontage(UAnimMontage* Montage)
