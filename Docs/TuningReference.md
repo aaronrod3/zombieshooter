@@ -40,6 +40,12 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `FireDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a gunshot applies to a player target |
 | `AttackType` | `Ranged` | P5: which half of `IA_Attack`'s dispatch this weapon uses (`ZSWeaponTypes.h`'s `EZSAttackType`) — `Ranged` routes to `Server_Fire`, `Melee` currently falls back to the bare-fist stats below (no melee-specific weapon fields exist yet) |
 | `EquipTimeSeconds` | 0.75s | P5: how long switching the hotbar to this weapon takes (`Server_SelectHotbarSlot` → `CompleteHotbarSwitch`) — `SetBusy(true)` for the duration, same choreography pattern as reload |
+| `MeleeDamage`/`MeleeRange`/`MeleeAttackInterval` | 35 / 180 / 0.9s | P5, 2026-07-21: real per-weapon melee stats, used when `AttackType == Melee` — mirrors the `Unarmed*` fields below one-for-one |
+| `MeleeDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a weapon-melee hit applies to a player target |
+| `MeleeMontage` | unset | Cosmetic TP swing montage for weapon melee — no-op until authored |
+| `MaxDurabilityHits` | 0 (unbreakable) | P5: how many landed melee hits this weapon survives before breaking (`AZSWeapon::CurrentDurability`/`Server_ConsumeDurabilityHit`) — breaking auto-unequips **and** clears the weapon from its own hotbar slot (see `Docs/Phases/P5_CombatCompletion.md` for why) |
+| `MeleeKnockbackStrength` | 0 | P5: `LaunchCharacter` impulse strength on a landed weapon-melee hit against an `ACharacter` target — physical-only, not a real stagger/AI state |
+| `FireKnockbackStrength` | 120 | Same, for a landed hitscan shot (`Server_Fire`) |
 
 ## Loadout Hotbar (`AZSPlayerCharacter`, Category `ZS|Loadout`)
 P5, 2026-07-21: player starts unarmed — nothing auto-equips at `BeginPlay` anymore. `StartingHotbarLoadout` (an `EditDefaultsOnly` array on the character/BP, same placeholder-content-reference spot `StartingWeaponConfig` used to occupy pre-P5) seeds a fixed 9-slot `HotbarSlots` array at `BeginPlay`. `SelectHotbarSlot`/`CycleHotbar` (bound to `HotbarSelectAction`/`HotbarCycleAction`, both **not yet created** as `.uasset`s) both route through `Server_SelectHotbarSlot`, which schedules `CompleteHotbarSwitch` after a delay and sets `bIsBusy` for its duration — a real weapon switch isn't instant. Re-selecting the already-equipped slot unequips back to bare-fist.
@@ -59,6 +65,7 @@ Bound to `IA_Attack` — `IA_Fire` is no longer separately bound (P5, 2026-07-21
 | `UnarmedMeleeAttackInterval` | 1s | Cooldown between swings |
 | `UnarmedMeleeDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a melee hit applies to a player target |
 | `UnarmedMeleeMontage` | unset | Cosmetic TP swing montage — no-op until authored |
+| `UnarmedMeleeKnockbackStrength` | 80 | P5, 2026-07-21: same `ApplyHitKnockback` weapon melee/gunfire use, given a bare-fist punch a little heft too |
 
 ## TopDown Camera (`AZSPlayerCharacter`, Category `ZS|Camera|TopDown`)
 | Property | Default | Effect |
@@ -114,6 +121,29 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `BehaviorTree` | unset | Assign `BT_Zombie` (`/Game/ZS/Enemy/AI/`) to activate - `RunBehaviorTree` no-ops until then |
 | `InvestigationDurationSeconds` | 10 | How long `AZombieAIController::StartInvestigationTimer` investigates a lost target's last known location before giving up |
 | `IdleDwellDurationSeconds` | 3 | How long `StartIdleDwell` pauses between wander moves |
+
+## Inventory (`UZSInventoryComponent`, Category `ZS|Inventory`) — built 2026-07-21, untested
+| Property | Default | Effect |
+|---|---|---|
+| `BaseCarryWeight` | 25 | `GetMaxCarryWeight()` before any equipped bag's `CarryCapacityBonus` |
+| `OverloadWeightRatio` | 1.5 | Weight ratio (current/max) at which `GetEncumbranceMultiplier()` bottoms out at `MinEncumbranceMultiplier` |
+| `MinEncumbranceMultiplier` | 0.5 | Movement-speed floor while badly overloaded — a soft penalty (folded into `AZSPlayerCharacter::UpdateMovementSpeed`), not a hard carry block |
+| `DropDistance` | 100 | How far in front of the owner `Server_DropItem` spawns the `AZSWorldItemActor` |
+
+## Per-Item Config (`UZSItemConfig`) — P6 fields added 2026-07-21
+| Field | Default | Effect |
+|---|---|---|
+| `Weight` | 0.5 | Per-unit weight, consumed by `UZSInventoryComponent::GetCurrentWeight()` |
+| `MaxStackSize` | 1 | How many stack per `FZSInventorySlot` — 1 = doesn't stack |
+| `bIsEquippable`/`EquipSlot`/`CarryCapacityBonus` | false / `None` / 0 | Whether this item claims one of the two resolved equip slots (`Back`/`Hip`) and how much carry capacity it grants while worn |
+| `Rarity` | `Common` | Consulted by the finite rarity-pool system (Rare/VeryRare only — see `AZSGameState` below) |
+| `WorldMesh` | unset | `AZSWorldItemActor`'s pickup mesh — unset is an invisible pickup, same "content not sourced yet" pattern as the zombie mesh |
+
+## Loot (`UZSLootTableConfig`, `AZSGameState`) — built 2026-07-21, untested
+| Property | Default | Effect |
+|---|---|---|
+| `UZSLootTableConfig::NumRolls` | 3 | How many weighted rolls a container makes across its `Entries` — can repeat the same entry |
+| `AZSGameState::RarityPoolEntries` | empty | Per-session budget for Rare/VeryRare items — unlisted items are ungated. See `Docs/GameDevPlan.md` §7 P6 for the resolved "global per-session, not per-zone" model |
 
 ## Not yet built / no tunables exist yet
 - Stage A locomotion state machine and its blend-space feeds — in progress, crouch pose bug open (see `SessionHandoff.md`).

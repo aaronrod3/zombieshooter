@@ -33,7 +33,8 @@ public class ZombieShooter : ModuleRules
 			"ZombieShooter/Weapons/Notifies",
 			"ZombieShooter/Zombies",
 			"ZombieShooter/Interaction",
-			"ZombieShooter/Survival"
+			"ZombieShooter/Survival",
+			"ZombieShooter/Inventory"
 		});
 
 		// Uncomment if you are using online features

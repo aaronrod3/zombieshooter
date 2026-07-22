@@ -142,6 +142,41 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loadout", meta = (ClampMin = "0"))
 	float EquipTimeSeconds = 0.75f;
 
+	// ---- Melee (P5: real per-weapon melee stats, used when AttackType == Melee - mirrors
+	// AZSPlayerCharacter's Unarmed* bare-fist fields exactly, one-for-one) ----
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (ClampMin = "0", EditCondition = "AttackType == EZSAttackType::Melee"))
+	float MeleeDamage = 35.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (ClampMin = "0", EditCondition = "AttackType == EZSAttackType::Melee"))
+	float MeleeRange = 180.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (ClampMin = "0.01", EditCondition = "AttackType == EZSAttackType::Melee"))
+	float MeleeAttackInterval = 0.9f;
+
+	/** Unset falls back to UZSDamageType_Laceration at the call site (Server_WeaponMeleeAttack) - same "unset = generic marker" pattern as FireDamageTypeClass. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (EditCondition = "AttackType == EZSAttackType::Melee"))
+	TSubclassOf<UDamageType> MeleeDamageTypeClass;
+
+	/** Cosmetic-only TP swing montage, played via the same Multicast_PlayTPActionMontage bare-fist melee already uses. Unset is a no-op. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (EditCondition = "AttackType == EZSAttackType::Melee"))
+	TObjectPtr<UAnimMontage> MeleeMontage;
+
+	/** How many landed hits this weapon survives before breaking (P5: "melee breaks, no repair sim v1" - GameDevPlan.md). 0 = unbreakable, the default for every config authored before this (guns, and any melee weapon that hasn't been tuned yet). Read by AZSWeapon::InitializeFromConfig to seed CurrentDurability. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (ClampMin = "0", EditCondition = "AttackType == EZSAttackType::Melee"))
+	int32 MaxDurabilityHits = 0;
+
+	// ---- Hit feedback (P5: simple physical knockback - not a full stagger/interrupt AI state,
+	// see Docs/Phases/P5_CombatCompletion.md for why that's out of scope for now) ----
+
+	/** LaunchCharacter impulse strength applied to a hit ACharacter target on a landed melee swing with this weapon. 0 = no knockback (the default, since most configs authored before this are guns and use FireKnockbackStrength instead). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Feedback", meta = (ClampMin = "0"))
+	float MeleeKnockbackStrength = 0.f;
+
+	/** Same as MeleeKnockbackStrength but for a landed hitscan shot (Server_Fire). Small non-zero default - a gunshot should visibly nudge, not launch. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Feedback", meta = (ClampMin = "0"))
+	float FireKnockbackStrength = 120.f;
+
 	// ---- Fire Modes ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fire Modes")

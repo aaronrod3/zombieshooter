@@ -53,6 +53,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
 	bool CanReload() const;
 
+	/** P5: durability-lite ("melee breaks, no repair sim v1" - GameDevPlan.md). Decrements CurrentDurability by one landed hit; returns true if that hit broke it (reached 0). No-op / always returns false for an unbreakable weapon (CurrentConfig->MaxDurabilityHits == 0, e.g. every gun) or off a non-authoritative machine. Called by AZSPlayerCharacter::Server_WeaponMeleeAttack after a landed swing - this class only tracks the number, the caller decides what "broken" means for the loadout (auto-unequip). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	bool Server_ConsumeDurabilityHit();
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	int32 GetCurrentDurability() const { return CurrentDurability; }
+
 	/** Transfers ammo reserve -> magazine synchronously. The reload montage that follows is purely cosmetic (see CoreLoopPlan.md Phase 2 "Key architecture decisions"). Gameplay execution point - overridable per-weapon. */
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void PerformReload();
@@ -97,6 +104,10 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentReserveAmmo, Category = "ZS|Weapon")
 	int32 CurrentReserveAmmo = 0;
+
+	/** P5: seeded from CurrentConfig->MaxDurabilityHits in InitializeFromConfig. Stays at 0 (and Server_ConsumeDurabilityHit stays a no-op) for an unbreakable weapon. No OnRep needed - nothing client-side reacts to durability yet (no UI), same "plain replicated state" reasoning as AZSGameState::UtilitiesShutoffDay. */
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "ZS|Weapon")
+	int32 CurrentDurability = 0;
 
 	/** Runs the same cosmetic assembly InitializeFromConfig() runs server-side - this is what makes a client's local proxy of this replicated actor actually look right, since clients never call InitializeFromConfig() themselves. Also refreshes the owning character's body mesh (Owner replicates natively). */
 	UFUNCTION()

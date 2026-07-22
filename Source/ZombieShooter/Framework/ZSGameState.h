@@ -7,10 +7,29 @@
 #include "ZSGameState.generated.h"
 
 class AZSPlayerCharacter;
+class UZSItemConfig;
 
 /** Broadcast on every OnRep_ below - lets Blueprint/UI/moodle widgets bind to state changes instead of polling, per CLAUDE.md's replication convention. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnTimeOfDayChanged, float, NewTimeOfDayHours, int32, NewDayCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnUtilitiesShutoff);
+
+/**
+ *  P6: authored per-session budget for one Rare/VeryRare UZSItemConfig - GameDevPlan.md §7 P6,
+ *  resolved 2026-07-21 (autonomous call, dev unavailable to consult, flagged for review): a
+ *  single global per-server-session counter, not per-zone (no zone system exists to key off yet).
+ */
+USTRUCT(BlueprintType)
+struct FZSRarityPoolEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|Loot")
+	TObjectPtr<UZSItemConfig> Item = nullptr;
+
+	/** How many of Item can still be granted this session. Decremented by Server_TryConsumeRarityPoolSlot, never regenerated - no restock in v1. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|Loot", meta = (ClampMin = "0"))
+	int32 RemainingCount = 1;
+};
 
 /**
  *  Replicated data relevant to every connected client, not specific to any one player.
@@ -79,7 +98,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|WorldClock")
 	bool IsSleepRequestPending() const { return bSleepRequestPending; }
 
+	// ---- P6: finite-world-count loot rarity pool (Docs/Phases/P6_InventoryLoot.md,
+	// GameDevPlan.md §7 P6) - lives here rather than on UZSLootTableConfig itself since it needs
+	// to be shared/consumed across every container in the session, and AZSGameState is the one
+	// place with that world-wide, single-instance visibility (same reasoning as sleep-readiness
+	// aggregation above). ----
+
+	/** Called by UZSLootTableConfig::RollLoot before granting a Rare/VeryRare roll. Returns false (without decrementing) if Item's RemainingCount is already 0; returns true (without decrementing anything) if Item isn't listed in RarityPoolEntries at all - unlisted means ungated/uncapped, same "unset = no restriction" convention used throughout this project (e.g. UZSWeaponConfig::MaxDurabilityHits == 0). Server-only. Not replicated - server-only bookkeeping nothing client-side reads yet (no loot UI exists). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Loot")
+	bool Server_TryConsumeRarityPoolSlot(UZSItemConfig* Item);
+
 protected:
+
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loot")
+	TArray<FZSRarityPoolEntry> RarityPoolEntries;
 
 	/** How many real-world seconds one full 24-hour game day takes. Lower = faster compression. PZ-style default: 1440s (24 real minutes) per game day. */
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|WorldClock", meta = (ClampMin = "1"))

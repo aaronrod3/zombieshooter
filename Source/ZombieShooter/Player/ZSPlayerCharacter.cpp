@@ -30,6 +30,7 @@
 #include "../Combat/ZSDamageTypes.h"
 #include "../Survival/ZSItemConfig.h"
 #include "../Zombies/ZSNoiseSystem.h"
+#include "../Inventory/ZSInventoryComponent.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/GameModeBase.h"
@@ -76,6 +77,7 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 
 	NeedsComponent = CreateDefaultSubobject<UZSNeedsComponent>(TEXT("NeedsComponent"));
 	HealthComponent = CreateDefaultSubobject<UZSHealthComponent>(TEXT("HealthComponent"));
+	InventoryComponent = CreateDefaultSubobject<UZSInventoryComponent>(TEXT("InventoryComponent"));
 
 	// Default Input Actions. AZSPlayerCharacter has no mandatory Blueprint child
 	// (see class comment), so these EditAnywhere references need a constructor-time
@@ -190,6 +192,14 @@ void AZSPlayerCharacter::BeginPlay()
 	{
 		HealthComponent->OnDeath.AddDynamic(this, &AZSPlayerCharacter::HandleDeath);
 		HealthComponent->OnBodyZonesChanged.AddDynamic(this, &AZSPlayerCharacter::HandleBodyZonesChanged);
+	}
+
+	// P6: encumbrance (InventoryComponent->GetEncumbranceMultiplier()) folds into the same
+	// UpdateMovementSpeed() call HealthComponent's mobility multiplier already drives - re-run it
+	// any time the carry list or equip slots change, same "recompute on change, don't poll" pattern.
+	if (InventoryComponent)
+	{
+		InventoryComponent->OnInventoryChanged.AddDynamic(this, &AZSPlayerCharacter::HandleInventoryChanged);
 	}
 }
 
@@ -1056,10 +1066,16 @@ void AZSPlayerCharacter::HandleBodyZonesChanged()
 	UpdateMovementSpeed();
 }
 
+void AZSPlayerCharacter::HandleInventoryChanged()
+{
+	UpdateMovementSpeed();
+}
+
 void AZSPlayerCharacter::UpdateMovementSpeed()
 {
 	const float MobilityMultiplier = HealthComponent ? HealthComponent->GetMobilityMultiplier() : 1.f;
-	GetCharacterMovement()->MaxWalkSpeed = (bIsSprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * MobilityMultiplier;
+	const float EncumbranceMultiplier = InventoryComponent ? InventoryComponent->GetEncumbranceMultiplier() : 1.f;
+	GetCharacterMovement()->MaxWalkSpeed = (bIsSprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * MobilityMultiplier * EncumbranceMultiplier;
 }
 
 EZSBodyZone AZSPlayerCharacter::BodyZoneFromBoneName(FName BoneName)
@@ -1307,6 +1323,7 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 
 			const FVector HitFromDirection = (Hit.ImpactPoint - TraceStart).GetSafeNormal();
 			UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Config->FireDamage, HitFromDirection, Hit, GetController(), this, DamageTypeClass);
+			ApplyHitKnockback(Hit.GetActor(), HitFromDirection, Config->FireKnockbackStrength);
 
 			// Temporary confirmation while no impact VFX/hit-reaction exists yet - remove once real
 			// feedback is built (same note as Server_MeleeAttack_Implementation).
@@ -1320,7 +1337,7 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 }
 
 // =====================================================================
-// P4/P5 - Attack input dispatch + bare-fist melee
+// P4/P5 - Attack input dispatch + melee
 // =====================================================================
 
 bool AZSPlayerCharacter::CanAttack() const
@@ -1339,9 +1356,8 @@ void AZSPlayerCharacter::HandleAttack()
 	// is an attack too, per P1's cursor-facing gate (IsCursorFacingActive).
 	LastCursorActionTime = GetWorld()->GetTimeSeconds();
 
-	// Dispatch on whatever's equipped - the partial P5 slice (full PrimaryHand/SecondaryHand
-	// loadout system not built yet, see the header comment above this section). No weapon, or a
-	// weapon whose config doesn't resolve, falls through to bare-fist below.
+	// Dispatch on whatever's equipped. No weapon, or a weapon whose config doesn't resolve, falls
+	// through to bare-fist below.
 	if (const UZSWeaponConfig* Config = CurrentWeapon ? CurrentWeapon->GetConfig() : nullptr)
 	{
 		if (Config->AttackType == EZSAttackType::Ranged)
@@ -1349,6 +1365,10 @@ void AZSPlayerCharacter::HandleAttack()
 			HandleFireStarted();
 			return;
 		}
+
+		// P5: real per-weapon melee stats now exist - no longer falls through to bare-fist.
+		Server_WeaponMeleeAttack();
+		return;
 	}
 
 	Server_MeleeAttack();
@@ -1360,17 +1380,25 @@ void AZSPlayerCharacter::HandleAttackStopped()
 	HandleFireStopped();
 }
 
-void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
+void AZSPlayerCharacter::ApplyHitKnockback(AActor* Target, const FVector& Direction, float Strength)
 {
-	if (!HasAuthority() || !CanAttack())
+	if (Strength <= 0.f)
 	{
 		return;
 	}
 
-	const float Now = GetWorld()->GetTimeSeconds();
-	if (Now - LastAttackTime < UnarmedMeleeAttackInterval)
+	if (ACharacter* TargetCharacter = Cast<ACharacter>(Target))
 	{
-		return;
+		TargetCharacter->LaunchCharacter(Direction * Strength, true, false);
+	}
+}
+
+bool AZSPlayerCharacter::PerformMeleeSwing(float Damage, float Range, float AttackInterval, TSubclassOf<UDamageType> DamageTypeClass, UAnimMontage* Montage, float KnockbackStrength)
+{
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Now - LastAttackTime < AttackInterval)
+	{
+		return false;
 	}
 
 	// ECC_Pawn object query, same pattern as UpdateNearestInteractable's ECC_WorldStatic/WorldDynamic
@@ -1379,7 +1407,7 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 
 	TArray<FOverlapResult> Overlaps;
-	const FCollisionShape Sphere = FCollisionShape::MakeSphere(UnarmedMeleeRange);
+	const FCollisionShape Sphere = FCollisionShape::MakeSphere(Range);
 	GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, ObjectQueryParams, Sphere);
 
 	AActor* BestTarget = nullptr;
@@ -1396,7 +1424,7 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 
 		const FVector ToCandidate = Candidate->GetActorLocation() - GetActorLocation();
 		const float DistSq = ToCandidate.SizeSquared();
-		if (DistSq > FMath::Square(UnarmedMeleeRange) || FVector::DotProduct(GetActorForwardVector(), ToCandidate.GetSafeNormal()) < 0.f)
+		if (DistSq > FMath::Square(Range) || FVector::DotProduct(GetActorForwardVector(), ToCandidate.GetSafeNormal()) < 0.f)
 		{
 			// Outside range, or behind the character (rear half of the sphere) - a melee swing is a forward-facing action.
 			continue;
@@ -1413,31 +1441,82 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 	{
 		// Temporary confirmation while no hit-reaction VFX/animations exist yet (see the on-screen
 		// message below) - remove both once real feedback (impact FX, hit-react montage) is built.
-		UE_LOG(LogZombieShooter, Log, TEXT("%s: bare-fist swing found no target in range"), *GetName());
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: melee swing found no target in range"), *GetName());
 		if (GEngine)
 		{
-			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Yellow, TEXT("Punch: no target in range"));
+			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Yellow, TEXT("Swing: no target in range"));
 		}
-		return;
+		return false;
 	}
 
 	LastAttackTime = Now;
 
-	Multicast_PlayTPActionMontage(UnarmedMeleeMontage);
+	Multicast_PlayTPActionMontage(Montage);
 
-	const TSubclassOf<UDamageType> DamageTypeClass = UnarmedMeleeDamageTypeClass
-		? UnarmedMeleeDamageTypeClass
+	const TSubclassOf<UDamageType> ActualDamageTypeClass = DamageTypeClass
+		? DamageTypeClass
 		: TSubclassOf<UDamageType>(UZSDamageType_Laceration::StaticClass());
 
 	const FVector HitDirection = (BestTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 	const FHitResult HitResult;
-	UGameplayStatics::ApplyPointDamage(BestTarget, UnarmedMeleeDamage, HitDirection, HitResult, GetController(), this, DamageTypeClass);
+	UGameplayStatics::ApplyPointDamage(BestTarget, Damage, HitDirection, HitResult, GetController(), this, ActualDamageTypeClass);
+	ApplyHitKnockback(BestTarget, HitDirection, KnockbackStrength);
 
 	// Same temporary-feedback note as above.
-	UE_LOG(LogZombieShooter, Log, TEXT("%s: bare-fist hit %s for %.1f damage"), *GetName(), *BestTarget->GetName(), UnarmedMeleeDamage);
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: melee hit %s for %.1f damage"), *GetName(), *BestTarget->GetName(), Damage);
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Green, FString::Printf(TEXT("Punch hit %s for %.0f"), *BestTarget->GetName(), UnarmedMeleeDamage));
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Green, FString::Printf(TEXT("Hit %s for %.0f"), *BestTarget->GetName(), Damage));
+	}
+
+	return true;
+}
+
+void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
+{
+	if (!HasAuthority() || !CanAttack())
+	{
+		return;
+	}
+
+	PerformMeleeSwing(UnarmedMeleeDamage, UnarmedMeleeRange, UnarmedMeleeAttackInterval, UnarmedMeleeDamageTypeClass, UnarmedMeleeMontage, UnarmedMeleeKnockbackStrength);
+}
+
+void AZSPlayerCharacter::Server_WeaponMeleeAttack_Implementation()
+{
+	if (!HasAuthority() || !CanAttack() || !CurrentWeapon || !CurrentWeapon->GetConfig())
+	{
+		return;
+	}
+
+	const UZSWeaponConfig* Config = CurrentWeapon->GetConfig();
+	const bool bHit = PerformMeleeSwing(Config->MeleeDamage, Config->MeleeRange, Config->MeleeAttackInterval, Config->MeleeDamageTypeClass, Config->MeleeMontage, Config->MeleeKnockbackStrength);
+
+	if (bHit && CurrentWeapon->Server_ConsumeDurabilityHit())
+	{
+		// Broke on this swing - P5's chosen v1 interpretation of "melee breaks": the weapon is
+		// gone, not temporarily disabled, so its own hotbar slot is cleared too (see the header
+		// comment on this function for why - durability lives on the AZSWeapon actor instance,
+		// re-selecting an un-cleared slot would just spawn a fresh one at full durability).
+		const FString BrokenWeaponName = Config->GetName();
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: %s broke"), *GetName(), *BrokenWeaponName);
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 2.f, FColor::Orange, FString::Printf(TEXT("%s broke!"), *BrokenWeaponName));
+		}
+
+		if (HotbarSlots.IsValidIndex(ActiveHotbarIndex))
+		{
+			HotbarSlots[ActiveHotbarIndex] = nullptr;
+			OnRep_HotbarSlots();
+		}
+
+		CurrentWeapon->Destroy();
+		CurrentWeapon = nullptr;
+		RefreshBodyMeshFromWeapon();
+		AttachWeaponToBodyMesh();
+		ActiveHotbarIndex = INDEX_NONE;
+		OnRep_ActiveHotbarIndex();
 	}
 }
 

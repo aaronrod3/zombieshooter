@@ -29,6 +29,7 @@ void AZSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	DOREPLIFETIME(AZSWeapon, CurrentFireMode);
 	DOREPLIFETIME(AZSWeapon, CurrentMagazineAmmo);
 	DOREPLIFETIME(AZSWeapon, CurrentReserveAmmo);
+	DOREPLIFETIME(AZSWeapon, CurrentDurability);
 }
 
 void AZSWeapon::InitializeFromConfig(UZSWeaponConfig* Config)
@@ -42,6 +43,7 @@ void AZSWeapon::InitializeFromConfig(UZSWeaponConfig* Config)
 
 	CurrentMagazineAmmo = Config->MagazineCapacity;
 	CurrentReserveAmmo = Config->StartingReserveAmmo;
+	CurrentDurability = Config->MaxDurabilityHits;
 
 	if (Config->SupportedFireModes.Num() > 0)
 	{
@@ -183,6 +185,19 @@ void AZSWeapon::PerformReload_Implementation()
 
 	CurrentMagazineAmmo += AmmoToTransfer;
 	CurrentReserveAmmo -= AmmoToTransfer;
+}
+
+bool AZSWeapon::Server_ConsumeDurabilityHit()
+{
+	if (!HasAuthority() || !CurrentConfig || CurrentConfig->MaxDurabilityHits <= 0)
+	{
+		// Unbreakable (durability system opted out via MaxDurabilityHits == 0, e.g. every gun) -
+		// never reaches (or goes below) 0, so this never reports "broken".
+		return false;
+	}
+
+	CurrentDurability = FMath::Max(CurrentDurability - 1, 0);
+	return CurrentDurability <= 0;
 }
 
 void AZSWeapon::CycleFireMode_Implementation()

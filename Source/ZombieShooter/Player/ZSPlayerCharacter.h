@@ -24,6 +24,7 @@ class UZSHealthComponent;
 class UZSItemConfig;
 class UDamageType;
 class USkeletalMesh;
+class UZSInventoryComponent;
 struct FInputActionValue;
 struct FDamageEvent;
 
@@ -518,7 +519,11 @@ protected:
 	UFUNCTION()
 	void HandleBodyZonesChanged();
 
-	/** Shared by OnRep_IsSprinting and HandleBodyZonesChanged - MaxWalkSpeed = (sprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * HealthComponent->GetMobilityMultiplier(). */
+	/** Bound to InventoryComponent->OnInventoryChanged in BeginPlay (P6) - re-applies MaxWalkSpeed whenever the carry list or equip slots change, same "recompute on change" reasoning as HandleBodyZonesChanged. */
+	UFUNCTION()
+	void HandleInventoryChanged();
+
+	/** Shared by OnRep_IsSprinting, HandleBodyZonesChanged, and HandleInventoryChanged - MaxWalkSpeed = (sprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * HealthComponent->GetMobilityMultiplier() * InventoryComponent->GetEncumbranceMultiplier(). */
 	void UpdateMovementSpeed();
 
 	/** Server-only, fired by RespawnTimerHandle after RespawnDelaySeconds. Destroys this (dead) pawn - AActor::Destroyed() auto-unpossesses the controller - then calls AGameModeBase::RestartPlayer, the engine's standard respawn flow (spawns a fresh AZSPlayerCharacter at a PlayerStart via DefaultPawnClass). A genuinely fresh character (new Needs/Health state), not the same one healed - matches the permadeath framing; deeper persistence (carried-over world/loot state) is P7, not this. */
@@ -549,6 +554,20 @@ protected:
 
 	UFUNCTION(Server, Reliable, Category = "ZS|Item")
 	void Server_UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone);
+
+	// =====================================================================
+	// P6 - Inventory (GameDevPlan.md P6, Docs/Phases/P6_InventoryLoot.md)
+	// =====================================================================
+
+public:
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	UZSInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
+
+protected:
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UZSInventoryComponent> InventoryComponent;
 
 	// =====================================================================
 	// Phase 2 - Action State
@@ -743,26 +762,21 @@ protected:
 	FTimerHandle AimBlockEndTimerHandle;
 
 	// =====================================================================
-	// P4/P5 - Attack input dispatch + bare-fist melee (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)
+	// P4/P5 - Attack input dispatch + melee (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)
 	// =====================================================================
 	// IA_Attack is ONE button whose effect depends on CurrentWeapon's UZSWeaponConfig::AttackType:
 	// Ranged routes to the existing Fire/auto-fire-timer machinery (HandleFireStarted/Stopped, no
-	// longer bound to IA_Fire directly); no weapon equipped (or AttackType::Melee - no melee
-	// UZSWeaponConfig instances exist to author yet) falls back to bare-fist Server_MeleeAttack
-	// below. This is a partial version of P5's full plan (GameDevPlan.md P5): the real loadout
-	// system (PrimaryHand/SecondaryHand/hotbar) doesn't exist yet, so "equipped" here just means
-	// CurrentWeapon - built now specifically because IA_Fire and IA_Attack being separately bound
-	// to the same key both firing at once was actively blocking testing. The Unarmed* tunables
-	// below are the bare-fist fallback specifically (a real per-weapon melee stat set on
-	// UZSWeaponConfig is P5 follow-up work, once a melee weapon actually needs authoring) - named
-	// Unarmed* so this doesn't need a second rename pass once that lands.
+	// longer bound to IA_Fire directly); a Melee-typed weapon routes to Server_WeaponMeleeAttack
+	// (real per-weapon stats, P5); no weapon equipped falls back to bare-fist Server_MeleeAttack
+	// (the Unarmed* tunables below). Both melee paths share PerformMeleeSwing - the actual
+	// overlap-scan/hit-application logic is identical between them, only the stats differ.
 
 public:
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
 	bool CanAttack() const;
 
-	/** Client-callable entry point, bound to AttackAction (IA_Attack) Started. Sets LastCursorActionTime (same as HandleFireStarted) so cursor-facing turns the character to face the attack, then dispatches on CurrentWeapon's AttackType: Ranged -> HandleFireStarted (starts the auto-fire timer for weapons that support it); no weapon / Melee -> Server_MeleeAttack (bare-fist, see the section comment above for why Melee shares this path today). */
+	/** Client-callable entry point, bound to AttackAction (IA_Attack) Started. Sets LastCursorActionTime (same as HandleFireStarted) so cursor-facing turns the character to face the attack, then dispatches on CurrentWeapon's AttackType: Ranged -> HandleFireStarted; Melee -> Server_WeaponMeleeAttack; no weapon -> Server_MeleeAttack (bare-fist). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
 	void HandleAttack();
 
@@ -772,9 +786,19 @@ public:
 
 protected:
 
-	/** Server-authoritative bare-fist melee: self-validates the UnarmedMeleeAttackInterval cooldown, then finds the nearest valid target (any Pawn-type actor within UnarmedMeleeRange and in front of the character, excluding self and other AZSPlayerCharacter instances - no PvP melee in v1) via a sphere overlap, same ECC_Pawn object-query pattern as UpdateNearestInteractable. Dead zombie corpses are excluded for free - AZombieCharacter::Die() disables collision, so they never appear in the overlap. Applies UnarmedMeleeDamage via UGameplayStatics::ApplyPointDamage - AZombieCharacter/AZSPlayerCharacter::TakeDamage each pick the hit up from there, no branch needed here. */
+	/** Server-authoritative bare-fist melee - reads the Unarmed* tunables below into PerformMeleeSwing. */
 	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
 	void Server_MeleeAttack();
+
+	/** Server-authoritative weapon melee (P5) - reads CurrentWeapon->GetConfig()'s Melee* fields into PerformMeleeSwing, then (on a landed hit) consumes one durability hit via CurrentWeapon->Server_ConsumeDurabilityHit(). If that breaks the weapon, it's unequipped AND cleared from its hotbar slot - "melee breaks" means gone, not temporarily disabled (a broken weapon left in HotbarSlots would just re-spawn at full durability the next time that slot's re-selected, since durability lives on the AZSWeapon actor instance, not on any persistent per-item state - no inventory-backed item-instance layer exists yet to track it more granularly than that). No-op if CurrentWeapon/its config is unset. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_WeaponMeleeAttack();
+
+	/** Shared by Server_MeleeAttack and Server_WeaponMeleeAttack: self-validates the AttackInterval cooldown against the single shared LastAttackTime (only one melee swing - bare-fist or weapon - can ever be in flight at once, so one cooldown clock is correct), then finds the nearest valid target (any Pawn-type actor within Range and in front of the character, excluding self and other AZSPlayerCharacter instances - no PvP melee in v1) via a sphere overlap, same ECC_Pawn object-query pattern as UpdateNearestInteractable. Dead zombie corpses are excluded for free - AZombieCharacter::Die() disables collision, so they never appear in the overlap. Applies Damage via UGameplayStatics::ApplyPointDamage and KnockbackStrength via ApplyHitKnockback on a hit. Returns whether a target was actually hit (callers use this to decide whether to consume durability, etc.). */
+	bool PerformMeleeSwing(float Damage, float Range, float AttackInterval, TSubclassOf<UDamageType> DamageTypeClass, UAnimMontage* Montage, float KnockbackStrength);
+
+	/** P5: simple physical hit-reaction, not a full stagger/interrupt AI state (see Docs/Phases/P5_CombatCompletion.md) - LaunchCharacter's Target away from Direction if Target is an ACharacter and Strength > 0. Shared by PerformMeleeSwing and Server_Fire. */
+	static void ApplyHitKnockback(AActor* Target, const FVector& Direction, float Strength);
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee", meta = (ClampMin = "0"))
 	float UnarmedMeleeDamage = 20.f;
@@ -785,13 +809,17 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee", meta = (ClampMin = "0.01"))
 	float UnarmedMeleeAttackInterval = 1.f;
 
-	/** Unset falls back to UZSDamageType_Laceration at the call site (Server_MeleeAttack) - same "unset = generic marker" pattern as UZSZombieConfig::AttackDamageTypeClass. */
+	/** Unset falls back to UZSDamageType_Laceration at the call site (PerformMeleeSwing) - same "unset = generic marker" pattern as UZSZombieConfig::AttackDamageTypeClass. */
 	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee")
 	TSubclassOf<UDamageType> UnarmedMeleeDamageTypeClass;
 
 	/** Cosmetic-only TP montage, played via the existing Multicast_PlayTPActionMontage - unset is a no-op like every other optional montage field in this project. */
 	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee")
 	TObjectPtr<UAnimMontage> UnarmedMeleeMontage;
+
+	/** P5: same simple knockback ApplyHitKnockback applies for weapon melee/gunfire, given a bare-fist punch a little heft too. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee", meta = (ClampMin = "0"))
+	float UnarmedMeleeKnockbackStrength = 80.f;
 
 	float LastAttackTime = -1000.f;
 };

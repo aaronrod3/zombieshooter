@@ -168,3 +168,27 @@ void AZSGameState::UpdateSleepRequestState()
 	bSleepRequestPending = false;
 	PendingSleepHours = 0.f;
 }
+
+bool AZSGameState::Server_TryConsumeRarityPoolSlot(UZSItemConfig* Item)
+{
+	if (!HasAuthority() || !Item)
+	{
+		return false;
+	}
+
+	for (FZSRarityPoolEntry& Entry : RarityPoolEntries)
+	{
+		if (Entry.Item == Item)
+		{
+			if (Entry.RemainingCount <= 0)
+			{
+				return false;
+			}
+			--Entry.RemainingCount;
+			return true;
+		}
+	}
+
+	// Not listed at all - ungated, always succeeds.
+	return true;
+}
