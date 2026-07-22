@@ -25,12 +25,41 @@ You asked me to "thoroughly plan the inventory, loadout, and player equipping it
 - First full P3+P4 integration proof, PIE-confirmed (2026-07-21, follow-up #7): zombie chase → melee → damage → infection roll all worked end-to-end. Your character from that test is still `Incubating` on a Torso wound.
 - **Known gap, flagged not fixed, deprioritized three times now**: `AZombieCharacter::Server_MeleeAttack` passes a blank `FHitResult`, so every zombie bite lands on Torso unconditionally - amputation's infection-clearing path (Arms/Legs only) is unreachable from a real bite. See `Docs/Phases/P3_HealthDamageMedical.md`.
 
-## Next step
+## Testing checklist (2026-07-22) — do this before the next session
 
-1. **Read the two new planning docs** (`Docs/Planning/`) and answer their open-questions sections - both are written so you can skim straight to "Open Questions" at the end of each if you don't want the full reasoning first.
-2. **Decide whether to greenlight the item-instance refactor** (`InventoryLoadoutEquipping_Plan.md` §5/§8) before any more P6 content gets authored against the current `FZSInventorySlot` shape - the longer content gets built on the current model, the more there is to migrate later.
-3. **Compile last round's P5/P6 code** (see above) - still the actual blocker on any hands-on testing.
-4. **Or** continue P3 testing on your `Incubating` character (treatment items, infection progression toward `Queasy`).
-5. **Or** fix the zombie bite zone-targeting gap.
-6. Carried forward, still open: `BT_Zombie`'s wander branch has zero children; `BP_ZombieAIController`'s fate (unused); crouch pose bug; remove temporary hit-confirmation logging once real impact feedback exists.
-7. **Standing practice**: "Compile All Blueprints" after any Live Coding patch, before trusting PIE.
+This is the consolidated list of everything that needs your hands (compiling, in-editor content, PIE) before we can move forward. Nothing here can be done unsupervised, which is why it queued up across two overnight rounds. Roughly in dependency order — each numbered group assumes the one before it passed.
+
+### 0. Setup (blocking everything else)
+- [ ] **Compile** `ZombieShooterEditor Win64 Development` via Rider/VS or `Build.bat` (PowerShell, not Bash, not Ctrl+Alt+F11 - this round touched headers on `AZSPlayerCharacter`/`AZSWeapon`/`AZSGameState`/`UZSItemConfig` plus brand-new UCLASSes, exactly the kind of round the Live Coding lesson warns about).
+- [ ] **Compile All Blueprints** (Content Browser bulk action) after a clean compile, before trusting anything below in PIE.
+- [ ] Create `IA_HotbarSelect` (Axis1D; map `Digit1`-`Digit9` in `IMC_ZS_Default`, each with a Scalar modifier of 1-9) and `IA_HotbarCycle` (Axis1D; mouse wheel) - both referenced by name already, both currently missing as assets.
+- [ ] Re-author `BP_ZS_PlayerCharacter`'s `StartingHotbarLoadout` (new array field - the old single `StartingWeaponConfig` field is gone). Put **at least two different weapon configs** in it so switching/cycling is actually testable, not just a one-slot no-op.
+
+### 1. P5 — Loadout & combat
+- [ ] **Start unarmed**: spawn in PIE, confirm no weapon and the bare-fist body mesh (not a leftover gun-holding mesh).
+- [ ] **Number-key equip**: press a hotbar number with a weapon in it, confirm a visible delay (`EquipTimeSeconds`) before the weapon actually appears/attaches - it shouldn't be instant.
+- [ ] **Unequip toggle**: press the *same* number again, confirm it un-equips back to bare-fist (with `UnequipTimeSeconds`'s delay), not a re-equip.
+- [ ] **Scroll cycling**: `IA_HotbarCycle` moves between your authored slots, skipping empty ones, wrapping around at the ends.
+- [ ] **Attack dispatch per weapon type**: `IA_Attack` fires the gun when a `Ranged` weapon's equipped (unchanged from before), swings bare-fist when nothing's equipped (unchanged), and - **this is new** - uses the weapon's own `MeleeDamage`/`MeleeRange`/etc. when a `Melee`-typed weapon is equipped. No melee weapon config has been authored yet (see `Docs/Phases/P5_CombatCompletion.md`), so to test this branch at all you'll need to temporarily flip an existing config's `AttackType` to `Melee`, or author a placeholder one.
+- [ ] **Durability**: with `MaxDurabilityHits` set on a test weapon, land enough melee hits to break it - confirm it auto-unequips, and confirm re-selecting that same hotbar slot does **not** bring it back (the slot should now be empty, not silently re-spawn a fresh weapon).
+- [ ] **Knockback**: confirm a melee/ranged hit visibly shoves the target (zombie) backward.
+- [ ] **Busy-gating**: try attacking or switching hotbar slots while a switch is already in progress - both should be no-ops until the current switch finishes.
+
+### 2. P6 — Inventory & loot (needs content first - none exists yet)
+- [ ] Author at least one `DA_ZS_ItemConfig_*` (any simple carry item is enough to start), one `DA_ZS_LootTableConfig_*` referencing it, and place one `AZSContainerActor` + one `AZSWorldItemActor` (or a dropped item) in your test level.
+- [ ] **World pickup**: interact with a placed/dropped `AZSWorldItemActor`, confirm the item lands in your carry list and the actor disappears.
+- [ ] **Drop**: drop an item from your inventory, confirm a new `AZSWorldItemActor` spawns in front of you and the item leaves your carry list.
+- [ ] **Container loot-all**: interact with a container, confirm everything in it transfers to you and it stops being interactable once empty.
+- [ ] **Encumbrance**: carry enough weight to exceed capacity, confirm movement visibly slows.
+- [ ] **Equip slots**: equip a `bIsEquippable` item into `Back` or `Hip`, confirm its `CarryCapacityBonus` actually raises your max carry weight.
+- [ ] **Rarity pool** (optional, only if you set up a `Rare`/`VeryRare` item with a `RarityPoolEntries` budget on `AZSGameState`): loot it enough times to exhaust the pool, confirm it stops being granted afterward.
+
+### 3. Carried forward from earlier rounds
+- [ ] Continue P3 testing on your `Incubating` character - treatment items (`Server_UseItem` paths: bandage/disinfect/splint) and/or letting the infection clock progress toward `Queasy`.
+- [ ] Zombie bite zone-targeting gap is still open (every bite lands on Torso) - not something to "test," just a known reproduction if you want to re-confirm it before it's fixed.
+
+### Not a test - a reading task
+- [ ] Read `Docs/Planning/InventoryLoadoutEquipping_Plan.md` and `Docs/Planning/UI_Plan.md`, answer their **Open Questions** sections. The item-instance refactor proposed there gets more expensive to do the more P6 content gets authored against today's shape - worth deciding before you sink much time into §2 above.
+
+## Other still-open items (lower priority, no action needed yet)
+- `BT_Zombie`'s wander branch has zero children; `BP_ZombieAIController`'s fate (unused) undecided; crouch pose bug untouched; temporary hit-confirmation logging still needs removing once real impact feedback exists.
