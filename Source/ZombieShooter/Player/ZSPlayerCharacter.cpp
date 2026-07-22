@@ -132,6 +132,16 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	// finder degrades safely (SleepAction stays null, binding below is skipped) until it does.
 	static ConstructorHelpers::FObjectFinder<UInputAction> SleepActionFinder(TEXT("/Game/ZS/Input/IA_Sleep.IA_Sleep"));
 	if (SleepActionFinder.Succeeded()) { SleepAction = SleepActionFinder.Object; }
+
+	// P5 actions - same graceful-if-missing pattern as above; neither exists yet as of this commit,
+	// need manual creation in-editor (IA_HotbarSelect as Axis1D with per-digit-key Scalar modifiers
+	// in IMC_ZS_Default, IA_HotbarCycle as Axis1D bound to the mouse wheel) - the finders degrade
+	// safely (both stay null, bindings below are skipped) until then.
+	static ConstructorHelpers::FObjectFinder<UInputAction> HotbarSelectActionFinder(TEXT("/Game/ZS/Input/IA_HotbarSelect.IA_HotbarSelect"));
+	if (HotbarSelectActionFinder.Succeeded()) { HotbarSelectAction = HotbarSelectActionFinder.Object; }
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> HotbarCycleActionFinder(TEXT("/Game/ZS/Input/IA_HotbarCycle.IA_HotbarCycle"));
+	if (HotbarCycleActionFinder.Succeeded()) { HotbarCycleAction = HotbarCycleActionFinder.Object; }
 }
 
 void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -139,6 +149,8 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AZSPlayerCharacter, CurrentWeapon);
+	DOREPLIFETIME(AZSPlayerCharacter, HotbarSlots);
+	DOREPLIFETIME(AZSPlayerCharacter, ActiveHotbarIndex);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsBusy);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsAimingBlocked);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsAiming);
@@ -152,11 +164,26 @@ void AZSPlayerCharacter::BeginPlay()
 
 	BaseWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 
+	// P5: cache the CDO/BP-authored body mesh before anything is ever equipped - since nothing
+	// auto-equips anymore (see below), GetMesh()'s mesh at this exact point *is* the correct
+	// unarmed body mesh, and RefreshBodyMeshFromWeapon() restores it whenever CurrentWeapon is null.
+	if (USkeletalMeshComponent* BodyMesh = GetMesh())
+	{
+		UnarmedBodyMesh = BodyMesh->GetSkeletalMeshAsset();
+	}
+
 	ApplyCameraPerspective(CurrentCameraPerspective);
 
-	if (StartingWeaponConfig)
+	// P5: the player starts unequipped by design (GameDevPlan.md P5) - nothing is auto-equipped at
+	// BeginPlay anymore (StartingWeaponConfig's old auto-equip behavior is retired in favor of the
+	// hotbar below). HasAuthority()-only: HotbarSlots itself replicates the result to clients.
+	if (HasAuthority())
 	{
-		EquipWeapon(StartingWeaponConfig);
+		HotbarSlots.Init(nullptr, NumHotbarSlots);
+		for (int32 SlotIndex = 0; SlotIndex < StartingHotbarLoadout.Num() && SlotIndex < NumHotbarSlots; ++SlotIndex)
+		{
+			HotbarSlots[SlotIndex] = StartingHotbarLoadout[SlotIndex];
+		}
 	}
 
 	if (HealthComponent)
@@ -237,6 +264,20 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		if (SleepAction)
 		{
 			EnhancedInputComponent->BindAction(SleepAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::ToggleSleepReady);
+		}
+
+		if (HotbarSelectAction)
+		{
+			// Started, not Triggered - digit keys are digital presses (mapped to a 1-9 Axis1D value
+			// via per-key Scalar modifiers), same "fire once per press" intent as CrouchAction/SprintAction.
+			EnhancedInputComponent->BindAction(HotbarSelectAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleHotbarSelect);
+		}
+
+		if (HotbarCycleAction)
+		{
+			// Triggered, not Started - a mouse wheel tick is a momentary Axis1D value with no natural
+			// Started/Completed pair (it returns to zero the next frame on its own).
+			EnhancedInputComponent->BindAction(HotbarCycleAction, ETriggerEvent::Triggered, this, &AZSPlayerCharacter::HandleHotbarCycle);
 		}
 	}
 	else
@@ -350,6 +391,12 @@ void AZSPlayerCharacter::RefreshBodyMeshFromWeapon()
 	// and OnRep_CurrentWeapon (clients).
 	if (!CurrentWeapon || !CurrentWeapon->GetConfig())
 	{
+		// P5: no weapon (bare-fist, e.g. after CompleteHotbarSwitch unequips) - revert to the
+		// mesh cached at BeginPlay rather than leaving whatever the last-equipped weapon's TP_Mesh was.
+		if (UnarmedBodyMesh)
+		{
+			GetMesh()->SetSkeletalMesh(UnarmedBodyMesh);
+		}
 		return;
 	}
 
@@ -359,6 +406,142 @@ void AZSPlayerCharacter::RefreshBodyMeshFromWeapon()
 	{
 		GetMesh()->SetSkeletalMesh(Config->TP_Mesh);
 	}
+}
+
+// =====================================================================
+// P5 - Loadout: real-time hotbar
+// =====================================================================
+
+void AZSPlayerCharacter::SelectHotbarSlot(int32 SlotIndex)
+{
+	if (!CanSwitchLoadout() || !HotbarSlots.IsValidIndex(SlotIndex))
+	{
+		return;
+	}
+
+	Server_SelectHotbarSlot(SlotIndex);
+}
+
+void AZSPlayerCharacter::CycleHotbar(int32 Direction)
+{
+	if (!CanSwitchLoadout() || Direction == 0 || HotbarSlots.Num() == 0)
+	{
+		return;
+	}
+
+	const int32 Step = Direction > 0 ? 1 : -1;
+	const int32 NumSlots = HotbarSlots.Num();
+
+	// Scans up to NumSlots steps from the current index for the next non-empty slot, wrapping - so
+	// scrolling always lands on a real weapon (or silently gives up if the whole hotbar is empty)
+	// instead of stopping on a gap.
+	int32 Candidate = ActiveHotbarIndex;
+	for (int32 Attempt = 0; Attempt < NumSlots; ++Attempt)
+	{
+		Candidate = (Candidate + Step + NumSlots) % NumSlots;
+		if (HotbarSlots[Candidate])
+		{
+			Server_SelectHotbarSlot(Candidate);
+			return;
+		}
+	}
+}
+
+bool AZSPlayerCharacter::CanSwitchLoadout() const
+{
+	// Same bIsBusy gate CanAttack()/CanFire()/CanReload() already use - blocks starting a switch
+	// mid-swing/mid-shot/mid-reload, and (since CompleteHotbarSwitch's own window also sets
+	// bIsBusy) blocks starting a second switch mid-switch.
+	return !bIsBusy;
+}
+
+void AZSPlayerCharacter::HandleHotbarSelect(const FInputActionValue& Value)
+{
+	const int32 OneBasedSlot = FMath::RoundToInt(Value.Get<float>());
+	if (OneBasedSlot < 1 || OneBasedSlot > NumHotbarSlots)
+	{
+		return;
+	}
+
+	SelectHotbarSlot(OneBasedSlot - 1);
+}
+
+void AZSPlayerCharacter::HandleHotbarCycle(const FInputActionValue& Value)
+{
+	const float RawValue = Value.Get<float>();
+	if (FMath::IsNearlyZero(RawValue))
+	{
+		return;
+	}
+
+	CycleHotbar(RawValue > 0.f ? 1 : -1);
+}
+
+void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
+{
+	if (!HasAuthority() || !CanSwitchLoadout() || !HotbarSlots.IsValidIndex(SlotIndex))
+	{
+		return;
+	}
+
+	// Re-selecting the already-equipped slot toggles back to bare-fist instead of re-equipping.
+	const bool bUnequipping = (SlotIndex == ActiveHotbarIndex);
+	UZSWeaponConfig* TargetConfig = bUnequipping ? nullptr : HotbarSlots[SlotIndex].Get();
+
+	if (!TargetConfig && !bUnequipping)
+	{
+		// Selecting an already-empty, not-currently-active slot - nothing to equip and nothing to
+		// unequip either.
+		return;
+	}
+
+	const float SwitchDelay = TargetConfig ? FMath::Max(TargetConfig->EquipTimeSeconds, 0.f) : UnequipTimeSeconds;
+	const int32 PendingIndex = bUnequipping ? INDEX_NONE : SlotIndex;
+
+	SetBusy(true);
+
+	FTimerDelegate SwitchDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::CompleteHotbarSwitch, PendingIndex);
+	GetWorldTimerManager().SetTimer(HotbarSwitchTimerHandle, SwitchDelegate, FMath::Max(SwitchDelay, 0.01f), false);
+}
+
+void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (PendingIndex == INDEX_NONE || !HotbarSlots.IsValidIndex(PendingIndex) || !HotbarSlots[PendingIndex])
+	{
+		// Unequip to bare-fist - mirrors EquipWeapon's own "server calls the client-side counterpart
+		// logic directly, since OnRep never fires on the authoring machine itself" pattern.
+		if (CurrentWeapon)
+		{
+			CurrentWeapon->Destroy();
+			CurrentWeapon = nullptr;
+			RefreshBodyMeshFromWeapon();
+			AttachWeaponToBodyMesh();
+		}
+		ActiveHotbarIndex = INDEX_NONE;
+	}
+	else
+	{
+		EquipWeapon(HotbarSlots[PendingIndex]);
+		ActiveHotbarIndex = PendingIndex;
+	}
+
+	OnRep_ActiveHotbarIndex();
+	SetBusy(false);
+}
+
+void AZSPlayerCharacter::OnRep_HotbarSlots()
+{
+	OnHotbarSlotsChanged.Broadcast();
+}
+
+void AZSPlayerCharacter::OnRep_ActiveHotbarIndex()
+{
+	OnActiveHotbarIndexChanged.Broadcast(ActiveHotbarIndex);
 }
 
 // =====================================================================

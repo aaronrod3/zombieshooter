@@ -13,7 +13,7 @@ AZSGameMode::AZSGameMode()
 	PlayerStateClass = AZSPlayerState::StaticClass();
 	PlayerControllerClass = AZSPlayerController::StaticClass();
 
-	// Phase 2 M6: prefer the thin BP_ZS_PlayerCharacter (sets StartingWeaponConfig) if it
+	// Phase 2 M6: prefer the thin BP_ZS_PlayerCharacter (sets StartingHotbarLoadout, P5) if it
 	// exists, falling back to the raw native class otherwise - see CoreLoopPlan.md Phase 2's
 	// "Key architecture decisions" for why a Blueprint child was introduced here specifically
 	// (a designer-tunable content default, unlike the Input System asset references that stay

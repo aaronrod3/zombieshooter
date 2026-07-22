@@ -136,6 +136,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack Dispatch")
 	EZSAttackType AttackType = EZSAttackType::Ranged;
 
+	// ---- Loadout (P5: real-time hotbar, AZSPlayerCharacter::Server_SelectHotbarSlot) ----
+
+	/** How long switching the hotbar to this weapon takes (SetBusy(true) for the duration, same choreography pattern as reload) - GameDevPlan.md P5's "equip/holster/switch takes real time, not instant". No separate holster-then-equip phases yet (v1 simplification, see Docs/Phases/P5_CombatCompletion.md) - this single delay covers both directions. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loadout", meta = (ClampMin = "0"))
+	float EquipTimeSeconds = 0.75f;
+
 	// ---- Fire Modes ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fire Modes")

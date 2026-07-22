@@ -23,6 +23,7 @@ class UZSNeedsComponent;
 class UZSHealthComponent;
 class UZSItemConfig;
 class UDamageType;
+class USkeletalMesh;
 struct FInputActionValue;
 struct FDamageEvent;
 
@@ -32,6 +33,10 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnBoolStateChanged, bool, bNewValue);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnWeaponChanged, AZSWeapon*, NewWeapon);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnNearestInteractableChanged, UZSInteractableComponent*, NewInteractable);
+/** P5: broadcast by OnRep_ActiveHotbarIndex - a hotbar UI binds this to highlight the active slot without polling. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnActiveHotbarIndexChanged, int32, NewIndex);
+/** P5: broadcast by OnRep_HotbarSlots - a hotbar UI binds this to refresh its slot icons without polling. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnHotbarChanged);
 
 /**
  *  The player-controlled character for ZombieShooter. Kept non-abstract (no mandatory
@@ -111,6 +116,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> SleepAction;
 
+	// ---- P5 Input Actions (loadout hotbar) ----
+
+	/** Axis1D - dev-authored IMC maps Digit1..Digit9 to this one action, each key applying a Scalar modifier of 1..9, so HandleHotbarSelect reads a single float and converts to a 0-based slot index. Same graceful-if-missing pattern as every other action here. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> HotbarSelectAction;
+
+	/** Axis1D - mouse wheel. Sign of the value picks cycle direction; see HandleHotbarCycle. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> HotbarCycleAction;
+
 public:
 
 	/** Constructor */
@@ -177,7 +192,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Weapon")
 	FZSOnWeaponChanged OnWeaponChanged;
 
-	/** Assigns GetMesh() from CurrentWeapon->GetConfig()->TP_Mesh - the client-side counterpart to EquipWeapon's body-mesh assignment, since EquipWeapon itself only ever runs on the server. Called from OnRep_CurrentWeapon and (cross-class, hence public) from AZSWeapon::OnRep_CurrentConfig. */
+	/** Assigns GetMesh() from CurrentWeapon->GetConfig()->TP_Mesh if CurrentWeapon is set, else restores UnarmedBodyMesh (P5: switching to bare-fist via the hotbar needs a body mesh to revert to too, not just a silent no-op) - the client-side counterpart to EquipWeapon's body-mesh assignment, since EquipWeapon itself only ever runs on the server. Called from OnRep_CurrentWeapon and (cross-class, hence public) from AZSWeapon::OnRep_CurrentConfig. */
 	void RefreshBodyMeshFromWeapon();
 
 	/** Attaches CurrentWeapon to GetMesh() at Config->SocketGunAttachment. Public (cross-class): also called from AZSWeapon::OnRep_CurrentConfig, since CurrentWeapon and AZSWeapon::CurrentConfig can replicate to a client in either order - both OnReps call this and RefreshBodyMeshFromWeapon redundantly so whichever arrives second completes the setup. */
@@ -185,15 +200,93 @@ public:
 
 protected:
 
-	/** Weapon equipped on BeginPlay if set. A thin BP_ZS_PlayerCharacter (Phase 2 M6) is the intended place to set this, not this class's own defaults. */
-	UPROPERTY(EditDefaultsOnly, Category = "ZS|Weapon")
-	TObjectPtr<UZSWeaponConfig> StartingWeaponConfig;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentWeapon, Category = "ZS|Weapon")
 	TObjectPtr<AZSWeapon> CurrentWeapon;
 
 	UFUNCTION()
 	void OnRep_CurrentWeapon();
+
+	/** Cached at BeginPlay, before anything is ever equipped (the player now starts unarmed - see the Loadout section below) - GetMesh()'s CDO/BP-authored skeletal mesh at that point *is* the correct unarmed body mesh. RefreshBodyMeshFromWeapon() restores this whenever CurrentWeapon is null (no weapon config to read a TP_Mesh from). Not replicated - each machine's own BeginPlay caches the same class/BP-authored default independently. */
+	UPROPERTY()
+	TObjectPtr<USkeletalMesh> UnarmedBodyMesh;
+
+	// =====================================================================
+	// P5 - Loadout: real-time hotbar (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)
+	// =====================================================================
+	// CurrentWeapon above *is* the PrimaryHand slot IA_Attack dispatches on - this section adds what
+	// fills it in real time. A fixed 9-slot hotbar of weapon-config references stands in for P6's
+	// real UZSInventoryComponent, which doesn't exist yet (same "author a reference directly on the
+	// character/BP" placeholder pattern StartingWeaponConfig used before this - StartingHotbarLoadout
+	// below is its direct replacement, an array instead of a single field). Switching slots isn't
+	// instant - Server_SelectHotbarSlot schedules the actual EquipWeapon call after the target
+	// config's EquipTimeSeconds (or UnequipTimeSeconds when switching to bare-fist), gated by the
+	// same bIsBusy the reload/melee/fire paths already respect - one busy window covers both
+	// holster-old and equip-new (v1 simplification; no equip montage content exists yet to justify a
+	// real two-phase notify-driven version, same as BeginBusyAction's reload window). Re-selecting
+	// the already-equipped slot unequips back to bare-fist (a toggle, not a separate "unequip"
+	// input/key). SecondaryHand (the independently-usable offhand slot from GameDevPlan.md P5's
+	// resolved design) is deliberately NOT built here - how its own action gets triggered is still
+	// an open, unresolved design question (GameDevPlan.md §7), so a slot with no way to use it would
+	// just be dead code.
+
+public:
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
+	int32 GetActiveHotbarIndex() const { return ActiveHotbarIndex; }
+
+	/** Client-callable entry point, bound to HotbarSelectAction. SlotIndex is already 0-based (HandleHotbarSelect converts from the input's 1-9 value). No-op if mid-switch (CanSwitchLoadout) or out of range. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Loadout")
+	void SelectHotbarSlot(int32 SlotIndex);
+
+	/** Client-callable entry point, bound to HotbarCycleAction. Positive Direction cycles toward higher indices, negative toward lower - skips empty slots (never lands on a no-op gap), wraps around, no-ops if the whole hotbar is empty. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Loadout")
+	void CycleHotbar(int32 Direction);
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
+	FZSOnActiveHotbarIndexChanged OnActiveHotbarIndexChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
+	FZSOnHotbarChanged OnHotbarSlotsChanged;
+
+protected:
+
+	static constexpr int32 NumHotbarSlots = 9;
+
+	/** Placeholder for P6's real inventory (see the section comment above) - authored directly on the character/BP, same spot StartingWeaponConfig used to occupy. Copied into HotbarSlots (clamped to NumHotbarSlots) at BeginPlay; editing this after BeginPlay has no effect. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loadout")
+	TArray<TObjectPtr<UZSWeaponConfig>> StartingHotbarLoadout;
+
+	/** Always exactly NumHotbarSlots elements (nulls for empty slots) once BeginPlay runs, regardless of how many entries StartingHotbarLoadout authored - so every number key 1-9 is always a valid target. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_HotbarSlots, Category = "ZS|Loadout")
+	TArray<TObjectPtr<UZSWeaponConfig>> HotbarSlots;
+
+	UFUNCTION()
+	void OnRep_HotbarSlots();
+
+	/** INDEX_NONE (bare-fist/unarmed) or 0..NumHotbarSlots-1. The authoritative record of which hotbar slot CurrentWeapon corresponds to - needed so re-pressing the same number toggles unequip rather than re-equipping the same weapon. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ActiveHotbarIndex, Category = "ZS|Loadout")
+	int32 ActiveHotbarIndex = INDEX_NONE;
+
+	UFUNCTION()
+	void OnRep_ActiveHotbarIndex();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
+	void Server_SelectHotbarSlot(int32 SlotIndex);
+
+	/** Timer callback for both directions - PendingIndex is INDEX_NONE for "finish unequipping to bare-fist", otherwise a valid HotbarSlots index to actually EquipWeapon(). Server-only (only ever scheduled from Server_SelectHotbarSlot, which already gates on HasAuthority()). */
+	void CompleteHotbarSwitch(int32 PendingIndex);
+
+	/** Shared no-op guard for SelectHotbarSlot/CycleHotbar's input handlers and Server_SelectHotbarSlot itself - same bIsBusy gate CanAttack()/CanFire()/CanReload() already use, so a hotbar switch can't be started mid-swing, mid-shot, or mid-reload, and a second switch can't be started mid-switch. */
+	bool CanSwitchLoadout() const;
+
+	void HandleHotbarSelect(const FInputActionValue& Value);
+	void HandleHotbarCycle(const FInputActionValue& Value);
+
+	/** Flat fallback used when CompleteHotbarSwitch has no destination config to read EquipTimeSeconds from (switching to bare-fist has no UZSWeaponConfig involved). */
+	UPROPERTY(EditAnywhere, Category = "ZS|Loadout", meta = (ClampMin = "0"))
+	float UnequipTimeSeconds = 0.4f;
+
+	FTimerHandle HotbarSwitchTimerHandle;
 
 	// =====================================================================
 	// Phase 2 - Camera / Perspective

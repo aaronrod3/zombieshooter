@@ -39,9 +39,18 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `FireRange` | 5000 | P4: hitscan trace distance from `SocketMuzzle` (falls back to eye height if the socket's missing) |
 | `FireDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a gunshot applies to a player target |
 | `AttackType` | `Ranged` | P5: which half of `IA_Attack`'s dispatch this weapon uses (`ZSWeaponTypes.h`'s `EZSAttackType`) — `Ranged` routes to `Server_Fire`, `Melee` currently falls back to the bare-fist stats below (no melee-specific weapon fields exist yet) |
+| `EquipTimeSeconds` | 0.75s | P5: how long switching the hotbar to this weapon takes (`Server_SelectHotbarSlot` → `CompleteHotbarSwitch`) — `SetBusy(true)` for the duration, same choreography pattern as reload |
+
+## Loadout Hotbar (`AZSPlayerCharacter`, Category `ZS|Loadout`)
+P5, 2026-07-21: player starts unarmed — nothing auto-equips at `BeginPlay` anymore. `StartingHotbarLoadout` (an `EditDefaultsOnly` array on the character/BP, same placeholder-content-reference spot `StartingWeaponConfig` used to occupy pre-P5) seeds a fixed 9-slot `HotbarSlots` array at `BeginPlay`. `SelectHotbarSlot`/`CycleHotbar` (bound to `HotbarSelectAction`/`HotbarCycleAction`, both **not yet created** as `.uasset`s) both route through `Server_SelectHotbarSlot`, which schedules `CompleteHotbarSwitch` after a delay and sets `bIsBusy` for its duration — a real weapon switch isn't instant. Re-selecting the already-equipped slot unequips back to bare-fist.
+
+| Property | Default | Effect |
+|---|---|---|
+| `UnequipTimeSeconds` | 0.4s | Switch delay when the destination is bare-fist (no `UZSWeaponConfig` to read `EquipTimeSeconds` from) |
+| `NumHotbarSlots` | 9 (`static constexpr`, not editable) | Fixed hotbar size — every number key 1-9 is always a valid target, empty or not |
 
 ## Player Unarmed Melee (`AZSPlayerCharacter`, Category `ZS|Combat|Melee`)
-Bound to `IA_Attack` — `IA_Fire` is no longer separately bound (P5, 2026-07-21: both on the same key was double-triggering fire+melee). `HandleAttack` dispatches on `CurrentWeapon`'s `AttackType`: `Ranged` fires; no weapon or `Melee` uses these bare-fist stats. This is the "unarmed" fallback the full loadout system (`Docs/Phases/P5_CombatCompletion.md`) will keep once `PrimaryHand`/`SecondaryHand` exist — named `Unarmed*` for that reason, not a temporary name.
+Bound to `IA_Attack` — `IA_Fire` is no longer separately bound (P5, 2026-07-21: both on the same key was double-triggering fire+melee). `HandleAttack` dispatches on `CurrentWeapon`'s `AttackType`: `Ranged` fires; no weapon or `Melee` uses these bare-fist stats. This is the "unarmed" fallback the loadout hotbar above always falls back to whenever nothing's equipped — named `Unarmed*` for that reason, not a temporary name.
 
 | Property | Default | Effect |
 |---|---|---|
