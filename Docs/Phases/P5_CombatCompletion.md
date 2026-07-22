@@ -2,27 +2,28 @@
 
 > Plan of record: `Docs/GameDevPlan.md`. This file tracks build status for this phase only. Naming/tech-stack/replication conventions live in `CLAUDE.md` — not repeated here. Read `GameDevPlan.md` §7 for this phase's open questions before starting.
 
-**Status: not started.** Expanded 2026-07-21 (dev request: a proven loadout system + one Attack button that changes behavior per equipped weapon) — was "Combat Completion" only, now also owns the equip-slot/hotbar loadout system, since that's what a single Attack button dispatches on. Full inventory (weight, containers, loot tables) stays P6's — this phase owns only the combat-facing slots that reference into it.
+**Status: partially started.** Expanded 2026-07-21 (dev request: a proven loadout system + one Attack button that changes behavior per equipped weapon) — was "Combat Completion" only, now also owns the equip-slot/hotbar loadout system, since that's what a single Attack button dispatches on. Full inventory (weight, containers, loot tables) stays P6's — this phase owns only the combat-facing slots that reference into it. **Unified attack dispatch (Ranged vs. Melee) built same day**, ahead of the loadout system, because `IA_Fire`/`IA_Attack` both bound to left-click were double-triggering fire+melee on every click — see the section below.
 
 ## Tasks
 
 ### Loadout system
 - [ ] Two hand slots on `AZSPlayerCharacter`: `PrimaryHand` + `SecondaryHand`. Two-handed items occupy both; one-handed items can pair independently (P5 open question: is `SecondaryHand` ever active on its own, e.g. offhand pistol, or purely "the other grip" for v1?).
-- [ ] Empty `PrimaryHand` = bare-fist unarmed, always available — the fallback that today's pre-P5 `Server_MeleeAttack`/`Unarmed*` tunables on `AZSPlayerCharacter` already implement. Player starts unequipped by default.
+- [ ] Empty `PrimaryHand` = bare-fist unarmed, always available — the fallback that today's pre-P5 `Server_MeleeAttack`/`Unarmed*` tunables on `AZSPlayerCharacter` already implement. Player starts unequipped by default. **Not yet true in practice**: `CurrentWeapon` auto-equips at `BeginPlay` from `StartingWeaponConfig` and there's no in-game unequip/switch action yet, so "equipped" today just means whatever `EquipWeapon` was last called with.
 - [ ] Real-time hotbar (no pause/menu, per Decision 1) bound to specific inventory item references for instant re-equip — size/key-scheme is an open question (§7).
 - [ ] Equip/holster/switch takes real time via the existing notify/montage/`bIsBusy` choreography system (same pattern `Server_StartReload` already uses), not instant.
 - [ ] Hotbar/hand-slots reference into P6's `UZSInventoryComponent` rather than duplicating item state — this task has a real dependency on P6 existing for the item data, even though the slot/dispatch machinery itself lives here.
 
 ### Unified attack input
-- [ ] Generalize `UZSWeaponConfig` to cover melee weapons too via a new `EZSAttackType { Unarmed, Melee, Ranged }` field, rather than a parallel melee-config data asset — consistent with the existing multi-weapon rule.
-- [ ] `Server_Attack()` (replaces the placeholder `Server_MeleeAttack` built pre-P5) dispatches on `PrimaryHand`'s config: null → bare-fist (unchanged); `Melee` → swing using that weapon's own damage/range/interval (not the flat `Unarmed*` tunables); `Ranged` → today's `Server_Fire` hitscan logic.
-- [ ] `HandleFireStarted`'s auto-fire timer plumbing moves under the same dispatch — a `Ranged` weapon with `Auto` in `SupportedFireModes` still holds-to-fire; melee/unarmed stays one swing per press. This is what retires the separate `IA_Fire` action in favor of `IA_Attack` alone.
+- [x] **Generalized `UZSWeaponConfig` with `EZSAttackType { Ranged, Melee }`** (`ZSWeaponTypes.h`) — no `Unarmed` value, since bare-fist isn't a weapon config instance (see below). Defaults to `Ranged` so every config authored before this didn't need updating.
+- [x] **`AZSPlayerCharacter::HandleAttack` dispatches on `CurrentWeapon`'s config**: `Ranged` → routes into the existing `HandleFireStarted`/auto-fire-timer machinery unchanged; no weapon, or a `Melee`-typed config (none authored yet - see below) → `Server_MeleeAttack`, still the flat bare-fist `Unarmed*` tunables. `HandleAttackStopped` (bound to `IA_Attack` Completed) stops the auto-fire timer if one was started - a no-op after a melee swing.
+- [x] **`IA_Fire` retired as a separate input binding** - `SetupPlayerInputComponent` no longer binds it; `IA_Attack` alone drives both paths now. This is what the dispatch above needed to actually fix the double-trigger.
+- [ ] **Real per-weapon melee stats on `UZSWeaponConfig`** (damage/range/interval/damage-type/montage, mirroring `AZSPlayerCharacter`'s `Unarmed*` fields) — not built, since no melee weapon config exists yet to author them against. A `Melee`-typed config today silently gets bare-fist stats instead of its own; add these fields whenever the first melee weapon actually needs authoring, then update `HandleAttack`'s `Melee` branch to use them instead of falling through to `Server_MeleeAttack`.
 - [ ] Melee weapon types through this pipeline: swing timing via the existing notify system; shove + stomp as always-available options; stamina economy tuned against P2's `UZSNeedsComponent`.
 - [ ] Firearms integration with noise + zombie mass: ammo scarcity tuning, simple hit-reaction/knockdown.
 - [ ] Weapon durability-lite (melee breaks; no repair sim v1).
 
 ## Pre-P5 groundwork already built (2026-07-21, to unblock P3/P4 testing before this phase started)
-`AZSPlayerCharacter::Server_MeleeAttack` (bare-fist sphere-overlap melee) and `Server_Fire`'s hitscan both exist and work today, bound to separate inputs (`IA_Attack` → melee, `IA_Fire` → gunfire) with no dispatch between them yet. `IA_Attack` was named ahead of this phase specifically so the dev's placeholder input action wouldn't need a second rename once real dispatch lands. See `Docs/Phases/P4_Zombies.md` and `Docs/SessionHandoff.md` for what's already PIE-testable.
+`AZSPlayerCharacter::Server_MeleeAttack` (bare-fist sphere-overlap melee) and `Server_Fire`'s hitscan both exist and work. Originally bound to separate inputs (`IA_Attack` → melee, `IA_Fire` → gunfire) with no dispatch between them - that's what the "Unified attack input" tasks above fixed the same day, once PIE testing surfaced the double-trigger. `IA_Attack` was named ahead of this phase specifically so the dev's placeholder input action wouldn't need a second rename once real dispatch landed. See `Docs/Phases/P4_Zombies.md` and `Docs/SessionHandoff.md` for what's already PIE-testable.
 
 ## Exit criteria
 A player starts unarmed, equips a weapon from the hotbar in real time, and one Attack button does the right thing whether they're bare-handed, swinging a bat, or holding a rifle. On top of that, the PZ death loop exists — greed + noise + stamina mismanagement kills a player who had every tool to survive.

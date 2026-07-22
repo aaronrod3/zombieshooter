@@ -587,9 +587,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
 	bool CanAim() const;
 
+	/** The Ranged half of the attack dispatch - called from HandleAttack when CurrentWeapon's AttackType is Ranged, not bound to input directly anymore (P5 retired IA_Fire as a separate action). Starts the auto-fire timer for weapons that support it. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
 	void HandleFireStarted();
 
+	/** Called from HandleAttackStopped, same "no longer input-bound directly" note as HandleFireStarted. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
 	void HandleFireStopped();
 
@@ -648,25 +650,32 @@ protected:
 	FTimerHandle AimBlockEndTimerHandle;
 
 	// =====================================================================
-	// P4 - Attack input / bare-fist melee (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)
+	// P4/P5 - Attack input dispatch + bare-fist melee (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)
 	// =====================================================================
-	// IA_Attack (bound to HandleAttack) is meant to become ONE button whose effect depends on
-	// whatever's equipped - P5's "Loadout & Unified Combat" plan (GameDevPlan.md P5) has the full
-	// design: Server_Attack will dispatch to ranged/melee/unarmed based on the item in the loadout
-	// system's PrimaryHand slot, once that slot exists. Neither the loadout system nor the dispatch
-	// exists yet - today HandleAttack always calls Server_MeleeAttack, which is unconditionally the
-	// bare-fist swing below. The Unarmed* tunables here are that bare-fist fallback specifically
-	// (P5 will add per-weapon melee stats read from UZSWeaponConfig instead, for whatever's equipped)
-	// - named Unarmed* now so this doesn't need a second rename pass once dispatch lands.
+	// IA_Attack is ONE button whose effect depends on CurrentWeapon's UZSWeaponConfig::AttackType:
+	// Ranged routes to the existing Fire/auto-fire-timer machinery (HandleFireStarted/Stopped, no
+	// longer bound to IA_Fire directly); no weapon equipped (or AttackType::Melee - no melee
+	// UZSWeaponConfig instances exist to author yet) falls back to bare-fist Server_MeleeAttack
+	// below. This is a partial version of P5's full plan (GameDevPlan.md P5): the real loadout
+	// system (PrimaryHand/SecondaryHand/hotbar) doesn't exist yet, so "equipped" here just means
+	// CurrentWeapon - built now specifically because IA_Fire and IA_Attack being separately bound
+	// to the same key both firing at once was actively blocking testing. The Unarmed* tunables
+	// below are the bare-fist fallback specifically (a real per-weapon melee stat set on
+	// UZSWeaponConfig is P5 follow-up work, once a melee weapon actually needs authoring) - named
+	// Unarmed* so this doesn't need a second rename pass once that lands.
 
 public:
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
 	bool CanAttack() const;
 
-	/** Client-callable entry point, bound to AttackAction (IA_Attack). Sets LastCursorActionTime (same as HandleFireStarted) so cursor-facing turns the character to face the swing, then routes through Server_MeleeAttack - the only attack implementation that exists pre-P5. */
+	/** Client-callable entry point, bound to AttackAction (IA_Attack) Started. Sets LastCursorActionTime (same as HandleFireStarted) so cursor-facing turns the character to face the attack, then dispatches on CurrentWeapon's AttackType: Ranged -> HandleFireStarted (starts the auto-fire timer for weapons that support it); no weapon / Melee -> Server_MeleeAttack (bare-fist, see the section comment above for why Melee shares this path today). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
 	void HandleAttack();
+
+	/** Bound to AttackAction Completed - stops the auto-fire timer HandleAttack may have started. A harmless no-op if the last attack was melee (nothing was ever started). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	void HandleAttackStopped();
 
 protected:
 

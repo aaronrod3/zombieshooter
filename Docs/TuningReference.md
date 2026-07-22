@@ -38,9 +38,10 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `FireDamage` | 25 | P4: hitscan damage per shot, applied via `ApplyPointDamage` |
 | `FireRange` | 5000 | P4: hitscan trace distance from `SocketMuzzle` (falls back to eye height if the socket's missing) |
 | `FireDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a gunshot applies to a player target |
+| `AttackType` | `Ranged` | P5: which half of `IA_Attack`'s dispatch this weapon uses (`ZSWeaponTypes.h`'s `EZSAttackType`) — `Ranged` routes to `Server_Fire`, `Melee` currently falls back to the bare-fist stats below (no melee-specific weapon fields exist yet) |
 
 ## Player Unarmed Melee (`AZSPlayerCharacter`, Category `ZS|Combat|Melee`)
-Bound to `IA_Attack`, independent of `CurrentWeapon` — today this is unconditionally bare-fist melee (no dispatch by equipped weapon yet). This is the "unarmed" fallback P5's loadout/unified-combat system (`Docs/Phases/P5_CombatCompletion.md`) will keep once a real `Server_Attack` dispatch exists — named `Unarmed*` for that reason, not a temporary name.
+Bound to `IA_Attack` — `IA_Fire` is no longer separately bound (P5, 2026-07-21: both on the same key was double-triggering fire+melee). `HandleAttack` dispatches on `CurrentWeapon`'s `AttackType`: `Ranged` fires; no weapon or `Melee` uses these bare-fist stats. This is the "unarmed" fallback the full loadout system (`Docs/Phases/P5_CombatCompletion.md`) will keep once `PrimaryHand`/`SecondaryHand` exist — named `Unarmed*` for that reason, not a temporary name.
 
 | Property | Default | Effect |
 |---|---|---|

@@ -186,11 +186,9 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AZSPlayerCharacter::Look);
 
-		if (FireAction)
-		{
-			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleFireStarted);
-			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Completed, this, &AZSPlayerCharacter::HandleFireStopped);
-		}
+		// FireAction/IA_Fire is intentionally NOT bound here anymore (P5) - AttackAction/IA_Attack
+		// is the one input for both ranged and melee now, dispatching internally in HandleAttack.
+		// Binding both to the same physical key double-triggered fire+melee on every click.
 
 		if (AimAction)
 		{
@@ -206,6 +204,7 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		if (AttackAction)
 		{
 			EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleAttack);
+			EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &AZSPlayerCharacter::HandleAttackStopped);
 		}
 
 		if (CrouchAction)
@@ -1129,7 +1128,7 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 }
 
 // =====================================================================
-// P4 - Attack input / bare-fist melee (P5's loadout/unified-combat system will add real dispatch)
+// P4/P5 - Attack input dispatch + bare-fist melee
 // =====================================================================
 
 bool AZSPlayerCharacter::CanAttack() const
@@ -1148,9 +1147,25 @@ void AZSPlayerCharacter::HandleAttack()
 	// is an attack too, per P1's cursor-facing gate (IsCursorFacingActive).
 	LastCursorActionTime = GetWorld()->GetTimeSeconds();
 
-	// No dispatch yet (P5) - IA_Attack is unconditionally bare-fist melee until the loadout system
-	// exists to say what's actually equipped.
+	// Dispatch on whatever's equipped - the partial P5 slice (full PrimaryHand/SecondaryHand
+	// loadout system not built yet, see the header comment above this section). No weapon, or a
+	// weapon whose config doesn't resolve, falls through to bare-fist below.
+	if (const UZSWeaponConfig* Config = CurrentWeapon ? CurrentWeapon->GetConfig() : nullptr)
+	{
+		if (Config->AttackType == EZSAttackType::Ranged)
+		{
+			HandleFireStarted();
+			return;
+		}
+	}
+
 	Server_MeleeAttack();
+}
+
+void AZSPlayerCharacter::HandleAttackStopped()
+{
+	// Harmless no-op if the last attack was melee - AutoFireTimerHandle was never set.
+	HandleFireStopped();
 }
 
 void AZSPlayerCharacter::Server_MeleeAttack_Implementation()

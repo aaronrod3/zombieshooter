@@ -130,6 +130,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo")
 	int32 MaxReserveAmmo = 180;
 
+	// ---- Attack dispatch (P5) ----
+
+	/** Which behavior IA_Attack triggers while this is equipped - AZSPlayerCharacter::HandleAttack reads this instead of a weapon/melee item having its own separate input. Defaults to Ranged since every config authored before P5 is a gun. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack Dispatch")
+	EZSAttackType AttackType = EZSAttackType::Ranged;
+
 	// ---- Fire Modes ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fire Modes")
