@@ -4,6 +4,8 @@
 #include "ZSHealthConfig.h"
 #include "ZombieShooter/Framework/ZSGameState.h"
 #include "Net/UnrealNetwork.h"
+#include "ZombieShooter.h"
+#include "Engine/Engine.h"
 
 UZSHealthComponent::UZSHealthComponent()
 {
@@ -150,6 +152,16 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 
 	CurrentHealth = FMath::Clamp(CurrentHealth - DamageAmount, 0.f, GetMaxHealth());
 	OnRep_CurrentHealth();
+
+	// Temporary confirmation while no hit-reaction VFX/damage numbers exist yet - same "remove once
+	// real feedback is built" note as AZSPlayerCharacter's Server_Fire/Server_MeleeAttack logging.
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: took %.1f damage (%s zone, %s wound) from %s - health now %.1f"),
+		*GetOwner()->GetName(), DamageAmount, *UEnum::GetValueAsString(Zone), *UEnum::GetValueAsString(WoundType),
+		DamageCauser ? *DamageCauser->GetName() : TEXT("Unknown"), CurrentHealth);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Red, FString::Printf(TEXT("%s took %.0f dmg (%s) - HP %.0f"), *GetOwner()->GetName(), DamageAmount, *UEnum::GetValueAsString(WoundType), CurrentHealth));
+	}
 
 	FZSBodyZoneWound* ZoneWound = FindZoneMutable(Zone);
 	if (ZoneWound && !ZoneWound->bAmputated)
@@ -412,6 +424,9 @@ void UZSHealthComponent::Server_RollForInfection(EZSBodyZone Zone)
 
 	if (FMath::FRand() > HealthConfig->BiteInfectionChance)
 	{
+		// Temporary confirmation of the hidden roll - otherwise unobservable without this. Remove
+		// once real UI (moodle/infection indicator) surfaces infection state.
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: bite infection roll missed (chance %.0f%%)"), *GetOwner()->GetName(), HealthConfig->BiteInfectionChance * 100.f);
 		return;
 	}
 
@@ -424,6 +439,12 @@ void UZSHealthComponent::Server_RollForInfection(EZSBodyZone Zone)
 	InfectionStage = EZSInfectionStage::Incubating;
 	InfectionStageProgressGameHours = 0.f;
 	OnRep_InfectionStage();
+
+	UE_LOG(LogZombieShooter, Warning, TEXT("%s: bite infection roll HIT - infection now Incubating"), *GetOwner()->GetName());
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 3.f, FColor::Purple, FString::Printf(TEXT("%s INFECTED (Incubating)"), *GetOwner()->GetName()));
+	}
 }
 
 void UZSHealthComponent::Die()
