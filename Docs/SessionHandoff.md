@@ -22,7 +22,7 @@ Continue through `Docs/Testing/P5_P6_CharacterSetupVerification.md` from Stage B
 
 **P6's whole inventory/loot system (`UZSInventoryComponent`, containers, world items, loot tables) - built two rounds ago, still not PIE-tested at all.** No content authored for it yet (no `DA_ZS_ItemConfig_*`/`DA_ZS_LootTableConfig_*`, no containers/pickups placed) - that's Stage G's prerequisite.
 
-**Every existing `DA_ZS_WeaponConfig_*` needs re-authoring against the new static-mesh Setup/Attachments fields** (old `MeshReceiver`/`MeshMagazineSK`/etc. fields are gone) - given hotbar switching is showing *something* on screen, this may already be done for at least one weapon, but worth confirming attachments specifically (Stage B) since those are easy to miss silently (an unset attachment just doesn't appear, no error).
+**Every existing `DA_ZS_WeaponConfig_*` needs re-authoring against the new static-mesh Setup/Attachments fields** (old `MeshReceiver`/`MeshMagazineSK`/etc. fields are gone). Two configs now exist in the working tree - `DA_ZS_WeaponConfig_AssaultRifle1` and a new `DA_ZS_WeaponConfig_Pistol` - which is exactly what Stage E (switching between two weapons) needs; worth putting both in `StartingHotbarLoadout` if not already there. Still worth confirming attachments specifically (Stage B) since an unset attachment just silently doesn't appear, no error.
 
 **Two autonomous P6 design calls still need your review** (bag-slot depth: `Back`+`Hip`; rarity-pool model: global per-session) - flagged in `GameDevPlan.md` §7 P6 and `Docs/Phases/P6_InventoryLoot.md`, cheap to change now, less cheap once content is authored against them.
 
