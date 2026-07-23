@@ -7,7 +7,6 @@
 #include "ZSWeaponTypes.h"
 #include "ZSWeapon.generated.h"
 
-class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 class UZSWeaponConfig;
@@ -71,7 +70,7 @@ public:
 	UZSWeaponConfig* GetConfig() const { return CurrentConfig; }
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
-	USkeletalMeshComponent* GetReceiverMesh() const { return SK_Receiver; }
+	UStaticMeshComponent* GetBaseWeaponMesh() const { return BaseWeaponMesh; }
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
 	EZSFireMode GetCurrentFireMode() const { return CurrentFireMode; }
@@ -91,7 +90,7 @@ public:
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USkeletalMeshComponent> SK_Receiver;
+	TObjectPtr<UStaticMeshComponent> BaseWeaponMesh;
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentConfig, Category = "ZS|Weapon")
 	TObjectPtr<UZSWeaponConfig> CurrentConfig;
@@ -122,7 +121,7 @@ protected:
 	UFUNCTION()
 	void OnRep_CurrentReserveAmmo();
 
-	/** Cosmetic-only assembly from CurrentConfig: receiver mesh, static-mesh attachments, magazine prop. Called from InitializeFromConfig on the server and OnRep_CurrentConfig on clients - each machine assembles its own local, unreplicated cosmetics. */
+	/** Cosmetic-only assembly from CurrentConfig: base weapon mesh, static-mesh attachments, magazine prop. Called from InitializeFromConfig on the server and OnRep_CurrentConfig on clients - each machine assembles its own local, unreplicated cosmetics. */
 	void AssembleCosmeticsFromConfig();
 
 private:
@@ -130,19 +129,19 @@ private:
 	UStaticMeshComponent* AssignNewStaticMesh(const FName& SocketName, UStaticMesh* Mesh, const FName& ComponentName);
 
 	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> TriggerMesh;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> MuzzleMesh;
+
+	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> HandguardMesh;
 
 	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> SilencerMesh;
+	TObjectPtr<UStaticMeshComponent> GripMesh;
 
 	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> ScopeMesh;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> FrontSightMesh;
-
-	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> RearSightMesh;
+	TObjectPtr<UStaticMeshComponent> OpticMesh;
 
 	UPROPERTY()
 	TObjectPtr<AZSMagazine> MainMagazine;

@@ -2,13 +2,13 @@
 
 #include "ZSMagazine.h"
 #include "ZSWeaponConfig.h"
-#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 
 AZSMagazine::AZSMagazine()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	MagazineMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("MagazineMesh"));
+	MagazineMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MagazineMesh"));
 	SetRootComponent(MagazineMesh);
 }
 
@@ -21,8 +21,8 @@ void AZSMagazine::InitializeFromConfig(UZSWeaponConfig* Config)
 
 	WeaponConfig = Config;
 
-	if (Config->MeshMagazineSK)
+	if (Config->MagazineMesh)
 	{
-		MagazineMesh->SetSkeletalMesh(Config->MeshMagazineSK);
+		MagazineMesh->SetStaticMesh(Config->MagazineMesh);
 	}
 }

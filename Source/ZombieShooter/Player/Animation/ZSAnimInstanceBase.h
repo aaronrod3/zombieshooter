@@ -66,6 +66,14 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsCrouched = false;
 
+	/** Mirrors AZSPlayerCharacter::GetCurrentWeapon() != nullptr - gates the upper-body rifle idle/aim
+	 *  pose layer (LayeredBoneBlend in the AnimGraph) so it only blends in while a weapon is actually
+	 *  equipped. Without this, the layer was hardcoded to full weight and the character was stuck
+	 *  showing a rifle-holding upper body even when unarmed - the base/lower-body locomotion (the
+	 *  BS_ZS_Unarmed_Idle_Walk_Run/BS_ZS_UnequippedCrouchWalk blend spaces) was already correct. */
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
+	bool bHasWeaponEquipped = false;
+
 	UPROPERTY(BlueprintReadOnly, Category = "ZS|Animation")
 	bool bIsLeftHandOnWeapon = true;
 

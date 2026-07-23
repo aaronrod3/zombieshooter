@@ -4,7 +4,6 @@
 #include "ZSWeaponConfig.h"
 #include "ZSPlayerCharacter.h"
 #include "ZSMagazine.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
 
@@ -17,8 +16,8 @@ AZSWeapon::AZSWeapon()
 	// so it has no absolute position/velocity that ever needs replicating.
 	SetReplicateMovement(false);
 
-	SK_Receiver = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SK_Receiver"));
-	SetRootComponent(SK_Receiver);
+	BaseWeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BaseWeaponMesh"));
+	SetRootComponent(BaseWeaponMesh);
 }
 
 void AZSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -66,16 +65,16 @@ void AZSWeapon::AssembleCosmeticsFromConfig()
 
 	UZSWeaponConfig* Config = CurrentConfig;
 
-	if (Config->MeshReceiver)
+	if (Config->BaseWeaponMesh)
 	{
-		SK_Receiver->SetSkeletalMesh(Config->MeshReceiver);
+		BaseWeaponMesh->SetStaticMesh(Config->BaseWeaponMesh);
 	}
 
-	HandguardMesh = AssignNewStaticMesh(Config->SocketHandguard, Config->MeshHandguard, TEXT("HandguardMesh"));
-	SilencerMesh = AssignNewStaticMesh(Config->SocketMuzzle, Config->MeshSilencer, TEXT("SilencerMesh"));
-	ScopeMesh = AssignNewStaticMesh(Config->SocketScope, Config->MeshScope, TEXT("ScopeMesh"));
-	FrontSightMesh = AssignNewStaticMesh(Config->SocketSightFront, Config->MeshSightFront, TEXT("FrontSightMesh"));
-	RearSightMesh = AssignNewStaticMesh(Config->SocketSightRear, Config->MeshSightRear, TEXT("RearSightMesh"));
+	TriggerMesh = AssignNewStaticMesh(Config->SocketTrigger, Config->TriggerMesh, TEXT("TriggerMesh"));
+	MuzzleMesh = AssignNewStaticMesh(Config->SocketMuzzle, Config->MuzzleMesh, TEXT("MuzzleMesh"));
+	HandguardMesh = AssignNewStaticMesh(Config->SocketHandguard, Config->HandguardMesh, TEXT("HandguardMesh"));
+	GripMesh = AssignNewStaticMesh(Config->SocketGrip, Config->GripMesh, TEXT("GripMesh"));
+	OpticMesh = AssignNewStaticMesh(Config->SocketOptic, Config->OpticMesh, TEXT("OpticMesh"));
 
 	// Each machine (server and every client) spawns its own local, unreplicated magazine actor
 	// here - AZSMagazine is deliberately never a replicated actor (see CoreLoopPlan.md's Phase 3
@@ -118,13 +117,13 @@ void AZSWeapon::OnRep_CurrentReserveAmmo()
 
 UStaticMeshComponent* AZSWeapon::AssignNewStaticMesh(const FName& SocketName, UStaticMesh* Mesh, const FName& ComponentName)
 {
-	if (!Mesh || SocketName.IsNone() || !SK_Receiver->DoesSocketExist(SocketName))
+	if (!Mesh || SocketName.IsNone() || !BaseWeaponMesh->DoesSocketExist(SocketName))
 	{
 		return nullptr;
 	}
 
 	UStaticMeshComponent* NewComponent = NewObject<UStaticMeshComponent>(this, ComponentName);
-	NewComponent->SetupAttachment(SK_Receiver, SocketName);
+	NewComponent->SetupAttachment(BaseWeaponMesh, SocketName);
 	NewComponent->SetStaticMesh(Mesh);
 	NewComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	NewComponent->RegisterComponent();
@@ -134,7 +133,7 @@ UStaticMeshComponent* AZSWeapon::AssignNewStaticMesh(const FName& SocketName, US
 
 AZSMagazine* AZSWeapon::SpawnMagazine(FName SocketName)
 {
-	if (!CurrentConfig || SocketName.IsNone() || !SK_Receiver->DoesSocketExist(SocketName))
+	if (!CurrentConfig || SocketName.IsNone() || !BaseWeaponMesh->DoesSocketExist(SocketName))
 	{
 		return nullptr;
 	}
@@ -145,7 +144,7 @@ AZSMagazine* AZSWeapon::SpawnMagazine(FName SocketName)
 	AZSMagazine* NewMagazine = GetWorld()->SpawnActor<AZSMagazine>(SpawnParams);
 	if (NewMagazine)
 	{
-		NewMagazine->AttachToComponent(SK_Receiver, FAttachmentTransformRules::SnapToTargetNotIncludingScale, SocketName);
+		NewMagazine->AttachToComponent(BaseWeaponMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, SocketName);
 		NewMagazine->InitializeFromConfig(CurrentConfig);
 	}
 

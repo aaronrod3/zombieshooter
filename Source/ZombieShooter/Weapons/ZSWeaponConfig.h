@@ -26,6 +26,11 @@ class UDamageType;
    phase resurrects any of it. What remains is what the third-person survival game actually
    consumes today. New animation fields get added per the standard-animation plan in
    Docs/GameDevPlan.md, not by restoring the old catalog wholesale.
+
+   2026-07-22: moved off Infima's skeletal-mesh test rifle (MeshReceiver/MeshMagazineSK were
+   USkeletalMesh, requiring a rigged weapon skeleton) onto plain static-mesh parts sourced from
+   Content/LowPolyWeapons/ and Content/Mega_Survival_Tools/ - see the Setup/Attachments sections
+   below. AZSWeapon's own base component is a UStaticMeshComponent now, not skeletal.
 */
 
 UCLASS(BlueprintType)
@@ -47,58 +52,66 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Class")
 	TSubclassOf<AZSWeapon> WeaponClass;
 
-	// ---- Meshes ----
+	// ---- Setup (the weapon's own required parts - all static meshes, assembled onto AZSWeapon's
+	// BaseWeaponMesh component; no skeletal weapon mesh needed at all anymore) ----
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
-	TObjectPtr<USkeletalMesh> MeshReceiver;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Setup")
+	TObjectPtr<UStaticMesh> BaseWeaponMesh;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
-	TObjectPtr<USkeletalMesh> MeshMagazineSK;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Setup")
+	TObjectPtr<UStaticMesh> TriggerMesh;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
-	TObjectPtr<UStaticMesh> MeshHandguard;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
-	TObjectPtr<UStaticMesh> MeshScope;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
-	TObjectPtr<UStaticMesh> MeshSightFront;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
-	TObjectPtr<UStaticMesh> MeshSightRear;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
-	TObjectPtr<UStaticMesh> MeshSilencer;
+	/** Cosmetic magazine prop mesh - AZSMagazine (a separate, unreplicated, per-machine actor) reads this, not AZSWeapon directly. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Setup")
+	TObjectPtr<UStaticMesh> MagazineMesh;
 
 	/** The character body mesh used while this weapon is equipped. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Meshes")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Setup")
 	TObjectPtr<USkeletalMesh> TP_Mesh;
 
-	// ---- Sockets ----
+	// ---- Attachments (all optional - an unset mesh just means that slot stays empty, same
+	// "unset = no-op" convention as every other optional field in this project) ----
+
+	/** Muzzle device (suppressor, compensator, etc.) - also where the hitscan trace/muzzle-flash originates from (SocketMuzzle below), independent of whether an attachment mesh is actually assigned. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attachments")
+	TObjectPtr<UStaticMesh> MuzzleMesh;
+
+	/** Handguard-mounted accessory - a flashlight or laser sight, not just cosmetic rail furniture. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attachments")
+	TObjectPtr<UStaticMesh> HandguardMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attachments")
+	TObjectPtr<UStaticMesh> GripMesh;
+
+	/** Single optic slot (replaces the old Infima-mirroring Scope/FrontSight/RearSight three-way split - a third-person low-poly weapon doesn't need separate iron-sight pieces alongside a scope). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attachments")
+	TObjectPtr<UStaticMesh> OpticMesh;
+
+	// ---- Sockets (all on BaseWeaponMesh except SocketGunAttachment) ----
 
 	/** On the character body mesh - where the weapon actor attaches. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
 	FName SocketGunAttachment = TEXT("SocketGunAttachment");
 
-	/** On the receiver mesh - where the magazine prop attaches. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
+	FName SocketTrigger = TEXT("SocketTrigger");
+
+	/** On BaseWeaponMesh - where the magazine prop attaches. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
 	FName SocketMagazineAttachment = TEXT("SocketMagazineAttachment");
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
-	FName SocketHandguard = TEXT("SocketHandguard");
-
-	/** Also the future muzzle-flash/trace origin once firing gets real ballistics (P1+). */
+	/** Also the hitscan trace/muzzle-flash origin (Server_Fire) - independent of whether MuzzleMesh is actually assigned. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
 	FName SocketMuzzle = TEXT("SocketMuzzle");
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
-	FName SocketScope = TEXT("SocketScope");
+	FName SocketHandguard = TEXT("SocketHandguard");
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
-	FName SocketSightFront = TEXT("SocketSightFront");
+	FName SocketGrip = TEXT("SocketGrip");
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
-	FName SocketSightRear = TEXT("SocketSightRear");
+	FName SocketOptic = TEXT("SocketOptic");
 
 	// ---- Montages (third-person character mesh) ----
 

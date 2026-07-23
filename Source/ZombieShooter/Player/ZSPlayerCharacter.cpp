@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
@@ -1301,11 +1302,11 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 		// has already turned toward the mouse cursor while firing (IsCursorFacingActive() includes the
 		// CursorFacingActionWindow after a fire input, set in HandleFireStarted).
 		FVector TraceStart = GetActorLocation() + FVector(0.f, 0.f, BaseEyeHeight);
-		if (USkeletalMeshComponent* ReceiverMesh = CurrentWeapon->GetReceiverMesh())
+		if (UStaticMeshComponent* BaseWeaponMesh = CurrentWeapon->GetBaseWeaponMesh())
 		{
-			if (ReceiverMesh->DoesSocketExist(Config->SocketMuzzle))
+			if (BaseWeaponMesh->DoesSocketExist(Config->SocketMuzzle))
 			{
-				TraceStart = ReceiverMesh->GetSocketLocation(Config->SocketMuzzle);
+				TraceStart = BaseWeaponMesh->GetSocketLocation(Config->SocketMuzzle);
 			}
 		}
 		const FVector TraceEnd = TraceStart + GetActorForwardVector() * Config->FireRange;

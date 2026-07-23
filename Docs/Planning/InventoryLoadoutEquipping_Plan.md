@@ -157,8 +157,10 @@ Two fields are missing from `UZSWeaponConfig` that are prerequisites for rules a
 
 This is pure data-classification work, no attachment system, no stat-modifier math — just the fields needed to make slot-legality rules actually enforceable. Low risk, directly unblocks two already-written-down design intentions.
 
-### Tier 2 — attachments — **flagging as optional, recommend against building yet**
+### Tier 2 — attachments — **flagging as optional, recommend against the stat-modifying half**
 This is probably what "modularity" evokes most readily (scopes, silencers, magazines, the Tarkov/Escape-from-Tarkov mental model), so I want to address it directly rather than skip it, but the research grounding doesn't support going deep here:
+
+**Update 2026-07-22**: the *cosmetic* half of this now exists. `UZSWeaponConfig` moved off Infima's skeletal test rifle onto a static-mesh assembly with a real `MuzzleMesh`/`HandguardMesh`/`GripMesh`/`OpticMesh` attachment set (each with its own `SocketX` field, purely visual - no stat effect). That's real, live C++ now, not proposed. What's still **not** built, and still not recommended below, is attaching *gameplay-affecting* modifiers (damage/range/recoil/noise deltas) to those slots, or letting the player swap them at runtime via the inventory - today's attachment fields are set once per `UZSWeaponConfig` at author time, same as any other content field, not a player-facing system.
 
 - PZ's own attachments (the game this project is deliberately targeting ~1/3 the depth of) are shallow — scopes and slings, minor/cosmetic, not a stat-modifier tree (`ProjectZomboid_DesignReference.md` §7.2).
 - Nothing in `GameDevPlan.md`, `DevMarkupNotes.md`, or any dev note anywhere asks for weapon customization depth. It's not a stated pillar.
