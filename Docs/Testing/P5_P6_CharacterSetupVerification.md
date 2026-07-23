@@ -18,9 +18,9 @@ This round changed more than usual, so be precise about what needs to happen bef
 4. **The anim graph fix itself may still be pending** depending on when you're reading this — check with me directly before Stage A if you're not sure it's actually wired in yet (see the note at the end of this doc).
 5. `IA_HotbarSelect`/`IA_HotbarCycle` created, `BP_ZS_PlayerCharacter`'s `StartingHotbarLoadout` re-authored with at least one (ideally two) fully-set-up weapon configs.
 
-## Stage A — Spawn state (before touching any input)
+## Stage A — Spawn state (before touching any input) — ✅ VERIFIED 2026-07-22
 
-This is the stage the dev's original bug report was about — verify it first, in isolation, before doing anything else.
+This is the stage the dev's original bug report was about — verify it first, in isolation, before doing anything else. **Confirmed working in PIE** after the branch-inversion fix (see `CLAUDE.md`'s `FAnimNode_BlendListByBool` lesson) - no rifle pose while unarmed.
 
 | # | Action | Expected | If wrong |
 |---|---|---|---|
@@ -30,7 +30,9 @@ This is the stage the dev's original bug report was about — verify it first, i
 | A4 | Crouch (still no weapon) | Legs switch to `BS_ZS_UnequippedCrouchWalk`. | Same note as A3. |
 | A5 | Check the body mesh visually | Should be whatever `AZSPlayerCharacter::UnarmedBodyMesh` cached at `BeginPlay` (the CDO/BP-authored default skeletal mesh) - not a leftover gun-holding mesh from a previous session's testing. | If it looks like a weapon-holding body mesh already: `BP_ZS_PlayerCharacter`'s own default `SkeletalMesh` on the mesh component may itself be set to a weapon-pose mesh - check the Mesh component's defaults directly, not just `StartingHotbarLoadout`. |
 
-## Stage B — Equipping the first weapon
+## Stage B — Equipping the first weapon — ⚠️ PARTIALLY CONFIRMED 2026-07-22
+
+Hotbar number-key switching itself is confirmed working (weapon visibly changes on press). **Not yet individually confirmed**: the equip-time delay actually being non-instant (B1), each attachment appearing at its own socket (B4), the magazine actor (B5), the `TP_Mesh` body swap (B7), and the rifle upper-body pose specifically reappearing on equip (B6 - Stage A only proved it *disappears* correctly, not that it *comes back* correctly). Worth going through the table below row by row rather than treating this stage as fully done.
 
 | # | Action | Expected | If wrong |
 |---|---|---|---|
