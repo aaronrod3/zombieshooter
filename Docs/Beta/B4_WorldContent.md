@@ -101,15 +101,19 @@ CONFIRMED with randomized layout selection. **Scope-flagged** — this is proced
 | T6.5 | Streaming and NavMesh work underground; T3's floor detection handles negative floor indices. |
 | T6.6 | **Budget guard:** cap the elaborate-complex count for beta (suggest 2–3 authored). This is where content ambition quietly doubles the phase. |
 
-### B4-T7 — Zombie population & zones · **M (3–4 sessions)** · *depends on T1.5*
+### B4-T7 — Zombie AI depth pass, population & zones · **L (6–8 sessions)** · *depends on T1.5, OQ-B4-12*
+
+> **Grew 2026-07-23.** Was M (3–4 sessions) covering population/zones only. B0-T0's Blueprint triage found `BT_Zombie` running on a placeholder ShooterGame-derived loop with real design work explicitly deferred here — see **OQ-B4-12**. T7.0 below is that redesign; T7.1–T7.5 are the original population/zone scope, now tuned against real behavior instead of a stopgap.
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
+| T7.0 | **PZ-fidelity behavior redesign** per OQ-B4-12: ambient wandering, bounded last-known-location memory, crowd-following, door/obstacle destruction spec (feeds T5.2). Audit the disconnected `BTTask_*` assets found in B0 (`Wander`, `GetInvestigationPoint`, `ClearLastKnownLocation`, `StartIdleDwell`, `StartInvestigationTimer`) — decide keep vs. rebuild per-node, don't assume either. Do this **before** T7.1, so population/density tuning happens against real behavior. | OQ-B4-12 |
 | T7.1 | Zone-based population densities driven by `UZSZombieConfig` + per-zone density values. | P4-R7 |
 | T7.2 | **Repopulation rule** for cleared areas decided and implemented → OQ-B4-05. Persists via B3-T5.6. |
 | T7.3 | Spawn placement avoids player line-of-sight — zombies must never pop in visibly. |
 | T7.4 | **Per-zone loot quality tiers** — P6's deferred feature, now unblocked by a real zone system. | P6-R7 |
 | T7.5 | Density validated against B0-T12's baseline on production geometry, not graybox. |
+| T7.6 | Crowd-following behavior (T7.0) verified specifically against B5-T2.4's horde migration event, and its result feeds **OQ-B7-01** — a working crowd-follow may reduce or remove the need for explicit Rally-Leader-style coordination. |
 
 ### B4-T8 — Weather & day/night · **M (4–5 sessions)** · *depends on T1*
 

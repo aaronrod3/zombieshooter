@@ -216,16 +216,20 @@ struct FZSItemInstance
 
 ---
 
-### B0-T8 — Zombie AI revision · **S (2–3 sessions)** · *depends on T1*
+### B0-T8 — Zombie AI: hygiene now, design deferred · **S (1–2 sessions)** · *depends on T1*
+
+> **Rescoped 2026-07-23.** Opening `BT_Zombie` during T0.2's Compile All Blueprints pass surfaced two broken node references (`BTTask_WanderToPoint`, `BTTask_InvestigateWander` — neither exists under those names). Investigating **before** patching turned up something the original P4-R1/P4-R3 write-up didn't know: the building blocks these nodes want already exist as authored assets (`BTTask_Wander`, `BTTask_GetInvestigationPoint`, `BTTask_ClearLastKnownLocation`, `BTTask_StartIdleDwell`, `BTTask_StartInvestigationTimer`) — this reads as a rename that never got a redirector, not a from-scratch gap.
+>
+> **Dev decision, same day:** don't design the real wander/investigate/memory behavior now. The current chase→melee loop is PIE-confirmed (2026-07-21 P3+P4 integration test) and already covers B0-T1's verification needs and PT4's noise scenarios. A proper pass belongs later, aimed explicitly at **Project Zomboid-style zombie behavior** — see **OQ-B4-12**, gating B4-T7. Rebuilding wander/investigate twice (a stopgap now, the real thing later) is waste; leaving `BT_Zombie` erroring on every load through B0-T2's heavy refactor is worse, since it buries new corruption in old noise. Split accordingly:
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T8.1 | **`BT_Zombie` wander branch implemented** — it currently has zero children, so the enemy's base state is nothing. | P4-R3 |
-| T8.2 | **Search-last-known-location** branch added. Full loop verified: wander → investigate noise → chase → search last location → resume wander. | P4-R1 |
-| T8.3 | Standing rule recorded: senses are fixed per `UZSZombieConfig` type, **never randomized per-individual.** | P4-R2 |
-| T8.4 | **Noise stress-test scenarios** (PT4) pass. | P4-R4 |
+| T8.1 | **Hygiene only — repoint the two stale class references** (`BTTask_WanderToPoint`→`BTTask_Wander`, `BTTask_InvestigateWander`→`BTTask_GetInvestigationPoint`, pending visual confirmation in the graph) so `BT_Zombie` compiles with zero errors. **Not a redesign** — this fixes a broken reference to an asset that already exists, the same class of fix as T0.2's other findings. Whatever behavior results is a bonus, not a deliverable. | P4-R3 (superseded) |
+| T8.2 | **Deferred to OQ-B4-12, not built here.** `BTTask_ClearLastKnownLocation` exists and is currently unwired — leave it that way. Do not wire search-last-known into the tree as part of B0; it would be re-designed anyway once OQ-B4-12 lands. | P4-R1 (deferred) |
+| T8.3 | Standing rule recorded: senses are fixed per `UZSZombieConfig` type, **never randomized per-individual.** Still true, still just a rule to hold going forward — no PZ-fidelity redesign should quietly reintroduce per-individual randomization. | P4-R2 |
+| T8.4 | **Noise stress-test scenarios** (PT4) pass against the existing chase→melee loop. Wander/investigate are not required for any PT4 scenario — a stationary "wandering" group is a fine stand-in until OQ-B4-12. | P4-R4 |
 
-> **Blueprint-corruption caution.** `BT_Zombie`'s custom tasks cast to `AZombieAIController` and have already been corrupted once by Live Coding (`CLAUDE.md`). Compile them explicitly after every C++ patch in this phase.
+> **Two different failure classes found in this pass — don't conflate them.** `BP_ZombieAIController`'s "missing or NULL parent class" *is* the Live Coding corruption pattern `CLAUDE.md` documents (fix: reparent to `ZombieAIController` in Class Settings). `BT_Zombie`'s "class missing" errors are **not** that pattern — Live Coding corrupts references to *native* classes; these are stale references between two *content* Blueprints, almost certainly from an unredirected rename. Keep that distinction in mind the next time an Output Log error needs triaging — the fix and the risk profile differ.
 
 ---
 

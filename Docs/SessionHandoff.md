@@ -30,12 +30,21 @@ B0 is the highest-C++-churn phase in the plan and runs straight into `CLAUDE.md`
 - **T0.5 / OQ-B9-01 — all gamepad work and testing deferred to B9.** Not cut, just not verified until then. Assume it does not work.
 - **OQ-X-01 — PC only for the initial launch.** Closes `GameDevPlan` §7 cross-cutting Q3, open since the pivot. Console/Steam Deck are POST-BETA and are never a valid scope argument in any B-phase.
 - **The one gamepad thing that is NOT deferred**: B1-T2.4 still builds generic focus navigation at the widget base class, and no screen may hardcode a mouse-only interaction. Deferring gamepad *testing* is free; deferring gamepad *architecture* means retrofitting every UI screen in B9. Verify the hook with keyboard arrows/tab, which satisfies accessibility anyway.
+- **Zombie AI: real redesign deferred to B4-T7 (new OQ-B4-12), not patched incrementally in B0.** `BT_Zombie` turns out to be a placeholder ShooterGame-derived loop, not the deliberate design it was assumed to be. Rather than wire up a stopgap now and rebuild later, the redesign lands once as a dedicated pass, timed to B4 where real zombie population/zone content exists to tune it against, explicitly aimed at **Project Zomboid-style** behavior (ambient wander, bounded memory, crowd-following, sandbox lore tunables). See `Docs/Beta/90_OpenQuestions.md` OQ-B4-12 for the full writeup and the PZ-trait checklist. B4-T7 grew from M to L (3–4 → 6–8 sessions) to carry it; still fits inside B4's existing XXL total.
 
-## Immediate next step — one sub-task left in B0-T0 (needs the editor)
+## T0.2 findings — Compile All Blueprints, run today, two fixes still pending in-editor
 
-**T0.2 — "Compile All Blueprints" pass.** Content Browser → select all → bulk Compile. Watch the Output Log for `is not a child class of` or `invalid target type` and fix anything found **before** refactor work starts. This is the clean-slate check, and per `CLAUDE.md`'s Live Coding lesson it is the only reliable way to catch the silent-corruption class of bug.
+Two **different** failure classes turned up. Don't conflate them — the fix and the risk profile differ for each.
 
-Then **B0-T1, the verification sweep** — `Docs/Testing/P5_P6_CharacterSetupVerification.md` Stages B–G, 2-client. That's the real work of the next few sessions, ~4–5 of them. Its one content prerequisite is a `Melee`-typed weapon config (Stage F), which needs **OQ-B0-11** — or the documented temporary workaround (reuse the rifle `TP_Mesh`, flagged as temporary) to unblock Stages B–E.
+1. **`BP_ZombieAIController` — "missing or NULL parent class."** This **is** the Live Coding corruption pattern `CLAUDE.md` documents. **Fix, not yet applied:** open it → Class Settings → Parent Class → set to `ZombieAIController` (native) → compile → save. Do this even though the Blueprint is otherwise unused (dev decision: keep it) — a kept-for-later asset left broken defeats the point of keeping it.
+2. **`BT_Zombie` — two nodes reference classes that don't exist** (`BTTask_WanderToPoint`, `BTTask_InvestigateWander`). **This is not Live Coding corruption** — it's a stale reference between two *content* Blueprints, almost certainly an unredirected rename: matching assets exist under different names (`BTTask_Wander`, `BTTask_GetInvestigationPoint`, plus `BTTask_ClearLastKnownLocation`/`StartIdleDwell`/`StartInvestigationTimer`, all currently disconnected). **Decision: fix the stale references now (hygiene, so the graph compiles clean going into B0-T2), but do not design real wander/investigate/search-last-known behavior** — that's the deferred OQ-B4-12 work. Repoint node 1 → `BTTask_Wander`, node 2 → `BTTask_GetInvestigationPoint` (verify visually against the graph first, this is a naming-match guess), compile, save.
+
+**T0.2 is not closed until both of these are applied in-editor and a re-run of Compile All Blueprints comes back clean.**
+
+## Immediate next step
+
+1. Apply the two fixes above, re-run Compile All Blueprints, confirm clean. Closes T0.2 and all of B0-T0.
+2. Then **B0-T1, the verification sweep** — `Docs/Testing/P5_P6_CharacterSetupVerification.md` Stages B–G, 2-client. ~4–5 sessions. Its one content prerequisite is a `Melee`-typed weapon config (Stage F), which needs **OQ-B0-11** — or the documented temporary workaround (reuse the rifle `TP_Mesh`, flagged as temporary) to unblock Stages B–E.
 
 ## Blocking decisions needed before B0-T2 (not before T0/T1)
 

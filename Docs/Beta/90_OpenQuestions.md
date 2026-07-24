@@ -351,6 +351,27 @@ Unstated but obvious interaction between B4's darkness mechanic and the noise-as
 ### OQ-B4-11 — Map discovery and teammate positions 🟡
 **Rec: map revealed by exploration; teammates shown only when nearby or when a location is manually shared.** Both preserve tension and make B4-T9.3's markers a real co-op communication tool rather than decoration. Full teammate tracking would remove most of the reason to coordinate.
 
+### OQ-B4-12 — Zombie AI depth pass: PZ-style behavioral fidelity 🟡 *(new, 2026-07-23; must resolve before B4-T7)*
+
+Surfaced while triaging `BT_Zombie`'s compile errors during B0-T0.2 (see revision register P4-R1/P4-R3). The current AI is a ShooterGame-derived chase→melee loop — functional, PIE-confirmed, but a long way from Project Zomboid's actual zombie identity, which the project's own pitch (`GameDevPlan` §1) claims as its simulation-fidelity foundation. Dev call, 2026-07-23: **don't patch this incrementally — hold the redesign for one deliberate pass**, timed so it lands once real zombie population/zone content makes the behavior worth tuning against (B4-T7), rather than twice (a stopgap now, a rebuild later).
+
+**Known building blocks already authored, currently disconnected** (found during this investigation, not by design — record so this pass doesn't re-derive it): `BTTask_Wander`, `BTTask_GetInvestigationPoint`, `BTTask_ClearLastKnownLocation`, `BTTask_StartIdleDwell`, `BTTask_StartInvestigationTimer`, `BTTask_MeleeAttack` (wired), plus the unused `BP_ZombieAIController`. Whether any of these survive the redesign or get replaced outright is exactly what this pass should decide — their existence is a starting inventory, not a constraint.
+
+**PZ traits worth deliberately evaluating**, per `ProjectZomboid_DesignReference.md` §8 (cross-reference when this pass starts):
+- **Ambient wandering with no target** — PZ zombies drift even absent a stimulus; the current BT only activates on perception. Affects whether "clearing an area" ever visually reads as clear.
+- **Bounded memory at the last-known location** — PZ zombies give up and return to ambient wander after a tunable search window, rather than tracking forever. `BTTask_ClearLastKnownLocation` suggests this was already the intent once.
+- **Crowd-following / migration** — zombies drift toward other zombies' activity, which is most of how PZ hordes actually form without explicit coordination logic. Directly relevant to **OQ-B7-01**'s horde-coordination approach — resolve this pass first, since it may make Rally-Leader-style coordination unnecessary rather than just unwanted.
+- **Sandbox-style "zombie lore" tunables** — PZ exposes speed/toughness/cognition/transmission as world-creation options. `UZSZombieConfig` already supports per-*type* variation (CONFIRMED, P4-R2); whether any axis becomes a **per-world** dial is a question for **OQ-B9-02** (difficulty options), not this one — flag the dependency, don't merge the questions.
+- **Door/obstacle destruction over time** — feeds directly into B4-T5.2's door-thumping task; this pass should specify the behavior, B4-T5 implements it.
+
+| Option | Tradeoff |
+|---|---|
+| **Dedicated design + implementation pass at the start of B4, before B4-T7** | Timed exactly when zone/population content makes it worth tuning against. Delays any wander/investigate behavior until B4 — acceptable, since B0-T8.4 confirms nothing in B0/B1/B2/B3 needs it. |
+| Patch incrementally now (B0-T8) and refine later | Rejected by the dev — risks building twice, and risks the redesign anchoring on the stopgap's shape instead of PZ's actual behavior. |
+| Fold into B7-T5 (horde coordination) instead of B4 | Too late — B4-T7's zone population and B5's event pacing (e.g. horde migration events) both assume zombies already behave like PZ zombies, not like a placeholder. |
+
+**Rec: option 1.** Scope as its own task at the top of B4, before T7 — likely **M (3–4 sessions)**: audit the existing disconnected assets, decide what's kept vs. rebuilt, implement, verify against a PZ-familiar playtester if one is available. Update `Docs/Beta/B4_WorldContent.md` T7 with a concrete sub-task once this lands, rather than leaving it implicit in this question.
+
 ---
 
 ## B5 — Events & Investigation
@@ -585,6 +606,6 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 | Before B8 | OQ-B8-01, OQ-B8-02 |
 | Before B10 | OQ-B10-02 |
 
-**🟡 SEQUENCEABLE (38)** — decide in parallel with early implementation on that phase.
+**🟡 SEQUENCEABLE (39)** — decide in parallel with early implementation on that phase. Notable addition: **OQ-B4-12** (zombie AI PZ-fidelity redesign) must resolve before B4-T7 specifically, not before B4 as a whole.
 
 **🟢 LATE (11)** — OQ-X-05, OQ-X-08, OQ-B1-03, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B7-04, OQ-B10-05, OQ-B10-09, OQ-B12-01, OQ-B12-04.
