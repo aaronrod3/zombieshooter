@@ -50,9 +50,56 @@ Thumbs.db
 .env
 
 # ---------------------------------------------------
-# Paid/licensed marketplace content - repo is public (for secret scanning),
-# but this content's license doesn't allow redistribution. Reinstall via the
-# editor's Fab window (see Docs/Infima Pack - Official Implementation Guide/
-# 01_Installation_And_Project_Structure.md) on a fresh clone.
+# Third-party / re-downloadable content (B0-T0.4, 2026-07-23)
+#
+# Repo is public (for secret scanning) and the LFS budget is $0, so the free
+# tier's 10 GiB/month BANDWIDTH is the binding constraint - every clone redraws
+# it. None of the below is authored here: it is either licensed content that
+# can't be redistributed, or free content re-downloadable from its source.
+#
+# WHAT TO REINSTALL ON A FRESH CLONE: see Docs/AssetSources.md.
+#
+# Rule of thumb for anything new: if it came from Fab/a sample project, ignore
+# it and add a row to AssetSources.md. If you authored or retargeted it, commit
+# it - see the "authored content" note at the bottom of this section.
 # ---------------------------------------------------
 Content/InfimaGames/
+
+# Fab / marketplace asset packs
+Content/BulletSFX_BasicCollection/
+Content/Footsteps_Volume_02/
+Content/Impacts/
+Content/LowPolyWeapons/
+Content/Mega_Survival_Tools/
+Content/VFX_Muzzle_Flashes/
+
+# Epic sample-project source content (Lyra / ShooterGame)
+Content/LyraAnims/
+
+# Raw, unsorted animation imports. Folder2 is the dead ShooterGame import
+# CLAUDE.md flags as genuinely unused - scheduled for deletion in B2-T2.4.
+# The curated, load-bearing retargets live in Content/Animation/ZSAnims/ and
+# ARE tracked - do not widen this to Content/Animation/.
+Content/Animation/Folder2/
+Content/Animation/Folder3/
+Content/Animation/Folder4/
+
+# Demo/sample maps shipped inside the packs above, plus their World Partition
+# external actor data. Content/Maps/ currently holds only ImpactParticles.umap
+# (from the Impacts pack) - it is NOT the game's map.
+Content/Maps/
+Content/__ExternalActors__/DemoMuseum/
+Content/__ExternalActors__/FPS_VFX_Muzzle_Flashes_Clutch-VFX/
+Content/__ExternalActors__/Untitled/
+Content/__ExternalActors__/VFX_Muzzle_Flashes/
+Content/__ExternalObjects__/DemoMuseum/
+Content/__ExternalObjects__/FPS_VFX_Muzzle_Flashes_Clutch-VFX/
+Content/__ExternalObjects__/Untitled/
+
+# Marketplace plugins - reinstall via the editor's Fab window.
+Plugins/Marketplace/
+
+# Authored content that IS tracked, listed here so it never gets swept up by a
+# broader pattern later: Content/Animation/ZSAnims/ (curated retargets),
+# Content/Animation/Enemy/ (zombie anims), Content/Animation/BlendSpace/,
+# Content/__ExternalActors__/ThirdPerson/ (the working level's partition data).
