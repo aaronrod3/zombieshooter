@@ -30,7 +30,7 @@ Built: TopDown + ThirdPerson perspectives, hybrid cursor facing, `UZSInteractabl
 | P1-R6 | **Elevation handling** — aim ray resolves against the character's current floor/Z-plane, auto-detected. Player has no manual elevation control. | `[C]` §1 🚩 | Genuinely new subsystem. B0 builds the **interface and a single-floor stub**; B4 builds real multi-level support once geometry exists. Splitting it this way stops B0 from silently absorbing a B4-sized problem. | B0-T3 (stub), B4-T3 (full) |
 | P1-R7 | **Interaction world-prompt widget still does not exist.** `OnNearestInteractableChanged` is the C++ hook; nothing consumes it. | `[N]` | P1's stated deliverable was "`UZSInteractableComponent` + world prompt ('E — Open')". Half shipped. | B1-T4 |
 | P1-R8 | **Left-click's dual meaning is unresolved** and now urgent — B1 introduces the first modal UI. Standard fix is an `IMC_ZS_UI` context swap at higher priority, not a `bIsMenuOpen` branch inside `HandleAttack`. | `[G]` §7 x-cut Q6 | Blocks every modal screen in B1. | B1-T1 |
-| P1-R9 | **Gamepad support was a P1 deliverable** ("validated with both mouse+keyboard and a gamepad from day one") and is not evidenced anywhere in the code or handoff notes. | `[N]` | Either it was done and undocumented, or it was skipped. Verify in B0-T1; if absent, it moves to B9. | B0-T1 |
+| P1-R9 | **Gamepad support was a P1 deliverable** ("validated with both mouse+keyboard and a gamepad from day one") and is not evidenced anywhere in the code or handoff notes. | `[N]` | ✅ **Resolved 2026-07-23 — deferred to B9, deliberately unverified.** Dev decision (OQ-B9-01): PC-only launch, core features first. Assume it does not work. B1 keeps the cheap architectural hooks so B9 is a verification pass, not a retrofit. | B9-T3.3 |
 
 ---
 
@@ -86,7 +86,7 @@ Built: `AZombieCharacter`, `AZombieAIController`, `UZSZombieConfig`, `BT_Zombie`
 | P4-R6 | **No special variants** (no Screamer etc.). Base roster = standard + later Crawlers. Data-driven architecture keeps the door open. | `[C]` §6 | Constrains B4/B7 — resist adding archetypes. Crawlers still need a v1/post-beta decision. | OQ-B7-03 |
 | P4-R7 | **Zone-based population and respawn-into-cleared-zones is unbuilt** — no zone system exists anywhere in the project. | `[N]` | P4's stated deliverable. Also blocks P6's per-zone loot quality tiers. Needs the real map → B4. | B4-T7 |
 | P4-R8 | **Door-thumping is unbuilt** (P4 deliverable: "wander, investigate noise, chase, attack, door-thumping"). | `[N]` | Needs interactable doors, which need real interiors. → B4. | B4-T5 |
-| P4-R9 | **`BP_ZombieAIController`'s fate undecided** (unused Blueprint). | `[N]` handoff | Dead-asset cleanup; trivial but it is a live Blueprint-corruption surface per `CLAUDE.md`'s Live Coding lesson. | B0-T0 |
+| P4-R9 | **`BP_ZombieAIController`** — unused Blueprint. | `[N]` handoff | ✅ **Resolved 2026-07-23 — keep it**, dev decision, in case it is wanted later. Still a live Blueprint-corruption surface per `CLAUDE.md`'s Live Coding lesson, so **it must be included in every "Compile All Blueprints" pass** rather than treated as inert. Revisit in B2-T2.4's asset triage. | closed |
 
 ---
 

@@ -12,15 +12,14 @@ Every design decision not explicitly confirmed in `ZombieShooter_Consolidated_Ch
 
 These predate the phase structure and several have been open since `GameDevPlan.md` §7 was written.
 
-### OQ-X-01 — Platform commitment 🔴
-`GameDevPlan` §7 flags this as blocking for P1 and it was never answered.
-| Option | Tradeoff |
-|---|---|
-| **PC/Steam only for beta** | Simplest. Everything already assumes it. Console remains possible later — the top-down scheme was chosen partly for that. |
-| PC + console-ready | Constrains UI, input, and performance now for a payoff much later. |
-| PC + Steam Deck verified | Modest extra work (controller + small-screen UI), real audience benefit for a survival game. |
+### OQ-X-01 — Platform commitment ✅ **RESOLVED 2026-07-23**
+`GameDevPlan` §7 flagged this as blocking for P1 and it went unanswered since the pivot.
 
-**Rec: PC/Steam only for beta, with Steam Deck as a stretch goal.** Steam Deck verification is mostly B9 work you are doing anyway.
+**Answer: PC only for the initial launch.** Dev decision, 2026-07-23.
+
+**Reasoning:** focus the available part-time capacity on core features rather than platform breadth. Console remains possible later — the top-down camera was chosen partly for that (`GameDevPlan` §1, Notes §3) and nothing in this plan closes the door — but it is explicitly not a beta consideration and must not constrain UI, input, or performance decisions now.
+
+**Consequences:** closes `GameDevPlan` §7 cross-cutting Q3 · Steam Deck verification drops from stretch goal to POST-BETA · reinforces OQ-B10-02 (Steam networking) as the sensible choice, since Steam is the only target · console-readiness is never a valid argument for scope in any B-phase.
 
 ### OQ-X-02 — Win condition, run length, and loss state 🔴
 Open Questions §1 asks all three and they interact. Decision 6 already resolved that the investigation arc is an optional capstone with no forced ending, which answers part of it.
@@ -467,14 +466,22 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 
 ## B9 — Accessibility & Settings
 
-### OQ-B9-01 — Gamepad support for beta 🔴
-| Option | Tradeoff |
-|---|---|
-| **Full gamepad support** | The top-down twin-stick scheme was chosen partly for this (`GameDevPlan` §1), and `IA_HotbarCycle` exists specifically to map to a bumper. Most design work is already done. Costs UI navigation work across every screen. |
-| Keyboard/mouse only | Less work now; contradicts a stated design rationale and closes off Steam Deck (OQ-X-01). |
-| Partial — gameplay yes, menus keyboard-only | Worst of both; half-support reads as broken support. |
+### OQ-B9-01 — Gamepad support for beta ✅ **RESOLVED 2026-07-23 (deferred to B9)**
 
-**Rec: full gamepad support.** It was a P1 deliverable that appears never to have been verified (P1-R9 / B0-T0.5), and the design already paid for it.
+**Answer: all gamepad work and testing deferred to B9.** Dev decision, 2026-07-23 — core features first, PC-only launch (OQ-X-01). Gamepad is **not cut**, just not verified or polished until B9.
+
+**Reasoning:** gamepad support is a *verification and polish* cost, not a *design* cost, so deferring it buys real capacity now without foreclosing anything. Enhanced Input handles gamepad natively; the top-down twin-stick scheme was already chosen with it in mind.
+
+**⚠ The one caveat that makes this safe — keep the architecture, drop the testing.** Deferring gamepad *testing* is free. Deferring gamepad *architecture* is not: if B1 ships eight UI screens with no focus-navigation path, retrofitting one in B9 means reopening all eight. The split adopted:
+
+| Keep now (cheap, prevents rework) | Defer to B9 (real cost, no rework risk) |
+|---|---|
+| Generic focus navigation at B1-T2.4's **widget base class** — one implementation, inherited by every screen | Per-screen gamepad navigation verification |
+| Input actions stay gamepad-mappable in Enhanced Input (already true — costs nothing) | Gamepad-specific bindings and tuning |
+| Don't hardcode mouse-only interactions (e.g. drag-drop must always have a keyboard/gamepad path — already a B1-T5.3 requirement for accessibility reasons anyway) | Input glyph switching (B9-T3.6) |
+| `IA_HotbarCycle` stays a first-class action | Stick sensitivity, deadzones, aim assist |
+
+**Consequences:** gamepad removed from B1's exit criteria and from every playtest checkpoint before B9 · B0-T0.5 becomes "record as unverified," not "verify" · B9-T3.3 becomes a genuine build-and-verify task rather than a check · **OQ-B0-01's scroll-arbitration reasoning must be re-examined**, since it partly rested on the hotbar mapping to a gamepad bumper — the recommendation still holds on keyboard grounds alone (zoom is the more frequent continuous action, hotbar has 1–9), but the gamepad half of the argument is now deferred, not load-bearing.
 
 ### OQ-B9-02 — Difficulty options 🟡
 **Rec: three presets** (zombie density, loot scarcity, infection chance) **plus the CONFIRMED per-skill XP rate tunable**, set at world creation and **locked for that world's lifetime.** Locking avoids the co-op fairness problem of mid-world changes, and it protects the permadeath framing. Each preset must state exactly what it changes — hidden scaling contradicts the transparency pillar.
@@ -556,12 +563,19 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 
 ## Summary — questions by priority
 
-**🔴 BLOCKING (17)** — resolve before the named phase starts. Batch each phase's set into one design session.
+**✅ RESOLVED (2)**
+
+| Question | Answer | Date |
+|---|---|---|
+| **OQ-X-01** Platform commitment | **PC only** for initial launch. Console/Steam Deck → POST-BETA, never a scope argument. | 2026-07-23 |
+| **OQ-B9-01** Gamepad support | **In scope, all work deferred to B9.** Architecture hooks kept in B1 (base-class focus navigation, no mouse-only interactions); testing and tuning deferred. | 2026-07-23 |
+
+**🔴 BLOCKING (15)** — resolve before the named phase starts. Batch each phase's set into one design session.
 
 | Phase | Questions |
 |---|---|
 | Before B0 | OQ-B0-13 (**answer first**), OQ-B0-01, OQ-B0-02, OQ-B0-04, OQ-B0-05, OQ-B0-07, OQ-B0-11 · plus CR-01, CR-02, CR-10 |
-| Cross-cutting | OQ-X-01, OQ-X-02 |
+| Cross-cutting | OQ-X-02 |
 | Before B2 | OQ-B2-01 |
 | Before B3 | OQ-B3-01 |
 | Before B4 | OQ-B4-01, OQ-B4-02, OQ-B4-03 |
@@ -569,7 +583,6 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 | Before B6 | OQ-B6-04 |
 | Before B7 | OQ-B7-01 |
 | Before B8 | OQ-B8-01, OQ-B8-02 |
-| Before B9 | OQ-B9-01 |
 | Before B10 | OQ-B10-02 |
 
 **🟡 SEQUENCEABLE (38)** — decide in parallel with early implementation on that phase.

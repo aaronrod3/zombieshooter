@@ -37,9 +37,9 @@ The highest-C++-churn phase in the plan runs straight into `CLAUDE.md`'s Live Co
 |---|---|
 | T0.1 | **Standing policy recorded for B0:** full `Build.bat` rebuild over Ctrl+Alt+F11 for any header change; Live Coding only for `.cpp`-only edits. Written into `SessionHandoff.md`. |
 | T0.2 | **"Compile All Blueprints" pass** run and clean. Any `is not a child class of` / `invalid target type` errors in the Output Log fixed *before* refactor work starts. |
-| T0.3 | Delete or resolve `BP_ZombieAIController` (P4-R9) — an unused Blueprint is a live corruption surface. |
-| T0.4 | `git tag b0-baseline` on the last known-good commit. |
-| T0.5 | Verify gamepad input actually works (P1-R9). If it does not, record it and move gamepad support to B9 — do not fix it here. |
+| T0.3 | ✅ **RESOLVED 2026-07-23 — keep `BP_ZombieAIController`.** Dev decision: retained in case it is wanted later. It remains an unused Blueprint and therefore a live Live-Coding corruption surface, so **include it in every "Compile All Blueprints" pass** (T0.2) rather than assuming it is inert. Revisit in B2-T2.4's asset triage. |
+| T0.4 | ✅ **Done 2026-07-23.** `git tag b0-baseline`; ~1.55 GB third-party content gitignored, ~39 MB authored content committed, `Docs/AssetSources.md` written as the reinstall record. |
+| T0.5 | ✅ **RESOLVED 2026-07-23 — gamepad deferred to B9, not verified here.** Dev decision (OQ-B9-01, OQ-X-01: PC-only launch, core features first). Record as unverified and move on. **Do not test, do not fix.** The architectural hooks that prevent later rework are preserved in B1 — see OQ-B9-01's keep/defer split. |
 
 ---
 

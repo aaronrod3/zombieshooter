@@ -89,7 +89,7 @@ Entry to **B11**.
 ## Settings & accessibility
 
 - [ ] Every input is remappable.
-- [ ] Gamepad fully supported (if OQ-B9-01 = yes), including every menu.
+- [ ] Gamepad fully supported, including every menu. **All of this is verified in B9 and nowhere earlier** (OQ-B9-01) — treat it as untested until that pass runs.
 - [ ] Colorblind modes exist and no gameplay-critical state is colour-only.
 - [ ] Text scales without overflowing.
 - [ ] Brightness calibration exists — **required**, because the darkness mechanic depends on it.

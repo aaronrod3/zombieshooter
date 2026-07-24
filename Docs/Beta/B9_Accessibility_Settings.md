@@ -10,11 +10,12 @@
 
 - [ ] B1 complete — settings need a menu framework and B1-T8.3 left the entry point stubbed for exactly this.
 - [ ] B0 complete — control scheme final (perspective toggle removed, `IA_SecondaryAction` added, scroll arbitration resolved).
-- [ ] **OQ-B9-01 answered** — gamepad support: required for beta or keyboard/mouse only?
+- [ ] ✅ OQ-B9-01 resolved 2026-07-23 — **gamepad is in scope and all of it lands here.** Every earlier phase deferred it; this phase carries the whole cost.
+- [ ] B1-T2.4's generic focus-navigation hook confirmed present and used by every screen. **If it was bypassed anywhere, re-estimate T3.4 before starting.**
 
 ## Exit criteria
 
-- [ ] Every input is remappable, including gamepad if OQ-B9-01 says yes.
+- [ ] Every input is remappable, gamepad included.
 - [ ] Settings persist across sessions and apply without restart wherever technically possible.
 - [ ] A colorblind player can distinguish every gameplay-critical UI state.
 - [ ] Text is readable at 1080p on a couch-distance display.
@@ -49,8 +50,8 @@
 |---|---|
 | T3.1 | Full keyboard/mouse remapping via Enhanced Input's user-settings system (`UEnhancedInputUserSettings`) — the supported path, not a hand-rolled one. |
 | T3.2 | Conflict detection and resolution UI. |
-| T3.3 | **Gamepad support pass** per OQ-B9-01. The top-down twin-stick scheme was chosen partly for gamepad-friendliness (`GameDevPlan` §1), and `IA_HotbarCycle` was made first-class specifically to map to a bumper/d-pad — so most of the design work is already done. Verify P1-R9's status from B0-T0.5. |
-| T3.4 | Gamepad UI navigation for every B1 screen (B1-T2.4 built the generic path; this verifies every screen honours it). |
+| T3.3 | **Gamepad support pass — this is where ALL gamepad work happens.** Per OQ-B9-01 (resolved 2026-07-23), every phase before this one deliberately deferred gamepad verification; nothing has been tested on a controller since P1, and P1's claim was never evidenced. Assume it is broken until proven otherwise. The design groundwork exists — the top-down twin-stick scheme was chosen partly for gamepad-friendliness (`GameDevPlan` §1) and `IA_HotbarCycle` is first-class specifically to map to a bumper/d-pad — but **budget this as build-and-verify, not check-and-confirm.** |
+| T3.4 | Gamepad UI navigation for every B1 screen. B1-T2.4 built the generic focus-navigation path at the widget base class specifically so this is a verification pass rather than a per-screen retrofit — **if that hook was skipped or bypassed anywhere, this task grows substantially.** |
 | T3.5 | Mouse sensitivity, invert options, and hold-vs-toggle for aim, crouch, and sprint. |
 | T3.6 | Input glyphs switch automatically between keyboard and gamepad. |
 
@@ -83,7 +84,7 @@
 | ID | When | What is tested | Pass condition |
 |---|---|---|---|
 | **PT1** | End of T3 | **Full remap run**: rebind every action to something unusual, then play a full session. | Nothing is hardcoded. No conflicts slip through. Glyphs follow the rebind. |
-| **PT2** | End of T3 | **Gamepad-only session** (if OQ-B9-01 = yes). Play 30 minutes with the keyboard unplugged, including inventory, container looting, and the map. | Every screen is navigable. Combat feels controllable. Hotbar cycling works as designed. |
+| **PT2** | End of T3 | **Gamepad-only session — the first real controller test since P1.** Play 30 minutes with the keyboard physically unplugged, including inventory, container looting, and the map. | Every screen is navigable. Combat feels controllable. Hotbar cycling works as designed. Expect to find real problems here; nothing has been controller-tested for the entire project. |
 | **PT3** | End of T4 | **Accessibility audit** — play with each colorblind mode active and with max text size. Then play with audio muted. | No gameplay-critical state is colour-only. No text overflows. Muted play is hard but possible, revealing where a visual audio cue is needed. |
 | **PT4** | B9 exit | **Fresh-install first-run**: default settings on min-spec hardware. | Defaults are playable and sane. Darkness reads correctly at default gamma. Nothing requires a settings visit before playing. |
 

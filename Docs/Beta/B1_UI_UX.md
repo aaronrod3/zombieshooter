@@ -21,7 +21,7 @@
 - [ ] Left-click means "select" over a menu and "attack" otherwise, with no input leaking through in either direction.
 - [ ] Full loot loop is playable through UI: open container → inspect items → take individual items → manage weight → close.
 - [ ] Two clients each drive their own UI without cross-talk; no widget reads a replicated value by polling.
-- [ ] Every UI element has a gamepad navigation path (B9 does remapping; B1 does not ship keyboard-only screens).
+- [ ] **No screen hardcodes a mouse-only interaction** — every drag/click action also has a keyboard-driven path. (Gamepad *verification* is deferred to B9 per OQ-B9-01, but this structural requirement stays: it is an accessibility requirement regardless, and it is what makes B9 cheap instead of a rewrite.)
 - [ ] No modal screen pauses the game — real-time is non-negotiable per Decision 1.
 
 ---
@@ -47,7 +47,7 @@ The foundational piece. `GameDevPlan.md` §7 cross-cutting Q6 already specified 
 | T2.1 | `WBP_ZS_*` base classes established; a common style asset (colours, type scale, spacing) so restyling in B2/B7 is one file, not fifty. |
 | T2.2 | **Every widget binds to an `OnXChanged` delegate. No widget polls replicated state** — this is the project's replication convention applied to UI, and violating it is the most likely source of co-op UI desync. |
 | T2.3 | A widget-pooling policy for list-heavy screens (inventory grids), so opening a container doesn't allocate per-open. |
-| T2.4 | Gamepad focus navigation works generically at the base-class level, not per-screen. |
+| T2.4 | **Focus navigation implemented generically at the base-class level, not per-screen.** Build the mechanism; do **not** verify it on a gamepad (deferred to B9, OQ-B9-01). This is the one piece of gamepad architecture kept deliberately — one base-class implementation now costs hours, retrofitting it across every screen in B9 costs a week. Verify it with keyboard arrows/tab, which also satisfies the accessibility requirement. |
 
 ### B1-T3 — HUD · **M (4–5 sessions)** · *depends on T2*
 

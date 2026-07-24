@@ -49,6 +49,7 @@
 | **Start here** | **B0.** Nothing else should start first. |
 | **Answer first** | **OQ-B0-13** — item-instance refactor go/no-go. A third of B0 depends on it. |
 | **Needs your call** | **CR-01** (skill roster — the consolidated doc quotes a superseded list) · **CR-02** (vehicles) · **CR-10** (fatigue/perception ambiguity) |
+| **Resolved so far** | **OQ-X-01** → PC only for initial launch · **OQ-B9-01** → gamepad in scope but all work deferred to B9 (architecture hooks kept in B1) · **P4-R9** → keep `BP_ZombieAIController` |
 | **Highest-consequence gate** | **B0-PT2** — camera sign-off. The over-shoulder fallback is being deleted; do not delete the code until this passes. |
 | **Biggest phase** | **B4** (XXL, 45–60 sessions). Validate its scale against B2-T4.5's measured room build time before committing. |
 | **Biggest scope risk** | Temperature + Wet + clothing insulation (🚩 CR-03) — scoped-down proposal in OQ-B0-04. |

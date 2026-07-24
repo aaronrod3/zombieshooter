@@ -24,15 +24,18 @@ B0 is the highest-C++-churn phase in the plan and runs straight into `CLAUDE.md`
 - **"Compile All Blueprints" pass after every patch cluster**, before trusting any PIE result.
 - When something that "should just work" behaves wrong after a recompile, **check the Output Log for `is not a child class of` or `invalid target type` before anything else.**
 
-## Immediate next step — finish B0-T0 (needs the editor, so needs you)
+## Decisions made 2026-07-23
 
-Three sub-tasks left, all requiring the editor open:
+- **T0.3 — keep `BP_ZombieAIController`**, in case it is wanted later. It stays an unused Blueprint and therefore a live Live-Coding corruption surface, so **include it in every "Compile All Blueprints" pass** rather than assuming it is inert.
+- **T0.5 / OQ-B9-01 — all gamepad work and testing deferred to B9.** Not cut, just not verified until then. Assume it does not work.
+- **OQ-X-01 — PC only for the initial launch.** Closes `GameDevPlan` §7 cross-cutting Q3, open since the pivot. Console/Steam Deck are POST-BETA and are never a valid scope argument in any B-phase.
+- **The one gamepad thing that is NOT deferred**: B1-T2.4 still builds generic focus navigation at the widget base class, and no screen may hardcode a mouse-only interaction. Deferring gamepad *testing* is free; deferring gamepad *architecture* means retrofitting every UI screen in B9. Verify the hook with keyboard arrows/tab, which satisfies accessibility anyway.
 
-1. **T0.2 — "Compile All Blueprints" pass.** Content Browser bulk action. Fix any `is not a child class of` / `invalid target type` errors **before** refactor work starts. This is the clean-slate check.
-2. **T0.3 — resolve `BP_ZombieAIController`.** Unused Blueprint, fate undecided, and an unused BP is a live corruption surface. Delete it unless you know it's wanted.
-3. **T0.5 — verify gamepad input actually works.** P1 listed it as a deliverable ("validated with both mouse+keyboard and a gamepad from day one") and there's no evidence of it anywhere in the code or these notes. **Don't fix it if it's broken** — just record the answer; it moves to B9 either way.
+## Immediate next step — one sub-task left in B0-T0 (needs the editor)
 
-Then **B0-T1, the verification sweep** — `Docs/Testing/P5_P6_CharacterSetupVerification.md` Stages B–G, 2-client. That's the real work of the next few sessions.
+**T0.2 — "Compile All Blueprints" pass.** Content Browser → select all → bulk Compile. Watch the Output Log for `is not a child class of` or `invalid target type` and fix anything found **before** refactor work starts. This is the clean-slate check, and per `CLAUDE.md`'s Live Coding lesson it is the only reliable way to catch the silent-corruption class of bug.
+
+Then **B0-T1, the verification sweep** — `Docs/Testing/P5_P6_CharacterSetupVerification.md` Stages B–G, 2-client. That's the real work of the next few sessions, ~4–5 of them. Its one content prerequisite is a `Melee`-typed weapon config (Stage F), which needs **OQ-B0-11** — or the documented temporary workaround (reuse the rifle `TP_Mesh`, flagged as temporary) to unblock Stages B–E.
 
 ## Blocking decisions needed before B0-T2 (not before T0/T1)
 
