@@ -165,8 +165,8 @@ Proposed by `Docs/Planning/…` §4; removes `AZSWeapon::CurrentReserveAmmo`/`Ma
 
 **Rec: `F` for keyboard, gamepad face button.** `F` matches player expectation for a flashlight toggle, which is the offhand item B4's darkness mechanic makes load-bearing.
 
-### OQ-B0-11 — Melee weapon display/attachment 🔴 **content-blocking**
-`TP_Mesh` is a full-body skeletal swap authored for a rifle-holding pose; a bat or pipe needs something different. **No melee config has ever been authored because of this.**
+### OQ-B0-11 — Melee weapon display/attachment 🔴 **content-blocking** *(temporary unblock applied 2026-07-25)*
+`TP_Mesh` is a full-body skeletal swap authored for a rifle-holding pose; a bat or pipe needs something different. **No real melee config existed before 2026-07-25** — `DA_ZS_WeaponConfig_Crowbar` now exists (`Content/ZS/Weapons/Melee/`, `SM_Crowbar` weapon mesh, rifle `TP_Mesh` reused) purely to unblock B0-T1's Stage F testing, per option 3 below. This does **not** resolve the question — the crowbar still shows the rifle-holding pose, which is the exact wrong-looking outcome option 3 accepts as temporary. T10.7 replaces it with a real answer.
 | Option | Tradeoff |
 |---|---|
 | **Held-prop socket attachment + a shared one-handed melee `TP_Mesh`** | One body pose covers all one-handed melee; the weapon is a static mesh on a hand socket. Cheap, scales to N weapons with zero new C++ — consistent with the multi-weapon rule. |
@@ -351,26 +351,26 @@ Unstated but obvious interaction between B4's darkness mechanic and the noise-as
 ### OQ-B4-11 — Map discovery and teammate positions 🟡
 **Rec: map revealed by exploration; teammates shown only when nearby or when a location is manually shared.** Both preserve tension and make B4-T9.3's markers a real co-op communication tool rather than decoration. Full teammate tracking would remove most of the reason to coordinate.
 
-### OQ-B4-12 — Zombie AI depth pass: PZ-style behavioral fidelity 🟡 *(new, 2026-07-23; must resolve before B4-T7)*
+### OQ-B4-12 — Zombie AI depth pass: PZ-style behavioral fidelity 🟡 *(new 2026-07-23, trimmed 2026-07-25; must resolve before B4-T7)*
 
-Surfaced while triaging `BT_Zombie`'s compile errors during B0-T0.2 (see revision register P4-R1/P4-R3). The current AI is a ShooterGame-derived chase→melee loop — functional, PIE-confirmed, but a long way from Project Zomboid's actual zombie identity, which the project's own pitch (`GameDevPlan` §1) claims as its simulation-fidelity foundation. Dev call, 2026-07-23: **don't patch this incrementally — hold the redesign for one deliberate pass**, timed so it lands once real zombie population/zone content makes the behavior worth tuning against (B4-T7), rather than twice (a stopgap now, a rebuild later).
+**Trimmed 2026-07-25** — a chunk of what this question originally covered turned out to be bug-fixing on the *existing* design rather than genuine redesign, and got done in B0 instead of waiting for B4. See `Docs/SessionHandoff.md` and revision register P4-R1/P4-R3 for the full account: all 6 BT tasks are now native C++, two real bugs are fixed (`GetInvestigationPoint`'s unset keys + double-roll, `StartInvestigationTimer`'s InProgress-forever block on `Wander`), and a genuine ambient-wander branch now exists on the root selector. **Behaviorally unverified in PIE** — blocked on an unrelated navmesh issue in the test level (dev fixing manually; see `memory/project_navmesh_dynamic_workaround.md`). This question now covers only what's genuinely still open: real PZ-fidelity *additions*, not fixes to what's already there.
 
-**Known building blocks already authored, currently disconnected** (found during this investigation, not by design — record so this pass doesn't re-derive it): `BTTask_Wander`, `BTTask_GetInvestigationPoint`, `BTTask_ClearLastKnownLocation`, `BTTask_StartIdleDwell`, `BTTask_StartInvestigationTimer`, `BTTask_MeleeAttack` (wired), plus the unused `BP_ZombieAIController`. Whether any of these survive the redesign or get replaced outright is exactly what this pass should decide — their existence is a starting inventory, not a constraint.
+**What's already done, no longer part of this question**: ambient wandering exists (root-level branch) · stale references fixed · the tasks are native, not Blueprint · `MeleeAttack`/`Wander`/`GetInvestigationPoint`/`StartInvestigationTimer` all wired and working code-side.
 
-**PZ traits worth deliberately evaluating**, per `ProjectZomboid_DesignReference.md` §8 (cross-reference when this pass starts):
-- **Ambient wandering with no target** — PZ zombies drift even absent a stimulus; the current BT only activates on perception. Affects whether "clearing an area" ever visually reads as clear.
-- **Bounded memory at the last-known location** — PZ zombies give up and return to ambient wander after a tunable search window, rather than tracking forever. `BTTask_ClearLastKnownLocation` suggests this was already the intent once.
+**What's still genuinely open:**
+- **`BTTask_ClearLastKnownLocation` wiring** — exists as a native class, still not placed in the tree. Ambiguous because `StartInvestigationTimer`'s own expiry already clears `LastKnownLocation` on a longer timer; `ClearLastKnownLocation`'s own short (2s) independent delay may have been meant for a narrower case (e.g. "give up immediately if `GetInvestigationPoint` can't find anywhere to go") rather than a duplicate give-up path. Needs a design call, not a guess.
 - **Crowd-following / migration** — zombies drift toward other zombies' activity, which is most of how PZ hordes actually form without explicit coordination logic. Directly relevant to **OQ-B7-01**'s horde-coordination approach — resolve this pass first, since it may make Rally-Leader-style coordination unnecessary rather than just unwanted.
 - **Sandbox-style "zombie lore" tunables** — PZ exposes speed/toughness/cognition/transmission as world-creation options. `UZSZombieConfig` already supports per-*type* variation (CONFIRMED, P4-R2); whether any axis becomes a **per-world** dial is a question for **OQ-B9-02** (difficulty options), not this one — flag the dependency, don't merge the questions.
 - **Door/obstacle destruction over time** — feeds directly into B4-T5.2's door-thumping task; this pass should specify the behavior, B4-T5 implements it.
+- **A structural oddity worth a look, not necessarily a bug**: the `Wait`→`GetInvestigationPoint` branch sits at root-selector priority, a sibling of Attack/Chase/Investigate, rather than nested inside the Investigate branch. It happens to work correctly as-is (fails cleanly for a "cold" zombie, falls through to the new ambient-wander branch), but it's the kind of leftover worth a second look when this pass runs.
 
 | Option | Tradeoff |
 |---|---|
-| **Dedicated design + implementation pass at the start of B4, before B4-T7** | Timed exactly when zone/population content makes it worth tuning against. Delays any wander/investigate behavior until B4 — acceptable, since B0-T8.4 confirms nothing in B0/B1/B2/B3 needs it. |
-| Patch incrementally now (B0-T8) and refine later | Rejected by the dev — risks building twice, and risks the redesign anchoring on the stopgap's shape instead of PZ's actual behavior. |
-| Fold into B7-T5 (horde coordination) instead of B4 | Too late — B4-T7's zone population and B5's event pacing (e.g. horde migration events) both assume zombies already behave like PZ zombies, not like a placeholder. |
+| **Dedicated design + implementation pass at the start of B4, before B4-T7** | Timed exactly when zone/population content makes it worth tuning against. Now a smaller pass than originally scoped, since the bug-fixing half is already done. |
+| Patch incrementally now (B0) | Rejected — same reasoning as before: crowd-following/tunables genuinely need real zone/population content to design against. |
+| Fold into B7-T5 (horde coordination) instead of B4 | Too late for the crowd-following piece specifically — B4-T7's zone population and B5's event pacing both assume it. |
 
-**Rec: option 1.** Scope as its own task at the top of B4, before T7 — likely **M (3–4 sessions)**: audit the existing disconnected assets, decide what's kept vs. rebuilt, implement, verify against a PZ-familiar playtester if one is available. Update `Docs/Beta/B4_WorldContent.md` T7 with a concrete sub-task once this lands, rather than leaving it implicit in this question.
+**Rec: option 1.** Now likely **S–M (2–3 sessions)**, down from the original 3–4 — the `ClearLastKnownLocation` wiring call and crowd-following/tunables scoping are what's left, not a from-scratch behavior rebuild.
 
 ---
 

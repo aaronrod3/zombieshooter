@@ -16,6 +16,7 @@ public class ZombieShooter : ModuleRules
 			"EnhancedInput",
 			"AIModule",
 			"GameplayTasks",
+			"NavigationSystem",
 			"UMG",
 			"Slate",
 			"PhysicsCore"
@@ -32,6 +33,7 @@ public class ZombieShooter : ModuleRules
 			"ZombieShooter/Weapons",
 			"ZombieShooter/Weapons/Notifies",
 			"ZombieShooter/Zombies",
+			"ZombieShooter/Zombies/AI",
 			"ZombieShooter/Interaction",
 			"ZombieShooter/Survival",
 			"ZombieShooter/Inventory"

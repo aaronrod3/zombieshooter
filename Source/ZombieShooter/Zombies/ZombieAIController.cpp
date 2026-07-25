@@ -3,21 +3,12 @@
 #include "ZombieAIController.h"
 #include "ZombieCharacter.h"
 #include "ZSZombieConfig.h"
+#include "ZSZombieBlackboardKeys.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISenseConfig_Hearing.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
-
-namespace ZSZombieBlackboardKeys
-{
-	static const FName SelfActor(TEXT("SelfActor"));
-	static const FName TargetActor(TEXT("TargetActor"));
-	static const FName LastKnownLocation(TEXT("LastKnownLocation"));
-	static const FName bIsInMeleeRange(TEXT("bIsInMeleeRange"));
-	static const FName bIsIdling(TEXT("bIsIdling"));
-	static const FName bInvestigationTimerStarted(TEXT("bInvestigationTimerStarted"));
-}
 
 AZombieAIController::AZombieAIController()
 {
