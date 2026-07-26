@@ -58,55 +58,55 @@ This part matters more than any individual feature answer below — it's the pro
  - B. After a small cluster of related changes — a few sessions' worth
  - C. Longer stretches are fine as long as there's a real checklist I work through and you spot-check
  - D. Other: ___
- **Your answer:** ___
+ **Your answer:** A
 
 **2. Decision-making.** For the many open "which way should this work" questions — exact numbers, names, mechanics — how involved do you want to be? ⭐
  - A. Ask me for almost everything, even small stuff
  - B. Ask me for anything that shapes how a system feels or plays; pick sensible defaults for pure implementation details and tell me what you picked
  - C. Use broad judgment, just flag anything expensive to reverse later
  - D. Other: ___
- **Your answer:** ___
+ **Your answer:** D - I will trust your judgment on most things, but please ask me before implementation for specifics that i should have input on,then procedd with steps after.
 
 **3. Unsupervised / long autonomous sessions.** Several big pieces so far (P6's inventory/loot backbone, the UI plan, the inventory/loadout redesign plan) were built or written unsupervised, before you'd seen any of it. Going forward: ⭐
  - A. Don't do large unsupervised work anymore — keep sessions small enough that you're present or reviewing before more gets built on top
  - B. Fine for planning docs/proposals to happen unsupervised, but not a lot of shipped code
  - C. Still fine occasionally, capped in size, always verified before anything else builds on top of it
  - D. Other: ___
- **Your answer:** ___
+ **Your answer:** D - long sessions are fine, but i want you to ask me for my input on the specifics before proceeding, and then compile a list of steps you need me to complete on my end.
 
 **4. What "tested" means from here on.**
  - A. You personally PIE-test everything before I move on
  - B. A written test script/runbook (like `Docs/Testing/P5_P6_CharacterSetupVerification.md`, which B0 is using right now) that you run through, and I don't claim something works until you've confirmed it
  - C. Trust my report for small stuff, but you test anything touching movement/camera/multiplayer/save data yourself
  - D. Other: ___
- **Your answer:** ___
+ **Your answer:** B
 
 **5. Phase size going forward.** Given 1–4 above: are short phases (a handful of sessions, one clear testable outcome, then stop) the right shape, or are you fine with longer phases as long as there are several real checkpoints inside them?
- **Your answer:** ___
+ **Your answer:** Longer is fine, as long as there are checkpoints, or compiling a list of steps for me to complete, as long as not too many steps are done that are too dependent on each other, so if an earlier one doesn't work its not a cascading issue.
 
 ---
 
 ## Part 1 — Foundational
 
 **1.1 — The missing source document.** `ZombieShooter_Consolidated_Changes.md` is cited constantly throughout `Docs/Beta/` as the source of "CONFIRMED, non-negotiable" decisions, but it isn't in the repo anywhere I can find. Do you know where it came from (another AI tool? your own notes elsewhere?), do you still have it, and — more importantly — do you still stand behind everything currently attributed to it? Or should everything sourced from it be treated as open again rather than settled? ⭐
- **Your answer:** ___
+ **Your answer:** It was used to compile plans for the beta planning. I still have it if I need to upload it at anytime let me know.
 
 **1.2 — Ambition level, right now.** The full plan targets a ~10–14 month, 195–250 session public Early Access beta: investigation arc, multi-level buildings, basements, weather/temperature, ~12 named locations, 6 backgrounds, dynamic events, full audio pass, accessibility, store page. Does that match what you actually want to be working toward right now? ⭐
  - A. Yes, that's still the real goal, just needs better phasing
  - B. Too far out — I want a smaller, nearer-term playable milestone first, then reassess from there
  - C. Don't know yet — help me figure out a smaller first target
- **Your answer:** ___
+ **Your answer:** B
 
 **1.3 — What does "real progress" look like in the next month or two?** Not the beta — the next concrete thing that would feel good to actually reach and play. (Example shape of an answer: "I can walk around a graybox map with a friend, loot a house, fight a few zombies, and survive a day/night cycle.") ⭐
- **Your answer:** ___
+ **Your answer:** I want to have a playable game, that is going to still need tuning/refining/polishing, but that way we know the features work.
 
 **1.4 — Three flagged contradictions need a real call** (currently sitting on an AI recommendation, not a confirmed decision):
- - **CR-01 — Skill roster.** One source doc says six flat skills (Melee, Firearms, Fitness, Medicine, Carpentry, Survival). `GameDevPlan.md` §3.1 says a longer, different list (Strength/Stamina/Sneak/Sprint as passive attributes, plus per-weapon-class Melee, Maintenance, Aiming, Reloading, First Aid) and explicitly supersedes the six-skill list. Which do you actually want? **Your answer:** ___
- - **CR-02 — Vehicles.** Scope contract says CUT for v1; other places assume they exist (a container category, an auto-zoom trigger). Genuinely cut, or do you want them in? (They're a large system on their own and change how big the map should be.) **Your answer:** ___
- - **CR-10 — Does being tired make the player worse at spotting zombies (vignette/muffled audio), or does it make the player harder for zombies to spot (a stealth upside to being exhausted)?** Current assumption is the former. **Your answer:** ___
+ - **CR-01 — Skill roster.** One source doc says six flat skills (Melee, Firearms, Fitness, Medicine, Carpentry, Survival). `GameDevPlan.md` §3.1 says a longer, different list (Strength/Stamina/Sneak/Sprint as passive attributes, plus per-weapon-class Melee, Maintenance, Aiming, Reloading, First Aid) and explicitly supersedes the six-skill list. Which do you actually want? **Your answer:** Use the GameDevPlan.md list (longer one)
+ - **CR-02 — Vehicles.** Scope contract says CUT for v1; other places assume they exist (a container category, an auto-zoom trigger). Genuinely cut, or do you want them in? (They're a large system on their own and change how big the map should be.) **Your answer:** We will implement vehicles later on in development, should be ready for beta. 
+ - **CR-10 — Does being tired make the player worse at spotting zombies (vignette/muffled audio), or does it make the player harder for zombies to spot (a stealth upside to being exhausted)?** Current assumption is the former. **Your answer:** former
 
 **1.5 — Cadence reality check.** Plan assumes solo dev + AI assist, ~15–20 hrs/week part-time. Still accurate?
- **Your answer:** ___
+ **Your answer:** yes
 
 ---
 
@@ -120,12 +120,12 @@ This part matters more than any individual feature answer below — it's the pro
 
 | Item | Current plan | Your call |
 |---|---|---|
-| Over-the-shoulder view | Delete permanently once `B0-PT2` passes | KEEP as permanent option / KEEP as fallback only / CUT now: ___ |
-| Aim-cone tightness | Tight cones, aiming clearly rewarded (pistol ~8°→2°, rifle ~5°→1°) | tighter / about right / looser and more chaotic: ___ |
-| Headshot bonus (aimed vs. hip) | ~5% hip / ~25% aimed | KEEP / SIMPLIFY / DEFER / CUT: ___ |
+| Over-the-shoulder view | Delete permanently once `B0-PT2` passes | KEEP as permanent option / KEEP as fallback only / CUT now: CUT now |
+| Aim-cone tightness | Tight cones, aiming clearly rewarded (pistol ~8°→2°, rifle ~5°→1°) | tighter / about right / looser and more chaotic: about right |
+| Headshot bonus (aimed vs. hip) | ~5% hip / ~25% aimed | KEEP / SIMPLIFY / DEFER / CUT: KEEP |
 
 **Open questions:**
-1. ⭐ What does "feels good" actually mean to you here, beyond Door Kickers 2's camera angle? Any other games whose *combat feel* (not camera) you'd point to? **Your answer:** ___
+1. ⭐ What does "feels good" actually mean to you here, beyond Door Kickers 2's camera angle? Any other games whose *combat feel* (not camera) you'd point to? **Your answer:** PZ has a good camera feel, but want it to be slightly different to avoid copying, which is why i went with DK2 style to change it up.
 2. What would make you say "no, this isn't working, go back to the drawing board" on the camera during `B0-PT2`? Knowing the failure condition in advance makes that checkpoint real instead of a formality. **Your answer:** ___
 
 ---
@@ -138,13 +138,13 @@ This part matters more than any individual feature answer below — it's the pro
 
 | Item | Current plan | Your call |
 |---|---|---|
-| Wet (rain/water exposure) | New, adds to footstep noise | KEEP / SIMPLIFY / DEFER / CUT: ___ |
-| Temperature (hot/cold, hypothermia) | New, scoped-down single-scalar model | KEEP / SIMPLIFY / DEFER / CUT: ___ |
-| Clothing insulation values | One flat number per item, no layering | KEEP / SIMPLIFY / DEFER / CUT: ___ |
+| Wet (rain/water exposure) | New, adds to footstep noise | KEEP / SIMPLIFY / DEFER / CUT: keep |
+| Temperature (hot/cold, hypothermia) | New, scoped-down single-scalar model | KEEP / SIMPLIFY / DEFER / CUT: keep |
+| Clothing insulation values | One flat number per item, no layering | KEEP / SIMPLIFY / DEFER / CUT: keep |
 
 **Open questions:**
-1. ⭐ Does temperature/weather survival actually matter to your vision for this game, or did it creep in from the outside source doc rather than something you asked for? **Your answer:** ___
-2. Everything here is governed by "needs degrade performance before they kill" — starvation stays possible but far downstream. Does that still match what you want, or should neglect be more punishing than that? **Your answer:** ___
+1. ⭐ Does temperature/weather survival actually matter to your vision for this game, or did it creep in from the outside source doc rather than something you asked for? **Your answer:** was part of the plan
+2. Everything here is governed by "needs degrade performance before they kill" — starvation stays possible but far downstream. Does that still match what you want, or should neglect be more punishing than that? **Your answer:** i want the player to worry about survival aspects, but i dont want it to become the main thing. too many games want the player to eat/drink, but then it turns into the player being frustrated with eating/drinking too much and losing due to running out of resources.
 
 ---
 
@@ -155,9 +155,9 @@ This part matters more than any individual feature answer below — it's the pro
 This reads as one of the project's actual identity pillars (`GameDevPlan.md` calls it out by name), not filler, so it's probably closer to right than most sections here — mainly flagging it to confirm rather than to re-litigate.
 
 **Open questions:**
-1. ⭐ Confirm the ambiguity is exactly what you want: any UI element that names which infection tier you have — even a debug label — destroys the intended horror beat ("is this a cold or am I dying?"). Worth being deliberate about, since it's easy for a future UI pass to break by accident. **Your answer:** ___
-2. Bite-to-death timeline is currently proposed at ~3 in-game days. Feels right, too short, too long? **Your answer:** ___
-3. Multi-day fracture healing, a rare-but-severe "critical head bleed" outcome — still want both? **Your answer:** ___
+1. ⭐ Confirm the ambiguity is exactly what you want: any UI element that names which infection tier you have — even a debug label — destroys the intended horror beat ("is this a cold or am I dying?"). Worth being deliberate about, since it's easy for a future UI pass to break by accident. **Your answer:** plainly show the player if they are bitten and infected.
+2. Bite-to-death timeline is currently proposed at ~3 in-game days. Feels right, too short, too long? **Your answer:** feels right
+3. Multi-day fracture healing, a rare-but-severe "critical head bleed" outcome — still want both? **Your answer:** yes
 
 ---
 
@@ -171,14 +171,14 @@ This is mostly an engineering correctness question, not a feel question — but 
 
 | Bundled addition | Your call |
 |---|---|
-| Ammo becomes a real, lootable/shareable inventory item | KEEP / SIMPLIFY / DEFER / CUT: ___ |
-| Four carry-location categories (on-person vs. bag vs. world vs. vehicle-reserved) | KEEP / SIMPLIFY / DEFER / CUT: ___ |
-| Randomized loot condition (two "rare" finds can differ) | KEEP / SIMPLIFY / DEFER / CUT: ___ |
-| One-handed/two-handed weapon rules | KEEP / SIMPLIFY / DEFER / CUT: ___ |
+| Ammo becomes a real, lootable/shareable inventory item | KEEP / SIMPLIFY / DEFER / CUT: keep |
+| Four carry-location categories (on-person vs. bag vs. world vs. vehicle-reserved) | KEEP / SIMPLIFY / DEFER / CUT: keep |
+| Randomized loot condition (two "rare" finds can differ) | KEEP / SIMPLIFY / DEFER / CUT: keep |
+| One-handed/two-handed weapon rules | KEEP / SIMPLIFY / DEFER / CUT: keep |
 
 **Open questions:**
-1. ⭐ Do you want this refactor done as one uninterrupted block (current plan, ~5–6 sessions with nothing else landing until it's done), or split into the smaller, independently-shippable steps the design doc itself already proposes, each with its own test pass? **Your answer:** ___
-2. Do you actually want weapon attachments with real stat effects (scopes/silencers that change numbers, not just look different) at some point, or is the cosmetic-only version already built enough? The design doc recommends against building the stat-changing version at all. **Your answer:** ___
+1. ⭐ Do you want this refactor done as one uninterrupted block (current plan, ~5–6 sessions with nothing else landing until it's done), or split into the smaller, independently-shippable steps the design doc itself already proposes, each with its own test pass? **Your answer:** independent steps for testing
+2. Do you actually want weapon attachments with real stat effects (scopes/silencers that change numbers, not just look different) at some point, or is the cosmetic-only version already built enough? The design doc recommends against building the stat-changing version at all. **Your answer:** scopes increase accuracy, sliencers decrease sound, etc
 
 ---
 
@@ -190,13 +190,13 @@ This is mostly an engineering correctness question, not a feel question — but 
 
 | Item | Current plan | Your call |
 |---|---|---|
-| Firearm roster | Revolver, pistol, shotgun, bolt-action (4) | right size / want more / want fewer: ___ |
-| Melee roster | 4–6 archetypes, one per feel-category (blunt/edged/improvised/heavy) | right size / want more / want fewer: ___ |
-| Jamming | Condition-based, with audio/UI cue | KEEP / SIMPLIFY / DEFER / CUT: ___ |
-| Downed-zombie + stomp finisher | New AI state + dedicated mechanic | KEEP / SIMPLIFY / DEFER / CUT: ___ |
+| Firearm roster | Revolver, pistol, shotgun, bolt-action (4) | right size / want more / want fewer: I will provide a full list once basic features are set |
+| Melee roster | 4–6 archetypes, one per feel-category (blunt/edged/improvised/heavy) | right size / want more / want fewer: right |
+| Jamming | Condition-based, with audio/UI cue | KEEP / SIMPLIFY / DEFER / CUT: keep |
+| Downed-zombie + stomp finisher | New AI state + dedicated mechanic | KEEP / SIMPLIFY / DEFER / CUT: keep, find alterntives to make sure this isn't copying PZ |
 
 **Open question:**
-1. ⭐ **Melee weapon display** — a static prop on a hand socket (works for any one-handed weapon, cheap, slightly generic) vs. a unique holding pose per weapon (looks best, multiplies animation work per weapon) vs. something else? This one's been deferred three times and needs an actual answer to stop blocking content. **Your answer:** ___
+1. ⭐ **Melee weapon display** — a static prop on a hand socket (works for any one-handed weapon, cheap, slightly generic) vs. a unique holding pose per weapon (looks best, multiplies animation work per weapon) vs. something else? This one's been deferred three times and needs an actual answer to stop blocking content. **Your answer:** specific poses per weapon type, rifle/shotugn/lmg all the same, pistol has its own, melee has its own, etc
 
 ---
 
@@ -205,8 +205,8 @@ This is mostly an engineering correctness question, not a feel question — but 
 **Current plan:** Good news first — the native AI migration is done and, as of this session, confirmed actually working in PIE (wander/investigate/chase all behave correctly). This is one of the few systems in the whole plan that's gone through exactly the tight build→test→fix loop you're asking for more of. What's still open: PZ-style "crowd following" (zombies drift toward each other's activity, which is most of how real hordes form) and the technical approach for handling 100+ zombies performantly are both deliberately deferred until there's real content and real performance numbers to design against — which is itself good phasing, not a gap.
 
 **Open questions:**
-1. ⭐ What do you actually want zombies to *feel* like? (PZ-style dumb-but-relentless shamblers that respond convincingly to noise, something faster/smarter, something else entirely?) **Your answer:** ___
-2. How important is a genuine, visually large horde (100+ zombies moving together) to your vision, versus a smaller number that's easier to make performant, well-tested, and correctly behaved? **Your answer:** ___
+1. ⭐ What do you actually want zombies to *feel* like? (PZ-style dumb-but-relentless shamblers that respond convincingly to noise, something faster/smarter, something else entirely?) **Your answer:** PZ style, but newer(fresh) zombies are faster, zombies degrade slowly and slowdown, don't do as much damage
+2. How important is a genuine, visually large horde (100+ zombies moving together) to your vision, versus a smaller number that's easier to make performant, well-tested, and correctly behaved? **Your answer:** very important
 
 ---
 
@@ -220,15 +220,15 @@ This is mostly an engineering correctness question, not a feel question — but 
 
 | Item | Current plan | Your call |
 |---|---|---|
-| Multi-level buildings (2nd/3rd floors) | Full system: floor detection, per-floor aim resolution, AI pathing, noise attenuation | KEEP / SIMPLIFY (e.g. rare, 1–2 story cap) / DEFER / CUT: ___ |
-| Basements, randomized layout | Authored pool, weighted pick, most simple / a few elaborate | KEEP / SIMPLIFY (fewer, all simple) / DEFER / CUT: ___ |
-| Darkness requires a light source | First-class mechanic, ties to flashlight | KEEP / SIMPLIFY (cosmetic only) / DEFER / CUT: ___ |
-| Weather as a real mechanic (not just visual) | Rain/fog/snow drive Wet + Temperature + noise masking | KEEP / SIMPLIFY (atmosphere-only) / DEFER / CUT: ___ |
-| Map scale | ~1×1 km, one dense town + rural fringe | bigger / about right / smaller-and-denser: ___ |
+| Multi-level buildings (2nd/3rd floors) | Full system: floor detection, per-floor aim resolution, AI pathing, noise attenuation | KEEP / SIMPLIFY (e.g. rare, 1–2 story cap) / DEFER / CUT: keep |
+| Basements, randomized layout | Authored pool, weighted pick, most simple / a few elaborate | KEEP / SIMPLIFY (fewer, all simple) / DEFER / CUT: will stick to a fixed map for now |
+| Darkness requires a light source | First-class mechanic, ties to flashlight | KEEP / SIMPLIFY (cosmetic only) / DEFER / CUT: keep |
+| Weather as a real mechanic (not just visual) | Rain/fog/snow drive Wet + Temperature + noise masking | KEEP / SIMPLIFY (atmosphere-only) / DEFER / CUT: keep |
+| Map scale | ~1×1 km, one dense town + rural fringe | bigger / about right / smaller-and-denser: bigger, build in phases |
 
 **Open questions:**
-1. ⭐ **If you had to cut exactly one of {multi-level buildings, basements, weather-as-a-mechanic, temperature} to meaningfully shrink this phase, which would you keep and which would go?** Forcing a real tradeoff here is more useful than asking "do you want it" about each in isolation, since the honest answer to that is almost always yes. **Your answer:** ___
-2. Named locations (a town center, hospital, sheriff's station, hardware store, school, ranger station, etc.) still need actual names and flavor — is this something you want to write yourself, brainstorm together live, or are you fine with a first draft from me to react to? **Your answer:** ___
+1. ⭐ **If you had to cut exactly one of {multi-level buildings, basements, weather-as-a-mechanic, temperature} to meaningfully shrink this phase, which would you keep and which would go?** Forcing a real tradeoff here is more useful than asking "do you want it" about each in isolation, since the honest answer to that is almost always yes. **Your answer:** don't see the need to cut, but can work through them in phases
+2. Named locations (a town center, hospital, sheriff's station, hardware store, school, ranger station, etc.) still need actual names and flavor — is this something you want to write yourself, brainstorm together live, or are you fine with a first draft from me to react to? **Your answer:** generic names at first, will change later, worried about mechanics and features first
 
 ---
 
@@ -237,8 +237,8 @@ This is mostly an engineering correctness question, not a feel question — but 
 **Current plan:** Mostly a correctness/infrastructure question rather than a feel question — layered saves (frequent character-state, periodic full-world, chunk-on-unload, save-on-quit), rotating backups so a corrupted save doesn't lose a world. One real design question buried in here: an old backlog note says **solo character death should end that entire world**, not just respawn a new character into it, while co-op continues as long as one player survives.
 
 **Open questions:**
-1. ⭐ Does "solo death ends the whole world, start a new one" still match what you want, or is that too harsh? The alternative is a single continuous world regardless of player count. **Your answer:** ___
-2. Multiple save slots (several worlds at once) vs. one world per install — preference? **Your answer:** ___
+1. ⭐ Does "solo death ends the whole world, start a new one" still match what you want, or is that too harsh? The alternative is a single continuous world regardless of player count. **Your answer:** start a new character on death, but world persists, player can find loot and safe house again.
+2. Multiple save slots (several worlds at once) vs. one world per install — preference? **Your answer:** world saves, but is overwritten so player cant load an old save to fix a mistake
 
 ---
 
@@ -247,8 +247,8 @@ This is mostly an engineering correctness question, not a feel question — but 
 **Current plan:** Needs, wounds, hotbar, and the entire inventory are currently invisible in-game — this phase is the instrument panel for everything already built, not a "nice to have." Recommended direction: a single scrollable inventory list (not a Project-Zomboid-style dual-pane drag grid, which the game's own design reference calls out as PZ's most complained-about surface), per-item "what does this actually do" previews on hover, and a UI input mode that never pauses the game.
 
 **Open questions:**
-1. Confirm the single-scrollable-list direction over a grid — yes, or did you picture something else? **Your answer:** ___
-2. Any UI you've used (any game or app) whose *feel* you'd want this to borrow from? **Your answer:** ___
+1. Confirm the single-scrollable-list direction over a grid — yes, or did you picture something else? **Your answer:** i will design this later
+2. Any UI you've used (any game or app) whose *feel* you'd want this to borrow from? **Your answer:** I like the idea of separate containers for inventory, and equipment slots that the player drags items into to assign
 
 ---
 
@@ -257,8 +257,8 @@ This is mostly an engineering correctness question, not a feel question — but 
 **Current plan:** This is called out in your own design doc as the actual differentiator from Project Zomboid — dynamic world events (flyovers, alarms, convoys, horde migrations) plus a discoverable mystery about the outbreak's origin, delivered through radio and environmental storytelling, with an optional (never forced) capstone ending. **The actual plot — origin, story beats, what's knowable, the final revelation — currently exists only as an AI-authored placeholder shape** ("something happened → someone knew in advance → a response was attempted and failed"), never a real answer from you. This is flagged in the plan itself as its largest single content dependency.
 
 **Open questions:**
-1. ⭐ Do you have your own idea for what actually happened / what the investigation uncovers, even roughly? Or would you rather brainstorm this together when we actually get there, rather than guess now? Either is fine — just tell me which. **Your answer:** ___
-2. Tone — grounded/restrained horror (current assumption) vs. something pulpier/more action-horror vs. something else? **Your answer:** ___
+1. ⭐ Do you have your own idea for what actually happened / what the investigation uncovers, even roughly? Or would you rather brainstorm this together when we actually get there, rather than guess now? Either is fine — just tell me which. **Your answer:** still planning, skip for now
+2. Tone — grounded/restrained horror (current assumption) vs. something pulpier/more action-horror vs. something else? **Your answer:** 
 3. Roughly how many distinct event types feel right for a full playthrough — a handful (~6, risk of feeling scripted) or a wider variety (~10+, more authoring cost)? **Your answer:** ___
 
 ---
@@ -268,8 +268,8 @@ This is mostly an engineering correctness question, not a feel question — but 
 **Current plan:** Learn-by-doing skills (no point-buy at creation) — attributes like Strength/Stamina grow from play, combat skills like per-weapon-class Melee, Aiming, Reloading, Maintenance, First Aid level 1–5 from use. Six starting "backgrounds" (Park Ranger, Paramedic, Mechanic, Sheriff's Deputy, Line Cook, Hunter) were drafted by an AI as flavor examples, tied to Adirondacks-setting starting locations — never actually confirmed by you. Blocked on **CR-01** above (which skill list is real).
 
 **Open questions:**
-1. Do the six drafted backgrounds resonate as a starting point, or do you want to write your own list/theme? **Your answer:** ___
-2. Should backgrounds be purely additive (safe, no wrong choices) or carry a real tradeoff (e.g., better-armed background starts in a more dangerous location)? **Your answer:** ___
+1. Do the six drafted backgrounds resonate as a starting point, or do you want to write your own list/theme? **Your answer:** will compile a full list later, not important for specifics, but need ability to create and assign starting values to the starting types
+2. Should backgrounds be purely additive (safe, no wrong choices) or carry a real tradeoff (e.g., better-armed background starts in a more dangerous location)? **Your answer:** carry a real tradeoff
 
 ---
 
