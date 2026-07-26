@@ -12,6 +12,7 @@ class UStaticMesh;
 class UAnimMontage;
 class UAnimSequenceBase;
 class AZSWeapon;
+class AZSProjectile;
 class UDamageType;
 
 /*
@@ -89,9 +90,11 @@ public:
 
 	// ---- Sockets (all on BaseWeaponMesh except SocketGunAttachment) ----
 
-	/** On the character body mesh - where the weapon actor attaches. */
+	/** On the character body mesh - where the weapon actor attaches. Points at RightHandSocket
+	 * (on hand_r), the shared attachment point for anything equipped in the player's right hand -
+	 * not gun-specific despite the property name (kept to avoid an asset-wide rename). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
-	FName SocketGunAttachment = TEXT("SocketGunAttachment");
+	FName SocketGunAttachment = TEXT("RightHandSocket");
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sockets")
 	FName SocketTrigger = TEXT("SocketTrigger");
@@ -215,4 +218,18 @@ public:
 	/** Which EZSWoundType a hit applies to a player target, via AZSPlayerCharacter::WoundTypeFromDamageTypeClass (ZSDamageTypes.h). Unset falls back to UZSDamageType_Laceration at the call site (Server_Fire) - same "unset = generic marker" pattern as UZSZombieConfig::AttackDamageTypeClass. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage")
 	TSubclassOf<UDamageType> FireDamageTypeClass;
+
+	// ---- Projectile (2026-07-26: replaces the old instant-hitscan Server_Fire path per-weapon) ----
+
+	/** Unset (the old default) keeps the instant hitscan trace. Set = Server_Fire spawns and launches this class from the muzzle instead - reuses FireDamage/FireDamageTypeClass/FireKnockbackStrength above for the actual hit contract, so those fields mean the same thing either way. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Projectile")
+	TSubclassOf<AZSProjectile> ProjectileClass;
+
+	/** Cosmetic mesh assigned to the spawned projectile's ProjectileMesh component - same "everything comes from Config" pattern AZSWeapon::AssembleCosmeticsFromConfig uses. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Projectile", meta = (EditCondition = "ProjectileClass != nullptr"))
+	TObjectPtr<UStaticMesh> ProjectileMesh;
+
+	/** Travel speed (cm/s) the projectile launches at. Deliberately visible/trackable rather than realistic bullet velocity - the whole point of moving off hitscan was to make what's hitting the zombie legible. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Projectile", meta = (ClampMin = "0", EditCondition = "ProjectileClass != nullptr"))
+	float ProjectileSpeed = 6000.f;
 };

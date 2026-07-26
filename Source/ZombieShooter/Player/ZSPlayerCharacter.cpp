@@ -21,6 +21,7 @@
 #include "Animation/AnimNotifies/AnimNotifyState.h"
 #include "Net/UnrealNetwork.h"
 #include "ZSWeapon.h"
+#include "ZSProjectile.h"
 #include "AN_ZS_UnlockActions.h"
 #include "ANS_ZS_BlockADS.h"
 #include "ZombieShooter.h"
@@ -33,6 +34,7 @@
 #include "../Zombies/ZSNoiseSystem.h"
 #include "../Inventory/ZSInventoryComponent.h"
 #include "Engine/OverlapResult.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/GameModeBase.h"
 #include "CollisionQueryParams.h"
@@ -788,6 +790,9 @@ void AZSPlayerCharacter::TryInteract()
 {
 	if (!NearestInteractable)
 	{
+		// Temporary verification logging for B0-T1 Stage G re-test - remove once a world-prompt
+		// widget exists and failures here are visible without the log (same note as Server_Fire).
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: interact pressed but NearestInteractable is null (nothing detected in range)"), *GetName());
 		return;
 	}
 
@@ -799,6 +804,7 @@ void AZSPlayerCharacter::Server_Interact_Implementation(UZSInteractableComponent
 {
 	if (!Target || !Target->CanInteract())
 	{
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_Interact rejected - Target is %s"), *GetName(), Target ? TEXT("not currently interactable") : TEXT("null"));
 		return;
 	}
 
@@ -808,9 +814,11 @@ void AZSPlayerCharacter::Server_Interact_Implementation(UZSInteractableComponent
 	const float MaxValidDistSq = FMath::Square(InteractionTraceRadius + Target->InteractionRadius);
 	if (FVector::DistSquared(GetActorLocation(), Target->GetComponentLocation()) > MaxValidDistSq)
 	{
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_Interact rejected - out of server-validated range"), *GetName());
 		return;
 	}
 
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: interacting with %s"), *GetName(), *GetNameSafe(Target->GetOwner()));
 	Target->OnInteract(this);
 }
 
@@ -1309,6 +1317,25 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 				TraceStart = BaseWeaponMesh->GetSocketLocation(Config->SocketMuzzle);
 			}
 		}
+
+		// 2026-07-26: weapons configured with a ProjectileClass spawn a real traveling projectile
+		// from the muzzle instead of resolving the shot as an instant trace - see ZSProjectile.h.
+		// Direction comes from the same already-cursor-facing actor rotation the hitscan path below
+		// uses for TraceEnd.
+		if (Config->ProjectileClass)
+		{
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this;
+			SpawnParams.Instigator = this;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+			if (AZSProjectile* Projectile = GetWorld()->SpawnActor<AZSProjectile>(Config->ProjectileClass, TraceStart, GetActorRotation(), SpawnParams))
+			{
+				Projectile->InitializeProjectile(Config, this, GetController());
+			}
+			return;
+		}
+
 		const FVector TraceEnd = TraceStart + GetActorForwardVector() * Config->FireRange;
 
 		FCollisionQueryParams QueryParams;
@@ -1316,7 +1343,15 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 		QueryParams.AddIgnoredActor(CurrentWeapon);
 
 		FHitResult Hit;
-		if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams) && Hit.GetActor())
+		const bool bHitActor = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams) && Hit.GetActor();
+
+		// Temporary muzzle trace visualization for B0-T1 Stage C re-test - remove once ranged
+		// accuracy is confirmed working. Yellow sphere marks TraceStart (the muzzle origin actually
+		// used); line is green to the impact point on a hit, red to TraceEnd on a clean miss.
+		DrawDebugSphere(GetWorld(), TraceStart, 3.f, 8, FColor::Yellow, false, 8.f, 0, 1.f);
+		DrawDebugLine(GetWorld(), TraceStart, bHitActor ? Hit.ImpactPoint : TraceEnd, bHitActor ? FColor::Green : FColor::Red, false, 8.f, 0, 1.5f);
+
+		if (bHitActor)
 		{
 			const TSubclassOf<UDamageType> DamageTypeClass = Config->FireDamageTypeClass
 				? Config->FireDamageTypeClass

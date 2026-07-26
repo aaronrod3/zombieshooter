@@ -7,6 +7,7 @@
 #include "../Player/ZSPlayerCharacter.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "../ZombieShooter.h"
 
 AZSWorldItemActor::AZSWorldItemActor()
 {
@@ -78,14 +79,18 @@ void AZSWorldItemActor::OnRep_Item()
 
 void AZSWorldItemActor::HandleInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor)
 {
+	// Temporary verification logging for B0-T1 Stage G re-test - remove once a world-prompt widget
+	// exists and failures here are visible without the log (same note as Server_Fire).
 	if (!HasAuthority() || !Interactor || !Item)
 	{
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: pickup rejected - Interactor=%s Item=%s"), *GetName(), *GetNameSafe(Interactor), *GetNameSafe(Item));
 		return;
 	}
 
 	if (UZSInventoryComponent* Inventory = Interactor->GetInventoryComponent())
 	{
 		Inventory->Server_AddItem(Item, Count);
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: picked up %s x%d"), *Interactor->GetName(), *Item->DisplayName.ToString(), Count);
 	}
 
 	Destroy();

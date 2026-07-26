@@ -7,6 +7,7 @@
 #include "../Player/ZSPlayerCharacter.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "../ZombieShooter.h"
 
 AZSContainerActor::AZSContainerActor()
 {
@@ -58,24 +59,33 @@ void AZSContainerActor::OnRep_ContainerSlots()
 
 void AZSContainerActor::HandleInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor)
 {
+	// Temporary verification logging for B0-T1 Stage G re-test - remove once a world-prompt widget
+	// exists and failures here are visible without the log (same note as Server_Fire).
 	if (!HasAuthority() || !Interactor || ContainerSlots.Num() == 0)
 	{
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: HandleInteracted rejected - HasAuthority=%d Interactor=%s ContainerSlots=%d"),
+			*GetName(), HasAuthority(), *GetNameSafe(Interactor), ContainerSlots.Num());
 		return;
 	}
 
 	UZSInventoryComponent* Inventory = Interactor->GetInventoryComponent();
 	if (!Inventory)
 	{
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: HandleInteracted rejected - %s has no InventoryComponent"), *GetName(), *Interactor->GetName());
 		return;
 	}
 
+	int32 ItemsTransferred = 0;
 	for (const FZSInventorySlot& Slot : ContainerSlots)
 	{
 		if (Slot.Item && Slot.Count > 0)
 		{
 			Inventory->Server_AddItem(Slot.Item, Slot.Count);
+			++ItemsTransferred;
 		}
 	}
+
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: loot-all transferred %d slot(s) to %s"), *GetName(), ItemsTransferred, *Interactor->GetName());
 
 	ContainerSlots.Empty();
 	OnRep_ContainerSlots();

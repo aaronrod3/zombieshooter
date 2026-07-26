@@ -4,6 +4,7 @@
 #include "ZSWorldItemActor.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
+#include "../ZombieShooter.h"
 
 UZSInventoryComponent::UZSInventoryComponent()
 {
@@ -113,6 +114,12 @@ int32 UZSInventoryComponent::Server_AddItem(UZSItemConfig* Item, int32 Count)
 	}
 
 	OnRep_InventoryState();
+
+	// Temporary verification logging for B0-T1 Stage G re-test - remove once a real inventory UI
+	// exists and this is visible without the log (same note as Server_Fire).
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_AddItem - weight now %.1f / %.1f (encumbrance x%.2f)"),
+		*GetOwner()->GetName(), GetCurrentWeight(), GetMaxCarryWeight(), GetEncumbranceMultiplier());
+
 	return Count;
 }
 
@@ -223,6 +230,11 @@ void UZSInventoryComponent::Server_DropItem(UZSItemConfig* Item, int32 Count)
 	{
 		WorldItem->InitializeItem(Item, Removed);
 	}
+
+	// Temporary verification logging for B0-T1 Stage G re-test - remove once a real inventory UI
+	// exists and this is visible without the log (same note as Server_Fire).
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_DropItem - dropped %s x%d, weight now %.1f / %.1f"),
+		*OwnerActor->GetName(), *Item->DisplayName.ToString(), Removed, GetCurrentWeight(), GetMaxCarryWeight());
 }
 
 void UZSInventoryComponent::OnRep_InventoryState()
