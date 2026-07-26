@@ -18,6 +18,15 @@ AZSWeapon::AZSWeapon()
 
 	BaseWeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BaseWeaponMesh"));
 	SetRootComponent(BaseWeaponMesh);
+
+	// Purely cosmetic once attached to the character - hitscan uses socket-based tracing, not
+	// physical collision. Left at the default BlockAll profile, this rigidly-attached mesh
+	// overlaps the owning character's own capsule every tick, and CharacterMovementComponent's
+	// penetration-resolution logic fights that overlap indefinitely - visible as the character
+	// climbing upward or sliding sideways the instant a weapon is equipped. Every other cosmetic
+	// mesh component here (see AssignNewStaticMesh) already gets this same NoCollision treatment;
+	// this one was a gap since it's built directly in the constructor, not through that helper.
+	BaseWeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 void AZSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

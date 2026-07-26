@@ -6,47 +6,49 @@
 
 ## Current phase: B0 — Stabilization & Reconciliation
 
-`Docs/Beta/B0_Stabilization.md`. **B0-T0 complete. B0-T8 (zombie AI) complete and PIE-verified** — the navmesh blocker is resolved. **B0-T1 (verification sweep) is in progress**: the first PIE pass found 4 real bugs, all fixed tonight but **not yet re-verified** — needs a second PIE pass.
+`Docs/Beta/B0_Stabilization.md`. **B0-T0 complete. B0-T8 (zombie AI) complete and PIE-verified.** **B0-T1 (verification sweep) is in progress** — pass 1 found 4 bugs (fixed, PIE-confirmed by the dev except the weapon socket/collision fix); the dev's own pass-2 testing found 2 more real bugs (fixed, needs a rebuild + re-test before continuing).
 
-## Last completed (2026-07-26) — navmesh fixed by the dev; first B0-T1 PIE pass found and fixed 4 bugs
+## Last completed (2026-07-26) — root-caused the weapon movement/placement bug; fixed container interaction; revised CLAUDE.md
 
-### Navmesh — resolved, zombie AI now verified working
-The dev fixed `Lvl_ThirdPerson`'s stuck navigation build manually, following Epic's official docs (dev.epicgames.com "Basic Navigation in Unreal Engine," §2). **Zombie AI now moves around and behaves correctly in PIE** — wander, investigate, and chase all confirmed. `memory/project_navmesh_dynamic_workaround.md` and `Docs/Beta/B0_Stabilization.md`'s T8.5 are updated to reflect this. Lesson recorded for future sessions: check the official UE 5.8 docs site first on engine-level setup problems, not just engine-source spelunking — see `memory/feedback_consult_official_ue_docs.md`.
+### The real bug behind "character moves erratically / camera in body / weapon in wrong spot"
+The dev's pass-2 test (after the socket fix from the previous handoff) still showed the weapon spawning underneath the character with the character then moving upward indefinitely — and a different socket the dev tried by hand (`RightHandSocket` on `ik_hand_gun`) produced the same class of symptom, just in a different direction. That "wrong regardless of socket" pattern was the tell: **`AZSWeapon::BaseWeaponMesh` (the weapon's root component) never had its collision explicitly disabled.** Every other cosmetic mesh on the weapon (trigger, muzzle, attachments) gets `NoCollision` via `AssignNewStaticMesh` — `BaseWeaponMesh` is built directly in the constructor and that call was simply missing. Left at the default blocking collision profile, the mesh overlaps the character's own capsule the instant it's attached, and `CharacterMovementComponent`'s penetration-resolution logic fights that overlap forever — that's the "moving upward indefinitely" / "moved in another direction" / "camera in the body" symptom, all from the same root cause. Fixed in `Source/ZombieShooter/Weapons/ZSWeapon.cpp` (constructor): `BaseWeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision)`. **This needs a rebuild before it takes effect** — it's `.cpp`-only (no header signature change), so Live Coding (Ctrl+Alt+F11) is fine per the standing B0 policy, or a full `Build.bat` if you'd rather.
 
-### B0-T1 runbook, pass 1 — 4 real bugs found, all fixed (not yet re-tested)
+### Socket choice — reverted back to `weapon_r_muzzle`
+The dev's own `RightHandSocket` (on `ik_hand_gun`) still didn't look right "even after adjustments." Likely reason: `ik_hand_gun` is an IK *control* bone — on a rig with no active IK solver driving it (this project's AnimGraph doesn't have one), it just sits at a fixed reference-pose location, not tracking the actual animated hand. Reverted all 3 weapon configs (AssaultRifle, Pistol, Crowbar) to `weapon_r_muzzle` — Infima's own pre-existing socket, sitting at zero offset on a dedicated `weapon_r` bone that's part of the real skinned animation chain (used by Infima's own rifle-holding poses), not an unposed IK target. The dev's `RightHandSocket` socket is still there on the skeleton, unused, in case this turns out wrong too and it's needed as a landing spot for manual tuning in Persona.
 
-1. **Weapon attachment socket was wrong.** `SocketGunAttachment` was set to `"ik_hand_gun"` — an IK control bone, not a weapon-carry bone, and not a real socket (attaching to a bare bone name falls back to that bone's raw, unoffset transform). This is why the rifle spawned mispositioned/misrotated on equip. Root-caused by inspecting the skeleton directly: `SKM_Manny_Simple` has a dedicated `weapon_r` bone with an existing pack-authored socket, `weapon_r_muzzle`, sitting at **zero local offset** on it — strong evidence `weapon_r` is the actual intended weapon-carry point. Tried creating a new socket there via `unreal-mcp`'s `add_socket` — **that tool has a bug/limitation**: it silently fails to parent to `weapon_r` (confirmed likely a virtual bone, since parenting to a real bone like `pelvis` worked fine in a side-by-side test) and defaults the new socket to `root` instead, with no error surfaced except an unrelated-looking `SetSocketParent... bone named 'None'` log line. Worked around by pointing `SocketGunAttachment` at the existing, already-correct `weapon_r_muzzle` socket instead (confirmed unused anywhere else in our C++). All 3 weapon configs (AssaultRifle, Pistol, Crowbar) updated. **The "movement becomes unpredictable while equipped" symptom is very likely a visual side-effect of this same bug** (a wrong-angled weapon rigidly attached to the body makes turning look erratic) — checked `UpdateMovementSpeed`/`bUseControllerRotationYaw`/aiming code directly, nothing in there reacts to `CurrentWeapon` being set, so there's no real movement-logic bug found. Re-check this specifically once the socket fix is verified in PIE — flag it again if it's still happening with the gun correctly placed.
-2. **Fire trace/damage confirmed working** (`shot hit ... for 25.0 damage` in the log) — likely was firing from the wrong angle only because of bug 1 above, not a separate bug. Re-verify muzzle origin once the socket fix is confirmed.
-3. **Hotbar keys 2–9 never worked — only key 1 did anything.** Root cause: `IMC_ZS_Default`'s per-digit-key `Scalar` modifiers were only ever authored for the "One" key mapping; "Two" through "Nine" had empty modifier arrays, so every digit key sent the Enhanced Input system's raw press value of `1.0` regardless of which key was pressed — `HandleHotbarSelect` always resolved to slot 1. This is why pressing 1/2/3 just toggled the rifle on/off (re-pressing the *same resolved slot* triggers the documented unequip-toggle behavior) instead of cycling. Fixed: added `InputModifierScalar` instances (X = 2..9) to each of the "Two"–"Nine" key mappings, mirroring "One"'s existing (X=1) modifier. Stage D (re-press-1-to-unequip) is confirmed still working — that logic was never the bug.
-4. **`ZSContainer_TestLoot` (now `BP_ZS_Container_Test`) had no visible mesh.** The Blueprint child I built last session for T1.2 never got a `ContainerMesh` assignment — functional (loot table was wired) but invisible, so undiscoverable in the level. Fixed: assigned `SM_Small_Wood_Box_Closed` (`Content/Mega_Survival_Tools/`).
-5. Crowbar/Stage F untested — blocked on bug 3 (hotbar cycling), should be reachable now.
+**Test this together** — the collision fix and the socket revert — as one clean pass, since the collision bug alone could account for placement looking wrong.
 
-**None of tonight's 4 fixes have been PIE-verified yet** — they're logically sound and compile/save clean, but need a fresh run to confirm.
+### Container interact — real bug found and fixed
+Walking up to `BP_ZS_Container_Test` and pressing interact did nothing (no log, no visual change). `UpdateNearestInteractable`'s detection scan finds interactable actors via their *physical* collision (`ContainerMesh`, not `UZSInteractableComponent` itself — that component has no collision of its own, it's just a marker). `ContainerMesh`'s collision *profile* was already correct (`BlockAllDynamic`, `ECC_WorldDynamic`), but the static mesh asset (`SM_Small_Wood_Box_Closed`) may not have shipped with real collision geometry, which would make the profile setting moot — no collision primitives to actually trace against. Generated fresh convex hull collision on that mesh (`StaticMeshTools.generate_convex_collisions`) to guarantee it's detectable regardless. Also double-checked the loot table itself (3 entries, weights 5/3/1, `numRolls=3`) and the container's code path (`BeginPlay` → `RollLoot` → `bIsInteractable = ContainerSlots.Num() > 0`) — both look correct, so this was very likely the actual fix. Needs re-test.
 
-## Runbook — B0-T1 Stages B–G, pass 2 (do this next)
+### CLAUDE.md revised
+Per dev request: the Architecture section had accumulated into a session-by-session build log (dated incidents, "same night" narration, deferred-feature laundry lists) instead of a stable reference. Rewritten to describe current-state responsibility only — what each folder/class does *now*, not the history of how it got there. Also: added `Docs/Beta/` as a first-class reference throughout (it was previously unmentioned despite being half the plan of record), updated "Development Order" to point at the Beta plan instead of the now-historical P0-P10 narrative, consolidated the Character Skeleton & Animation section (moved its still-useful AnimGraph-editing tooling note into the MCP lessons section, cut the play-by-play bug narrative), and added two new durable lessons: the cosmetic-attachment-collision rule (Architecture) and the `add_socket` virtual-bone bug (MCP tooling). Detailed incident history for anything cut lives in git log, same convention as `SessionHandoff.md` itself.
 
-Same loadout as before — **AssaultRifle (1) / Pistol (2) / Crowbar (3, melee)** — now with the socket, hotbar, and container fixes applied.
+## Runbook — B0-T1 Stages B–G, pass 3 (do this next)
 
-1. **Stage B** — press `1`. Confirm the rifle now sits correctly on the character (not off to the side/pointing up), and that equipping no longer makes movement/turning look erratic.
-2. **Stage C** — fire. Confirm the shot originates from the now-correctly-placed muzzle.
-3. **Stage D** — press `1` again to unequip (already confirmed working, quick re-check only).
-4. **Stage E** — press `1`, then `2` (should now genuinely switch to the Pistol, not just toggle), then `3`. Confirm real cycling across all three slots, and that scroll-wheel cycling also works.
-5. **Stage F** — with the Crowbar (`3`) equipped, melee a zombie. Confirm crowbar stats apply (22 dmg), land ~15 hits to break it, confirm it unequips and slot 3 stays empty on re-press.
-6. **Stage G** — the container near spawn (~450,300) should now be visible (a wood box) and lootable. The world item pickup (~300,450) should still work as before. Loot, drop, re-pick-up, check encumbrance.
+Same loadout — **AssaultRifle (1) / Pistol (2) / Crowbar (3, melee)**. **First, rebuild** (Live Coding or full, per above) and confirm the Output Log is clean.
 
-**File failures as discrete notes, don't fix inline** (T1.10). Report back pass/fail per stage and I'll fold results into `B0_Stabilization.md`.
+1. **Stage B** — press `1`. Confirm the rifle now sits correctly on the character, and that equipping no longer causes any movement/camera weirdness at all (this was the real bug — if it's still happening after the rebuild, the collision fix didn't take, not a new issue).
+2. **Stage C** — fire, confirm the shot originates from the now-correctly-placed muzzle.
+3. **Stage D** — press `1` again to unequip (already confirmed working).
+4. **Stage E** — press `1`, `2`, `3` in sequence, confirm real cycling (already confirmed working from pass 2) and that all three now look right.
+5. **Stage F** — Crowbar (`3`) melee a zombie, confirm stats (22 dmg), land ~15 hits to break it.
+6. **Stage G** — container near spawn (~450,300): interact, confirm loot-all now actually works. World item pickup (~300,450): loot, drop, re-pick-up, check encumbrance.
+
+**File failures as discrete notes, don't fix inline** (T1.10). Report back pass/fail per stage.
 
 ## B0-T0.1 — build policy for this phase (standing, for the duration of B0)
 
-- **Full `Build.bat` rebuild for any header change.** Live Coding (Ctrl+Alt+F11) only for `.cpp`-only edits. (Tonight's work was content-only again — no rebuild needed.)
+- **Full `Build.bat` rebuild for any header change.** Live Coding (Ctrl+Alt+F11) only for `.cpp`-only edits — tonight's `ZSWeapon.cpp` fix qualifies.
 - **"Compile All Blueprints" pass after every patch cluster**, before trusting any PIE result.
 - When something that "should just work" behaves wrong after a recompile, **check the Output Log for `is not a child class of` or `invalid target type` before anything else.**
-- **When stuck on an engine-level setup problem, check the official UE 5.8 docs site** (dev.epicgames.com) before extended trial-and-error or engine-source spelunking — see `memory/feedback_consult_official_ue_docs.md`.
-- **After large multi-file sessions, regenerate IDE project files** (`Build.bat -projectfiles ...`) — not needed yet this stretch (no new C++ files/header changes since the last regen).
+- **When stuck on an engine-level setup problem, check the official UE 5.8 docs site** before extended trial-and-error or engine-source spelunking.
+- **After large multi-file sessions, regenerate IDE project files** (`Build.bat -projectfiles ...`) — no header/new-file changes yet this stretch, not needed.
 
-## Known tooling gotcha (worth remembering)
+## Known tooling gotchas (worth remembering)
 
-`unreal-mcp`'s `SkeletalMeshTools.add_socket` does not reliably honor its `bone_name` argument for at least one bone on this project's skeleton (`weapon_r`, likely a virtual bone) — it silently parents the new socket to `root` instead, with only an oblique log line (`SetSocketParent... bone named 'None'`) as a clue, no thrown error. Always verify with `get_socket_bone` right after `add_socket`, don't trust the call succeeding at face value. Reusing an existing, correctly-parented socket is a safe workaround when the target bone is virtual/IK-only.
+- `unreal-mcp`'s `SkeletalMeshTools.add_socket` does not reliably honor `bone_name` for at least one bone on this project's skeleton (`weapon_r`, likely virtual/IK-only) — silently parents to `root` instead, only a stray log line as a clue. Always verify with `get_socket_bone` right after. Works fine for ordinary bones.
+- **Any mesh rigidly attached to the character needs `NoCollision` explicitly set.** This is now also recorded as a standing convention in `CLAUDE.md`'s Architecture section — worth checking on any *future* attached cosmetic (clothing, held items) too, not just weapons.
 
 ## Decisions made 2026-07-23 through 2026-07-26
 
@@ -54,22 +56,23 @@ Same loadout as before — **AssaultRifle (1) / Pistol (2) / Crowbar (3, melee)*
 - **T0.5 / OQ-B9-01 — all gamepad work and testing deferred to B9.**
 - **OQ-X-01 — PC only for the initial launch.**
 - **Zombie AI native migration + navmesh fix — done, PIE-verified 2026-07-26.**
-- **OQ-B0-11 temporary unblock** — a real (if wrong-looking) melee config exists for testing; question itself still open.
+- **OQ-B0-11 temporary unblock** — a real melee config exists for testing; question itself still open.
+- **Weapon socket — `weapon_r_muzzle`, not `ik_hand_gun`/`RightHandSocket`** — see above; revisit if it turns out wrong too.
 
 ## Blocking decisions needed before B0-T2 (not before T0/T1)
 
-- **OQ-B0-13 — item-instance refactor go/no-go.** The hard blocker; ~5–6 sessions of B0-T2 depend on it, and half is unrecoverable if the direction changes mid-way. Design doc: `Docs/Planning/InventoryLoadoutEquipping_Plan.md`.
-- Also blocking B0, in the same design session: **OQ-B0-01** (scroll arbitration), **OQ-B0-02** (aim cone), **OQ-B0-04** (temperature scope), **OQ-B0-05** (fatigue/perception), **OQ-B0-07** (infection ambiguity in UI), **OQ-B0-11** (melee weapon display — temporarily unblocked for testing, real answer still needed).
+- **OQ-B0-13 — item-instance refactor go/no-go.** The hard blocker; ~5–6 sessions of B0-T2 depend on it. Design doc: `Docs/Planning/InventoryLoadoutEquipping_Plan.md`.
+- Also blocking B0, same design session: **OQ-B0-01** (scroll arbitration), **OQ-B0-02** (aim cone), **OQ-B0-04** (temperature scope), **OQ-B0-05** (fatigue/perception), **OQ-B0-07** (infection ambiguity in UI), **OQ-B0-11** (melee weapon display).
 - **Three contradictions need your call**: `Docs/Beta/00_MasterPlan.md` §2 — **CR-01** (skill roster), **CR-02** (vehicles), **CR-10** (fatigue/perception reading).
-- **`UI_Plan.md`'s own §7 open questions** are an unchecked entry-criterion for B1 — not just background reading.
+- **`UI_Plan.md`'s own §7 open questions** are an unchecked entry-criterion for B1.
 
 ## Verification status — carried forward, still current
 
-**PIE-confirmed working:** the AnimBP rifle-pose fix and basic hotbar switching (2026-07-22, Stage A). **Zombie AI** — wander, investigate, chase (2026-07-26). **Ranged hitscan damage** — confirmed applying, muzzle origin needs re-check after the socket fix.
+**PIE-confirmed working:** AnimBP rifle-pose fix, basic hotbar switching, hotbar cycling across all 3 slots (dev confirmed pass 2), Stage D unequip, zombie AI (wander/investigate/chase), ranged hitscan damage.
 
-**Still unverified, staged for pass 2 above:** Stage B (equip visuals, attachment sockets, magazine, `TP_Mesh` swap, rifle pose reappearing), Stage D re-check, Stage E (real 3-way switching), Stage F (melee dispatch, durability break), Stage G (container now visible, re-verify loot-all/drop/encumbrance).
+**Still unverified, staged for pass 3 above:** weapon placement + no movement/camera side-effects (fix applied, needs rebuild + re-test), Stage B full detail (attachment sockets, magazine, `TP_Mesh` swap), Stage F (melee dispatch, durability break), Stage G (container interact — fix applied, needs re-test).
 
-**Known gap, still unfixed:** `AZombieCharacter::Server_MeleeAttack` passes a blank `FHitResult`, so every zombie bite lands on Torso — amputation's Arms/Legs infection-clearing path is unreachable from a real bite. Scheduled as **B0-T5.1**.
+**Known gap, still unfixed:** `AZombieCharacter::Server_MeleeAttack` passes a blank `FHitResult`, so every zombie bite lands on Torso. Scheduled as **B0-T5.1**.
 
 ## Other still-open items (lower priority)
 
