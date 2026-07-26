@@ -14,7 +14,7 @@
 
 ## Entry criteria (B4X — Stage 2 content, later)
 
-- [x] **OQ-B4-01 resolved 2026-07-26 (dev-confirmed)** — region scale is **bigger** than the original ~1×1 km proposal, built in phases (this is why it's a continuous track, not a single phase). Still validate district build-time against B2-T4.5's measured per-room cost before committing to the full scale.
+- [x] **OQ-B4-01 resolved 2026-07-26 (dev-confirmed)** — region scale is **bigger** than the original ~1×1 km proposal, built in phases (this is why it's a continuous track, not a single phase). **Multi-biome**: "will have urban, rural, wooded, suburban areas" — plan district variety across at least these four area types, not one dense town repeated. Still validate district build-time against B2-T4.5's measured per-room cost before committing to the full scale.
 - [ ] **OQ-B4-02 — partially resolved.** Named locations get **generic/functional placeholder names for now** ("Town Center," "Hospital") — dev wants to focus on mechanics first, real naming/flavor comes later, likely alongside B5. Mechanical-identity spread (medical loot site, firearms site, etc.) still applies.
 - [x] **CR-02 resolved 2026-07-26 (dev-confirmed)** — vehicles are **not** cut; they get their own phase (`BV`) later in Stage 2. This is *why* the map is going bigger.
 - [ ] B2 complete — kit, material standards, LOD/collision policy, and the reference room's measured budget all locked.
@@ -52,7 +52,7 @@ The problem old P7 named and never solved. Must be settled before interiors are 
 
 | Sub-task | Definition of done |
 |---|---|
-| T2.1 | Solution chosen per OQ-B4-03: roof-fade on entry, cutaway/section plane, per-room reveal, or dithered occlusion. |
+| T2.1 | Solution chosen per OQ-B4-03. **Dev-confirmed approach: run the spike** — roof-fade on entry vs. camera-relative cutaway plane, prototyped against the reference room; the dev hasn't picked a winner yet, that's what this task settles. |
 | T2.2 | Implemented and tested against the reference room from B2-T4. |
 | T2.3 | **Co-op case handled** — two players in different rooms, or one inside and one outside, each need a correct view. This is where naive roof-hiding breaks: it is a per-player rendering concern on a shared world. |
 | T2.4 | Interacts correctly with B0-T3.2's auto-zoom `Interior` context — entering a building both changes visibility and triggers zoom. |
@@ -64,7 +64,7 @@ Replaces B0-T3.7's single-floor stub with the real implementation. CONFIRMED as 
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T3.1 | **Floor detection** — `UZSElevationSubsystem` resolves any actor to a floor index / Z-plane. Volume-based (authored per floor) is more reliable than trace-based; decide in OQ-B4-04. | P1-R6 |
+| T3.1 | **Floor detection** — `UZSElevationSubsystem` resolves any actor to a floor index / Z-plane. **Resolved (OQ-B4-04): authored floor volumes** — reliable, explicit, designer-controlled; the authoring cost folds into B4X-T10's per-building pass. | P1-R6 |
 | T3.2 | **Aim ray resolves against the character's current floor plane** — the CONFIRMED requirement. Shooting on floor 2 must not hit something on floor 1 through the geometry. | P1-R6 |
 | T3.3 | Camera follows floor changes automatically, coordinated with T2's visibility solution — going upstairs reveals the new floor and hides the one below. |
 | T3.4 | **AI navigation across floors** — zombies use stairs, chase between floors, and pathfind correctly. NavMesh across multiple levels needs explicit setup, not defaults. |
@@ -81,7 +81,7 @@ CONFIRMED first-class mechanic (Consolidated §7). Makes B0-T11's `SecondaryHand
 | T4.1 | Darkness values authored per space type per B2-T1.4's direction. "Dark" is a gameplay threshold, not only an art choice. | X-2 |
 | T4.2 | Flashlight (B0-T11.4) works as a real light in the world: cone, range, falloff, and it is **visible to other players** — a light source is a co-op positional signal. |
 | T4.3 | Additional light sources: lantern (placeable, hands-free), and whatever the utilities-shutoff transition makes scarce. |
-| T4.4 | **Light attracts zombies** — or explicitly does not. This is an unstated but obvious interaction with the noise-as-threat pillar and it needs a decision → OQ-B4-07. |
+| T4.4 | **Light attracts zombies.** **Resolved (OQ-B4-07): yes** — "zombies are attracted to light and sound." Light extends effective detection radius against the holder, same principle as noise. |
 | T4.5 | Battery/fuel consumption creates a real resource decision, feeding the scavenge loop. |
 | T4.6 | Utilities shutoff makes interiors dark, converting light from convenience to necessity at a known day. **This is the phase transition doing real work.** |
 
@@ -91,7 +91,7 @@ CONFIRMED first-class mechanic (Consolidated §7). Makes B0-T11's `SecondaryHand
 |---|---|---|
 | T5.1 | Door actor reusing `UZSInteractableComponent`: open/close, replicated, with real transition time. |
 | T5.2 | **Door-thumping** — P4's unbuilt deliverable. Zombies attack doors between them and a heard target; doors have health and break. | P4-R8 |
-| T5.3 | Locked doors + keys/lockpicking, or a decision not to have them → OQ-B4-08. |
+| T5.3 | **Resolved (OQ-B4-08): breaching + a new Lockpicking skill**, a hybrid, not a single pure option. Breaching (force the door, generate noise) stays as the loud/fast path. Lockpicking is a new levelable skill — pure success-chance roll by level, no minigame; failed attempts generate noise (spamming picks is a real risk); higher levels grant more speed and stealth. Add **Lockpicking** to `GameDevPlan.md` §3.1's skill list (new skill, reverses the plan's earlier "roster is settled" assumption). |
 | T5.4 | Doors block/attenuate noise propagation, tying into T3.5's rules. |
 | T5.5 | Windows as an alternate entry and a zombie entry point. |
 | T5.6 | Building interiors are populated with containers seeded from `UZSLootTableConfig` per zone quality tier — the payoff for T1.5's zone system. | P6-R7 |
@@ -117,7 +117,7 @@ CONFIRMED first-class mechanic (Consolidated §7). Makes B0-T11's `SecondaryHand
 |---|---|---|
 | T7.0 | **PZ-fidelity behavior redesign** per OQ-B4-12: ambient wandering, bounded last-known-location memory, crowd-following, door/obstacle destruction spec (feeds T5.2). Audit the disconnected `BTTask_*` assets found in B0 (`Wander`, `GetInvestigationPoint`, `ClearLastKnownLocation`, `StartIdleDwell`, `StartInvestigationTimer`) — decide keep vs. rebuild per-node, don't assume either. Do this **before** T7.1, so population/density tuning happens against real behavior. **New scope, added 2026-07-26 (dev-confirmed):** design the zombie "freshness" mechanic here too — recently-turned zombies faster/stronger, degrading toward slower/weaker over time, likely a per-type curve on `UZSZombieConfig`. Also carries a raised bar: genuine large hordes (100+) are confirmed important to the dev's vision, not a number to trade away — see CR-08. | OQ-B4-12 |
 | T7.1 | Zone-based population densities driven by `UZSZombieConfig` + per-zone density values. | P4-R7 |
-| T7.2 | **Repopulation rule** for cleared areas decided and implemented → OQ-B4-05. Persists via B3-T5.6. |
+| T7.2 | **Repopulation rule** for cleared areas. **Resolved (OQ-B4-05): slow migration-based repopulation** from adjacent zones — diegetic, not a spawn timer. Persists via B3-T5.6. |
 | T7.3 | Spawn placement avoids player line-of-sight — zombies must never pop in visibly. |
 | T7.4 | **Per-zone loot quality tiers** — P6's deferred feature, now unblocked by a real zone system. | P6-R7 |
 | T7.5 | Density validated against B0-T12's baseline on production geometry, not graybox. |
@@ -134,7 +134,7 @@ Promoted from atmospheric to gameplay-authoritative by CR-03.
 | T8.3 | Rain sets B0-T4.1's `Wet` flag; shelter clears it. Replaces the debug setter. | P2-R1 |
 | T8.4 | Ambient temperature drives B0-T4.3's model from weather + time-of-day + indoor/outdoor. | P2-R2 |
 | T8.5 | **Rain masks noise** — a genuine stealth interaction with the noise pillar. Confirm it is wanted → OQ-B4-09. |
-| T8.6 | Day/night cycle length decided → OQ-B4-10. Night is meaningfully darker, tying into T4. |
+| T8.6 | Day/night cycle length. **Resolved (OQ-B4-10): confirmed as a tunable**; ~2 real hours (night ~1/3) stands as the starting value to test from, not a locked number. Night is meaningfully darker, tying into T4. |
 | T8.7 | Seasons remain **POST-BETA** (`GameDevPlan` §3 SIMPLIFY). Do not build a season system; do author weather so a season layer could drive it later. |
 
 ### B4X-T9 — Map screen & navigation · **S (2–3 sessions)** · *depends on T1* · **Stage 2 (content, needs the real map)**
@@ -184,5 +184,5 @@ Pure execution against locked systems. **Do not start until B4's Stage-1 systems
 ## Notes
 
 - **B4X (content) is the overrun risk, not B4 (systems).** With region scale now bigger (dev call) and delivered as a continuous track rather than one committed phase, the mitigation is structural: build **one district**, playtest it, time it, re-forecast before starting the next — the same discipline the old single-phase B4 already recommended, now load-bearing since scale went up. See `T_ContinuousTracks.md` T7.
-- **Farming/agriculture** (`GameDevPlan` §3: "v1: farming-lite + foraging zones") has no task here → OQ-B4-06. It is the one §3 commitment this plan does not schedule, deliberately, pending that decision.
+- **Farming/agriculture.** **Resolved (OQ-B4-06): foraging zones only for beta** — marked areas yield food on a timer, no growth simulation. Farming-lite stays post-beta with the deferred Foraging skill. Add a T-task for foraging zones (small, similar scope to a loot-container pass) when B4X-T10 content authoring reaches this.
 - **Vehicles stay CUT.** If PT1 says the map needs them, that is a scope decision to escalate, not to solve inline.

@@ -15,7 +15,7 @@
 - [ ] B0 complete — `FZSItemInstance` exists (widgets need a stable identity to bind to and a drag/drop target that survives a move).
 - [ ] B0-T4.9 done — need severity thresholds authored, or moodles have no tiers to render.
 - [ ] `Docs/Planning/UI_Plan.md` read and its §7 open questions resolved (folded into `90_OpenQuestions.md` as OQ-B1-*).
-- [ ] **OQ-B1-01 answered** (UI art direction — do UI tokens come from B2's art lock, or does UI ship functional-grey and get restyled later?).
+- [x] **OQ-B1-01 resolved 2026-07-26 (dev-confirmed)** — functional-grey now, restyle after B2. No colour literals outside the style asset.
 
 ## Exit criteria
 

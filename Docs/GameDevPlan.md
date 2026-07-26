@@ -104,7 +104,7 @@ The pivot **keeps the repo, the project, and the C++ core.** What we've built is
 | Trait point-buy (§4.2) | **REPLACE** | No creation-time point-buy in v1. Traits/aptitudes emerge from play — see §3.1. |
 | Moodles / needs (§5) | **KEEP, simplified** | **6 moodles v1:** Hunger, Thirst, Fatigue, Stamina, Injury/Pain, Infection/Sickness. |
 | Nutrition micro-sim (§5) | **CUT** | Food restores Hunger; quality = bigger/longer restore. |
-| Skills, learn-by-doing, books (§6) | **SIMPLIFY, revised 2026-07-19** | Attributes (Strength, Stamina, Sneak, Sprint) + per-weapon-class melee skill bars + Maintenance + Aiming/Reloading + First Aid. See §3.1. |
+| Skills, learn-by-doing, books (§6) | **SIMPLIFY, revised 2026-07-19, +Lockpicking 2026-07-26** | Attributes (Strength, Stamina, Sneak, Sprint) + per-weapon-class melee skill bars + Maintenance + Aiming/Reloading + First Aid + Lockpicking. See §3.1. |
 | Melee combat, stamina economy (§7.1) | **KEEP** | Shove + swing + stomp, stamina-gated, durability-lite. |
 | Firearms as loud/scarce power (§7.2) | **KEEP** | Already built mechanically; noise system makes it PZ-honest. |
 | Stealth/noise/vision model (§7.3) | **KEEP, simplified** | Crouch = quieter + slower; hearing radii; vision cones. Sneak is now a stat, not a dedicated skill tree. |
@@ -147,6 +147,9 @@ The pivot **keeps the repo, the project, and the C++ core.** What we've built is
 
 **Medical skill:**
 - **First Aid** — increases with use. Higher levels unlock more effective use of medical items and faster application speed (ties into P3's bandage/splint/amputation actions).
+
+**Utility skill (added 2026-07-26, dev-confirmed, OQ-B4-08):**
+- **Lockpicking** — a quieter alternative to breaching locked doors (`B4X-T5.3`). Pure success-chance roll gated by level, no minigame (consistent with Decision 1's real-time-only stance); failed attempts generate noise, so repeated failures are a real risk, not a free retry. Higher levels increase both speed and stealth (less noise per attempt). Reverses this section's earlier assumption that the skill roster was settled — it wasn't.
 
 **Deferred skills (post-v1, own planning pass):**
 - Fishing, Building, Foraging, Cooking, Mechanics — confirmed direction, not part of the v1 slice. Added to the Phase P10 post-v1 backlog alongside hostile roamers.
@@ -266,7 +269,7 @@ The equip-slot/hotbar machinery is combat-facing (it decides what a single Attac
 ### P10 — Production hardening → public vertical slice
 - Audio pass, VFX pass, performance profiling, fixed-tick save safety, crash/soak testing, packaged Windows build tested over real LAN/direct-IP.
 - Trailer-able vertical slice: 20–40 minutes of tuned co-op survival on the real map, including at least one meta event and a taste of the investigation arc.
-  **Exit:** shippable demo build. **First post-v1 addition (Decision 5): hostile human roamers**, built cheaply on top of P4's zombie AI architecture. Post-v1 backlog also includes the deferred skills from §3.1 (Fishing, Building, Foraging, Cooking, Mechanics), full NPC survivors/factions, vehicles, sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server.
+  **Exit:** shippable demo build. **First post-v1 addition (Decision 5): hostile human roamers**, built cheaply on top of P4's zombie AI architecture — **reconfirmed 2026-07-26** (OQ-X-06). Post-v1 backlog also includes the deferred skills from §3.1 (Fishing, Building, Foraging, Cooking, Mechanics), **friendly survivor NPCs** (explicitly deferred post-release, dev-confirmed 2026-07-26), vehicles (now DEFER not CUT — see §3), sandbox sliders, deeper seasons/temperature, Steam/EOS + dedicated server (now an optional paid path, not cut — see §3).
 
 **Standing rules across all phases:** replication convention on every new stat/system; data-asset-driven everything; `BlueprintNativeEvent` for gameplay decisions; no magic numbers (`TuningReference.md` stays live); commit per sub-task; docs updated at phase end.
 
@@ -394,7 +397,7 @@ Blender 4.x LTS, free. Model on-grid; texture toward dark/earthy/slight-realism;
 3. Scatter-spawns default on or off?
 
 ### P8 — Dynamic events, objectives & investigation arc
-1. ~~Decision 6~~ **RESOLVED** — optional capstone.
+1. ~~Decision 6~~ **RESOLVED** — optional capstone. **Reconfirmed and extended 2026-07-26 (OQ-X-02):** survive indefinitely, no forced ending, no evac mechanic. New, unshaped **quest list** players can work through over a run — content TBD, dev will supply it later — a lightweight objective layer alongside this investigation arc, not a replacement for it.
 2. ~~Clue placement~~ **RESOLVED 2026-07-18.**
 3. **(blocking)** How many distinct meta-events wanted at launch?
 
