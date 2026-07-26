@@ -38,6 +38,9 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `FireDamage` | 25 | P4: hitscan damage per shot, applied via `ApplyPointDamage` |
 | `FireRange` | 5000 | P4: hitscan trace distance from `SocketMuzzle` (falls back to eye height if the socket's missing) |
 | `FireDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a gunshot applies to a player target |
+| `ProjectileClass` | unset (AR/Pistol: `AZSProjectile`) | P5, 2026-07-26: when set, `Server_Fire` spawns a real traveling `AZSProjectile` from `SocketMuzzle` instead of resolving an instant hitscan trace — opt-in per weapon, unset keeps the old hitscan path |
+| `ProjectileMesh` | unset (AR/Pistol: engine placeholder `Sphere`) | Cosmetic mesh on the spawned projectile — needs a real bullet mesh per weapon before this is presentable |
+| `ProjectileSpeed` | 6000 | Projectile travel speed (`UProjectileMovementComponent::InitialSpeed`/`MaxSpeed`) |
 | `AttackType` | `Ranged` | P5: which half of `IA_Attack`'s dispatch this weapon uses (`ZSWeaponTypes.h`'s `EZSAttackType`) — `Ranged` routes to `Server_Fire`, `Melee` currently falls back to the bare-fist stats below (no melee-specific weapon fields exist yet) |
 | `EquipTimeSeconds` | 0.75s | P5: how long switching the hotbar to this weapon takes (`Server_SelectHotbarSlot` → `CompleteHotbarSwitch`) — `SetBusy(true)` for the duration, same choreography pattern as reload |
 | `MeleeDamage`/`MeleeRange`/`MeleeAttackInterval` | 35 / 180 / 0.9s | P5, 2026-07-21: real per-weapon melee stats, used when `AttackType == Melee` — mirrors the `Unarmed*` fields below one-for-one |

@@ -366,6 +366,10 @@ protected:
 	/** Locally-controlled only (each client's own mouse cursor is meaningless for other clients' pawns - their rotation arrives via normal movement replication instead). No-op if inactive - see IsCursorFacingActive. */
 	void UpdateCursorFacing(float DeltaTime);
 
+	/** B0-T10.9 fix: SetActorRotation() alone is local-only and never reaches the server for a non-host client - CharacterMovementComponent's own replication only carries rotation it derives from movement input (bOrientRotationToMovement), not this out-of-band override. Called every tick alongside the local SetActorRotation so the server's copy of the pawn (authoritative for Server_Fire/Server_MeleeAttack/Server_Interact's use of GetActorRotation()) stays in sync. Unreliable, not Reliable, like other high-frequency state - occasional drops are fine since the next tick's call supersedes it. */
+	UFUNCTION(Server, Unreliable, Category = "ZS|Camera")
+	void Server_UpdateCursorFacingRotation(FRotator NewRotation);
+
 	/** True while aiming, or within CursorFacingActionWindow seconds of a fire/interact input - GameDevPlan.md's "aiming/attacking/interacting with the cursor" gate. */
 	bool IsCursorFacingActive() const;
 

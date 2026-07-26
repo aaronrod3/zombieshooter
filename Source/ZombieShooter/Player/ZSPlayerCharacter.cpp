@@ -730,6 +730,20 @@ void AZSPlayerCharacter::UpdateCursorFacing(float DeltaTime)
 	const FRotator TargetRotation(0.f, ToCursor.Rotation().Yaw, 0.f);
 	const FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, CursorFacingRotationRate);
 	SetActorRotation(NewRotation);
+
+	// B0-T10.9 fix - see header comment on Server_UpdateCursorFacingRotation. Harmless/instant on the
+	// host (HasAuthority() is already true there, so this is a same-machine call, not a real RPC).
+	Server_UpdateCursorFacingRotation(NewRotation);
+}
+
+void AZSPlayerCharacter::Server_UpdateCursorFacingRotation_Implementation(FRotator NewRotation)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	SetActorRotation(NewRotation);
 }
 
 // =====================================================================
