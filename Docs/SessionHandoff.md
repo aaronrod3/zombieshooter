@@ -6,66 +6,68 @@
 
 ## Current phase: B0 — Stabilization & Reconciliation
 
-`Docs/Beta/B0_Stabilization.md`. **B0-T0 complete.** Zombie AI work is parked, blocked on a navmesh issue the dev is fixing manually (unchanged from before — see below). **B0-T1 (verification sweep) is in progress**: its content prerequisites (T1.1, T1.2) are done and one extra content bug was found and fixed; the actual PIE verification (T1.3–T1.9) has **not** been run yet — that needs the dev's hands, see the runbook below.
+`Docs/Beta/B0_Stabilization.md`. **B0-T0 complete. B0-T8 (zombie AI) complete and PIE-verified** — the navmesh blocker is resolved. **B0-T1 (verification sweep) is in progress**: the first PIE pass found 4 real bugs, all fixed tonight but **not yet re-verified** — needs a second PIE pass.
 
-## Last completed (2026-07-25) — B0-T1 content prep done unattended; ready for a PIE pass
+## Last completed (2026-07-26) — navmesh fixed by the dev; first B0-T1 PIE pass found and fixed 4 bugs
 
-Done overnight via `unreal-mcp`, editor open throughout, no rebuild needed (content-only, no C++ touched):
+### Navmesh — resolved, zombie AI now verified working
+The dev fixed `Lvl_ThirdPerson`'s stuck navigation build manually, following Epic's official docs (dev.epicgames.com "Basic Navigation in Unreal Engine," §2). **Zombie AI now moves around and behaves correctly in PIE** — wander, investigate, and chase all confirmed. `memory/project_navmesh_dynamic_workaround.md` and `Docs/Beta/B0_Stabilization.md`'s T8.5 are updated to reflect this. Lesson recorded for future sessions: check the official UE 5.8 docs site first on engine-level setup problems, not just engine-source spelunking — see `memory/feedback_consult_official_ue_docs.md`.
 
-1. **Fixed a real content bug**: `StartingHotbarLoadout` slot 2 pointed at `DA_ZS_WeaponConfig_AssaultRifle1`, an orphaned duplicate with no `BaseWeaponMesh` — would have equipped invisibly, silently failing Stage E. `DA_ZS_WeaponConfig_Pistol` (existed but was never authored, zero referencers) got real meshes (`SM_Pistols1_01` family) and its own distinct tunables (18 dmg / 3500 range / 0.5s equip / 1800 noise, vs. the rifle's 25/5000/0.75/3000 — deliberately different so Stage E's "nothing shared between configs" check is meaningful). Slot 2 now points at the real Pistol config; the stray `AssaultRifle1` asset is deleted.
-2. **T1.1 — temporary melee weapon** (OQ-B0-11's documented workaround): `DA_ZS_WeaponConfig_Crowbar` (`Content/ZS/Weapons/Melee/`), `SM_Crowbar` mesh, `AttackType=Melee`, 22 dmg / 150 range / 0.9s interval / 350 knockback / 15-hit durability (nonzero on purpose, so Stage F2's break test is actually exercisable), rifle `TP_Mesh` reused per OQ-B0-11 (still wrong-looking, still temporary — real fix is T10.7). Added as `StartingHotbarLoadout` slot 3.
-3. **T1.2 — minimum P6 content for Stage G**: 3 `DA_ZS_ItemConfig_*` in `Content/ZS/Items/` (`CannedFood` — Consumable, 35 hunger/5 thirst; `Bandage` — clean; `PistolPickup` — weapon-as-item, `SM_Pistols1_01` world mesh, non-stacking). 1 `DA_ZS_LootTableConfig_Basic` (3 rolls, weighted toward food). Placement needed a real design wrinkle: `AZSContainerActor::LootTable` is `EditDefaultsOnly` and `AZSWorldItemActor::Item`/`Count` are `VisibleAnywhere` — neither is settable on a raw placed actor instance, by design (the classes expect a Blueprint child for the container, and a code-driven `InitializeItem()` call for the world item — see their own header doc comments). Built two trivial Blueprint children instead: `BP_ZS_Container_Test` (CDO's `LootTable` = `DA_ZS_LootTableConfig_Basic`) and `BP_ZS_WorldItem_Test` (`EventBeginPlay` → `InitializeItem(CannedFood, 2)`). Both compiled clean, placed in `Lvl_ThirdPerson` near the PlayerStarts (container at 450,300,302; world item at 300,450,302).
-4. Verified via Output Log scan after every compile — no new errors, nothing matching the Live Coding corruption patterns (`is not a child class of` / `invalid target type`). All dirty assets saved (`AssetTools.save_assets` with no path filter = save-all).
+### B0-T1 runbook, pass 1 — 4 real bugs found, all fixed (not yet re-tested)
 
-**Not done, and needs the dev**: actual gameplay-input PIE verification. Simulated input via MCP doesn't reliably reach the pawn (confirmed earlier this project) — this genuinely needs hands on a keyboard. See the runbook immediately below.
+1. **Weapon attachment socket was wrong.** `SocketGunAttachment` was set to `"ik_hand_gun"` — an IK control bone, not a weapon-carry bone, and not a real socket (attaching to a bare bone name falls back to that bone's raw, unoffset transform). This is why the rifle spawned mispositioned/misrotated on equip. Root-caused by inspecting the skeleton directly: `SKM_Manny_Simple` has a dedicated `weapon_r` bone with an existing pack-authored socket, `weapon_r_muzzle`, sitting at **zero local offset** on it — strong evidence `weapon_r` is the actual intended weapon-carry point. Tried creating a new socket there via `unreal-mcp`'s `add_socket` — **that tool has a bug/limitation**: it silently fails to parent to `weapon_r` (confirmed likely a virtual bone, since parenting to a real bone like `pelvis` worked fine in a side-by-side test) and defaults the new socket to `root` instead, with no error surfaced except an unrelated-looking `SetSocketParent... bone named 'None'` log line. Worked around by pointing `SocketGunAttachment` at the existing, already-correct `weapon_r_muzzle` socket instead (confirmed unused anywhere else in our C++). All 3 weapon configs (AssaultRifle, Pistol, Crowbar) updated. **The "movement becomes unpredictable while equipped" symptom is very likely a visual side-effect of this same bug** (a wrong-angled weapon rigidly attached to the body makes turning look erratic) — checked `UpdateMovementSpeed`/`bUseControllerRotationYaw`/aiming code directly, nothing in there reacts to `CurrentWeapon` being set, so there's no real movement-logic bug found. Re-check this specifically once the socket fix is verified in PIE — flag it again if it's still happening with the gun correctly placed.
+2. **Fire trace/damage confirmed working** (`shot hit ... for 25.0 damage` in the log) — likely was firing from the wrong angle only because of bug 1 above, not a separate bug. Re-verify muzzle origin once the socket fix is confirmed.
+3. **Hotbar keys 2–9 never worked — only key 1 did anything.** Root cause: `IMC_ZS_Default`'s per-digit-key `Scalar` modifiers were only ever authored for the "One" key mapping; "Two" through "Nine" had empty modifier arrays, so every digit key sent the Enhanced Input system's raw press value of `1.0` regardless of which key was pressed — `HandleHotbarSelect` always resolved to slot 1. This is why pressing 1/2/3 just toggled the rifle on/off (re-pressing the *same resolved slot* triggers the documented unequip-toggle behavior) instead of cycling. Fixed: added `InputModifierScalar` instances (X = 2..9) to each of the "Two"–"Nine" key mappings, mirroring "One"'s existing (X=1) modifier. Stage D (re-press-1-to-unequip) is confirmed still working — that logic was never the bug.
+4. **`ZSContainer_TestLoot` (now `BP_ZS_Container_Test`) had no visible mesh.** The Blueprint child I built last session for T1.2 never got a `ContainerMesh` assignment — functional (loot table was wired) but invisible, so undiscoverable in the level. Fixed: assigned `SM_Small_Wood_Box_Closed` (`Content/Mega_Survival_Tools/`).
+5. Crowbar/Stage F untested — blocked on bug 3 (hotbar cycling), should be reachable now.
 
-## Runbook — B0-T1 Stages B–G (do this next, ~30–45 min single-client pass)
+**None of tonight's 4 fixes have been PIE-verified yet** — they're logically sound and compile/save clean, but need a fresh run to confirm.
 
-Everything is pre-staged. `StartingHotbarLoadout` is now **AssaultRifle (1) / Pistol (2) / Crowbar (3, melee)**. Enter PIE at either PlayerStart and work top to bottom — full detail/expected-results tables are in `Docs/Testing/P5_P6_CharacterSetupVerification.md`, this is just the condensed run order:
+## Runbook — B0-T1 Stages B–G, pass 2 (do this next)
 
-1. **Stage B** — press `1`. Confirm: non-instant equip (0.75s pause), weapon + magazine appear, rifle upper-body pose comes back.
-2. **Stage C** — fire at something. Confirm: hitscan from the muzzle, not eye height; on-screen hit log.
-3. **Stage D** — press `1` again. Confirm: weapon disappears, body reverts, arms go back to relaxed (not stuck rifle-posed).
-4. **Stage E** — press `1`, then `2` without unequipping first. Confirm: rifle fully gone before the pistol appears, no leftover attachments, pistol looks/behaves distinctly (shorter range, faster equip, quieter). Scroll-wheel cycle a few times rapidly.
-5. **Stage F** — press `3` (crowbar). Confirm melee dispatch: `IA_Attack` near a zombie uses the crowbar's own stats (22 dmg), not bare-fist. Land ~15 hits to break it — confirm it unequips itself and slot 3 stays empty on re-press.
-6. **Stage G** — walk to the container near your spawn (450,300 area) and interact: confirm "loot all" transfers 3 items into your carry list in one action, container stops being interactable once empty. Walk to the world item (300,450 area) and interact: confirm it's 2x Canned Food, adds to carry, actor disappears. Drop something (`Server_DropItem`'s own flow) and re-interact with what you dropped. Overload on weight if easy, confirm move speed visibly drops.
+Same loadout as before — **AssaultRifle (1) / Pistol (2) / Crowbar (3, melee)** — now with the socket, hotbar, and container fixes applied.
 
-**File every failure as a discrete note, don't fix inline** (T1.10) — a verification pass that turns into a debugging pass never finishes. Report back with pass/fail per stage and I'll fold results into `B0_Stabilization.md`'s T1 table and file bug tasks for whatever failed.
+1. **Stage B** — press `1`. Confirm the rifle now sits correctly on the character (not off to the side/pointing up), and that equipping no longer makes movement/turning look erratic.
+2. **Stage C** — fire. Confirm the shot originates from the now-correctly-placed muzzle.
+3. **Stage D** — press `1` again to unequip (already confirmed working, quick re-check only).
+4. **Stage E** — press `1`, then `2` (should now genuinely switch to the Pistol, not just toggle), then `3`. Confirm real cycling across all three slots, and that scroll-wheel cycling also works.
+5. **Stage F** — with the Crowbar (`3`) equipped, melee a zombie. Confirm crowbar stats apply (22 dmg), land ~15 hits to break it, confirm it unequips and slot 3 stays empty on re-press.
+6. **Stage G** — the container near spawn (~450,300) should now be visible (a wood box) and lootable. The world item pickup (~300,450) should still work as before. Loot, drop, re-pick-up, check encumbrance.
 
-## Navmesh blocker — still parked, unchanged
-
-`Lvl_ThirdPerson`'s nav build is still stuck on `AsyncLoadLock` (flags 0x20); `runtimeGeneration` is confirmed back on **Static** (reverted from the Dynamic workaround, verified and saved). **Dev is fixing this manually and will report back.** Zombie AI behavioral verification stays parked until then — full technical trail in `memory/project_navmesh_dynamic_workaround.md`. **Not touched this session** — no further navmesh/zombie-AI investigation was done tonight, per instruction.
+**File failures as discrete notes, don't fix inline** (T1.10). Report back pass/fail per stage and I'll fold results into `B0_Stabilization.md`.
 
 ## B0-T0.1 — build policy for this phase (standing, for the duration of B0)
 
-- **Full `Build.bat` rebuild for any header change.** Live Coding (Ctrl+Alt+F11) only for `.cpp`-only edits. (Tonight's work was content-only — no rebuild needed.)
+- **Full `Build.bat` rebuild for any header change.** Live Coding (Ctrl+Alt+F11) only for `.cpp`-only edits. (Tonight's work was content-only again — no rebuild needed.)
 - **"Compile All Blueprints" pass after every patch cluster**, before trusting any PIE result.
 - When something that "should just work" behaves wrong after a recompile, **check the Output Log for `is not a child class of` or `invalid target type` before anything else.**
-- **After large multi-file sessions, regenerate IDE project files** (`Build.bat -projectfiles ...`) — not needed tonight (no new C++ files, no header changes since the last regen).
+- **When stuck on an engine-level setup problem, check the official UE 5.8 docs site** (dev.epicgames.com) before extended trial-and-error or engine-source spelunking — see `memory/feedback_consult_official_ue_docs.md`.
+- **After large multi-file sessions, regenerate IDE project files** (`Build.bat -projectfiles ...`) — not needed yet this stretch (no new C++ files/header changes since the last regen).
 
-## Decisions made 2026-07-23 through 2026-07-25
+## Known tooling gotcha (worth remembering)
 
-- **T0.3 — keep `BP_ZombieAIController`**, in case it is wanted later. Reparented, compiles clean.
+`unreal-mcp`'s `SkeletalMeshTools.add_socket` does not reliably honor its `bone_name` argument for at least one bone on this project's skeleton (`weapon_r`, likely a virtual bone) — it silently parents the new socket to `root` instead, with only an oblique log line (`SetSocketParent... bone named 'None'`) as a clue, no thrown error. Always verify with `get_socket_bone` right after `add_socket`, don't trust the call succeeding at face value. Reusing an existing, correctly-parented socket is a safe workaround when the target bone is virtual/IK-only.
+
+## Decisions made 2026-07-23 through 2026-07-26
+
+- **T0.3 — keep `BP_ZombieAIController`**, in case it is wanted later.
 - **T0.5 / OQ-B9-01 — all gamepad work and testing deferred to B9.**
 - **OQ-X-01 — PC only for the initial launch.**
-- **Zombie AI native migration** (2026-07-24/25): all 6 BT tasks ported to C++, 2 real bugs fixed, ambient wander branch added. Code-verified, behaviorally unverified — parked on the navmesh blocker above.
-- **OQ-B0-11 temporary unblock** (2026-07-25): a real melee config now exists for testing, question itself still open — see `Docs/Beta/90_OpenQuestions.md`.
+- **Zombie AI native migration + navmesh fix — done, PIE-verified 2026-07-26.**
+- **OQ-B0-11 temporary unblock** — a real (if wrong-looking) melee config exists for testing; question itself still open.
 
 ## Blocking decisions needed before B0-T2 (not before T0/T1)
 
-- **OQ-B0-13 — item-instance refactor go/no-go.** The hard blocker; ~5–6 sessions of B0-T2 depend on it, and half is unrecoverable if the direction changes mid-way.
-- Also blocking B0, in the same design session: **OQ-B0-01** (scroll arbitration), **OQ-B0-02** (aim cone), **OQ-B0-04** (temperature scope), **OQ-B0-05** (fatigue/perception), **OQ-B0-07** (infection ambiguity in UI), **OQ-B0-11** (melee weapon display — now temporarily unblocked for testing, real answer still needed).
+- **OQ-B0-13 — item-instance refactor go/no-go.** The hard blocker; ~5–6 sessions of B0-T2 depend on it, and half is unrecoverable if the direction changes mid-way. Design doc: `Docs/Planning/InventoryLoadoutEquipping_Plan.md`.
+- Also blocking B0, in the same design session: **OQ-B0-01** (scroll arbitration), **OQ-B0-02** (aim cone), **OQ-B0-04** (temperature scope), **OQ-B0-05** (fatigue/perception), **OQ-B0-07** (infection ambiguity in UI), **OQ-B0-11** (melee weapon display — temporarily unblocked for testing, real answer still needed).
 - **Three contradictions need your call**: `Docs/Beta/00_MasterPlan.md` §2 — **CR-01** (skill roster), **CR-02** (vehicles), **CR-10** (fatigue/perception reading).
+- **`UI_Plan.md`'s own §7 open questions** are an unchecked entry-criterion for B1 — not just background reading.
 
 ## Verification status — carried forward, still current
 
-**Everything built across 2026-07-21/22 remains unverified except two items.** PIE-confirmed on 2026-07-22: the AnimBP rifle-pose fix and basic hotbar switching. That is Stage A of `Docs/Testing/P5_P6_CharacterSetupVerification.md`.
+**PIE-confirmed working:** the AnimBP rifle-pose fix and basic hotbar switching (2026-07-22, Stage A). **Zombie AI** — wander, investigate, chase (2026-07-26). **Ranged hitscan damage** — confirmed applying, muzzle origin needs re-check after the socket fix.
 
-**Still unverified (this is B0-T1's job, content now staged — see runbook above):** Stage B (equip delay, attachment sockets, magazine, `TP_Mesh` swap, rifle pose *re*appearing) · Stage C (ranged hitscan) · Stage D (unequip) · Stage E (two-weapon switching) · Stage F (melee dispatch) · Stage G (P6 inventory/loot).
-
-**Zombie AI code is structurally verified, behaviorally unverified** — parked on the navmesh blocker.
-
-**Two autonomous P6 design calls still unreviewed** (bag-slot depth `Back`+`Hip`; rarity pool global per-session) — carried as OQ-B0-14, recommendation to keep both.
+**Still unverified, staged for pass 2 above:** Stage B (equip visuals, attachment sockets, magazine, `TP_Mesh` swap, rifle pose reappearing), Stage D re-check, Stage E (real 3-way switching), Stage F (melee dispatch, durability break), Stage G (container now visible, re-verify loot-all/drop/encumbrance).
 
 **Known gap, still unfixed:** `AZombieCharacter::Server_MeleeAttack` passes a blank `FHitResult`, so every zombie bite lands on Torso — amputation's Arms/Legs infection-clearing path is unreachable from a real bite. Scheduled as **B0-T5.1**.
 
