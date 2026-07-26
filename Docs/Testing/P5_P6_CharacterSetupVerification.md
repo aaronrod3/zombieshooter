@@ -87,7 +87,7 @@ This is Stage A's fix verified from the *other* direction — equipped-to-unarme
 | G3 | Loot a container | Everything transfers in one action; container stops being interactable once empty. | — |
 | G4 | Carry enough weight to exceed capacity | Movement speed visibly drops (`GetEncumbranceMultiplier` folded into `UpdateMovementSpeed`). | — |
 | G5 | Equip a `bIsEquippable` item into `Back`/`Hip` | Max carry weight increases by that item's `CarryCapacityBonus`. | — |
-| G6 | **Cross-check with P5**: does picking up a weapon via G1 make it selectable on the hotbar? | **No — this is a known, already-documented gap** (`Docs/Phases/P6_InventoryLoot.md`, `Docs/Planning/InventoryLoadoutEquipping_Plan.md`). `HotbarSlots` still only reflects what's authored in `StartingHotbarLoadout`, not what's actually carried. Don't treat this as a new bug - it's the exact problem the item-instance refactor proposal in the planning doc exists to fix. | — |
+| G6 | **Cross-check with P5**: does picking up a weapon via G1 make it selectable on the hotbar? | **No — this is a known, already-documented gap** (`Docs/Planning/InventoryLoadoutEquipping_Plan.md`). `HotbarSlots` still only reflects what's authored in `StartingHotbarLoadout`, not what's actually carried. Don't treat this as a new bug - it's the exact problem the item-instance refactor (`Docs/Beta/B0_Stabilization.md` B0-T2) exists to fix. | — |
 
 ## A note on the anim graph fix specifically
 

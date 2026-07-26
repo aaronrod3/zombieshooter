@@ -1,5 +1,7 @@
 # Open Questions for Debate
 
+> **Updated 2026-07-26 after a full rescope pass.** `Docs/Planning/RescopeQuestionnaire.md` took this list to the dev directly. Items below marked **✅ RESOLVED 2026-07-26 (dev-confirmed)** carry a real, dated answer — replacing whatever "Rec:" recommendation was previously doing duty as a decision. A few **reverse** the original recommendation outright (OQ-B0-07, OQ-B10-01 especially) — read the dev-answer line, not just the tag. Everything else below is unchanged and still just a recommendation awaiting a real decision, same as before.
+
 Every design decision not explicitly confirmed in `ZombieShooter_Consolidated_Changes.md`, grouped by the phase it belongs to so it can be resolved in context. Each carries 2–4 options with tradeoffs, a recommendation, and a priority tag.
 
 **Tags** · 🔴 **BLOCKING** — must be resolved before related implementation starts · 🟡 **SEQUENCEABLE** — can be decided in parallel with early implementation · 🟢 **LATE** — safe to defer to a polish pass or post-beta.
@@ -31,9 +33,8 @@ Open Questions §1 asks all three and they interact. Decision 6 already resolved
 
 **Rec: option 3.** It honours Decision 6 (the world keeps running) while giving players who want closure a real ending. The evac becomes the persistent world-state change Decision 6 already asks for.
 
-### OQ-X-03 — Player-count ceiling 🟡
-Confirmed 2–4. Hard-locked or flexible to 6+?
-**Rec: hard-lock 2–4 for beta.** Listen-server bandwidth and B8's budget are sized for it. Raising it later is a tuning exercise; designing for it now costs performance headroom you do not have.
+### OQ-X-03 — Player-count ceiling ✅ RESOLVED 2026-07-26 (dev-confirmed) — reverses the original recommendation
+**Dev answer: 4+ players**, not hard-locked to 2–4. Listen-server stays the primary mode; an **optional paid dedicated-server hosting path** is now planned for groups who want one (see OQ-B10-01, also reversed). B8's performance budget must be re-baselined against 4+ rather than 2–4 — this is a real cost increase, not a free change.
 
 ### OQ-X-04 — The unique selling point, stated in one sentence 🟡
 `GameDevPlan` §1 has four differentiators in long form. B12-T1.2 needs one line.
@@ -68,6 +69,8 @@ The single highest-consequence question in B0. `Docs/Planning/InventoryLoadoutEq
 
 **Rec: do it now.** Four separate CONFIRMED features (loot condition variance, durability, ammo economy, four container categories) all reduce to "items need per-instance identity." Without it they are individually hacky and collectively incoherent. **Nothing else in B0 should start until this is answered.**
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** Do it now — confirmed. **Refined further:** do it as the independently-testable steps already laid out in `Docs/Planning/InventoryLoadoutEquipping_Plan.md` §8, each with its own checkpoint, rather than one uninterrupted block — dev's explicit process preference is to avoid long chains of dependent, untested work. **Also new:** the dev wants real **stat-affecting weapon attachments** eventually (scopes increase accuracy, silencers decrease sound, etc.) — reversing the design doc's own §7 Tier 2 recommendation against building them. Not part of B0's refactor itself; scheduled as its own later weapon-depth pass (Stage 2) once the base item-instance model is solid, per the design doc's own migration-order step 7.
+
 ### OQ-B0-01 — Scroll-wheel arbitration 🔴
 `IA_HotbarCycle` is on the mouse wheel; CONFIRMED preset zoom now also wants it.
 | Option | Tradeoff |
@@ -88,6 +91,8 @@ CR-11 makes this the **sole** source of combat accuracy pressure, since Panic st
 
 **Rec: option 1**, with headshot weighting roughly 5% hip-fire / 25% aimed. **Prototype before authoring any weapon content** (B0-T3.5 flags this) — the numbers change every weapon's data.
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** Aim-cone tightness: "about right" — option 1's numbers stand as dev-approved starting values, not just a recommendation. Headshot weighting (5%/25%): KEEP. Both still tune from real playtesting, but they're no longer guesses.
+
 ### OQ-B0-03 — Downed-zombie state and the stomp input 🟡
 CONFIRMED: downed zombies are never in a standing swing's arc; finishing requires a deliberate stomp or targeted hit.
 | Option | Tradeoff |
@@ -97,6 +102,8 @@ CONFIRMED: downed zombies are never in a standing swing's arc; finishing require
 | Stomp on `IA_SecondaryAction` | Overloads a binding B0-T11 is defining for offhand items. Muddles both. |
 
 **Rec: option 1.** Contextual on `IA_Attack` — the game's stated philosophy is one attack button whose meaning depends on context, and this is exactly that.
+
+**Partially resolved 2026-07-26 (dev-confirmed).** The downed-zombie state + stomp finisher itself: KEEP. **New constraint from the dev:** "find alternatives to make sure this isn't copying PZ" — the mechanic's existence is confirmed, but the specific execution (stomp-on-`IA_Attack`, the PZ-style finisher framing) needs a differentiated take before it's built, not a direct port. Treat the input-binding question above as still open pending that design pass.
 
 ### OQ-B0-04 — Temperature model scope 🔴 🚩
 CONFIRMED as active scope. The question is depth, and this is the plan's highest scope-risk item.
@@ -108,6 +115,8 @@ CONFIRMED as active scope. The question is depth, and this is the plan's highest
 
 **Rec: option 1, and hold the line on it.** Consequences route through need-severity tiers into `GetPerformanceMultiplier()` — **not** a separate damage path. Clothing contributes one `InsulationValue` per item; no layering system, per `GameDevPlan` §3's "single outfit slot-set with protection values."
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** Option 1 confirmed — "was part of the plan," not scope creep. Dev also reaffirmed the broader needs philosophy directly: create real worry without survival micromanagement becoming the main thing a player has to babysit. Tune generously; the failure mode to avoid is hunger/thirst upkeep becoming tedious or the primary cause of frustration.
+
 ### OQ-B0-05 — How fatigue degrades perception 🔴
 Depends on CR-10 being answered "the player perceives less."
 | Option | Tradeoff |
@@ -117,6 +126,8 @@ Depends on CR-10 being answered "the player perceives less."
 | Suppress HUD threat indicators | Only works if such indicators exist; B1 does not currently plan them. |
 
 **Rec: option 1**, tuned to be noticeable at severe fatigue only, never at moderate. Accessibility caveat: it must respect B9-T4.4's motion/effects-reduction option.
+
+**✅ RESOLVED 2026-07-26 (dev-confirmed) — see CR-10.** Reading (A) confirmed directly.
 
 ### OQ-B0-06 — Sleep vulnerability 🟡
 Open Questions §4 asks whether players are attackable while sleeping. `IsSafeToSleep()` is currently a stub returning `true`.
@@ -128,15 +139,12 @@ Open Questions §4 asks whether players are attackable while sleeping. `IsSafeTo
 
 **Rec: option 1.** The warning is the entire design — it makes sleeping a decision instead of a gamble.
 
-### OQ-B0-07 — Preserving infection ambiguity in the UI 🔴
-CONFIRMED that bite infection must be "deliberately ambiguous vs. ordinary sickness." Easy to destroy accidentally in B1.
-| Option | Tradeoff |
-|---|---|
-| **One shared "Sick" moodle** driven by either tier, with identical symptom progression | Ambiguity fully preserved. Requires discipline: no tooltip, log line, or debug UI may leak the tier. |
-| Distinct moodles | Destroys the CONFIRMED design intent entirely. |
-| Shared moodle that diverges at a late stage | Preserves early ambiguity; gives late certainty when it is too late to matter, which is arguably the horror payoff. |
+### OQ-B0-07 — Infection legibility in the UI ✅ RESOLVED 2026-07-26 (dev-confirmed) — REVERSES the original premise entirely
+This question originally assumed bite infection must be "deliberately ambiguous vs. ordinary sickness," per CR-06. **That premise is gone.**
 
-**Rec: option 1 for beta, option 3 as a post-beta refinement.** Record it as a hard constraint on B1-T3.3 — this is the kind of intent a well-meaning UI pass quietly breaks.
+**Dev answer: "Plainly show the player if they are bitten and infected."** Distinct, legible moodles/UI states for bite status and infection status — the opposite of option 1 below, which is what this question used to recommend. See `00_MasterPlan.md` CR-06 for the full reversal and what survives unchanged (the two-tier mechanical model, the fatal timeline, amputation as the escape valve).
+
+~~One shared "Sick" moodle driven by either tier~~ — **do not build this.** ~~Distinct moodles~~ — **this is now the correct answer**, not the rejected option. Record the new hard constraint on B1-T3.3: infection/bite status must be clearly, unambiguously readable — the opposite of the original constraint.
 
 ### OQ-B0-08 — Bite-infection fatal timeline 🟡
 | Option | Tradeoff |
@@ -147,6 +155,8 @@ CONFIRMED that bite infection must be "deliberately ambiguous vs. ordinary sickn
 
 **Rec: 3 in-game days baseline**, extendable by medical tier (B0-T6.5). Tune from B11 telemetry — specifically, how often the amputation choice actually gets offered.
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** "Feels right" — 3 in-game days confirmed as the starting number.
+
 ### OQ-B0-09 — Ammo as an inventory item 🟡
 Proposed by `Docs/Planning/…` §4; removes `AZSWeapon::CurrentReserveAmmo`/`MaxReserveAmmo`.
 | Option | Tradeoff |
@@ -155,6 +165,8 @@ Proposed by `Docs/Planning/…` §4; removes `AZSWeapon::CurrentReserveAmmo`/`Ma
 | Keep reserve ammo on the weapon actor | Simpler, but ammo is weightless, unshareable, and vanishes with the weapon — which makes "scarce ammo" a fiction. |
 
 **Rec: option 1.** It is a small part of the refactor and it is what makes ammo scarcity real. Note the co-op consequence: sharing ammo becomes a genuine social mechanic.
+
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** Option 1 confirmed KEEP, along with the other three bundled item-instance additions (carry-location categories, loot condition variance, handedness rules) — all KEEP. **Process note:** dev wants the refactor split into the independently-testable steps `Docs/Planning/InventoryLoadoutEquipping_Plan.md` §8 already proposes, each with its own test pass, rather than one uninterrupted 5–6 session block — see `B0_Stabilization.md`'s updated B0-T2.
 
 ### OQ-B0-10 — `IA_SecondaryAction` binding 🟡
 | Option | Tradeoff |
@@ -175,9 +187,13 @@ Proposed by `Docs/Planning/…` §4; removes `AZSWeapon::CurrentReserveAmmo`/`Ma
 
 **Rec: option 1**, plus a second shared pose for two-handed melee later if needed. `UZSWeaponConfig` gains a socket field alongside the existing attachment sockets.
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed) — neither option above, a third way.** "Specific poses per weapon type, rifle/shotgun/LMG all the same, pistol has its own, melee has its own, etc." — grouped by weapon *category*, not one universal pose (option 1 above) and not a unique pose per individual weapon (option 2 above). Three shared `TP_Mesh` poses total for the current roster: long-guns, pistols, melee. This is genuinely content-blocking no longer — author the real melee `UZSWeaponConfig` (B0-T10.7) against this.
+
 ### OQ-B0-12 — Weapon roster 🟡
 Resolved as "4–6 melee archetypes, one per feel-category." Firearms roster is undefined. Open Questions §6 asks for the exact list.
 **Rec — melee (4):** blunt light (bat), edged (machete/axe), improvised fragile (pipe/plank, low durability), heavy two-handed (sledge, slow/high damage). **Firearms (4):** revolver (jam-immune backup, CONFIRMED archetype), pistol, shotgun, bolt-action rifle (jam-immune). This gives both jam-immune archetypes a home and covers the range/noise/ammo spread. Source from `Content/LowPolyWeapons/` and `Content/Mega_Survival_Tools/`.
+
+**Partially resolved 2026-07-26.** Melee roster size confirmed "right" (4–6 archetypes) — the recommendation above stands. **Firearm roster deferred by the dev** — "will provide a full list once basic features are set." Treat the 4-firearm recommendation above as a placeholder for content-authoring purposes only (T4), not a locked roster; revisit once the dev's own list arrives.
 
 ### OQ-B0-14 — Review the two autonomous P6 design calls 🟡
 Both were made unsupervised on 2026-07-21 and flagged for review by the assistant that made them.
@@ -229,6 +245,8 @@ Open Questions §14 asks whether there is money for marketplace/contracted art.
 
 **Rec: option 1.** A modular environment kit and a sound library are where money converts most directly into months.
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed) — leans toward option 2, not option 1.** "Mostly free, cheaper assets, want Door Kickers 2 level of detail so I can create assets myself later." Modest/free-first budget, DK2 as the fidelity benchmark, and the dev expects to hand-model some assets himself over time (Blender pipeline, already documented in `GameDevPlan.md` §5). Don't assume a marketplace-kit-sized budget when scoping B2.
+
 ### OQ-B2-02 — Nanite 🟡
 | Option | Tradeoff |
 |---|---|
@@ -250,6 +268,8 @@ Combines `GameDevPlan` §7 cross-cutting Q5 with the §7 P3 backlog's world-term
 | Per-character saves within a shared world | Closest to PZ's model; significantly more complex in co-op and conflicts with host-owned saves. |
 
 **Rec: option 1.** Then, on world lifetime, per the §7 P3 backlog: **co-op continues on a fresh character unless the entire party is dead; solo death ends that world outright.** Multiple slots make the solo rule survivable rather than punitive — you lose a world, not the game. Note this **contradicts what `Server_RespawnAsNewCharacter` does today** and must be implemented in B10-T1.5.
+
+**✅ RESOLVED 2026-07-26 (dev-confirmed) — simpler than either option above.** **One continuously-overwritten world** (not multiple slots) — "so player can't load an old save to fix a mistake," no player-facing rollback. **Death rule: no asymmetric solo/co-op split.** Death always respawns a fresh character into the same persistent world, solo included; loot and any base/safehouse remain reachable. `Server_RespawnAsNewCharacter`'s current behavior was already right — this removes a planned special-case rather than requiring new work. Rotating backups for crash/corruption recovery are unaffected and still planned (a different concern from save-scumming). See `00_MasterPlan.md` CR-07 for the full resolution.
 
 ### OQ-B3-02 — Serialization format 🟡
 | Option | Tradeoff |
@@ -274,9 +294,13 @@ Combines `GameDevPlan` §7 cross-cutting Q5 with the §7 P3 backlog's world-term
 
 **Rec: option 1, and validate it against B2-T4.5's measured per-room build time before committing.** If a single room takes 3 sessions, even 1×1 km is too ambitious and the answer is fewer, denser buildings.
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed) — bigger than option 1.** "Bigger, build in phases." Driven partly by vehicles coming back into scope (CR-02) — a 1×1 km map is small once driving is real. **The "build in phases" half is now structural, not just advice**: region content moved from a single B4 phase into `B4X`, a continuous track built district-by-district (see `00_MasterPlan.md` §3.2, `T_ContinuousTracks.md` T7). The per-room build-time validation this question already recommended stays just as important — arguably more so, since the map just got bigger.
+
 ### OQ-B4-02 — Named locations 🔴 **deferred twice**
 Blocks B4 content and B5's investigation arc.
 **Rec:** author 8–12 named locations, each with a mechanical identity as well as a name, so they are destinations rather than labels. Suggested spread: a small town centre, a hospital/clinic (medical loot + a clue site), a police/sheriff station (firearms), a hardware store (tools/materials), a school (shelter archetype), a research or ranger station (**the investigation arc's anchor**), a lakeside camp, a farm, and a highway rest stop. **Do this as a writing session during B4's blocked time** — it is not engineering work and it unblocks two phases.
+
+**Partially resolved 2026-07-26.** The *mechanical identity* per location (spread above) can proceed as a placeholder — dev wants generic names for now ("generic names at first, will change later, worried about mechanics and features first"). Build `B4X` locations with functional/generic labels (e.g. "Town Center," "Hospital"); do the real naming/flavor writing pass later, closer to B5, without blocking content on it now.
 
 ### OQ-B4-03 — Interior visibility solution 🔴
 Old P7 named the problem and never solved it.
@@ -372,6 +396,8 @@ Unstated but obvious interaction between B4's darkness mechanic and the noise-as
 
 **Rec: option 1.** Now likely **S–M (2–3 sessions)**, down from the original 3–4 — the `ClearLastKnownLocation` wiring call and crowd-following/tunables scoping are what's left, not a from-scratch behavior rebuild.
 
+**New scope, added 2026-07-26 (dev-confirmed), fold into this same pass:** a zombie **"freshness" mechanic** — recently-turned zombies are faster and hit harder; the longer a zombie has been undead, the more it slows and weakens. Also, the dev confirmed zombie feel overall as "PZ style, but newer zombies are faster, zombies degrade slowly and slow down, don't do as much damage" — this pass should design the freshness curve alongside the crowd-following/tunables work already scoped here, likely on the same `UZSZombieConfig` per-type-curve substrate. **Also confirmed: genuine large hordes (100+) are important to the vision, not a cuttable stretch goal** — see CR-08 in `00_MasterPlan.md`. This raises the stakes on this pass and on B7-T5/OQ-B7-01's horde-coordination work, but doesn't change this question's own scope beyond adding the freshness mechanic.
+
 ---
 
 ## B5 — Events & Investigation
@@ -379,6 +405,8 @@ Unstated but obvious interaction between B4's darkness mechanic and the noise-as
 ### OQ-B5-01 — The actual plot 🔴 **largest content dependency in the plan**
 Open Questions §2 asks for the outbreak origin, story beats, the final revelation, and how much is knowable.
 **Rec — shape rather than content:** an origin that is **discoverable but never fully explained**, delivered entirely through environmental storytelling, documents, and radio — consistent with OQ-X-06 (no NPCs to explain it) and OQ-X-07 (grounded tone). Three acts: *something happened here* → *someone knew in advance* → *there was an attempt at a response, and it failed*. The capstone is reaching wherever that response was coordinated from — the research/ranger station of OQ-B4-02. **This is a writing task, not engineering; do it during B4's blocked sessions.** Also resolve `GameDevPlan` §7 P8 Q3 (event count at launch) at the same time — it has been flagged BLOCKING since 2026-07-19.
+
+**Dev response 2026-07-26: "Still planning, skip for now."** The three-act shape above was always just an AI-authored placeholder, never adopted — don't treat it as a working draft. **Brainstorm the actual plot together when B5 actually starts**, per the dev's own preference (stated directly in the rescope pass). Tone (pulpy vs. grounded) and event roster count are also still genuinely open — not addressed in the rescope pass — leave both blank until that live session.
 
 ### OQ-B5-02 — Ambient event locatability 🟡 (DEFERRED item)
 | Option | Tradeoff |
@@ -426,6 +454,8 @@ CONFIRMED as open for exploration.
 CONFIRMED: backgrounds grant higher starting proficiency, not unique items. Must suit the setting and not mirror another game's occupation list.
 **Rec — 6 backgrounds, each tied to a starting location and 1–2 skills:** *Park Ranger* (Survival-adjacent + Firearms, ranger station) · *Paramedic* (First Aid, clinic) · *Mechanic* (Maintenance, hardware store) · *Sheriff's Deputy* (Firearms + Aiming, station) · *Line Cook* (no combat skill; starts with the best food/shelter position — the deliberately non-combat option) · *Hunter* (Aiming + Sneak, rural camp). Deliberately Adirondacks-flavoured rather than generic occupations.
 
+**Partially resolved 2026-07-26.** Dev: "will compile a full list later, not important for specifics" — the six names above are still just an AI-authored placeholder, not adopted. **What the dev does want built now:** a genuinely generic, data-driven background system that lets him **create backgrounds and assign starting stat/skill values per type** (`UZSBackgroundConfig`-style, per the multi-config rule — new background = new data asset, zero C++). Build the system in Stage 1 (`B6-Sys`); leave the actual roster/names for `B6-Content` in Stage 2, from the dev's own list.
+
 ### OQ-B6-05 — Background tradeoffs 🟡 (DEFERRED item)
 | Option | Tradeoff |
 |---|---|
@@ -434,6 +464,8 @@ CONFIRMED: backgrounds grant higher starting proficiency, not unique items. Must
 | Additive skills + differentiated starting *location* difficulty | Balance through world placement rather than stat penalties — the Deputy starts well-armed but in a dense, dangerous town. |
 
 **Rec: option 3.** It creates real tradeoffs without stat penalties, reuses Decision 4's spawn system, and is entirely tunable through content rather than code.
+
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** "Carry a real tradeoff" — confirms option 3 (or option 2; either is compatible with "a real tradeoff," option 3 specifically via starting-location risk rather than stat penalties is still the recommended mechanism). Not purely additive — avoid designing backgrounds where there's no wrong choice.
 
 ### OQ-B6-06 — Radio tutorial pacing 🟡 (DEFERRED item)
 **Rec:** days 1–2 survival basics (needs, noise, looting) · days 3–4 combat and injury · days 5–6 the utilities-shutoff warning, turning tutorial into narrative · day 7 the transition into the investigation arc. Each broadcast teaches by *describing what is happening in the world*, never by naming a control.
@@ -462,8 +494,12 @@ CONFIRMED that performance drives this decision, and the measurement is B0-T12/B
 
 **Rec: option 1, decided on B8-T2's measurements, not this recommendation.** Tick LOD is worth doing regardless of what else is chosen, so start there.
 
+**Ambition raised 2026-07-26 (dev-confirmed) — approach unchanged.** Genuine large hordes (100+, visually distinct) are confirmed important to the vision, not a number to trade away if performance is tight. This doesn't change *how* the decision gets made (still measurement-driven, still gated on B0/B8 profiling) — it raises the bar for what counts as an acceptable answer. See CR-08 in `00_MasterPlan.md`.
+
 ### OQ-B7-02 — Audio middleware 🟡
 **Rec: UE built-in + MetaSounds.** No licensing, no extra build complexity, and the project's needs (attenuation, occlusion, concurrency limits, a few dynamic layers) are all natively supported. Wwise/FMOD would be justified by adaptive music, which B7-T4.4 recommends against anyway.
+
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** "Sounds good" — UE built-in + MetaSounds confirmed, no paid middleware.
 
 ### OQ-B7-03 — Zombie roster for beta 🟡
 CONFIRMED: no special archetypes; standard + later Crawlers.
@@ -472,12 +508,16 @@ CONFIRMED: no special archetypes; standard + later Crawlers.
 ### OQ-B7-04 — Music direction 🟢
 **Rec: sparse and event-driven, not continuous.** A persistent score masks the audio cues the noise pillar depends on. Music should mark moments — a horde arriving, an event firing, a death — and otherwise leave the ambient bed exposed. This is also dramatically cheaper than a full adaptive score.
 
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** "Sounds good" — sparse/event-driven confirmed over a continuous score.
+
 ---
 
 ## B8 — Performance
 
 ### OQ-B8-01 — Performance budget numbers 🔴 (DEFERRED item, now decidable)
 **Rec, pending B8-T2's measurements:** 60 FPS average / 45 FPS 1%-low at 1080p on min spec, with 150 concurrent zombies in view. If measurement says that is unreachable, **lower the zombie count before lowering the frame rate** — CONFIRMED guidance makes zombie count the primary budget metric, and a stuttering survival game is worse than a slightly emptier one.
+
+**Re-baselined 2026-07-26 (dev-confirmed context, numbers still pending measurement).** Dev wants to "keep the game light" (performance-conscious, not chasing max fidelity) but also confirmed 4+ players (not 2–4) and a genuinely large horde as important — these two pull in different directions and both apply. Measure against 4-player concurrent load, not 2, when B8-T2 actually runs. The "lower zombie count before lowering frame rate" guidance stays, but per CR-08, treat that as a last resort given the dev's stated horde priority — exhaust tick-LOD/optimization options first.
 
 ### OQ-B8-02 — Minimum hardware target 🔴 (DEFERRED item)
 CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, community "smooth" spec is i5-9600K / Ryzen 5600-class + RTX 3060 + 16GB — **but PZ is a 2D sprite engine and is not a valid baseline for 3D UE5.**
@@ -511,8 +551,10 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 
 ## B10 — Multiplayer & Release
 
-### OQ-B10-01 — Dedicated servers 🟡
-**Rec: listen-server only for beta.** `GameDevPlan` §3, §6, and `CLAUDE.md` all commit to it. Dedicated servers are a post-beta feature that also implies always-on world persistence — a different product shape, not just a deployment option.
+### OQ-B10-01 — Dedicated servers ✅ RESOLVED 2026-07-26 (dev-confirmed) — reverses the original recommendation
+**Rec (superseded): listen-server only for beta.** `GameDevPlan` §3, §6, and `CLAUDE.md` all committed to it.
+
+**Dev answer: not listen-server-only anymore.** "Option for dedicated servers if players want to pay for it, but primarily listen-server." Listen-server stays the default/free path; a paid dedicated-server hosting option is now planned for groups who want one. This is real new scope for B10 (hosting infrastructure, likely a third-party relationship or self-hosted panel — needs its own design pass, not assumed free) and it changes the "always-on world persistence" implication the original recommendation flagged — that implication is now accepted, not avoided.
 
 ### OQ-B10-02 — Steam/EOS networking 🔴 **biggest swing item in B10**
 | Option | Tradeoff |
@@ -560,8 +602,8 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 ### OQ-B11-02 — Tester recruiting 🟡
 **Rec: 8–10 testers**, mixed between survival-genre veterans and newcomers, recruited from the community channel T3 starts at B4. Veterans find balance and depth problems; newcomers find onboarding problems. You need both, and they rarely overlap.
 
-### OQ-B12-01 — Pricing 🟢
-**Rec: decide against comparable titles at B12.** Genre and scope place it in the usual indie survival band; the number does not affect development and should be set with launch-window information, not now.
+### OQ-B12-01 — Pricing ✅ RESOLVED 2026-07-26 (dev-confirmed)
+**Dev answer: ~$9.99**, "to encourage people to buy it." Treat as a target/anchor, not a final locked number — still fine to revisit against comparables closer to B12, but this is a real number now, not a placeholder.
 
 ### OQ-B12-02 — Early Access vs. single launch 🟡
 | Option | Tradeoff |
@@ -570,6 +612,8 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 | Single full launch | Cleaner; needs everything finished, which for a solo survival sim is a very distant date. |
 
 **Rec: Early Access.** It matches the project's scope reality and gives the deferred-features backlog a legitimate home.
+
+**✅ RESOLVED 2026-07-26 (dev-confirmed).** "Early access for sure, on Steam only at first." Confirms Early Access and also answers part of OQ-B10-02/B10-06 — Steam is the first/only storefront target, consistent with OQ-X-01's PC-only launch decision.
 
 ### OQ-B12-03 — Demo 🟡
 **Rec: no separate demo for beta.** A demo is a separately balanced, separately supported build — a real scope commitment. Reconsider for a Steam Next Fest after Early Access launch, when the content it would draw from is stable.
@@ -584,28 +628,57 @@ CONFIRMED reference note: PZ's min spec is ~quad-core 2.77GHz / 8GB / 2GB VRAM, 
 
 ## Summary — questions by priority
 
-**✅ RESOLVED (2)**
+> **Rewritten 2026-07-26.** A full rescope pass (`Docs/Planning/RescopeQuestionnaire.md`) resolved most of the previously-BLOCKING set directly with the dev — see each question above for the dated answer. This section now reflects what's actually still open.
 
-| Question | Answer | Date |
+**✅ RESOLVED, dev-confirmed (28)**
+
+| Question | Answer (see full entry above for detail) | Date |
 |---|---|---|
-| **OQ-X-01** Platform commitment | **PC only** for initial launch. Console/Steam Deck → POST-BETA, never a scope argument. | 2026-07-23 |
-| **OQ-B9-01** Gamepad support | **In scope, all work deferred to B9.** Architecture hooks kept in B1 (base-class focus navigation, no mouse-only interactions); testing and tuning deferred. | 2026-07-23 |
+| **OQ-X-01** Platform commitment | PC only for initial launch. | 2026-07-23 |
+| **OQ-X-03** Player-count ceiling | **4+**, not hard-locked 2–4 (reverses original rec). | 2026-07-26 |
+| **OQ-B9-01** Gamepad support | In scope, all work deferred to B9. | 2026-07-23 |
+| **CR-01** Skill roster | `GameDevPlan.md` §3.1's longer list. | 2026-07-26 |
+| **CR-02** Vehicles | Not cut — later in dev, ready for beta (reverses original rec). | 2026-07-26 |
+| **CR-03 / OQ-B0-04** Temperature/Wet scope | Keep all three, scoped-down model. | 2026-07-26 |
+| **CR-04** Camera fallback | Cut now, not gated on a sign-off. | 2026-07-26 |
+| **CR-06 / OQ-B0-07** Infection legibility | Plain/clear feedback, **not** ambiguous (reverses original rec — the biggest content change). | 2026-07-26 |
+| **CR-07/12 / OQ-B3-01** Save topology & death rule | One continuously-overwritten world; death always → new character, world always persists (no asymmetric solo rule). | 2026-07-26 |
+| **CR-10 / OQ-B0-05** Fatigue perception | Reading (A) — player's own perception degrades. | 2026-07-26 |
+| **CR-08** Horde ambition | Genuinely large hordes (100+) confirmed important, not a cuttable stretch goal. | 2026-07-26 |
+| **OQ-B0-02** Aim-cone & headshot values | "About right" / KEEP — dev-approved starting numbers. | 2026-07-26 |
+| **OQ-B0-03** Downed-zombie/stomp | KEEP the mechanic, but needs a non-PZ-clone variant before building. | 2026-07-26 |
+| **OQ-B0-08** Bite-infection timeline | ~3 in-game days confirmed. | 2026-07-26 |
+| **OQ-B0-09** Ammo as inventory item | KEEP, along with all 4 bundled item-instance additions. | 2026-07-26 |
+| **OQ-B0-11** Melee weapon display | Grouped poses by weapon category (long-gun / pistol / melee). | 2026-07-26 |
+| **OQ-B0-13** Item-instance refactor | Do it now, but as independently-testable steps, not one block. | 2026-07-26 |
+| **OQ-B2-01** Asset budget | Mostly free/cheap, DK2 as the fidelity bar, self-modeled assets expected later. | 2026-07-26 |
+| **OQ-B4-01** Region scale | Bigger than 1×1 km, built in phases (now a continuous track, `B4X`). | 2026-07-26 |
+| **OQ-B6-05** Background tradeoffs | Real tradeoffs, not purely additive. | 2026-07-26 |
+| **OQ-B7-02** Audio middleware | UE built-in + MetaSounds confirmed. | 2026-07-26 |
+| **OQ-B7-04** Music direction | Sparse/event-driven confirmed. | 2026-07-26 |
+| **OQ-B10-01** Dedicated servers | Now planned as an optional paid path, not cut (reverses original rec). | 2026-07-26 |
+| **OQ-B12-01** Pricing | ~$9.99 target. | 2026-07-26 |
+| **OQ-B12-02** Early Access vs. single launch | Early Access confirmed, Steam-only at first. | 2026-07-26 |
 
-**🔴 BLOCKING (15)** — resolve before the named phase starts. Batch each phase's set into one design session.
+**🟡 Partially resolved — system/direction confirmed, specifics still deferred (5)**
+
+| Question | What's resolved | What's still open |
+|---|---|---|
+| **OQ-B0-12** Weapon roster | Melee roster size ("right," 4–6). | Firearm roster — dev will provide once basic features are set. |
+| **OQ-B4-02** Named locations | Mechanical-identity spread still a reasonable placeholder plan. | Real names/flavor — generic labels for now, dev wants to focus on mechanics first. |
+| **OQ-B4-12** Zombie AI depth pass | Scope confirmed, **plus a new "freshness" mechanic added.** | The pass itself (crowd-following, `ClearLastKnownLocation` wiring) still needs to actually run. |
+| **OQ-B5-01** The plot | Confirmed: brainstorm together live when B5 starts, not now. | The actual plot — genuinely still nothing, by design. |
+| **OQ-B6-04** Background roster | Confirmed: generic, data-driven system, build now (`B6-Sys`). | The actual roster/names — dev's own list, later (`B6-Content`). |
+
+**🔴 Still BLOCKING (5)** — resolve before the named phase starts.
 
 | Phase | Questions |
 |---|---|
-| Before B0 | OQ-B0-13 (**answer first**), OQ-B0-01, OQ-B0-02, OQ-B0-04, OQ-B0-05, OQ-B0-07, OQ-B0-11 · plus CR-01, CR-02, CR-10 |
-| Cross-cutting | OQ-X-02 |
-| Before B2 | OQ-B2-01 |
-| Before B3 | OQ-B3-01 |
-| Before B4 | OQ-B4-01, OQ-B4-02, OQ-B4-03 |
-| Before B5 | OQ-B5-01, OQ-B5-04 |
-| Before B6 | OQ-B6-04 |
-| Before B7 | OQ-B7-01 |
-| Before B8 | OQ-B8-01, OQ-B8-02 |
-| Before B10 | OQ-B10-02 |
+| Before B4X (region content) | OQ-B4-03 (interior visibility solution — needs a spike, not just a decision) |
+| Before B5 | OQ-B5-04 (event roster count — genuinely still open, tone also open) |
+| Before B7 | OQ-B7-01 (horde-coordination *approach* — still gated on profiling measurements, ambition is confirmed but the technical answer isn't) |
+| Before B8 | OQ-B8-01, OQ-B8-02 (budget numbers — re-baselined for 4+ players, but still pending actual measurement) |
 
-**🟡 SEQUENCEABLE (39)** — decide in parallel with early implementation on that phase. Notable addition: **OQ-B4-12** (zombie AI PZ-fidelity redesign) must resolve before B4-T7 specifically, not before B4 as a whole.
+**🟡 SEQUENCEABLE (~30, reduced from 39)** — decide in parallel with early implementation on that phase. Unaffected by the rescope pass unless listed above.
 
-**🟢 LATE (11)** — OQ-X-05, OQ-X-08, OQ-B1-03, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B7-04, OQ-B10-05, OQ-B10-09, OQ-B12-01, OQ-B12-04.
+**🟢 LATE (11)** — OQ-X-05, OQ-X-08, OQ-B1-03, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B10-05, OQ-B10-09, OQ-B12-03, OQ-B12-04, OQ-B12-05.

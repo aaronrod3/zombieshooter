@@ -1,6 +1,6 @@
 # Inventory, Loadout & Equipping — Unified Design Plan
 
-> **Status: DRAFT PROPOSAL, not plan of record.** Written 2026-07-22, unsupervised (dev away), at the dev's request ("thoroughly plan the inventory, loadout, and player equipping items, tie everything together, setup modularity for weapons"). This is deliberately kept **out of `GameDevPlan.md`/`Docs/Phases/`** so it doesn't get mistaken for settled decisions — everything here is a recommendation pending your review, not something that's been built or agreed to. Where I made a judgment call instead of just listing options, I've said so and marked it `RECOMMENDATION` — override freely. See the **Open Questions** section (§9) for the compressed list of everything that actually needs your yes/no.
+> **Status: DRAFT PROPOSAL, not plan of record.** Written 2026-07-22, unsupervised (dev away), at the dev's request ("thoroughly plan the inventory, loadout, and player equipping items, tie everything together, setup modularity for weapons"). This is deliberately kept **out of `GameDevPlan.md`** so it doesn't get mistaken for settled decisions — everything here is a recommendation pending your review, not something that's been built or agreed to. Where I made a judgment call instead of just listing options, I've said so and marked it `RECOMMENDATION` — override freely. See the **Open Questions** section (§9) for the compressed list of everything that actually needs your yes/no.
 >
 > Grounded in: the actual C++ built as of commit `65f53e4` (P5's hotbar/melee/durability, P6's inventory/loot), `Docs/GameDevPlan.md`, `Docs/DevMarkupNotes.md` §10.2 and §21 (your own annotations — quoted directly below, they matter more than anything I infer), and `Docs/ProjectZomboid_DesignReference.md` §7/§12/§21.
 
@@ -46,7 +46,7 @@ Tracing `AZSWeapon::PerformReload`: it transfers `CurrentReserveAmmo → Current
 
 This blocks two things already on the books:
 - P5's own flagged-unbuilt "ammo scarcity tuning" — you can't tune scarcity of a resource that isn't actually finite or lootable.
-- The whole "run out, loot under threat, haul back" loop `Docs/Phases/P6_InventoryLoot.md`'s exit criteria describes — that loop needs ammo to be real inventory.
+- The whole "run out, loot under threat, haul back" loop `Docs/Beta/B1_UI_UX.md`'s PT3 checkpoint describes — that loop needs ammo to be real inventory.
 
 **`RECOMMENDATION`**: ammo becomes a normal, stackable `UZSItemConfig` item (e.g. `DA_ZS_ItemConfig_Ammo_9mm`, `MaxStackSize` in the hundreds), and `UZSWeaponConfig` gains an `AmmoItemConfig` reference saying which ammo item this weapon reloads from. `PerformReload` changes from "decrement an internal counter" to "ask the owning player's `UZSInventoryComponent` to remove up to `AmmoNeeded` units of `AmmoItemConfig` from `CarrySlots`, add whatever was actually available to `CurrentMagazineAmmo`." `CurrentReserveAmmo` and `MaxReserveAmmo` go away as concepts entirely — the inventory's stack count for that ammo type *is* the reserve, full stop, no duplicate bookkeeping. This is a clean simplification, not just a feature add.
 
@@ -157,7 +157,12 @@ Two fields are missing from `UZSWeaponConfig` that are prerequisites for rules a
 
 This is pure data-classification work, no attachment system, no stat-modifier math — just the fields needed to make slot-legality rules actually enforceable. Low risk, directly unblocks two already-written-down design intentions.
 
-### Tier 2 — attachments — **flagging as optional, recommend against the stat-modifying half**
+### Tier 2 — attachments — ⚑ **RESOLVED 2026-07-26 (dev-confirmed) — reverses this section's own recommendation**
+
+**Dev answer, direct quote:** "scopes increase accuracy, silencers decrease sound, etc." The dev wants real, stat-affecting attachments — the opposite of this section's original recommendation. Scoped as its **own later weapon-depth pass in Stage 2** (`Docs/Beta/00_MasterPlan.md` §3.2), once B0's item-instance foundation (Tier 0/1 above) is solid — not bundled into B0 itself. The shallow implementation sketched below is still the right shape to build from; it just goes from "optional, not recommended" to "planned, just not yet."
+
+<details>
+<summary>Original analysis (2026-07-22), kept for context — the recommendation below is superseded, the shallow design sketch is not</summary>
 This is probably what "modularity" evokes most readily (scopes, silencers, magazines, the Tarkov/Escape-from-Tarkov mental model), so I want to address it directly rather than skip it, but the research grounding doesn't support going deep here:
 
 **Update 2026-07-22**: the *cosmetic* half of this now exists. `UZSWeaponConfig` moved off Infima's skeletal test rifle onto a static-mesh assembly with a real `MuzzleMesh`/`HandguardMesh`/`GripMesh`/`OpticMesh` attachment set (each with its own `SocketX` field, purely visual - no stat effect). That's real, live C++ now, not proposed. What's still **not** built, and still not recommended below, is attaching *gameplay-affecting* modifiers (damage/range/recoil/noise deltas) to those slots, or letting the player swap them at runtime via the inventory - today's attachment fields are set once per `UZSWeaponConfig` at author time, same as any other content field, not a player-facing system.
@@ -172,7 +177,9 @@ This is probably what "modularity" evokes most readily (scopes, silencers, magaz
 - Effective stats = base config values + sum of attached modifiers, computed once when attachments change (on equip, or on attach/detach) into a cached struct on `AZSWeapon`, not recomputed per-shot.
 - Explicitly **not recommended**: anything that changes a weapon's fundamental archetype (barrel swaps that turn a carbine into a different weapon class, etc.) — Tier 3, out of scope, not researched further here because nothing points at wanting it.
 
-**This whole tier needs your go/no-go before any of it gets built** — see §9.
+~~**This whole tier needs your go/no-go before any of it gets built**~~ — **answered 2026-07-26: go**, per the dev quote above. The shallow design sketch immediately above (attachment slots as a plain array, modifiers as optional `UZSItemConfig` fields, cached effective stats recomputed on attach/detach) is the recommended starting shape for that later pass.
+
+</details>
 
 ## 8. Migration order (if this plan is approved)
 
@@ -188,11 +195,11 @@ Ordered so each step is independently shippable and testable, and nothing later 
 
 ## 9. Open questions — the compressed list
 
-Everything below is a place I made a call so the doc could be complete, but where the actual decision should be yours:
+> **Updated 2026-07-26** — items 1, 2, and 5 answered directly via `Docs/Planning/RescopeQuestionnaire.md`. 3, 4, and 6 are still genuinely open.
 
-1. **The item-instance/GUID model itself (§5)** — this is the biggest architectural change proposed here, and it touches code shipped just last round. Confirm you want this direction before it's built, since it's a real refactor, not an additive change.
-2. **Ammo-as-inventory-item (§4)** — removes `AZSWeapon::CurrentReserveAmmo`/`MaxReserveAmmo` as concepts entirely in favor of inventory stack counts. Confirm.
-3. **`SecondaryHand` trigger (§6)** — proposed a dedicated new input action; need your actual key-binding preference (or "not now" if you'd rather this stay deferred a third time).
-4. **Gear-slot equip timing (§6)** — instant (as shipped) vs. real-time like combat slots. No stated reasoning exists for today's "instant" choice; worth an actual decision.
-5. **Attachments — build at all? (§7 Tier 2)** — my read of the source docs is "no, not yet, stay Tier 1." Flag if you disagree.
-6. **Slot-count cap vs. weight-only (from `DevMarkupNotes.md` §10.2's "items take up a single spot")** — today's model is pure weight + stacking, no cap on the *number* of distinct carry slots. Your original note's wording ("items take up a single spot") could mean container loot specifically (each loot roll = one item, which is already true) or could mean the player's own inventory should also have a slot-count limit alongside weight. Worth clarifying since it changes `UZSInventoryComponent`'s shape.
+1. ✅ **RESOLVED.** The item-instance/GUID model (§5) — **confirmed, do it, but as independently-testable steps** rather than one uninterrupted block (dev's process preference). See `Docs/Beta/B0_Stabilization.md`'s rewritten B0-T2.
+2. ✅ **RESOLVED.** Ammo-as-inventory-item (§4) — **confirmed KEEP.**
+3. **`SecondaryHand` trigger (§6)** — still open. Proposed a dedicated new input action; need your actual key-binding preference (or "not now" if you'd rather this stay deferred a third time).
+4. **Gear-slot equip timing (§6)** — still open. Instant (as shipped) vs. real-time like combat slots. No stated reasoning exists for today's "instant" choice; worth an actual decision.
+5. ✅ **RESOLVED, reversed.** Attachments (§7 Tier 2) — **dev wants them built**, with real stat effects ("scopes increase accuracy, silencers decrease sound, etc."), not the "no, stay Tier 1" this doc originally recommended. Scoped as a later Stage-2 weapon-depth pass, not part of B0.
+6. **Slot-count cap vs. weight-only** — still open, not addressed in the rescope pass. Worth clarifying since it changes `UZSInventoryComponent`'s shape, same as before.

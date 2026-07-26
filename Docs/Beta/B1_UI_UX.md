@@ -1,6 +1,8 @@
 # B1 — UI/UX Foundation, HUD & Input Modes
 
-**Size: L (14–18 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B0** · **Blocks: B4 (can't evaluate a world you can't read), B11**
+**Stage 1 — Core Playable Loop.** **Size: L (14–18 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B0** · **Blocks: B4/B4X (can't evaluate a world you can't read), B11**
+
+> **Rescoped 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): the infection-legibility requirement below (T3.3) is **reversed** from the original design — show it plainly, don't hide it. The dev also expressed a concrete UI preference for the inventory screen (T5): separate equipment-slot drag targets alongside a general carry container, not necessarily a single flat scrollable list — see T5 below. Per the dev's process answers, treat every remaining "your call" item in this file as a checkpoint to raise before building, not something to guess past.
 
 > **Why this is a phase and not a polish item.** Six systems are built and invisible: P2's needs (`OnHungerChanged` has no consumer), P3's wounds and infection, P5's hotbar and jam state, P6's entire inventory (containers do "loot all" on interact *specifically because* no UI exists), P3's death flow, and P2's sleep readiness. Their phase exit criteria — "hunger/thirst **visibly** degrades performance," "full scavenge loop in graybox" — are unreachable without UI. **This phase is the instrument panel for everything already built.**
 >
@@ -57,7 +59,7 @@ Always-on, non-modal, never eats input.
 |---|---|---|
 | T3.1 | **Moodle stack** — designed for **N needs, not 8.** The list has already grown from 6 to 8 (CR-03); assume it grows again. 4 severity tiers each, driven by B0-T4.9's authored thresholds. | P2-R6 |
 | T3.2 | **Health/wound display** — 4 zones, wound type, bleed state, splinted/amputated. Must make **critical head bleed (B0-T5.3) unmistakably urgent** or it's an invisible death. | P3-R4 |
-| T3.3 | **⚑ Infection ambiguity constraint.** Wound infection and bite infection must surface through *identical* signals (nausea, temperature, weakness). **No UI element may name which tier is active.** This is a CONFIRMED design intent that a well-meaning "Infected: Bite" label destroys entirely. | P3-R2, OQ-B0-07 |
+| T3.3 | ⚑ **Infection legibility — REVERSED 2026-07-26 (dev-confirmed).** The original constraint here was "identical signals, no UI element names the tier." That's gone. Build the opposite: **clearly show the player when they've been bitten and when an infection (either tier) is active** — a legible "Infected: Bite"-style indicator is now correct, not a design violation. | P3-R2, CR-06 |
 | T3.4 | **Hotbar** — 9 slots, current selection, equip-in-progress state, durability indication, **jam state (B0-T10.2)**. | P5-R1 |
 | T3.5 | **Ammo counter** reading from the inventory ammo stack (post-B0-T2.11), not from weapon actor state. | P5-R6 |
 | T3.6 | **Interaction prompt** — the world-space "E — Open" widget P1 specified and never shipped. Consumes `OnNearestInteractableChanged`. | P1-R7 |
@@ -75,6 +77,8 @@ Always-on, non-modal, never eats input.
 ### B1-T5 — Inventory screen · **M (4–5 sessions)** · *depends on T1, T2*
 
 The first modal screen; the real test of T1.
+
+> **Dev UI preference, noted 2026-07-26, not yet a final layout decision** (dev's own words: "I will design this later"): "I like the idea of separate containers for inventory, and equipment slots that the player drags items into to assign." This leans toward distinct equipment-slot drag targets (hotbar/`Back`/`Hip`/future clothing, each a visible icon slot) alongside a general carry-container list, rather than `UI_Plan.md`'s single-flat-scrollable-list recommendation being the only structure. Treat T5.1 below as provisional until the dev actually sits down to design this screen — raise it as a check-in before committing to final widget layout.
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|

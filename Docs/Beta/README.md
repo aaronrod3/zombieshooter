@@ -8,7 +8,7 @@
 
 **`Docs/GameDevPlan.md` remains the design plan of record** — pillars, the §3 scope contract, and the numbered Decisions. This plan does not supersede it. Where the two conflict, `00_MasterPlan.md` §2's Contradiction Register is the reconciliation, and unresolved conflicts are flagged for review rather than silently overridden.
 
-**`Docs/Phases/P0–P10*.md` are frozen.** They remain build-state records of work already done and are not edited by this plan. `01_RevisionRegister_P0-P6.md` is the diff between what they describe and what the confirmed beta design requires.
+**`Docs/Phases/P0–P10*.md` (the old pre-Beta-plan status stubs) were deleted 2026-07-26** — fully superseded and no longer needed. `01_RevisionRegister_P0-P6.md` is the diff between what they described and what the confirmed beta design requires, and remains the authoritative record of that history; recover the original files from git history if ever needed.
 
 ## Read order
 

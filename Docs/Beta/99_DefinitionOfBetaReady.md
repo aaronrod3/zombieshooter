@@ -34,7 +34,7 @@ Entry to **B11**.
 
 - [ ] Damage lands on the correct body zone, including **zombie bites** (the blank-`FHitResult` bug is fixed).
 - [ ] Both infection tiers exist and behave differently — wound infection is curable by disinfecting and never fatal alone; bite infection is not curable by disinfecting.
-- [ ] **A naive player cannot tell which infection tier they have from the UI.**
+- [ ] ⚑ **REVERSED 2026-07-26 (dev-confirmed): the player can plainly tell when they've been bitten and when an infection (either tier) is active.** The original requirement here was the opposite ("a naive player cannot tell which tier") — that design intent is gone. See `00_MasterPlan.md` CR-06.
 - [ ] Amputation is reachable from a real bite, choreographed with a montage, and causes a blackout with a real risk window.
 - [ ] Critical head bleed exists, is rare, and is impossible to miss when it happens.
 - [ ] Fractures take multiple in-game days to heal.
@@ -75,7 +75,7 @@ Entry to **B11**.
 
 ## Multiplayer
 
-- [ ] 4 players complete a 2-hour session over real internet with no desync or disconnection.
+- [ ] 4+ players (confirmed 2026-07-26, not hard-locked to 2–4) complete a 2-hour session over real internet with no desync or disconnection.
 - [ ] Late-join works and the joining player receives full world state.
 - [ ] Disconnect and reconnect preserves the character.
 - [ ] Sleep-readiness aggregation never deadlocks on a disconnected player.
@@ -160,4 +160,6 @@ Everything above, **plus**:
 
 Recorded so they cannot be mistaken for gaps late in the process:
 
-Vehicles · dedicated servers · cross-platform play · voice chat · host migration · NPC survivors and factions · hostile human roamers (Decision 5 — confirmed *first post-v1 addition*) · deferred skills (Fishing, Building, Foraging, Cooking, Mechanics) · full sandbox slider suite · seasons · farming (foraging zones only, per OQ-B4-06) · stat-modifying weapon attachments · voice acting · localization beyond English · screen-reader support · Nanite · a demo build · console support · adaptive music · dismemberment/gore system · ranged zombie threats · special zombie archetypes beyond standard + Crawler.
+Cross-platform play · voice chat · host migration · NPC survivors and factions · hostile human roamers (Decision 5 — confirmed *first post-v1 addition*) · deferred skills (Fishing, Building, Foraging, Cooking, Mechanics) · full sandbox slider suite · seasons · farming (foraging zones only, per OQ-B4-06) · voice acting · localization beyond English · screen-reader support · Nanite · a demo build · console support · adaptive music · dismemberment/gore system · ranged zombie threats · special zombie archetypes beyond standard + Crawler.
+
+**Moved off this list 2026-07-26 (dev-confirmed, no longer "not required" — now planned before beta, see `00_MasterPlan.md`'s Contradiction Register):** vehicles (`BV`, own Stage-2 phase) · optional paid dedicated-server hosting (B10) · stat-affecting weapon attachments (Stage-2 weapon-depth pass). None of these are required for the **internal** beta gate above — they're Stage-2/pre-public-beta work — but they are no longer indefinitely deferred either.

@@ -2,9 +2,11 @@
 
 > **Purpose.** The source prompt requires that existing phases be **REVISED, not merely appended to**, where confirmed decisions change them. P0–P6 are all built in code, so their "revision" is not a plan edit — it is real implementation work. This file is the authoritative list of those deltas. **Every item here is scheduled into B0**; `B0_Stabilization.md` is where they become tasks with acceptance criteria.
 >
-> `Docs/Phases/P0–P6*.md` are **not edited** by this plan — they remain build-state records of what was done at the time. This file is the diff between them and the confirmed beta design.
+> `Docs/Phases/P0–P6*.md` (the original build-state records this file diffs against) were **deleted 2026-07-26** — fully superseded, since this file already captured everything that mattered from them. This file remains the diff between what they described and the confirmed beta design; the originals are recoverable from git history if ever needed.
 >
 > **Legend.** `[C]` = CONFIRMED in `ZombieShooter_Consolidated_Changes.md`, non-negotiable · `[D]` = DEFERRED there, treated as an open question · `[G]` = from `GameDevPlan.md` backlog, previously unscheduled · `[N]` = new, identified by this audit · 🚩 = scope risk against the 1/3-depth pillar.
+>
+> **Updated 2026-07-26** after `Docs/Planning/RescopeQuestionnaire.md` was answered — P3-R2 (infection ambiguity) and P3-R11 (death/world-continuity) both changed based on real dev decisions; see the ⚑ markers inline. Everything else in this file is unaffected.
 
 ---
 
@@ -58,7 +60,7 @@ Built: `UZSHealthComponent`, 4 zones with `FZSBodyZoneWound`, damage-type marker
 | # | Revision | Src | Impact | B0 task |
 |---|---|---|---|---|
 | P3-R1 | **Add wound infection as a second, distinct tier** — any injury can develop it, curable by disinfecting, slows healing if neglected, **never fatal alone.** | `[C]` §3 | New `EZSWoundInfectionState` per zone, separate from `EZSInfectionStage`. Additive — see CR-06. | B0-T6 |
-| P3-R2 | **Preserve ambiguity between the two tiers.** Bite infection must not be distinguishable from ordinary sickness by inspecting the UI. | `[C]` §3 | Non-obvious and easy to break: a naive moodle labelled "Infected" destroys the entire design intent. **Constrains B1's HUD design.** | B0-T6, B1-T3, OQ-B0-07 |
+| P3-R2 | ⚑ **REVERSED 2026-07-26 (dev-confirmed).** Was "preserve ambiguity between the two tiers, bite infection must not be distinguishable from ordinary sickness." Now the opposite: **plainly show the player when they've been bitten and when an infection (either tier) is active.** See `00_MasterPlan.md` CR-06 for the full reversal — the two-tier mechanical model is unaffected, only the UI-legibility requirement flipped. | superseded, was `[C]` §3 | **Constrains B1's HUD design the same way, in the opposite direction** — show it clearly instead of suppressing it. | B0-T6, B1-T3 |
 | P3-R3 | **Remove dirty-bandage decay.** A bandage persists and stays effective until the wound is healed; no re-bandage bleeding risk. Bandage is superseded when a higher-tier heal item is applied. | `[C]` §3 | Note the nuance in CR-05: the wound's own `bDirty` flag **stays** (it drives wound-infection risk and is what `Server_Disinfect` acts on). What goes is the bandage-degrades-over-time behaviour. | B0-T5 |
 | P3-R4 | **Critical head-zone bleed** — rare outcome on head wounds, fast and dangerous, layered onto the existing 4 zones without adding a fifth. | `[C]` §3 | New flag/state on the Head `FZSBodyZoneWound` + a much steeper bleed rate. Needs distinct, urgent UI/audio feedback or it is an invisible death. | B0-T5 |
 | P3-R5 | **Fracture recovery is multi-day**, reinforcing injury permanence. | `[C]` §3 | Recovery ticks on `AZSGameState`'s game-hour clock (same pattern as needs decay and infection). Splinting should shorten but not trivialize it. | B0-T5 |
@@ -67,7 +69,7 @@ Built: `UZSHealthComponent`, 4 zones with `FZSBodyZoneWound`, damage-type marker
 | P3-R8 | **Arm amputation restricts to one-handed weapons.** | `[G]` §7 P3 | Unenforceable until `EZSWeaponHandedness` exists — depends on the item-instance refactor. | B0-T2 |
 | P3-R9 | **Medical item tier delays bite→infection conversion**, extending the incubation window and the amputation decision time. | `[G]` §7 P3 | New per-tier delay field on `UZSItemConfig`'s Bandage/Disinfectant entries. | B0-T6 |
 | P3-R10 | **Amputation has no animation** — bare C++ mutator, no montage, no timing gate. | `[G]` §7 P3 | Violates the project's own "actions are choreographed through montage + `bIsBusy`" convention. | B0-T7 |
-| P3-R11 | **Death→loot→world continuity rules unimplemented**: loot stays at death location; the dead player becomes a zombie; co-op continues unless the whole party dies; **solo death ends the world.** | `[G]` §7 P3 | `Server_RespawnAsNewCharacter` currently always respawns into the same world regardless. The world-lifetime half depends on save topology (OQ-B3-01); the loot + become-a-zombie half can ship in B0. | B0-T9, B3 |
+| P3-R11 | **Death→loot→world continuity rules unimplemented**: loot stays at death location; the dead player becomes a zombie. ⚑ **Simplified 2026-07-26 (dev-confirmed)**: the "co-op continues unless whole party dies, solo death ends the world" asymmetric rule is **gone** — death always respawns a fresh character into the **same persistent world**, solo included. | `[G]` §7 P3, revised by dev decision | `Server_RespawnAsNewCharacter`'s existing always-same-world behavior already matches the simplified rule — nothing extra to build for world-lifetime. Loot + become-a-zombie still ship in B0. | B0-T9 |
 | P3-R12 | **Bite-infection fatal timeline is unspecified** in in-game hours. | `[N]` | Needed to tune the amputation decision window. Author into `UZSHealthConfig` + `TuningReference.md`. | B0-T6, OQ-B0-08 |
 
 ---

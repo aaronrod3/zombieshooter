@@ -1,6 +1,8 @@
 # B9 — Accessibility, Settings & Sandbox Options
 
-**Size: M (8–10 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B1** · **Blocks: B11**
+**Stage 2 — Content, Depth & Release** (though most tasks only depend on B1, so this can start once Stage 1 is done, in parallel with early Stage 2 work). **Size: M (8–10 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B1** · **Blocks: B11**
+
+> **Checked 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): ambition here confirmed as originally planned ("sounds good") — no changes.
 
 > **This gates the internal beta, not just the public one.** Testers without a settings menu or remappable controls generate noise-bugs about hardware and preference that drown the real findings. A tester who cannot rebind a key reports "the controls are bad" instead of the actual bug you needed to hear about.
 >

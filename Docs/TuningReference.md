@@ -43,7 +43,7 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `MeleeDamage`/`MeleeRange`/`MeleeAttackInterval` | 35 / 180 / 0.9s | P5, 2026-07-21: real per-weapon melee stats, used when `AttackType == Melee` — mirrors the `Unarmed*` fields below one-for-one |
 | `MeleeDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a weapon-melee hit applies to a player target |
 | `MeleeMontage` | unset | Cosmetic TP swing montage for weapon melee — no-op until authored |
-| `MaxDurabilityHits` | 0 (unbreakable) | P5: how many landed melee hits this weapon survives before breaking (`AZSWeapon::CurrentDurability`/`Server_ConsumeDurabilityHit`) — breaking auto-unequips **and** clears the weapon from its own hotbar slot (see `Docs/Phases/P5_CombatCompletion.md` for why) |
+| `MaxDurabilityHits` | 0 (unbreakable) | P5: how many landed melee hits this weapon survives before breaking (`AZSWeapon::CurrentDurability`/`Server_ConsumeDurabilityHit`) — breaking auto-unequips **and** clears the weapon from its own hotbar slot; see `Docs/Beta/B0_Stabilization.md` B0-T2.8 for the item-instance-refactor version of this rule |
 | `MeleeKnockbackStrength` | 0 | P5: `LaunchCharacter` impulse strength on a landed weapon-melee hit against an `ACharacter` target — physical-only, not a real stagger/AI state |
 | `FireKnockbackStrength` | 120 | Same, for a landed hitscan shot (`Server_Fire`) |
 

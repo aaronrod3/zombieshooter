@@ -1,6 +1,6 @@
 # ZombieShooter — Master Beta Plan
 
-> **Status: DRAFT v1.0, 2026-07-23.** Produced from `ZombieShooter_Consolidated_Changes.md` + `ZombieShooter_Open_Questions_For_Beta.md` audited against this repo's plan of record (`Docs/GameDevPlan.md` §1–§8, `Docs/Phases/P0–P10`, `Docs/SessionHandoff.md`, `Docs/Planning/*`).
+> **Status: v2.0, rescoped 2026-07-26.** Originally produced (v1.0, 2026-07-23) from `ZombieShooter_Consolidated_Changes.md` + `ZombieShooter_Open_Questions_For_Beta.md` audited against `Docs/GameDevPlan.md` §1–§8. **Revised 2026-07-26** after a full rescope pass (`Docs/Planning/RescopeQuestionnaire.md`) replaced dozens of AI-authored "Rec: → CONFIRMED" resolutions with real, dated dev decisions — several of which reverse the original resolution (infection legibility, vehicles, camera fallback, save/death rules). See §2 (Contradiction Register) for the full list and §3.2 for the new two-stage phase structure this produced.
 >
 > **This document does not supersede `Docs/GameDevPlan.md`.** GameDevPlan stays the design plan of record (pillars, scope contract §3, decisions §7). This is the *production* plan that takes the project from its current state to a feature-complete beta. Where the two conflict, §2's Contradiction Register below is the reconciliation, and every unresolved conflict is flagged for your review rather than silently overridden.
 >
@@ -28,7 +28,7 @@ The source prompt requires these be stated rather than left implicit. All three 
 | **XL** | 21–40 | 5–10 weeks |
 | **XXL** | 40+ | 10+ weeks |
 
-**Phase numbering:** this plan uses a **`B`-series (B0–B12)**, deliberately *not* continuing the existing `P0–P10` numbering. The existing P-numbers are referenced throughout `CLAUDE.md`, `GameDevPlan.md`, all `Docs/Phases/` files, and the git log; renumbering or inserting into that sequence would silently invalidate those references. `Docs/Phases/P0–P10` remain untouched as build-state records for work already done. §3.1 gives the old→new mapping.
+**Phase numbering:** this plan uses a **`B`-series (B0–B12)**, deliberately *not* continuing the existing `P0–P10` numbering. The existing P-numbers are still referenced throughout `CLAUDE.md`, `GameDevPlan.md`, and the git log, so renumbering or inserting into that sequence would silently invalidate those references even though the `Docs/Phases/P0–P10` files themselves were deleted 2026-07-26 (fully superseded by `01_RevisionRegister_P0-P6.md` and this plan; recoverable from git history). §3.1 gives the old→new mapping.
 
 ---
 
@@ -63,129 +63,110 @@ QA, build/release pipeline, marketing, content authoring, performance profiling,
 
 ### 1.3 Where this plan flags scope risk against the "1/3 depth" pillar
 
-The prompt requires flagging any proposal that risks violating the deliberate-simplification pillar. Four flags, in descending severity:
+The prompt requires flagging any proposal that risks violating the deliberate-simplification pillar. Four flags, in descending severity, **as originally written — see the 2026-07-26 update below each.**
 
 1. **Temperature + Wet + clothing insulation (Consolidated §2)** — 🚩 **HIGH.** This takes v1 needs from 6 to 8, and "clothing insulation value" implies a layering system that `GameDevPlan.md` §3 explicitly simplified away ("single outfit slot-set with protection values"). Temperature done properly is a weather model × an indoor/outdoor model × a clothing model × a wetness model × a time-of-day model. See `90_OpenQuestions.md` OQ-B0-04 for a scoped-down proposal.
+   - **Update 2026-07-26:** dev-confirmed KEEP on all three, still via the scoped-down single-scalar model. Risk downgraded from "is this wanted" to "just execute the scoped-down version and don't let it creep back toward the full simulation described here."
 2. **Basements/underground with randomized layout selection (Consolidated §7)** — 🚩 **MEDIUM-HIGH.** This is procedural level assembly plus a multi-level streaming/visibility solution plus a lighting mechanic, and it is described in one bullet. It is a genuinely new system with no phase home in the current plan.
+   - **Update 2026-07-26:** ✅ **resolved, risk removed.** Dev cut the randomized-layout-selection system specifically — "will stick to a fixed map for now." Basements, if any exist, are ordinary authored content like any other room, not a procedural/weighted-pool system. No `UZSBasementLayoutConfig`, no layout pool.
 3. **Elevation handling / multi-level buildings (Consolidated §1)** — 🚩 **MEDIUM.** "Fully automatic, system-driven" is the right call, but auto-detecting a character's floor and resolving aim rays against it is a real subsystem, and it interacts with camera occlusion, AI navigation, and noise propagation.
+   - **Update 2026-07-26:** dev-confirmed KEEP, full system wanted. Risk itself unchanged — still a real subsystem — but now moved to Stage 1 (B4, systems-only on graybox) specifically so it gets built and tested small before B4X's larger, phased map has to rely on it.
 4. **Firearm jamming (Consolidated §4)** — 🚩 **LOW.** Genuinely cheap given durability already exists. Flagged only because it adds a failure state that needs UI, audio, and a clear-jam action to be legible.
+   - **Update 2026-07-26:** dev-confirmed KEEP, unchanged.
+
+**New scope-risk flag, added 2026-07-26:** 🚩 **Region scale increased** (dev call — "bigger, build in phases") at the same time vehicles came back into scope (CR-02) and player count rose to 4+ (CR-08/§3.3). Each of these three individually raises B4X/B8's workload; together they compound. Mitigated structurally by making region content a phased continuous track (§3.2) rather than a single committed scope, and by giving vehicles their own scoping pass rather than folding them into an existing phase's estimate.
 
 ---
 
 ## 2. Contradiction Register
 
-Per the source prompt: newer decisions win **unless** there is clear reason otherwise, and every conflict is surfaced for human review rather than silently resolved. Items marked **⚠ NEEDS YOUR CALL** are ones where I am not confident the newer document is actually the newer *decision*.
+> **Superseded 2026-07-26.** Every entry below was originally written with an AI-authored recommendation ("Rec:") adopted as "CONFIRMED" in the same breath — not an actual decision from the dev. A full rescope pass (`Docs/Planning/RescopeQuestionnaire.md`, answered 2026-07-26) went through every one of these with the dev directly. Resolutions below are dated and dev-confirmed; several **reverse** the original AI-guessed resolution — CR-02 and CR-06 especially. Kept in the original per-row format for continuity, with a dev-answer row replacing the old "Resolution taken."
 
-### CR-01 — Skill roster: the consolidated doc quotes a superseded list ⚠ NEEDS YOUR CALL
+### CR-01 — Skill roster ✅ RESOLVED 2026-07-26 (dev-confirmed)
 
 | | |
 |---|---|
 | **Consolidated Changes §9** | "…each of the six v1 skills (Melee, Firearms, Fitness, Medicine, Carpentry, Survival)" |
 | **GameDevPlan §3.1** (revised 2026-07-19) | Attributes: Strength, Stamina, Sneak, Sprint. Skills: per-weapon-class Melee bars, Maintenance, Aiming, Reloading, First Aid. **Carpentry → "Building" and Survival → "Foraging/Cooking" are explicitly DEFERRED post-v1.** Fitness is dissolved into the Strength/Stamina attributes. |
 | **Assessment** | The six-skill list is the **2026-07-18** roster that §3.1 explicitly says it "supersedes." The consolidated doc is dated July 2026 but is quoting the older decision, not making a newer one. |
-| **Resolution taken** | Plan proceeds on **§3.1's revised model**. The consolidated doc's two *actual* decisions in §9 — no skill decay, per-skill XP rate exposed as a tunable — are CONFIRMED and carried forward; they apply cleanly to either roster. |
-| **Why flagged** | If §9's list was a deliberate reversal back to six flat skills, B5 changes shape substantially (5 fewer skill bars, but Carpentry pulls base-building into v1 scope, which is an XL swing). **Confirm before B5 starts.** |
+| **Dev answer** | **"Use the GameDevPlan.md list (longer one)."** §3.1's revised model is correct; the six-flat-skills list is dead. The consolidated doc's two other decisions in §9 (no skill decay, per-skill XP rate exposed as a tunable) still stand — they apply cleanly to either roster. |
 
-### CR-02 — Vehicles: assumed present in three places, CUT v1 in the scope contract ⚠ NEEDS YOUR CALL
+### CR-02 — Vehicles ✅ RESOLVED 2026-07-26 (dev-confirmed) — REVERSES the prior AI resolution
 
 | | |
 |---|---|
 | **Consolidated Changes** | §1 lists "driving (vehicle, future)" as an auto-zoom trigger; §5 lists "Vehicle storage" as one of four v1 container categories. **Open Questions §6** asks about vehicle combat design (running over zombies, vehicle damage, noise). |
 | **GameDevPlan §3** | `Vehicles (§15) — **CUT v1, plan later** — Deferred to its own planning pass.` |
 | **Assessment** | §1's "(vehicle, future)" annotation is self-consistent with CUT. §5's container list is not — a container category for a thing that doesn't exist is either forward-compat scaffolding or an unflagged scope addition. |
-| **Resolution taken** | Vehicles stay **CUT for beta.** `EZSContainerType` gains a `Vehicle` enum value in B0 as **forward-compat only** (zero implementation cost, prevents a later enum migration); the auto-zoom context enum likewise reserves a `Driving` value. No vehicle actor, no fuel/repair/hotwire model, no vehicle combat. |
-| **Why flagged** | Vehicles are the single largest deferred system that could plausibly be argued into beta. If they are wanted, that is an **XL phase on its own** and it changes map scale requirements (a 1×1 km map is small for driving). **Confirm before B4's region scale is locked.** |
+| **Dev answer** | **Not cut.** "We will implement vehicles later on in development, should be ready for beta." Vehicles get a dedicated Stage-2 phase (§3 below), scheduled after the Stage-1 core playable loop, but landed **before** beta ships — not an indefinite deferral. `EZSContainerType`'s reserved `Vehicle` value and the auto-zoom `Driving` context go from permanently-unused scaffolding to genuinely scheduled work. **Consequence: raises the map-scale decision** — see the updated OQ-B4-01 and §3's map-scale note below; a 1×1 km map is too small once vehicles are real. |
 
-### CR-03 — Temperature and Wet pulled into v1 🚩 SCOPE RISK
+### CR-03 — Temperature and Wet in v1 ✅ RESOLVED 2026-07-26 (dev-confirmed)
 
 | | |
 |---|---|
 | **Consolidated Changes §2** | Wet added to v1 (binary flag, ties into footstep noise). Temperature "pulled forward from deferred pool into active scope" — hot/cold, hypothermia risk. v1 needs list is now **8**: Hunger, Thirst, Fatigue, Stamina, Injury/Pain, Infection/Sickness, Wet, Temperature. |
 | **GameDevPlan §3** | Moodles: "**6 moodles v1**." Seasons/weather/temperature: "SIMPLIFY — Day/night + rain/fog v1." `§7 P2 Q4` — "Weather: real mechanics in v1 or atmospheric-only?" was **open**. |
 | **Assessment** | This is a genuine, newer decision and it wins. It also answers §7 P2 Q4 (real mechanics, not atmospheric-only) and it *forces* weather to become a gameplay system rather than a visual one. |
-| **Resolution taken** | **CONFIRMED, adopted.** 8 needs in v1. But scoped deliberately shallow — see OQ-B0-04 for the proposed minimal temperature model (single body temp scalar, four inputs, no per-limb thermal, no layering system). Weather is promoted from "atmospheric" to a real system in B4. |
+| **Dev answer** | **Keep all three (Wet, Temperature, clothing insulation)** — "was part of the plan," not scope creep to walk back. The scoped-down model (single body-temp scalar, four inputs, no per-limb thermal, no layering) still stands as *how* it's built — now dev-confirmed rather than AI-recommended. Dev also directly reaffirmed the governing pillar: needs should create real worry without survival micromanagement becoming "the main thing" — tune decay/thresholds forgiving, not punishing; the failure mode to avoid is players frustrated by babysitting hunger/thirst. |
 | **Downstream impact** | `UZSNeedsComponent` +2 needs · `UZSItemConfig` gains insulation value · footstep audio gains a wet variant · weather actor becomes gameplay-authoritative and must replicate · moodle UI grows from 6 to 8 slots (design the container for N, not 6). |
 
-### CR-04 — OverShoulder perspective deleted, removing P1's own risk hedge
+### CR-04 — Over-the-shoulder camera ✅ RESOLVED 2026-07-26 (dev-confirmed) — changes the mechanism, not the outcome
 
 | | |
 |---|---|
 | **Consolidated Changes §1** | "Removed entirely: ToggleCameraPerspective / IA_ToggleView input action. Multi-perspective camera enum (no OverShoulder mode, no perspective switching)." |
 | **GameDevPlan Decision 1 / §6 risk table** | Perspective list cut to "TopDown + OverShoulder (over-shoulder kept as an aim-zoom **and as a hedge**)." §6's risk row: *"Top-down doesn't feel right → P1 is a cheap identity gate before art spend; **over-shoulder TP is the fallback**."* |
 | **Assessment** | Newer decision, and it wins — but it **deletes the documented mitigation for a named project risk**, and the P1 exit criterion it hedged ("this is the go/no-go gate on Decision 1") was never formally signed off. |
-| **Resolution taken** | **CONFIRMED, adopted.** Perspective enum and `IA_ToggleView` are removed in B0-T3. The §6 risk row is rewritten: the new mitigation is the **fixed-preset zoom range + auto-zoom** system, which delivers the "get closer to read detail" affordance over-shoulder was hedging for. |
-| **Action required** | B0 must include an explicit **camera feel sign-off checkpoint** (B0-PT2) as the replacement gate. Do not delete the perspective code until that checkpoint passes — it is currently the only escape hatch. This is live code (`AZSPlayerCharacter::ToggleCameraPerspective`, `IA_ToggleView` on `V`, `EZSCameraPerspective`). |
+| **Dev answer** | **Cut now, not gated behind a sign-off checkpoint.** Dev's own reference framing makes clear top-down is the real direction — PZ-like camera feel, DK2's steeper angle purely for visual differentiation, not a gameplay hedge ("PZ has a good camera feel, but want it slightly different to avoid copying"). `B0-PT2` still runs as a **feel/tuning checkpoint** — verify aim-cone, zoom range, readability — but its failure mode changes: a bad result means *re-tune top-down*, not *revert to a different camera system*. Delete `ToggleCameraPerspective`/`IA_ToggleView`/`EZSCameraPerspective` in B0 without gating the deletion on a pass/fail result. Dev also directly confirmed the proposed aim-cone tightness ("about right") and the ~5%/25% hip/aimed headshot split (KEEP) — treat those as dev-approved starting numbers, not guesses. |
 
-### CR-05 — Bandage simplification contradicts shipped code
+### CR-05 — Bandage simplification ✅ CONFIRMED, unaffected by the rescope pass
 
-| | |
-|---|---|
-| **Consolidated Changes §3** | "A bandage persists and remains effective until the wound is fully healed. **No dirty-bandage decay mechanic, no re-bandage bleeding risk.**" |
-| **Shipped code / CLAUDE.md** | `FZSBodyZoneWound` carries `bleed/**dirty**/splinted/amputated` flags. `GameDevPlan` P3: "Treatment actions: bandage (**cleanliness flag**), disinfect, splint." |
-| **Assessment** | Newer decision, wins cleanly. This is a genuine simplification consistent with the 1/3-depth pillar. |
-| **Resolution taken** | **CONFIRMED, adopted.** B0-T5 removes the dirty-bandage *decay* behaviour. **Note the nuance:** the `bDirty` flag on the *wound* stays (a wound can be dirty from the injury itself, which is what `Server_Disinfect` acts on and what feeds wound-infection risk) — what's removed is any notion of the *bandage* becoming dirty over time and needing replacement. These are two different things and the docs blur them. |
+Bandage persists until the wound heals; no dirty-bandage decay. The wound's own `bDirty` flag stays (drives wound-infection risk, target of `Server_Disinfect`) — only the bandage-degrades-over-time behavior is cut. No change from the original resolution.
 
-### CR-06 — Two-tier infection model refines, does not replace, shipped infection
+### CR-06 — Infection legibility ⚑ REVERSED 2026-07-26 (dev-confirmed) — the single biggest content change from the rescope pass
 
 | | |
 |---|---|
-| **Consolidated Changes §3** | Two tiers: **wound infection** (any injury, curable by disinfecting, slows healing, never fatal alone) and **bite infection** (zombie bite only, hidden roll, queasy→fever→death, interruptible only by amputation, never by disinfecting). |
-| **Shipped code** | `UZSHealthComponent` has **one** infection concept: bite wounds roll a hidden chance, then `EZSInfectionStage` progresses None→Incubating→Queasy→Fever→Critical→death. There is no separate wound-infection track. |
-| **Assessment** | Additive refinement, not a contradiction. The shipped model *is* tier 2; tier 1 is new. |
-| **Resolution taken** | **CONFIRMED, adopted as additive.** B0-T6 adds a per-zone `EZSWoundInfectionState` distinct from `EZSInfectionStage`. Critically, the design intent is **ambiguity**: the player must not be able to tell from the UI which tier they have. See OQ-B0-07 — this has a direct, non-obvious UI consequence and it is easy to accidentally destroy the ambiguity by showing a clear moodle. |
+| **Original design** | Two infection tiers — wound infection (curable, never fatal alone) and bite infection (not curable by disinfecting, fatal timeline) — designed to be **deliberately indistinguishable in the UI**, a named identity pillar ("is this a cold or am I dying?"). |
+| **Dev answer** | **"Plainly show the player if they are bitten and infected."** The ambiguity is not wanted — clear, legible feedback instead. The player should know they were bitten, and know when an infection (either tier) is active. |
+| **What survives unchanged** | The two-tier *mechanical* model (wound infection vs. bite infection, different cure paths, bite infection's ~3-in-game-day fatal timeline — confirmed "feels right" — and amputation as the escape valve). Only the *legibility* requirement flips. Multi-day fracture healing and a rare critical head-bleed outcome both confirmed KEEP too. |
+| **What this changes downstream** | `GameDevPlan.md` §1's "Infection ambiguity" pillar (already updated). B0-T6.3 and B1-T3.3 in the per-phase files currently say the opposite of this — update when touched. `OQ-B0-07`'s entire premise is moot. **Flagged prominently since it reverses a named pillar** — nothing has been built against it yet, so it reverts easily if this was a misread. |
 
-### CR-07 — Save architecture specified, but cross-cutting Q5 still open
+### CR-07 — Save topology & death/world-continuity ✅ RESOLVED 2026-07-26 (dev-confirmed) — merged with CR-12, simpler than either prior proposal
 
 | | |
 |---|---|
 | **Consolidated Changes §7/§11** | Layered: ~10s character-state saves · periodic full-world save · chunk saves on unload (World Partition-friendly) · clean save on graceful shutdown · **rotating backup slots (last 2–3), not single overwrite.** |
 | **GameDevPlan §7 cross-cutting Q5** | "Save architecture: one world/save per server, or multiple concurrent slots?" — **still open.** §6 risk table asserts "listen-server-host-owns-the-save, single world save." |
-| **Assessment** | The consolidated doc specifies save *mechanics* thoroughly but not save *topology*. These are different questions and only the first is answered. |
-| **Resolution taken** | Mechanics **CONFIRMED**. Topology remains open — see **OQ-B3-01 (BLOCKING for B3)**. |
-| **Compounding factor** | `GameDevPlan.md` §7 P3's backlog contains an unresolved and load-bearing rule: *"Solo: death ends that world outright — a fresh world + fresh character."* That makes world lifetime a function of player count and party-wipe state, which the save topology must model. It also directly contradicts what `Server_RespawnAsNewCharacter` currently does. Folded into OQ-B3-01. |
+| **Tension** | An old backlog note said solo character death should end the *entire world* (fresh world + fresh character) while co-op continues unless the whole party dies — an asymmetric rule never actually confirmed, just carried as an open question (`OQ-B3-01`). Save topology (one world per slot vs. multiple slots) was separately unresolved. |
+| **Dev answer, death rule** | **No asymmetric rule.** Death — solo or co-op — always respawns a fresh character into the **same persistent world**. Loot stays where it dropped; any base/safehouse remains reachable. Simpler than both the original backlog note and the "multiple world slots" proposal. |
+| **Dev answer, save topology** | **One continuously-overwritten world save**, not multiple slots — "so player can't load an old save to fix a mistake," no player-facing rollback/save-scumming. **Rotating backups for crash/corruption recovery are a separate concern and stay** — those exist to survive a bad write, not to let a player undo a decision. |
+| **Consequence** | `Server_RespawnAsNewCharacter`'s current always-same-world behavior was already right — this removes a planned special-case rather than forcing a code change. `AZombieCharacter` death-triggered spawning (the "you become a zombie" backlog item) is unaffected and still scheduled (B0-T9). |
 
-### CR-08 — Zombie perception fixed-per-type vs. the ~150-concurrent target
+### CR-08 — Zombie perception fixed-per-type & horde scale ✅ CONFIRMED, and ambition raised
 
 | | |
 |---|---|
 | **Consolidated Changes §6** | Senses fixed per zombie TYPE via `UZSZombieConfig`, never randomized per-individual. Search-last-known-location added to the BT. Horde coordination: no Rally Leader committed — *"whatever system best supports efficient large-horde processing performance-wise should drive the design."* |
 | **GameDevPlan §7 P4 Q1** | "Is ~150 concurrent on-screen zombies the right target?" — open. |
 | **Assessment** | No contradiction, but the consolidated doc explicitly **subordinates a design decision to a performance measurement that has not been taken.** That is a dependency, and it means horde design is blocked on profiling. |
-| **Resolution taken** | Fixed-per-type **CONFIRMED**. Search-last-known **CONFIRMED**, scheduled B0-T8. Horde coordination is deferred to **B7**, explicitly gated on the B0 profiling baseline. See OQ-B7-01. |
+| **Resolution** | Fixed-per-type **CONFIRMED**, unaffected. Horde-coordination *design* stays gated on B0's profiling baseline (unchanged). **What changed:** the dev confirmed a genuinely large, visually distinct horde (100+ zombies) is **important to the vision**, not a number to trade away under performance pressure. Treat ~150 concurrent as a floor to engineer toward, not a stretch goal to quietly lower — see updated `GameDevPlan.md` §7 P4. |
 
-### CR-09 — Container categories: four named, two built
+### CR-09 — Container categories ✅ CONFIRMED, unaffected by the rescope pass
 
-| | |
-|---|---|
-| **Consolidated Changes §5** | Four categories: on-person (pockets/worn, no bag required) · bags/backpacks (equipped bag slots) · vehicle storage · world containers. |
-| **Shipped code** | `UZSInventoryComponent` has flat `CarrySlots` + two equip slots (`Back`, `Hip`) granting `CarryCapacityBonus`. `AZSContainerActor` covers world containers. **No on-person-vs-bag distinction** — a bag just raises one flat capacity number. |
-| **Assessment** | Newer decision, wins. But it is a **real model change**, not a config change: today capacity is one scalar; the new model needs the *location* of an item to matter. |
-| **Resolution taken** | **CONFIRMED, adopted.** Folded into B0's item-instance refactor (B0-T2) where it is cheapest — adding a container-location concept after content is authored is significantly worse. Vehicle category is enum-only per CR-02. |
+Four categories (on-person, bag, world, vehicle-reserved) — dev confirmed KEEP on all four in the item-instance-refactor section of the questionnaire. Vehicle category moves from "reserved, no plan" to "reserved, scheduled" per CR-02.
 
-### CR-10 — "Fatigue reduces zombie-detection perception" is ambiguous ⚠ NEEDS YOUR CALL
+### CR-10 — Fatigue reduces the player's own perception ✅ RESOLVED 2026-07-26 (dev-confirmed)
 
-| | |
-|---|---|
-| **Consolidated Changes §2** | "**Fatigue/Tiredness:** At high severity, reduces zombie-detection perception (hearing/sight radius), tying fatigue into the noise/perception system." |
-| **Assessment** | Two readings. **(A)** A tired *player* is worse at detecting zombies — but the player has no detection stat; the player detects zombies with their eyes on a screen. Implementing this means degrading the *presentation* (vignette, muffled audio, reduced camera range). **(B)** A tired player is *harder for zombies to detect* — which is backwards as a penalty, and would make exhaustion a stealth advantage. |
-| **Resolution taken** | Proceeding on **reading (A)**, implemented as perceptual degradation (see OQ-B0-05 for three concrete options). Reading (B) is almost certainly not intended. |
-| **Why flagged** | Cheap either way, but they are opposite mechanics. **Confirm before B0-T4.** |
+Confirmed reading (A): a tired *player* perceives worse (presentation degradation — vignette, muffled audio), not "harder for zombies to spot." Exactly the originally-assumed reading — now a real decision instead of an AI recommendation.
 
-### CR-11 — Panic: deferred in one place, load-bearing in another
+### CR-11 — Panic deferred, aim-cone is the sole combat-pressure source ✅ CONFIRMED, tuning validated
 
-| | |
-|---|---|
-| **Consolidated Changes §2 & §4** | Panic stays deferred. "Combat accuracy pressure governed **purely** by hip-fire cone/aim mechanics and weapon condition." |
-| **Assessment** | Consistent and self-reinforcing. No contradiction — recorded because it makes the aim-cone model the *sole* source of combat pressure, which raises the stakes on getting its numbers right. |
-| **Resolution taken** | **CONFIRMED.** Elevates aim-cone tuning (OQ-B0-02) from a tuning detail to a **BLOCKING** design question — it is now the only thing standing between the player and perfect marksmanship under stress. |
+Unaffected — see CR-04 above for the dev's direct confirmation of the aim-cone tightness and headshot-weighting numbers.
 
-### CR-12 — `GameDevPlan` §7 P3 backlog: death/loot/world-continuity rules are unscheduled
+### CR-12 — Death/world-continuity backlog — merged into CR-07 above
 
-| | |
-|---|---|
-| **Source** | `GameDevPlan.md` §7 P3 post-completion backlog (dev notes 2026-07-20), never scheduled into any phase: dead players **become zombies**; loot stays at the death location; co-op continues unless the **whole party** dies; solo death ends the world; amputation causes a **blackout with ~12h time acceleration**; arm amputation restricts to one-handed weapons; medical tier extends the incubation window. |
-| **Assessment** | Not a contradiction with the consolidated doc — a set of confirmed dev intentions with **no phase home**, which is how features get silently lost. Several are load-bearing for save topology (CR-07) and for the P5 handedness fields. |
-| **Resolution taken** | Explicitly scheduled: player-becomes-zombie → **B0-T9**; loot-at-death-location → **B0-T9**; party-wipe/world-lifetime rules → **B3** (OQ-B3-01); amputation blackout + time skip → **B0-T7**; one-handed restriction → **B0-T2** (needs the handedness field from the item-instance refactor); medical-tier incubation delay → **B0-T6**. |
+The full P3 backlog this row covered (player-becomes-zombie, loot-at-death-location, amputation blackout/time-skip, one-handed restriction, medical-tier incubation delay) keeps its original phase assignments (B0-T9, B0-T7, B0-T2, B0-T6) — only the party-wipe/solo-world-ending piece changed, and it's now resolved under CR-07, not left open as `OQ-B3-01`.
 
 ---
 
@@ -208,26 +189,44 @@ Per the source prompt: newer decisions win **unless** there is clear reason othe
 | P10 Production hardening → vertical slice | Not started | **Split**: audio → **B7**, perf → **B8**, a11y/settings → **B9**, MP/release → **B10**, beta gates → **B11/B12** |
 | *(none)* | — | **B1** UI/UX — new, no prior home |
 
-### 3.2 The B-series
+### 3.2 The B-series — restructured 2026-07-26 into two stages
 
-| # | Phase | Size | Sessions | Gate |
+> **Why a two-stage split.** The dev's rescope answer to "what's the real near-term goal" (`RescopeQuestionnaire.md` §1.2/1.3) was explicit: not the full public-beta ambition right now — **a playable game where every core feature actually works, rough edges and all, tested incrementally as it's built.** Full breadth is still the target (almost nothing here got cut — see the Contradiction Register above), but the *order* changes: get the mechanical core loop fully working and tested before sinking time into content volume, narrative writing, art polish, audio, and release engineering. **Stage 1** is that core loop. **Stage 2** is everything that makes it a full game and eventually a shippable beta. B-numbers are kept stable throughout (no renumbering) so every existing `B4-T7`/`OQ-B5-01`-style cross-reference still resolves correctly; two phases get a lineage-suffix instead of a new number (`B4X`, `BV`) to slot into the existing scheme without colliding.
+>
+> **This also reflects the dev's process answers directly**, not just content ones: checkpoint after each feature (not phase-end only), ask before implementing anything design-shaping, minimize cascading dependency between steps, written test scripts the dev runs personally. Every phase file gets re-cut to that shape as it's opened — see `B0_Stabilization.md` for the first one done this way.
+
+#### Stage 1 — Core Playable Loop
+
+Everything here is systems-only, tested on the existing graybox/test level — not content volume, not narrative, not polish. Exit signal: **a full day/night cycle, solo or co-op, where every core system (needs, health/infection, combat, zombies incl. a real horde test, inventory/items, multi-level buildings, darkness, weather) is playable end-to-end, rough but working**, per the dev's own description of what "real progress" looks like right now.
+
+| # | Phase | Size | Sessions (rough) | Gate |
 |---|---|---|---|---|
-| **B0** | Stabilization & Reconciliation | **L** | 14–18 | — |
+| **B0** | Stabilization & Reconciliation *(in progress)* | **L** | 14–18 | — |
 | **B1** | UI/UX Foundation, HUD & Input Modes | **L** | 14–18 | `[INTERNAL]` |
-| **B2** | Art Direction Lock & Asset Pipeline | **M** | 6–8 | `[INTERNAL]` |
-| **B3** | Persistence, Save Architecture & Streaming Backbone | **L** | 16–20 | `[INTERNAL]` |
-| **B4** | World Content: Region, Interiors, Elevation & Light | **XXL** | 45–60 | `[INTERNAL]` |
-| **B5** | Dynamic Events, Radio & Investigation Arc | **L** | 18–22 | `[PUBLIC]` |
-| **B6** | Skills, Progression, Character Creation & Onboarding | **L** | 16–20 | `[PUBLIC]` |
-| **B7** | Audio Production & Sound Design | **L** | 14–18 | `[PUBLIC]` |
-| **B8** | Performance, Profiling & Optimization | **L** | 12–16 | `[INTERNAL]` |
-| **B9** | Accessibility, Settings & Sandbox Options | **M** | 8–10 | `[PUBLIC]` |
-| **B10** | Multiplayer Hardening & Release Engineering | **L** | 14–18 | `[PUBLIC]` |
-| **B11** | Internal Closed Beta | **M** | 6–8 | `[INTERNAL]` |
-| **B12** | Public Beta / Early Access Readiness | **L** | 12–16 | `[PUBLIC]` |
-| | **Total** | | **~195–250** | ≈ **10–14 months part-time** |
+| **B3** | Persistence & Save Backbone *(systems only — simplified per CR-07)* | **L** | 14–18 | `[INTERNAL]` |
+| **B4** | World Systems: Multi-Level, Darkness/Light, Weather-as-Mechanic *(small graybox area, not the real map)* | **M–L** | 18–24 | `[INTERNAL]` |
+| **B6-Sys** | Progression Framework *(generic, data-driven skill/attribute/background system — no roster content yet)* | **S–M** | 6–8 | `[INTERNAL]` |
+| | **Stage 1 exit — "Core Loop Playtest"** | | | milestone, not a beta gate |
 
-> **Reality check against `GameDevPlan.md` §6's estimate.** That doc's "order-of-magnitude ~6–9 months" covered P0–P10 and was written before UI, art lock, audio, accessibility, release engineering, and the two beta gates had phases. ~10–14 months **from today, for a genuinely beta-grade build** is the honest number, and it assumes the part-time cadence holds without long gaps. Treat B4 as the number most likely to be wrong — content build is where solo projects overrun, and it is XXL for a reason.
+#### Stage 2 — Content, Depth & Release
+
+Everything that turns the working core loop into a full, shippable game. Several former single-phase items become **continuous tracks** instead (see `T_ContinuousTracks.md`), specifically to avoid the "one giant phase, one checkpoint at the end" problem this whole rescope exists to fix.
+
+| # | Phase | Size | Sessions (rough) | Gate |
+|---|---|---|---|---|
+| **B2** | Art Direction Lock & Asset Pipeline | **M** | 6–8 | `[INTERNAL]` |
+| **B4X** | Region Content Build-Out *(continuous track, phased district-by-district — see `T_ContinuousTracks.md` T7)* | ongoing | — | `[INTERNAL]`→`[PUBLIC]` |
+| **B5** | Dynamic Events, Radio & Investigation Arc | **L** | 18–22 | `[PUBLIC]` |
+| **B6-Content** | Backgrounds Roster, Narrative Flavor & Onboarding Content | **M** | 8–10 | `[PUBLIC]` |
+| **BV** | Vehicles *(new phase — see CR-02)* | **L** *(estimate, unscoped)* | 12–18 *(placeholder)* | `[PUBLIC]` |
+| **B7** | Audio Production & Horde-at-Scale AI | **L** | 14–18 | `[PUBLIC]` |
+| **B8** | Performance, Profiling & Optimization *(budget raised: 4+ players, bigger map, real large hordes — see CR-08)* | **L** | 12–18 | `[INTERNAL]` |
+| **B9** | Accessibility, Settings & Sandbox Options | **M** | 8–10 | `[PUBLIC]` |
+| **B10** | Multiplayer Hardening & Release Engineering *(4+ players, optional paid dedicated-server path — see updated `GameDevPlan.md` §3)* | **L** | 16–20 | `[PUBLIC]` |
+| **B11** | Internal Closed Beta | **M** | 6–8 | `[INTERNAL]` |
+| **B12** | Public Beta / Early Access Readiness *(EA confirmed, ~$9.99 target, Steam-only first)* | **L** | 12–16 | `[PUBLIC]` |
+
+> **On the session totals.** Deliberately not re-adding these to a new single "~N months" headline number. The dev's own process answers (checkpoint after each feature, ask before implementing specifics, avoid long interdependent chains) mean the real pacing driver from here is checkpoint count and how often a check-in is needed, not a session-count estimate — treat every number above as a rough planning input, re-forecast at each phase's own checkpoints (as `B4X`'s district-by-district structure already forces), not a commitment. **BV (Vehicles) has no real estimate yet** — it needs its own design/scope pass when Stage 1 is done, the same way B4 originally needed one before this rescope; don't let a placeholder number harden into an assumption.
 
 ### 3.3 Scope boundaries per phase
 
@@ -235,19 +234,22 @@ Full task breakdowns live in the per-phase files. This table is the **scope cont
 
 | Phase | Explicitly IN | Explicitly OUT |
 |---|---|---|
-| **B0** | PIE-verify everything built in P5/P6 · item-instance/GUID refactor · ammo-as-inventory-item · handedness fields · camera revisions (perspective removal, zoom presets, aim-cone, elevation *stub*) · Wet + Temperature needs · two-tier infection · bandage simplification · jamming · downed-zombie finishers · BT search-last-known · death→zombie + loot-at-death · profiling baseline | No new UI (B1) · no real multi-level geometry (B4) · no weather visuals (B4) · no save (B3) · no horde-coordination redesign (B7) · no attachments-with-stats |
-| **B1** | Input-mode/`IMC_ZS_UI` switching · HUD (needs, health/wounds, ammo, hotbar, interaction prompt) · inventory screen · container loot screen · death/respawn screen · sleep prompt · main menu + pause · moodle system for N needs | Radial quick-use (B9) · map screen (B4) · character creation UI (B6) · settings menu (B9) · localization (B12) · final art pass on UI (B2/B7) |
-| **B2** | Art direction lock (mood board, palette, reference set) · modular kit selection/purchase · material/shader standards · LOD + collision + naming conventions · retarget pipeline validation · one fully-dressed reference room as the quality bar | Building the region (B4) · character art (B6) · VFX polish (B7) · UI art (B1 owns layout, B2 owns tokens) |
-| **B3** | Save topology decision · `UZSSaveGameSubsystem` · layered save (10s character, periodic world, chunk-on-unload, shutdown) · rotating backup slots · World Partition setup + streaming policy · corpse/item pooling + dual-limit cleanup · persistence of despawn timers by time-of-death | Region content (B4) · late-join flow (B10) · cloud saves (post-beta) · save migration/versioning beyond a version stamp (B12) |
-| **B4** | Region build on the real kit · enterable interiors · **elevation/multi-level system** · **darkness + light-source mechanic** · **basement layout selection** · weather system (rain/fog/snow) as gameplay · day/night · utilities shutoff on the real map · map screen · spawn points | Named-location *narrative* content (B5) · events (B5) · vehicles (CUT) · farming (see OQ-B4-06) · seasons (post-beta) |
-| **B5** | `UZSEventDirector` · repeatable event roster · per-event radio warning treatment · radio broadcast arc · investigation clue system + journal/tracking UI · guaranteed clue placement · radiant objectives · named locations + their narrative content | Voice acting (OQ-B5-05) · branching dialogue · NPC survivors (POST-BETA) · the capstone's post-completion world modifier (POST-BETA) |
-| **B6** | Skill/attribute XP hookup across all systems · XP curves + per-skill rate tunable · background roster + starting proficiencies · character creation flow + appearance · new-game setup (seed, difficulty, spawn) · first-hour onboarding pass · death→new-character polish | Skill decay (CONFIRMED cut) · perks/unlocks (OQ-B6-03) · deferred skills — Fishing/Building/Foraging/Cooking/Mechanics (POST-BETA) · sandbox sliders (B9, partial) |
-| **B7** | Ambient beds per biome/interior/time-of-day · zombie vocalization set · weapon/melee/impact SFX · footstep surface + wet variants · UI SFX · music direction + implementation · audio occlusion/attenuation policy · **horde coordination + large-group AI solution** | VO (OQ-B5-05) · adaptive/vertical music (POST-BETA) · full Wwise/FMOD migration unless OQ-B7-02 says otherwise |
-| **B8** | Fixed stress-test map/scenario (CONFIRMED) · profiling on packaged Development builds · zombie-count budget lock · draw-call/material consolidation · AI tick budgeting + LOD · network bandwidth pass · memory/GC pass · min-spec decision | Console optimization (POST-BETA) · dedicated-server perf (POST-BETA) |
-| **B9** | Settings menu (video/audio/gameplay/controls) · full control remapping · gamepad support pass · colorblind modes · subtitle/text-size options · difficulty options · the XP-rate tunable surfaced · partial sandbox options | Full PZ-style sandbox slider suite (POST-BETA) · screen-reader support (POST-BETA) · localization (B12) |
-| **B10** | Late-join flow · disconnect/reconnect character handling · host-migration policy decision · network stress + packet-loss testing · direct-IP/LAN hardening · packaged build pipeline · crash reporting/telemetry · versioning + release checklist | Dedicated servers (OQ-B10-01) · Steam/EOS integration (OQ-B10-02) · voice chat (OQ-B10-04) · cross-platform (POST-BETA) |
+| **B0** | PIE-verify everything built in P5/P6 · item-instance/GUID refactor, done as independently-testable steps (dev preference) · ammo-as-inventory-item · handedness fields · camera revisions (perspective removal — cut now, not gated on a sign-off — zoom presets, aim-cone, elevation *stub*) · Wet + Temperature needs · two-tier infection **with plain/legible UI feedback (reversed from ambiguous — CR-06)** · bandage simplification · jamming · downed-zombie finishers (needs a non-PZ-clone variant, per dev note) · BT search-last-known · death→zombie + loot-at-death, unified world-persists rule · melee display resolved (grouped poses by weapon category) · profiling baseline | No new UI (B1) · no real multi-level geometry (B4) · no weather visuals (B4) · no save (B3) · no horde-coordination redesign (B7) · no stat-affecting attachments (now planned, but later — see B4X/weapon-depth track) |
+| **B1** | Input-mode/`IMC_ZS_UI` switching · HUD (needs, health/wounds, ammo, hotbar, interaction prompt) · inventory screen **with separate equipment-drag-slots + a general carry container (dev preference, not a single flat list)** · container loot screen · death/respawn screen · sleep prompt · main menu + pause · moodle system for N needs, shown plainly per CR-06 | Radial quick-use (B9) · map screen (B4X) · character creation UI (B6-Content) · settings menu (B9) · localization (B12) · final art pass on UI (B2/B7) |
+| **B3** | Save topology (unified, single continuously-overwritten world, no player-facing rollback — CR-07) · `UZSSaveGameSubsystem` · layered save (10s character, periodic world, chunk-on-unload, shutdown) · rotating **corruption-recovery** backups (not save-scumming) · World Partition setup + streaming policy on graybox · corpse/item pooling + dual-limit cleanup | Region content (B4X) · late-join flow (B10) · cloud saves (post-beta) · save migration/versioning beyond a version stamp (B12) |
+| **B2** | Art direction lock (mood board, palette, reference set) · modular kit selection — **modest/free-first budget, DK2 as the fidelity bar, self-modeled assets expected later** · material/shader standards · LOD + collision + naming conventions · retarget pipeline validation · one fully-dressed reference room as the quality bar | Building the region (B4X) · character art (B6-Content) · VFX polish (B7) · UI art (B1 owns layout, B2 owns tokens) |
+| **B4** | (Stage 1, systems only) **elevation/multi-level system** · **darkness + light-source mechanic** · weather system (rain/fog/snow) as real gameplay · day/night, all built and tested on the existing small graybox area | Real region content/scale (B4X) · **procedural/randomized basement layouts (CUT — dev wants a fixed authored map for now, not a layout-selection system)** · vehicles (BV) · farming (OQ-B4-06) · seasons (post-beta) |
+| **B4X** | (Stage 2, continuous track) Building out the **larger, phased** region on the real kit · enterable interiors, fixed/authored (no procedural basements) · utilities shutoff on the real map · map screen · spawn points · generic placeholder names for locations until B6-Content/B5 need real ones | Named-location *narrative* content (B5 supplies it, B4X just builds the space) · events (B5) |
+| **B5** | `UZSEventDirector` · repeatable event roster · per-event radio warning treatment · radio broadcast arc · investigation clue system + journal/tracking UI · guaranteed clue placement · radiant objectives · the actual plot (still open — dev is "still planning," brainstorm together when this phase starts) | Voice acting (OQ-B5-05) · branching dialogue · NPC survivors (POST-BETA) · the capstone's post-completion world modifier (POST-BETA) |
+| **B6-Sys** | (Stage 1) Generic skill/attribute component + config assets, XP hookup plumbing, background *data structure* (assignable starting values per type) — no authored roster yet | Any specific background names/flavor (B6-Content) |
+| **B6-Content** | (Stage 2) Background roster **with real tradeoffs, not purely additive** (dev confirmed) · XP curves + per-skill rate tunable · character creation flow + appearance · new-game setup · first-hour onboarding pass | Skill decay (CONFIRMED cut) · perks/unlocks (OQ-B6-03) · deferred skills — Fishing/Building/Foraging/Cooking/Mechanics (POST-BETA) |
+| **BV** | Vehicle actor(s), fuel/damage/hotwire-or-key model (TBD, own design pass), vehicle combat feel, vehicle storage (the reserved `EZSContainerType::Vehicle` becomes real) | Scheduling itself — this phase needs its own scoping pass before a task breakdown exists, same treatment B4 got before this rescope |
+| **B7** | Ambient beds per biome/interior/time-of-day · zombie vocalization set (including a "freshness" audio read if the zombie-degradation mechanic lands here) · weapon/melee/impact SFX · footstep surface + wet variants · UI SFX · music direction + implementation · audio occlusion/attenuation policy · **horde coordination + large-group AI — genuinely large hordes (100+) are a confirmed priority, not a cuttable stretch goal** | VO (OQ-B5-05) · adaptive/vertical music (POST-BETA) · full Wwise/FMOD migration unless OQ-B7-02 says otherwise |
+| **B8** | Fixed stress-test map/scenario · profiling on packaged Development builds · zombie-count budget lock (engineer toward the target, don't lower it first) · draw-call/material consolidation · AI tick budgeting + LOD · network bandwidth pass **re-baselined for 4+ players** · memory/GC pass · min-spec decision (dev wants to "keep the game light") | Console optimization (POST-BETA) |
+| **B9** | Settings menu (video/audio/gameplay/controls) · full control remapping · gamepad support pass · colorblind modes · subtitle/text-size options · difficulty options · the XP-rate tunable surfaced | Full PZ-style sandbox slider suite (POST-BETA) · screen-reader support (POST-BETA) · localization (B12) |
+| **B10** | Late-join flow · disconnect/reconnect character handling · network stress + packet-loss testing · direct-IP/LAN hardening (primary) · **optional paid dedicated-server hosting path (new — dev confirmed)** · packaged build pipeline · crash reporting/telemetry · versioning + release checklist | Host migration (still not planned) · voice chat (still relying on Discord) · cross-platform (POST-BETA) |
 | **B11** | Closed-group beta with 6–12 testers · structured feedback + bug intake · tuning passes from real data · balance of ammo/loot/zombie density from telemetry | Public marketing · store page · press |
-| **B12** | Steam page + capsule art + trailer · demo build decision · pricing/EA decision · localization pass · public bug-report pipeline · community channels · launch checklist | Post-launch roadmap content · DLC |
+| **B12** | Steam page + capsule art + trailer · **Early Access confirmed, ~$9.99 target price, Steam-only at first** · localization pass · public bug-report pipeline · community channels · launch checklist | Post-launch roadmap content · DLC |
 
 ---
 
@@ -256,35 +258,47 @@ Full task breakdowns live in the per-phase files. This table is the **scope cont
 ### 4.1 Hard blocking chain
 
 ```
+STAGE 1 — CORE PLAYABLE LOOP
+
 B0 Stabilization  ──────────────────────────────────────────────┐
   │  (item-instance model, verified combat/inventory,           │
   │   camera model locked, needs complete, profiling baseline)  │
   ├──> B1 UI/UX ──────────────────────────────────┐             │
   │      (input-mode switching, HUD, inventory)   │             │
-  │                                               │             │
-  ├──> B2 Art Lock ──> B4 World Content <─────────┤             │
-  │      (kit, tokens)      ^                     │             │
-  │                         │                     │             │
-  └──> B3 Persistence ──────┘                     │             │
-         (save, streaming, pooling)               │             │
-                                                  v             v
-                              B5 Events/Investigation      B6 Progression
-                                        │                       │
-                                        └───────────┬───────────┘
-                                                    v
-                                        B7 Audio ──> B8 Performance
-                                                    │
-                                                    v
-                                        B9 A11y/Settings
-                                                    │
-                                                    v
-                                        B10 MP Hardening + Release Eng
-                                                    │
-                                                    v
-                                        B11 INTERNAL BETA GATE
-                                                    │
-                                                    v
-                                        B12 PUBLIC BETA GATE
+  ├──> B3 Persistence (systems) ───────────────────┤             │
+  ├──> B4 World Systems (graybox: multi-level,     │             │
+  │      darkness, weather) ───────────────────────┤             │
+  └──> B6-Sys Progression Framework ───────────────┘             │
+                                                                 v
+                              ══ STAGE 1 EXIT: CORE LOOP PLAYTEST ══
+                                                                 │
+STAGE 2 — CONTENT, DEPTH & RELEASE                              v
+  ├──> B2 Art Lock ──> B4X Region Content (continuous) ─────────┤
+  │                              │                              │
+  │                              v                               │
+  │                    B5 Events/Investigation                   │
+  │                              │                              │
+  ├──> B6-Content Backgrounds/Narrative ──────────┐              │
+  │                                               │              │
+  ├──> BV Vehicles (own scoping pass first) ──────┤              │
+  │                                               v              v
+  │                                   B7 Audio + Horde-at-Scale ─┤
+  │                                               │              │
+  │                                               v              │
+  │                                   B8 Performance (re-baselined:│
+  │                                     4+ players, bigger map)   │
+  │                                               │              │
+  │                                               v              │
+  │                                   B9 A11y/Settings            │
+  │                                               │              │
+  │                                               v              │
+  │                                   B10 MP Hardening + Release  │
+  │                                               │              │
+  │                                               v              │
+  │                                   B11 INTERNAL BETA GATE      │
+  │                                               │              │
+  │                                               v              │
+  └────────────────────────────────>  B12 PUBLIC BETA GATE
 ```
 
 ### 4.2 Why each edge exists
@@ -293,53 +307,55 @@ B0 Stabilization  ────────────────────�
 |---|---|
 | B0 → everything | The item-instance model is the substrate for inventory UI, save serialization, loot, and crafting. Building any of those against today's model means building them twice. |
 | B0 → B1 | An inventory screen must render *something*. Today `CarrySlots` has no stable per-item identity to bind a widget to, and no drag/drop target that survives a move. |
-| B1 → B4 | Region content cannot be playtested without a HUD showing needs/health, or a map screen. You would be building a world you cannot evaluate. |
-| B2 → B4 | Placing production geometry before the kit, material standards, and LOD/collision conventions are locked means re-doing placement. This is the classic solo-dev rework trap. |
-| B3 → B4 | World Partition setup and the chunk-on-unload save hook must exist *before* the region is streamed, or every cell gets revisited. De-risk save against graybox. |
+| B1 → B4X | Region content cannot be playtested without a HUD showing needs/health, or a map screen. You would be building a world you cannot evaluate. |
+| B2 → B4X | Placing production geometry before the kit, material standards, and LOD/collision conventions are locked means re-doing placement. This is the classic solo-dev rework trap. |
+| B3 → B4X | World Partition setup and the chunk-on-unload save hook must exist *before* the region is streamed, or every cell gets revisited. De-risk save against graybox — this is exactly what B4 (Stage 1, systems-only, graybox) already does before B4X starts. |
 | B0 → B3 | Save serialization needs a stable item identity (`FGuid`) and a settled needs list. Serializing 6 needs then adding 2 means a save-version migration during beta. |
-| B4 → B5 | Events need real locations to fire at; clue placement needs real containers/buildings; radio needs a map to reference. |
-| B0+B4 → B6 | XP hookup touches every gameplay system, so those systems must be final. Backgrounds pick spawn points, which need the real map. |
-| B4 → B7 | Ambient audio design is per-biome/per-interior; you cannot author beds for spaces that don't exist. |
-| B0 → B8 (baseline only) | Profiling **starts** at B0 (per CONFIRMED "profile early") but the dedicated optimization phase needs final content to optimize against. |
+| B4X → B5 | Events need real locations to fire at; clue placement needs real containers/buildings; radio needs a map to reference. |
+| B0+B4X → B6-Content | XP hookup touches every gameplay system, so those systems must be final. Backgrounds pick spawn points, which need the real map. B6-Sys (the generic framework) has no such dependency and runs in Stage 1. |
+| B4X → B7 | Ambient audio design is per-biome/per-interior; you cannot author beds for spaces that don't exist. |
+| B0 → B8 (baseline only) | Profiling **starts** at B0 (per CONFIRMED "profile early") but the dedicated optimization phase needs final content — and the new 4+/bigger-map/real-horde targets — to optimize against. |
 | B8 → B10 | Network hardening measures against a known-good frame budget; optimizing after network work invalidates the network measurements. |
 | B1+B9 → B11 | Testers without a settings menu or remappable controls generate noise-bugs about hardware/preference, drowning real findings. |
+| Stage 1 exit → BV's scoping pass | Vehicles get their own design/scope session once the core loop works, the same treatment B4 got before this rescope — no task breakdown exists yet on purpose. |
 
 ### 4.3 Parallelizable work (safe to interleave when blocked)
 
 - **T4 content authoring** (weapon/item/loot data assets) — from end of B0 onward, continuously.
 - **B2 art lock** can run entirely in parallel with **B1** and **B3** — different disciplines, no shared files.
 - **B9's control remapping** can start any time after B0 (Enhanced Input is already in place).
-- **T3 marketing/community** should start at **B4**, not B12 — see `T_ContinuousTracks.md` for why the timing matters.
+- **T3 marketing/community** should start at **B4X**, not B12 — see `T_ContinuousTracks.md` for why the timing matters.
 - **OQ resolution** is always parallelizable and should be batched into design sessions rather than blocking implementation sessions.
+- **BV's scoping pass** can happen any time Stage 1 is winding down — it doesn't need to wait for Stage 2's other phases.
 
 ### 4.4 Highest-risk items, de-risk early
 
 | Risk | Where it bites | Prototype/spike at |
 |---|---|---|
-| Multi-level interiors + top-down camera occlusion | B4 (XXL, would be a rebuild) | **B0-T3 spike**, then B4-T1 |
+| Multi-level interiors + top-down camera occlusion | B4 (would be a rebuild if wrong) | **B0-T3 spike**, then B4-T1, on graybox before B4X ever starts |
 | Save/load correctness under co-op + World Partition | B3 (data loss in beta = fatal) | **B3-T1 spike** on graybox |
-| Zombie count vs. frame budget | B8 (may force a design change to horde behaviour) | **B0-T12 baseline**, budget locked B8 |
-| Item-instance refactor breaking shipped behaviour | B0 (touches 5 files of live code) | B0-T1 verification pass *first* |
+| Zombie count vs. frame budget, now at a higher bar (4+ players, real large hordes) | B8 (may force a design change to horde behaviour) | **B0-T12 baseline**, re-baselined B8 against the raised targets |
+| Item-instance refactor breaking shipped behaviour | B0 (touches 5 files of live code) | B0-T1 verification pass *first*; refactor itself now split into independently-testable steps per dev preference |
 | Live Coding Blueprint corruption during heavy C++ churn | B0 specifically — the highest-C++-churn phase in the plan | See `CLAUDE.md` lesson; B0-T0 sets a full-rebuild policy |
+| Map going bigger (dev call) without a re-validated build-time estimate | B4X, phased content track | Build **one** district to the B2 quality bar first, time it, re-forecast before committing to the next — same discipline the old B4 already recommended, now load-bearing since scale went up |
 
 ---
 
 ## 5. Revised risk register
 
-Replaces `GameDevPlan.md` §6 for beta-scope purposes.
+Replaces `GameDevPlan.md` §6 for beta-scope purposes. Updated 2026-07-26 post-rescope.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| **Unverified code accumulates faster than it is tested** — the current failure mode; 4+ sessions of unrun code shipped before the first PIE confirmation | **HIGH** | B0 is a hard verification gate. New standing rule: no phase may exit with unverified deliverables; `SessionHandoff.md` stays the sole owner of verification status. |
-| **Top-down doesn't feel right** — mitigation removed by CR-04 | **HIGH** | New gate: B0-PT2 camera sign-off **before** the perspective enum is deleted. Zoom presets + auto-zoom replace over-shoulder as the detail-reading affordance. |
-| **B4 content build overruns** — the single largest phase, solo, part-time | **HIGH** | Vertical-slice-first: build *one* fully-finished town block to the B2 quality bar and time it, then extrapolate before committing to region scale. Map scale is a lever (OQ-B4-01). |
-| **Save/persistence data loss in co-op** | **HIGH** | Rotating backups (CONFIRMED) + save-corruption soak test in B3 + versioned save format from day one. |
-| **Simulation creep** — 8 needs, temperature, weather, elevation, basements all added at once | **MEDIUM-HIGH** | §3.3's IN/OUT table is a contract. Every scope-risk item is 🚩-flagged in §1.3 with a scoped-down proposal in `90_OpenQuestions.md`. |
+| **Unverified code accumulates faster than it is tested** — the failure mode that started this whole rescope; 4+ sessions of unrun code shipped before the first PIE confirmation | **HIGH** | B0 is a hard verification gate, being restructured into per-feature checkpoints (dev preference, checkpoint size = "A", after each individual feature/fix). New standing rule: no phase may exit with unverified deliverables; `SessionHandoff.md` stays the sole owner of verification status. |
+| **Region content build overruns** — moved from "B4 is XXL and might overrun" to "B4X is a continuous track and the map just got bigger" | **HIGH** | District-by-district: build *one* fully-finished district to the B2 quality bar, playtest it, time it, re-forecast before starting the next. The phased/incremental approach is now structural (a continuous track), not just a recommendation. |
+| **Save/persistence data loss in co-op** | **HIGH** | Rotating corruption-recovery backups + save-corruption soak test in B3 + versioned save format from day one. Simplified further by the unified death rule (CR-07) — one world, one continuously-overwritten save, less state-machine complexity than the old asymmetric solo/co-op rule would have needed. |
+| **A named identity pillar got reversed (CR-06, infection legibility) without anything built against it yet** | **MEDIUM-HIGH** | Caught early specifically *because* this rescope pass happened before B0-T6 was implemented. Flag any doc still describing "ambiguous infection" as stale when touched. |
+| **4+ players / bigger map / real large hordes raises the performance bar versus the original 2–4/1×1km/~150 assumptions** | **MEDIUM-HIGH** | B8's budget gets re-baselined against the new targets, not the old ones. Engineer toward the target zombie count before considering lowering it (CR-08) — the dev was explicit that a real horde matters to the vision. |
 | **Live Coding Blueprint corruption** during B0's heavy C++ churn | **MEDIUM** | Full rebuild over Ctrl+Alt+F11 during B0; "Compile All Blueprints" pass after each patch cluster; check Output Log for `is not a child class of` / `invalid target type` first when anything behaves oddly. |
-| **Zombie counts vs. performance** | **MEDIUM** | Profiling baseline at B0, fixed stress-test scenario (CONFIRMED), zombie count as the primary budget metric (CONFIRMED). |
-| **Solo-dev art volume** | **MEDIUM** | Buy the core kit; one dense region, not a county. B2's reference room sets the bar so quality is decided once. |
-| **Open questions block implementation mid-phase** | **MEDIUM** | Every OQ is tagged BLOCKING/SEQUENCEABLE/LATE and grouped by phase; resolve a phase's BLOCKING set in one design session before the phase starts. |
-| **Scope pressure from the investigation arc** | **LOW-MEDIUM** | Decision 6 already resolved it as an optional capstone. B5 builds the system; content volume is the lever. |
+| **Vehicles (BV) and stat-affecting attachments are real scope additions with no task breakdown yet** | **MEDIUM** | Both explicitly deferred to their own scoping pass rather than bolted onto an existing phase's task list — same discipline that (belatedly) protected B4 originally. Don't let either harden into "just add it to B0/B5" without that pass. |
+| **Open questions block implementation mid-phase** | **MEDIUM** | Every OQ is tagged BLOCKING/SEQUENCEABLE/LATE and grouped by phase; resolve a phase's BLOCKING set in one design session before the phase starts. Per the dev's process answer, also flag anything design-shaping *inside* a phase for a check-in before implementing, not just at phase boundaries. |
+| **Scope pressure from the investigation arc** | **LOW-MEDIUM** | Decision 6 already resolved it as an optional capstone. The dev is still planning the actual plot — brainstorm together when B5 starts, don't let a placeholder plot harden into content. |
 
 ---
 

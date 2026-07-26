@@ -1,6 +1,8 @@
 # Continuous Tracks
 
-Six disciplines that have no start and no end and therefore are **not phases**. Modelling them as phases would produce a false sequence and would mean, for example, that no bug tracking exists until B11. Each track lists its per-phase entry point.
+Seven disciplines that have no start and no end and therefore are **not phases**. Modelling them as phases would produce a false sequence and would mean, for example, that no bug tracking exists until B11. Each track lists its per-phase entry point.
+
+> **T7 added 2026-07-26**, as a direct product of the rescope pass (`Docs/Planning/RescopeQuestionnaire.md`) — the old B4 region-content pass (a single 45–60 session XXL phase) is exactly the kind of "one giant phase, one checkpoint at the end" structure this whole rescope exists to fix, and it fits this file's own definition of a continuous track better than it ever fit a phase.
 
 ---
 
@@ -114,7 +116,7 @@ CONFIRMED requirement: profile early, don't retrofit. A single fixed stress-test
 | `Docs/Beta/B<N>_*.md` | Per-phase tasks and status | Checked off as tasks complete |
 | `Docs/TuningReference.md` | Every gameplay tunable | Same session the tunable is added |
 | `CLAUDE.md` | Conventions, architecture, lessons | When architecture or a lesson changes |
-| `Docs/Phases/P0–P10*.md` | **Historical build records.** Not edited by this plan. | Frozen |
+| ~~`Docs/Phases/P0–P10*.md`~~ | **Deleted 2026-07-26** — fully superseded by `01_RevisionRegister_P0-P6.md` and `Docs/Beta/` itself; recoverable from git history. | — |
 
 **Standing rules** (from `CLAUDE.md`, restated because they are the ones that decay):
 
@@ -122,3 +124,20 @@ CONFIRMED requirement: profile early, don't retrofit. A single fixed stress-test
 - **Targeted reads for large docs** — `Grep` with context or `Read` with offset/limit. `GameDevPlan.md` is 52KB; this plan adds more.
 - **Coarse task granularity** — one task per major deliverable, not per file.
 - **When an open question is answered, write the answer *and the reasoning* into `90_OpenQuestions.md`.** A decision without its reasoning gets re-litigated in six months, which is exactly what CR-01 in the master plan is an instance of.
+
+---
+
+## T7 — Region Content Build-Out (`B4X`)
+
+**Starts: once B4's Stage-1 systems (multi-level, darkness, weather) are PIE-verified on the graybox test area, and B3/B2 are complete. Runs district-by-district through the rest of Stage 2, feeding B5/B6-Content/B7 as it goes.**
+
+This is where the old single-phase `B4` (region build, 45–60 XXL sessions) actually lives now. The dev's rescope answer made the map **bigger** than the original ~1×1 km proposal (partly to accommodate `BV`/vehicles landing later) and asked for it to be built **"in phases"** — which makes it a continuous track by definition, not a single committed scope.
+
+| Practice | Detail |
+|---|---|
+| **District-by-district execution** | Pick one district's boundary, build it to the B2 reference-room quality bar, playtest it (combat, looting, navigation, both lighting states), time how long it actually took, *then* decide the next district's scope from that real number — not from the original estimate. |
+| **A checkpoint per district, not per phase** | Directly implements the dev's process preference (`RescopeQuestionnaire.md` Part 0: checkpoint after each individual feature, not phase-end only). Each district is a real "stop and verify" moment: is it fun to move through, does it hold the frame budget, does it read as finished or as placeholder. |
+| **Named-location content stays separate** | B4X places the *space*; B5 supplies the *narrative content* for it. Don't let the two blur — a district can be structurally done with a generic placeholder name well before B5 gives it a real one. |
+| **Zone system, once, reused everywhere** | The zone boundaries this track defines are the same ones zombie population density (B4X-T7), loot quality tiers (P6-R7), and ambient audio (B7-T4.1) all key off. Define it once per district as that district is built, not retroactively. |
+| **Re-forecast is mandatory, not optional** | If a district takes meaningfully longer than the reference room predicted, that's real information — surface it immediately (region scale is a lever; cutting area is always cheaper than cutting quality) rather than discovering it after ten districts. |
+| **Interacts with `BV` (Vehicles)** | Once vehicles land, later districts may need road/traversal planning the earliest districts didn't. Don't retrofit — from the district built after `BV`'s scoping pass lands, plan roads in from that district's start. |

@@ -1,6 +1,8 @@
 # B2 — Art Direction Lock & Asset Pipeline
 
-**Size: M (6–8 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B0** · **Blocks: B4 (hard)**
+**Stage 2 — Content, Depth & Release.** **Size: M (6–8 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B0** · **Blocks: B4X (hard)**
+
+> **Updated 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): **OQ-B2-01 resolved** — "mostly free, cheaper assets, want Door Kickers 2 level of detail so I can create assets myself later." Budget assumption for this phase is modest/free-first, not a marketplace-kit purchase; DK2 is the fidelity benchmark, and expect the Blender pipeline (`GameDevPlan.md` §5) to matter more than originally assumed, not less.
 
 > **Why this precedes the region build.** Old P7 bundled "replace graybox with the chosen modular kit" and "build the region" into one phase. That ordering is the classic solo-dev rework trap: geometry placed before material standards, LOD policy, and collision conventions are settled gets re-done. B2 exists to **decide the quality bar exactly once**, prove the pipeline on one room, and then let B4 be pure execution.
 >

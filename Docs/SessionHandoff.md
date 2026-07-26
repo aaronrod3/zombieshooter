@@ -1,12 +1,23 @@
 # Session Handoff
 
-> Read this first, every session. This file is rewritten every session, not appended to — it holds only the last completed task and what's needed next. This is the **sole owner of verification status** (compiled? PIE-tested?) — `CLAUDE.md` and `Docs/Phases/P<N>_*.md` describe architecture/checklist state, not status, to avoid the same fact needing edits in three places. Full history lives in git commit log, not here.
+> Read this first, every session. This file is rewritten every session, not appended to — it holds only the last completed task and what's needed next. This is the **sole owner of verification status** (compiled? PIE-tested?) — `CLAUDE.md` describes architecture/current-state design, not status, to avoid the same fact needing edits in multiple places. Full history lives in git commit log, not here. (`Docs/Phases/` — the old pre-Beta-plan status stubs — was deleted 2026-07-26, fully superseded by `Docs/Beta/`.)
 >
 > **Plan of record has two halves now.** `Docs/GameDevPlan.md` = design (pillars, §3 scope contract, Decisions). `Docs/Beta/` = production plan to beta (phases B0–B12, tasks, gates). Start at `Docs/Beta/README.md`. Conventions: `CLAUDE.md`.
 
 ## Current phase: B0 — Stabilization & Reconciliation
 
-`Docs/Beta/B0_Stabilization.md`. **B0-T0 complete. B0-T8 (zombie AI) complete and PIE-verified.** **B0-T1 (verification sweep) is in progress** — pass 1 found 4 bugs (fixed, PIE-confirmed by the dev except the weapon socket/collision fix); the dev's own pass-2 testing found 2 more real bugs (fixed, needs a rebuild + re-test before continuing).
+`Docs/Beta/B0_Stabilization.md`. **B0-T0 complete. B0-T8 (zombie AI) complete and PIE-verified.** **B0-T1 (verification sweep) is in progress** — pass 1 found 4 bugs (fixed, PIE-confirmed by the dev except the weapon socket/collision fix); the dev's own pass-2 testing found 2 more real bugs (fixed, needs a rebuild + re-test before continuing). **This runbook is unaffected by the rescope below — it's already the right shape (small, testable, dev-run) — keep going with pass 3.**
+
+## ⚑ Full plan rescoped 2026-07-26 — read `Docs/Beta/00_MasterPlan.md` §2 before assuming anything about design intent
+
+The dev asked for a full review of the plan because scope felt too concentrated and too many decisions were being made without real input. Claude reviewed every file in `Docs/GameDevPlan.md` and `Docs/Beta/`, wrote `Docs/Planning/RescopeQuestionnaire.md`, and the dev answered it. Every `Docs/Beta/*.md` file, `GameDevPlan.md`, and the two `Docs/Planning/` design docs were then revised against those answers. **Full detail lives in `00_MasterPlan.md`'s Contradiction Register — read it, don't rely on this summary alone.** Headlines, several of which **reverse** what the docs said before this session:
+
+- **Process, not just content:** checkpoint after each individual feature/fix from here on (not phase-end only), ask before implementing anything design-shaping, minimize chained dependency between steps, written test scripts the dev runs personally before anything is claimed done.
+- **Two-stage plan:** Stage 1 = "Core Playable Loop" (B0, B1, B3, B4-systems-only-on-graybox, B6-Sys) — get every core system rough-but-working and tested before content volume. Stage 2 = everything else (content, narrative, art, audio, release). See `00_MasterPlan.md` §3.2.
+- ⚑ **Infection is now plainly legible, not ambiguous.** The "can't tell if it's a cold or a bite" horror pillar is reversed — show the player clearly when they're bitten/infected. Biggest single content reversal from this session; nothing was built against the old version yet.
+- **Vehicles are back in scope** (later in dev, ready for beta) · **4+ players, not hard-locked 2–4** · **an optional paid dedicated-server path is planned** · **stat-affecting weapon attachments are wanted** (scopes/silencers with real effects) · **map is bigger, built in phases** (region content is now a continuous track, `T_ContinuousTracks.md` T7, not a single 45–60 session phase) · **procedural/randomized basements are cut** (fixed authored map for now) · **death always respawns into the same persistent world**, no asymmetric solo-ends-the-world rule · **melee weapon display resolved** (grouped poses: long-gun/pistol/melee) · **genuinely large zombie hordes (100+) confirmed important**, plus a new zombie "freshness" mechanic to design (faster/stronger when freshly turned, degrading over time).
+- `ZombieShooter_Consolidated_Changes.md` (cited throughout the old `Docs/Beta/` as the source of "CONFIRMED" decisions) **does not exist in this repo** — the dev has it and can supply it if a specific gap needs it, but treat anything sourced from it that the rescope didn't directly touch as still worth double-checking, not gospel.
+- `Docs/Planning/ZombieShooter_Open_Questions_For_Beta.md` was deleted — fully superseded by the answered `RescopeQuestionnaire.md` and the updated `90_OpenQuestions.md` (recoverable from git history if ever needed).
 
 ## Last completed (2026-07-26) — root-caused the weapon movement/placement bug; fixed container interaction; revised CLAUDE.md
 
@@ -60,15 +71,18 @@ Same loadout — **AssaultRifle (1) / Pistol (2) / Crowbar (3, melee)**. **First
 - **T0.5 / OQ-B9-01 — all gamepad work and testing deferred to B9.**
 - **OQ-X-01 — PC only for the initial launch.**
 - **Zombie AI native migration + navmesh fix — done, PIE-verified 2026-07-26.**
-- **OQ-B0-11 temporary unblock** — a real melee config exists for testing; question itself still open.
+- ~~OQ-B0-11 temporary unblock~~ — **now fully resolved** (not just unblocked): melee display is grouped poses by weapon category. Update the temporary crowbar config's pose grouping when T10.7 is actually implemented.
 - **Weapon socket — new dedicated `SocketGunAttachment` on `weapon_r`, not `ik_hand_gun`/`RightHandSocket` or the reused `weapon_r_muzzle`** — see above; revisit if it turns out wrong too.
+- **Full plan rescope, 2026-07-26** — see the section above and `00_MasterPlan.md` §2 for the complete list; too many individual decisions to duplicate here.
 
-## Blocking decisions needed before B0-T2 (not before T0/T1)
+## Blocking decisions before B0-T2 — resolved 2026-07-26, cleared by the rescope pass
 
-- **OQ-B0-13 — item-instance refactor go/no-go.** The hard blocker; ~5–6 sessions of B0-T2 depend on it. Design doc: `Docs/Planning/InventoryLoadoutEquipping_Plan.md`.
-- Also blocking B0, same design session: **OQ-B0-01** (scroll arbitration), **OQ-B0-02** (aim cone), **OQ-B0-04** (temperature scope), **OQ-B0-05** (fatigue/perception), **OQ-B0-07** (infection ambiguity in UI), **OQ-B0-11** (melee weapon display).
-- **Three contradictions need your call**: `Docs/Beta/00_MasterPlan.md` §2 — **CR-01** (skill roster), **CR-02** (vehicles), **CR-10** (fatigue/perception reading).
-- **`UI_Plan.md`'s own §7 open questions** are an unchecked entry-criterion for B1.
+All of the below are now answered (see `00_MasterPlan.md` §2 for full detail, `Docs/Beta/B0_Stabilization.md`'s rewritten B0-T2 for how it changes the task breakdown):
+
+- ~~OQ-B0-13~~ — item-instance refactor: **go**, but as independently-testable steps, not one 5–6 session block.
+- ~~OQ-B0-02, OQ-B0-04, OQ-B0-05, OQ-B0-07, OQ-B0-11~~ — aim-cone/headshot values, temperature scope, fatigue/perception, infection legibility (⚑ **reversed** — plain, not ambiguous), melee weapon display (grouped poses by category) — all resolved.
+- ~~CR-01, CR-02, CR-10~~ — skill roster (longer list), vehicles (in scope, later), fatigue/perception reading (confirmed as assumed) — all resolved.
+- **Still genuinely open, not blocking B0-T2 specifically**: `OQ-B0-01` (scroll-wheel arbitration between zoom and hotbar cycle) and `OQ-B0-03`'s specific stomp-finisher execution (mechanic confirmed wanted, needs a non-PZ-clone design pass before building — see `B0_Stabilization.md` T10.6). `UI_Plan.md`'s own §7 open questions are mostly still open too (not a B0 blocker, but check before B1 starts).
 
 ## Verification status — carried forward, still current
 

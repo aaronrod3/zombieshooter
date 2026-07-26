@@ -1,6 +1,8 @@
 # B10 — Multiplayer Hardening & Release Engineering
 
-**Size: L (14–18 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B8** · **Blocks: B11**
+**Stage 2 — Content, Depth & Release.** **Size: L (16–20 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B8** · **Blocks: B11**
+
+> **Revised 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): **player count is 4+, not 2–4** (OQ-X-03, reverses the original recommendation) — re-check every player-count-sized assumption below against that. **Dedicated-server hosting is back in scope** (OQ-B10-01, reverses the original "listen-server only" recommendation) as an **optional paid path** — listen-server stays the default/free mode, but this phase now needs a real design pass for what a paid dedicated-server offering actually requires (hosting relationship, server binary, ongoing cost model), not just direct-IP/LAN hardening.
 
 > **Sequenced after B8 deliberately.** Network hardening measures against a known-good frame budget; optimizing afterwards invalidates the network measurements. Do performance first, then network, then don't touch performance again without re-measuring network.
 >
@@ -90,7 +92,7 @@
 
 ## Notes
 
-- **Dedicated servers are POST-BETA** unless OQ-B10-01 overturns it. `GameDevPlan` §3 and `CLAUDE.md` both commit to listen-server/direct-IP for v1.
+- **Dedicated servers are no longer POST-BETA-only** — OQ-B10-01 was overturned 2026-07-26 (dev-confirmed): an optional **paid** dedicated-server hosting path is now planned, ready before beta. Listen-server/direct-IP remains the default, free, primary mode — `GameDevPlan.md` §3 has been updated accordingly. Scope the dedicated-server path as genuinely optional/additive, not a replacement for listen-server.
 - **Steam/EOS integration** (OQ-B10-02) is the biggest swing item here. Direct-IP only is much simpler and is what the project has assumed throughout; Steam networking removes port-forwarding pain for testers, which materially affects B11's participation rate. It is a real trade, not a formality.
 - **Voice chat** (OQ-B10-09): recommend relying on Discord. Building voice chat for a 2–4 player co-op game whose players are almost certainly already in a call is poor value.
 - **Cross-platform is POST-BETA.** PC only.

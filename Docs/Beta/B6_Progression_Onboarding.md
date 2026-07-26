@@ -1,17 +1,25 @@
-# B6 — Skills, Progression, Character Creation & Onboarding
+# B6-Sys / B6-Content — Progression Framework (Stage 1) & Backgrounds/Narrative (Stage 2)
 
-**Size: L (16–20 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B0, B4 (hard)** · **Blocks: B11**
+> **Split 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`). The dev's own answer on backgrounds was explicit: "will compile a full list later, not important for specifics, but need ability to create and assign starting values to the starting types." That's a request for the *system* now and the *content* later — so this phase splits the same way B4 did:
+> - **B6-Sys (Stage 1 — do now):** T1 below, generic and data-driven — `UZSSkillComponent`, `UZSSkillConfig`, and a genuinely generic `UZSBackgroundConfig` the dev can create instances of and assign starting values to. No roster, no names, no flavor yet.
+> - **B6-Content (Stage 2 — do later):** T2–T5 below — XP hookup across every system (needs those systems final, which is why it waits), the actual background roster/names, and onboarding content.
 
-> **XP hookup touches every gameplay system**, so those systems must be final — which is why this sits after B4 rather than early. Backgrounds pick starting spawn points (Decision 4), which need the real map.
->
-> **⚠ Blocked on CR-01.** `ZombieShooter_Consolidated_Changes.md` §9 refers to "the six v1 skills (Melee, Firearms, Fitness, Medicine, Carpentry, Survival)" — the **superseded 2026-07-18 list**. `GameDevPlan.md` §3.1 (revised 2026-07-19) replaced it. **This phase is planned against §3.1.** If §9 was a deliberate reversal, this phase changes shape substantially, and Carpentry would pull base-building into v1 — an XL swing. **Resolve CR-01 before starting.**
+**Size: L (16–20 dev-sessions total across both)** · **Gate: `[PUBLIC]`** · **Depends on: B0 (B6-Sys); B0, B4X (B6-Content, hard)** · **Blocks: B11**
 
-## Entry criteria
+> **⚑ CR-01 resolved 2026-07-26 (dev-confirmed).** "Use the `GameDevPlan.md` list (longer one)." The six-flat-skill list some source docs quoted is dead — this phase is planned against `GameDevPlan.md` §3.1, now confirmed, not just assumed.
 
-- [ ] **CR-01 resolved** — which skill roster is real.
+## Entry criteria (B6-Sys, Stage 1)
+
+- [x] CR-01 resolved — §3.1's list is correct.
+- [ ] B0 complete.
+
+## Entry criteria (B6-Content, Stage 2)
+
 - [ ] B0 complete — every system XP hooks into must be final.
-- [ ] B4 complete — backgrounds need real spawn locations (placed in B4-T10.3).
-- [ ] **OQ-B6-04/05/06 answered (BLOCKING)** — background roster, background tradeoffs, radio tutorial pacing. All three are DEFERRED items from Consolidated §10 and this is the plan's largest single gap area.
+- [ ] B4X complete — backgrounds need real spawn locations (placed in B4X-T10.3).
+- [x] **OQ-B6-04 — partially resolved 2026-07-26.** The system (generic, data-driven) is B6-Sys's job, done in Stage 1. The actual roster/names are still the dev's own list, "later" — not blocking, just not written yet.
+- [x] **OQ-B6-05 resolved 2026-07-26 (dev-confirmed).** Backgrounds carry a **real tradeoff**, not purely additive.
+- [ ] **OQ-B6-06 still open** (radio tutorial pacing) — genuinely undecided, not addressed in the rescope pass.
 
 ## Exit criteria
 
@@ -25,9 +33,9 @@
 
 ## Task breakdown
 
-### B6-T1 — Skill/attribute framework · **M (4–5 sessions)**
+### B6-Sys-T1 — Skill/attribute framework · **M (4–5 sessions)** · **Stage 1 — do now**
 
-Per `GameDevPlan.md` §3.1 (pending CR-01).
+Per `GameDevPlan.md` §3.1 (CR-01 resolved 2026-07-26). **Build this generically enough that T1.4's config asset covers backgrounds too** — the dev wants to be able to create a background and assign its starting stat/skill values without new C++, which is exactly the multi-config rule already applied to everything else in this project.
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
@@ -38,7 +46,7 @@ Per `GameDevPlan.md` §3.1 (pending CR-01).
 | T1.5 | **No skill decay** (CONFIRMED). Skills stay at earned level permanently. Do not build a decay path "for later." | X-8 |
 | T1.6 | **Per-skill XP rate is an exposed tunable** (CONFIRMED), surfaced in B9's settings even though full sandbox sliders stay post-v1. | X-8 |
 
-### B6-T2 — XP hookup across systems · **M (4–5 sessions)** · *depends on T1*
+### B6-Content-T2 — XP hookup across systems · **M (4–5 sessions)** · *depends on T1* · **Stage 2 — waits on the systems it hooks into being final**
 
 The cross-cutting task. Each hookup is small; there are many.
 
@@ -56,7 +64,7 @@ The cross-cutting task. Each hookup is small; there are many.
 | T2.10 | XP curves authored per skill into `TuningReference.md` → OQ-B6-01. |
 | T2.11 | **Skill feedback UI** (B1's architecture): level-up notification, a character sheet, and hover-preview of what the next level actually gives — the transparent-stat-preview pillar. |
 
-### B6-T3 — Practice loops · **S (2–3 sessions)** · *depends on T2*
+### B6-Content-T3 — Practice loops · **S (2–3 sessions)** · *depends on T2* · **Stage 2**
 
 OPEN FOR EXPLORATION per Consolidated §9 → OQ-B6-02.
 
@@ -66,19 +74,19 @@ OPEN FOR EXPLORATION per Consolidated §9 → OQ-B6-02.
 | T3.2 | Practice loops are discoverable through play, ideally surfaced by the radio tutorial arc (T5). |
 | T3.3 | Practice never outpaces real use — using a skill in genuine danger must remain the better XP source, or the game teaches players to stand in a basement hitting a wall. |
 
-### B6-T4 — Backgrounds & character creation · **M (4–5 sessions)** · *depends on T1; blocked by OQ-B6-04/05*
+### B6-Content-T4 — Backgrounds & character creation · **M (4–5 sessions)** · *depends on T1* · **Split: T4.1's data structure is Stage 1 (B6-Sys), T4.2 onward is Stage 2 (B6-Content)**
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T4.1 | `UZSBackgroundConfig` data asset. **Primary differentiator is higher starting proficiency in specific skills** (CONFIRMED) — e.g. Soldier starts with higher Firearms. Not unique items. | X-9 |
-| T4.2 | Background roster authored (5–7 per `GameDevPlan` §3) → OQ-B6-04. Must suit the setting and **not mirror another game's occupation list**. |
-| T4.3 | Whether backgrounds carry balancing drawbacks → OQ-B6-05. |
+| T4.1 | **Move to B6-Sys, Stage 1.** `UZSBackgroundConfig` data asset, genuinely generic per the dev's explicit ask — create a background, assign its starting stat/skill values, zero C++ per new background. **Primary differentiator is higher starting proficiency in specific skills** (CONFIRMED) — e.g. Soldier starts with higher Firearms. Not unique items. | X-9 |
+| T4.2 | Background roster authored (5–7 per `GameDevPlan` §3) → **still open** (OQ-B6-04). The dev will provide his own list — "not important for specifics" right now. Must suit the setting and **not mirror another game's occupation list**. |
+| T4.3 | ✅ **RESOLVED 2026-07-26 (dev-confirmed).** Backgrounds **do carry balancing drawbacks/tradeoffs** — not purely additive. |
 | T4.4 | Whether a secondary unique unlock exists alongside proficiency → part of the same deferred pass. |
 | T4.5 | **Background-tied starting spawn** (Decision 4), using B4-T10.3's placed points, with the lobby-level **scatter-spawns toggle** for co-op groups who would rather start together. |
 | T4.6 | Appearance customization: modular characters from the art kit → OQ-B6-08. Name/gender/appearance independent of background choice. |
 | T4.7 | **No trait point-buy** (`GameDevPlan` §3, REPLACE). Build variety comes from background choice plus emergent play. |
 
-### B6-T5 — New-game flow & onboarding · **M (3–4 sessions)** · *depends on T4, B5-T3*
+### B6-Content-T5 — New-game flow & onboarding · **M (3–4 sessions)** · *depends on T4, B5-T3* · **Stage 2**
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|

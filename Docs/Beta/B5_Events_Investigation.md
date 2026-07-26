@@ -1,6 +1,8 @@
 # B5 — Dynamic Events, Radio & Investigation Arc
 
-**Size: L (18–22 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B4 (hard)** · **Blocks: B11 content completeness**
+**Stage 2 — Content, Depth & Release.** **Size: L (18–22 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B4X (hard)** · **Blocks: B11 content completeness**
+
+> **Updated 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): **OQ-B5-01 (the plot) — dev is "still planning, skip for now."** The three-act placeholder shape in T-tasks below was always an AI-authored example, never adopted — **brainstorm the actual plot live when this phase starts**, don't treat the placeholder as a draft to just fill in. Tone and event-roster count are also still genuinely open (not addressed in the rescope pass) — resolve both in that same live session, alongside the plot.
 
 > **This is the differentiator.** `GameDevPlan.md` §1 argues the project can exist next to Project Zomboid primarily because PZ has no missions/objectives layer and an empty late game. Everything else in the plan brings the project to parity; this phase is the part that makes it a different game.
 >

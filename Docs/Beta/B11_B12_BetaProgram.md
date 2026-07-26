@@ -1,6 +1,8 @@
 # B11 & B12 — The Beta Program
 
-Two sequential gates with genuinely different requirements. **B11 `[INTERNAL]`** = a closed group plays unsupervised for a full session without a developer present. **B12 `[PUBLIC]`** = strangers can obtain it and you can survive the support load.
+**Stage 2 — Content, Depth & Release** (final phases). Two sequential gates with genuinely different requirements. **B11 `[INTERNAL]`** = a closed group plays unsupervised for a full session without a developer present. **B12 `[PUBLIC]`** = strangers can obtain it and you can survive the support load.
+
+> **Updated 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): **OQ-B12-01/02 resolved** — pricing target **~$9.99**, **Early Access confirmed**, **Steam-only at first**. Treat these as real targets from here on, not placeholders.
 
 ---
 

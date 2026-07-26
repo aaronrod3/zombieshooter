@@ -1,6 +1,8 @@
 # B3 — Persistence, Save Architecture & Streaming Backbone
 
-**Size: L (16–20 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B0** · **Blocks: B4 (hard)**
+**Stage 1 — Core Playable Loop.** **Size: L (14–18 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B0** · **Blocks: B4X (hard; B4's Stage-1 systems work does not need this)**
+
+> **Rescoped 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): the save topology and death/world-continuity questions this phase was blocked on are now **resolved and simpler than either original proposal** — one continuously-overwritten world (no multiple slots, no player-facing rollback), and death always respawns into that same world regardless of solo/co-op. See `00_MasterPlan.md` CR-07. This removes an entire branch of complexity T1/T5 originally had to design around.
 
 > **Systems only, no content.** This phase builds and de-risks save/load and World Partition streaming **against the graybox map**, before a single production asset is placed. Doing it the other way round means revisiting every streaming cell once saves arrive.
 >
@@ -10,7 +12,7 @@
 
 - [ ] B0 complete — `FZSItemInstance` gives every item a stable `FGuid`, which is the serialization key. Serializing the old model would mean writing the save layer twice.
 - [ ] B0-T4 complete — the needs list is settled at 8. Serializing 6 then adding 2 means a save-version migration during beta.
-- [ ] **OQ-B3-01 answered (BLOCKING)** — save topology + world-lifetime rules. This is the largest unresolved architectural question remaining in the project.
+- [x] **OQ-B3-01 answered 2026-07-26 (dev-confirmed)** — one continuously-overwritten world, no player-facing rollback; death (solo or co-op) always respawns into the same persistent world. See `00_MasterPlan.md` CR-07.
 
 ## Exit criteria
 
@@ -28,7 +30,7 @@
 
 | Sub-task | Definition of done |
 |---|---|
-| T1.1 | OQ-B3-01 resolved and written up: one world per server vs. multiple slots; what a "world" is identified by; how party-wipe and solo-death world termination work (`GameDevPlan` §7 P3 backlog, CR-07/CR-12). |
+| T1.1 | ✅ Resolved 2026-07-26 (dev-confirmed), write up in code terms: **one continuously-overwritten world per install** (no multiple slots, no player-facing rollback — corruption-recovery backups are a separate, still-planned mechanism). **No party-wipe or solo-death world termination at all** — death always respawns a fresh character into the same world, `Server_RespawnAsNewCharacter`'s existing behavior already matches this. See `00_MasterPlan.md` CR-07 for the full resolution. |
 | T1.2 | `UZSSaveGameSubsystem` (`UGameInstanceSubsystem`) skeleton — owns all save orchestration. Single entry point; no system writes save files directly. |
 | T1.3 | **Save payload inventory** — an explicit, exhaustive written list of every piece of state that must persist, produced by walking each component. Anything not on the list is intentionally transient. See §Payload below. |
 | T1.4 | Serialization format decided (`USaveGame` + `FArchive`, or a custom binary/record format) → OQ-B3-02. |
@@ -124,6 +126,7 @@ CONFIRMED dual-limit system (Consolidated §11). Directly feeds B8's performance
 
 ## Notes
 
-- **Do not start B4 before PT5.** Every hour of region content built on an unproven save layer is an hour that may need redoing.
-- **Late-join is B10's**, not B3's — but B3's topology decision (T1.1) determines whether late-join is even possible, so make the call with B10 in mind.
+- **Do not start B4X (region content) before PT5.** B4's Stage-1 systems work (multi-level/darkness/weather on the existing graybox) does not depend on this, but every hour of *region content* built on an unproven save layer is an hour that may need redoing.
+- **Late-join is B10's**, not B3's — but B3's topology decision (T1.1, now resolved) determines whether late-join is even possible, so make the call with B10 in mind. The now-simpler single-world model should make late-join easier, not harder, than the originally-proposed multi-slot version.
 - **Cloud saves, Steam Cloud, and save sharing are POST-BETA.** Local files only.
+- **Dedicated-server hosting (new, see `GameDevPlan.md` §3 and `90_OpenQuestions.md` OQ-B10-01)** doesn't change this phase's scope — it's a B10 deployment-model question, not a save-architecture one — but keep the save subsystem host-agnostic rather than assuming a listen-server process lifetime, since B10 may eventually run it in a different hosting shape.

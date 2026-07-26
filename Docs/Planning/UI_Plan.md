@@ -1,6 +1,6 @@
 # UI — Planning Draft
 
-> **Status: DRAFT PROPOSAL, not plan of record.** Written 2026-07-22, unsupervised (dev away), following on from `Docs/Planning/InventoryLoadoutEquipping_Plan.md`. Kept out of `GameDevPlan.md`/`Docs/Phases/` for the same reason as that doc — nothing here is settled, it's a starting point for review. No UMG/Blueprint content was touched or will be (that's editor work, and this is a planning pass, not a build session) — this is entirely about what C++ surface needs to exist for a UI to bind to, and what the screens should actually contain.
+> **Status: DRAFT PROPOSAL, not plan of record.** Written 2026-07-22, unsupervised (dev away), following on from `Docs/Planning/InventoryLoadoutEquipping_Plan.md`. Kept out of `GameDevPlan.md` for the same reason as that doc — nothing here is settled, it's a starting point for review. No UMG/Blueprint content was touched or will be (that's editor work, and this is a planning pass, not a build session) — this is entirely about what C++ surface needs to exist for a UI to bind to, and what the screens should actually contain.
 >
 > Every UI system this project will ever build already depends on the item-instance work in the companion doc for its inventory/container/hotbar screens specifically — read that one first if you haven't. Sections here that assume it's been approved say so.
 
@@ -70,13 +70,13 @@ Bulk actions (your §21 "modern, transparent UX" framing, echoed in `GameDevPlan
 
 ### 4.3 Container loot screen (modal, reuses the Inventory screen's visual language)
 
-This is the first real gap to close in P6's content, not just its UI — today `AZSContainerActor` only supports a blind "loot everything" action with **no UI at all**, which was an explicit, documented v1 bootstrap, not the intended final behavior. `Docs/Phases/P6_InventoryLoot.md`'s own task list already calls for letting a player "pick individual items out one at a time."
+This is the first real gap to close in P6's content, not just its UI — today `AZSContainerActor` only supports a blind "loot everything" action with **no UI at all**, which was an explicit, documented v1 bootstrap, not the intended final behavior. `Docs/Beta/B1_UI_UX.md`'s T6.2 already calls for letting a player "pick individual items out one at a time."
 
 Layout: player's own carry list (left/top) next to the container's `ContainerSlots` (right/bottom), click-or-drag to transfer one item at a time, plus a "take all" button that still exists for the times you genuinely just want everything. Needs the `ContainerSlots` delegate + `Server_TransferItem` from §3.
 
 ### 4.4 Death / respawn screen (non-interactive countdown, arguably not "modal" since there's nothing to click)
 
-Simple: cause-of-death text (needs the death-cause capture from §3), a countdown to `RespawnDelaySeconds` (already exists, just needs reading). `Docs/Phases/P3_HealthDamageMedical.md` already documents that there's no real spectator camera yet, just a timer — the UI can ship a countdown overlay without waiting on that; a spectate camera is a separate, bigger feature if it's ever wanted (flagged in §5, not planned here).
+Simple: cause-of-death text (needs the death-cause capture from §3), a countdown to `RespawnDelaySeconds` (already exists, just needs reading). There's no real spectator camera yet, just a timer — the UI can ship a countdown overlay without waiting on that; a spectate camera is a separate, bigger feature if it's ever wanted (flagged in §5, not planned here).
 
 ### 4.5 Sleep / time-skip prompt (small, non-modal, low risk)
 
@@ -88,7 +88,7 @@ Both `DevMarkupNotes.md` §21 and `GameDevPlan.md`'s P6 section reference "radia
 
 ## 5. Explicitly not planned here (out of scope for this pass, flagging so they're not silently forgotten)
 
-- A real spectator/death camera (vs. today's disabled-input timer) — bigger scope, `Docs/Phases/P3_HealthDamageMedical.md` already tracks the gap.
+- A real spectator/death camera (vs. today's disabled-input timer) — bigger scope, already a known gap.
 - Any crafting UI — no crafting system exists yet anywhere in the codebase; premature to plan its screen.
 - A map/quest-log UI — belongs to P8 (events/investigation), not this pass.
 - Settings/options menus, main menu, multiplayer lobby UI — none of these were asked for and none block gameplay testing; standard UE boilerplate whenever they're actually needed.
@@ -105,8 +105,10 @@ Both `DevMarkupNotes.md` §21 and `GameDevPlan.md`'s P6 section reference "radia
 
 ## 7. Open questions
 
+> **Updated 2026-07-26** — question 2 answered (partially) via `Docs/Planning/RescopeQuestionnaire.md`; still not a final layout, per the dev's own "I will design this later."
+
 1. **`IA_Inventory`'s key binding** — needs to exist before the Inventory screen can open at all; your call same as every other input action so far.
-2. **Confirm the "single scrollable list, not PZ's dual-pane grid" direction (§4.2)** — this is the biggest visual-design call in this doc and I'd rather it be an explicit yes than an assumption that ships.
+2. ⚑ **Answered, differently than recommended — not final.** Dev's own words: "I like the idea of separate containers for inventory, and equipment slots that the player drags items into to assign." That leans toward **distinct equipment-slot drag targets** (hotbar/`Back`/`Hip`/future clothing as visible icon slots) **alongside** a general carry-container list — closer to a hybrid than this doc's single-flat-scrollable-list recommendation, though not necessarily PZ's full dual-pane grid either. Treat §4.2 below as a starting point to react to, not a locked layout — raise it as a real check-in when this screen actually gets designed.
 3. **Screen-space vs. world-space interaction prompt (§4.1)** — recommended screen-space given TopDown's camera angle; flag if you pictured something else.
 4. **Radial quick-use priority (§4.6)** — build in the first UI pass, or genuinely defer toward P9-style polish? Recommended the latter.
 5. **Spectator camera for the death screen (§4.4)** — worth planning properly at some point, or is a countdown overlay the intended permanent behavior?

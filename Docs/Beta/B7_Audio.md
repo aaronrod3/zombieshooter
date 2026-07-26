@@ -1,6 +1,8 @@
 # B7 — Audio Production & Horde AI Solution
 
-**Size: L (14–18 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B4 (hard)** · **Blocks: B8, B11**
+**Stage 2 — Content, Depth & Release.** **Size: L (14–18 dev-sessions)** · **Gate: `[PUBLIC]`** · **Depends on: B4X (hard)** · **Blocks: B8, B11**
+
+> **Updated 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): audio middleware (UE built-in + MetaSounds) and music direction (sparse/event-driven) both confirmed "sounds good" — OQ-B7-02/04 resolved as originally recommended. **Horde ambition raised**: genuinely large hordes (100+, visually distinct) are confirmed important to the dev's vision, not a cuttable stretch goal if performance is tight — the horde-coordination *approach* (OQ-B7-01) stays gated on profiling measurements, but the bar for an acceptable answer just went up. Also incorporate the new zombie "freshness" mechanic (scheduled in B4X-T7.0) into the vocalization set — a fresher/faster zombie probably wants a different vocal read than a degraded/slower one.
 
 > **Two things share this phase for a reason.** Audio needs real spaces to be authored for. The horde-coordination solution needs B0's profiling baseline *and* B4's production content to be designed against, because CONFIRMED guidance explicitly subordinates that design to whatever performs best. Both land here, and they interact: a horde is as much an audio event as an AI one.
 >

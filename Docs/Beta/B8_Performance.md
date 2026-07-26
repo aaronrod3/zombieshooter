@@ -1,6 +1,8 @@
 # B8 — Performance, Profiling & Optimization
 
-**Size: L (12–16 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B4, B7** · **Blocks: B10, B11**
+**Stage 2 — Content, Depth & Release.** **Size: L (12–18 dev-sessions)** · **Gate: `[INTERNAL]`** · **Depends on: B4X, B7** · **Blocks: B10, B11**
+
+> **Re-baselined 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): the original 2–4 player / ~1×1 km / ~150-zombie assumptions this phase's budget was sized against are all now bigger — **4+ players** (OQ-X-03), a **larger map** (OQ-B4-01), and a **confirmed-important large horde**, not a stretch goal (CR-08). Measure and budget against these raised targets, not the originals. Dev also confirmed wanting to "keep the game light" — performance-conscious, so the raised ambition and the light-footprint goal both apply; don't read one as cancelling the other.
 
 > **Profiling starts at B0, not here.** CONFIRMED guidance is "profile early, don't retrofit efficiency later," and B0-T12 builds the fixed stress-test scenario for exactly that reason. This phase is the **dedicated optimization pass against final content** — the point where budgets stop being observations and become commitments.
 >

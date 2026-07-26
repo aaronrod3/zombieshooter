@@ -1,17 +1,19 @@
 # B0 — Stabilization & Reconciliation
 
-**Size: L (14–18 dev-sessions)** · **Gate contribution: prerequisite for everything** · **Blocks: B1, B2, B3, and therefore all of them**
+**Size: L (14–18 dev-sessions)** · **Gate contribution: prerequisite for everything** · **Blocks: B1, B3, B4, and therefore all of Stage 1**
 
 > **Why this phase exists.** Roughly four sessions of C++ shipped between 2026-07-21 and 2026-07-22 with a single PIE confirmation covering two features. Underneath it sits a data model the project's own planning doc says is wrong (`Docs/Planning/InventoryLoadoutEquipping_Plan.md` §3–§5). On top of it, the consolidated changes revise five shipped behaviours and add three subsystems. **Every one of those facts gets more expensive the longer it waits.** B0 is the cheapest this work will ever be.
 >
 > **The rule for this phase: no new player-facing features that aren't in the revision register.** If it isn't in `01_RevisionRegister_P0-P6.md`, it belongs in a later phase.
+>
+> **Rescoped 2026-07-26 for process, not just content** (`Docs/Planning/RescopeQuestionnaire.md`). Two changes apply throughout this file: **(1) checkpoint after each individual feature or fix**, not just at the six original PT milestones — the dev's explicit preference is to see/test things in small pieces, not phase-sized chunks. Every sub-task below that changes player-visible or testable behavior now ends with an explicit "stop and verify" note. **(2) Minimize chained dependency between steps** — where a task was previously "one uninterrupted block," it's now broken into independently-testable steps so a failure partway through doesn't invalidate everything built on top of it. B0-T2 (the item-instance refactor) is the main beneficiary of this; see its rewritten breakdown below. Several content decisions also changed — see the callouts inline (infection legibility reversed, melee display resolved, death/world-continuity simplified).
 
 ---
 
 ## Entry criteria
 
-- [ ] `Docs/Beta/00_MasterPlan.md` §2 Contradiction Register reviewed; **CR-01, CR-02, CR-10 answered** (the three ⚠ NEEDS YOUR CALL items). CR-01 and CR-02 do not block B0 itself but must be answered before B5/B4 respectively — resolve them in the same sitting to avoid a second design session.
-- [ ] **OQ-B0-13 answered** (item-instance refactor go/no-go). This is the hard blocker — B0-T2 is a third of the phase and half of it is unrecoverable if the direction changes mid-way.
+- [x] `Docs/Beta/00_MasterPlan.md` §2 Contradiction Register — **all items resolved 2026-07-26**, dev-confirmed (CR-01 through CR-12). Several reverse the original AI-guessed resolution (CR-02 vehicles, CR-06 infection legibility, CR-07 death/save rule, CR-04 camera fallback) — read the updated register before assuming anything about B0's tasks below matches what you remember.
+- [x] **OQ-B0-13 answered** — do the item-instance refactor now, dev-confirmed, but as independently-testable steps (see rewritten B0-T2).
 - [ ] Working tree committed. `git status` shows the large untracked content directories resolved one way or the other (`Content/Animation/`, `Content/Maps/`, `Plugins/`, etc. are currently untracked — decide gitignore vs. commit per the $0 LFS budget rule **before** a refactor makes the diff unreadable).
 - [ ] A known-good build exists and is tagged (`git tag b0-baseline`), so any regression during the refactor has a bisect target.
 
@@ -129,23 +131,62 @@ struct FZSItemInstance
 
 **Invariant to hold throughout:** stackable and per-instance-stateful are mutually exclusive by construction. `MaxStackSize > 1` ⇒ `InstanceState` is never read. This is what makes the model tractable.
 
+**Restructured 2026-07-26 into independently-testable steps, per dev preference (`Docs/Planning/RescopeQuestionnaire.md` Part 0 + item-instance section).** All four bundled additions below are dev-confirmed KEEP; the change is sequencing, not scope. Each step ends with a real checkpoint — don't start the next step until the current one is PIE-verified. `Docs/Planning/InventoryLoadoutEquipping_Plan.md` §8 is the source order.
+
+**Step A — foundation (T2.1–T2.3).** The one part that genuinely can't be split further — the codebase is non-compiling mid-way through.
+
 | Sub-task | Definition of done | Ref |
 |---|---|---|
 | T2.1 | `FZSItemInstance` / `FZSItemInstanceState` / `EZSCarryLocation` defined; replicates correctly (`FGuid` and nested structs both replicate; verify in 2-client PIE, not by inspection). | Planning §5 |
 | T2.2 | `UZSInventoryComponent::CarrySlots` → `TArray<FZSItemInstance>`. `Server_AddItem` mints a new GUID for `MaxStackSize == 1` items, merges stacks otherwise. | P6-R3 |
-| T2.3 | `AZSWorldItemActor` and `AZSContainerActor` carry a full `FZSItemInstance`, not `Config + Count`. **Dropping and re-picking-up your own weapon preserves its `InstanceId` and state** — this is the acceptance test for the whole task. | P5-R5 |
+| T2.3 | `AZSWorldItemActor` and `AZSContainerActor` carry a full `FZSItemInstance`, not `Config + Count`. | P5-R5 |
+
+> **✋ Checkpoint A.** Compile, 2-client PIE: pick up a stackable item and a non-stackable item, confirm both get correct GUIDs, confirm a dropped item's GUID survives being picked back up. Don't proceed to Step B until this passes.
+
+**Step B — hotbar rewire & equip/unequip (T2.4–T2.8).** The single highest-value step — this is the literal fix for "you can't hotbar a looted weapon."
+
+| Sub-task | Definition of done | Ref |
+|---|---|---|
 | T2.4 | `AZSPlayerCharacter::HotbarSlots` → `TArray<FGuid>`. `StartingHotbarLoadout` stays authorable as a list of configs but now seeds real instances into `CarrySlots` at `BeginPlay` and points the hotbar at their GUIDs. | P5-R4 |
 | T2.5 | `UZSInventoryComponent::EquippedBack`/`EquippedHip` → `FGuid`. | Planning §5 |
 | T2.6 | **Equip flow** resolves GUID → instance, seeds `AZSWeapon::CurrentDurability` from `InstanceState.CurrentDurability` (falling back to `Config->MaxDurabilityHits × ConditionQuality` when `-1`). | P5-R5 |
 | T2.7 | **Unequip flow** writes `CurrentDurability` back to the instance *before* `CurrentWeapon->Destroy()`. | P5-R5 |
 | T2.8 | **Breaking a weapon** removes the instance from `CarrySlots` entirely and clears the hotbar GUID — the item is genuinely gone, not orphaned. | Planning §5 |
+
+> **✋ Checkpoint B (the headline acceptance test).** Loot a weapon from a container or the world, put it on the hotbar, equip it, take it to half durability, unequip, re-equip — **durability must still show half**, not reset to full. Break a weapon and confirm it's actually gone from the inventory, not just the hotbar. 2-client PIE. This is the specific bug the whole refactor exists to fix — don't move on until it's genuinely verified, not just "looks right."
+
+**Step C — carry locations & loot condition (T2.9–T2.10).** Separable; can slip a session without blocking anything else.
+
+| Sub-task | Definition of done | Ref |
+|---|---|---|
 | T2.9 | **`EZSCarryLocation` enforcement**: `OnPerson` capacity is a small fixed base; `Bag` capacity exists only while a bag is equipped in `Back`/`Hip`. Unequipping a bag with items in it must have defined behaviour (drop to world / block the unequip — pick one and state it). | CR-09, P6-R1 |
 | T2.10 | **`ConditionQuality` rolled at spawn** inside `UZSLootTableConfig`'s weighted roll, banded by rarity tier. | P6-R2 |
-| T2.11 | **Ammo becomes a real inventory item.** Remove `AZSWeapon::CurrentReserveAmmo`/`MaxReserveAmmo`; reload draws from a matching ammo `FZSItemInstance` stack. Ammo now weighs, loots, drops, and can be shared. | P5-R6, OQ-B0-09 |
-| T2.12 | **`EZSWeaponHandedness { OneHanded, TwoHanded }`** + `bool bUsableInSecondaryHand` added to `UZSWeaponConfig`. Two-handed blocks `SecondaryHand`. Arm amputation restricts to `OneHanded`. | P5-R7, P3-R8 |
-| T2.13 | Full 2-client PIE pass on the loot→hotbar→equip→break→drop→repick cycle. | — |
 
-> **Sequencing note.** Do T2.1–T2.8 as one uninterruptible run if possible — the codebase is in a non-compiling intermediate state between them. T2.9–T2.12 are separable and individually shippable.
+> **✋ Checkpoint C.** Equip a bag, confirm capacity rises; unequip it with items in the bag-only space and confirm the defined behavior actually happens. Loot the same item twice from a rare-tier table and confirm condition genuinely varies.
+
+**Step D — ammo as a real item (T2.11).** Independent of B/C — could be done earlier if it's ever more convenient.
+
+| Sub-task | Definition of done | Ref |
+|---|---|---|
+| T2.11 | **Ammo becomes a real inventory item.** Remove `AZSWeapon::CurrentReserveAmmo`/`MaxReserveAmmo`; reload draws from a matching ammo `FZSItemInstance` stack. Ammo now weighs, loots, drops, and can be shared. | P5-R6, OQ-B0-09 |
+
+> **✋ Checkpoint D.** Fire a weapon empty, reload from a carried ammo stack, confirm the stack count drops by the right amount. Drop ammo, have a second player pick it up and reload from it.
+
+**Step E — handedness fields (T2.12).** Cheap, pure data-classification.
+
+| Sub-task | Definition of done | Ref |
+|---|---|---|
+| T2.12 | **`EZSWeaponHandedness { OneHanded, TwoHanded }`** + `bool bUsableInSecondaryHand` added to `UZSWeaponConfig`. Two-handed blocks `SecondaryHand`. Arm amputation restricts to `OneHanded`. | P5-R7, P3-R8 |
+
+> **✋ Checkpoint E.** Confirm a two-handed weapon config genuinely blocks `SecondaryHand` (once B0-T11 exists) and that the field is readable/settable per weapon.
+
+**Step F — full-cycle regression (T2.13).**
+
+| Sub-task | Definition of done |
+|---|---|
+| T2.13 | Full 2-client PIE pass on the loot→hotbar→equip→break→drop→repick cycle, all steps above together. |
+
+**Deliberately not in B0:** stat-affecting weapon attachments (scopes/silencers with real gameplay effects). The dev confirmed he wants these eventually — reversing the design doc's own recommendation against building them — but they're scoped as their own later weapon-depth pass (Stage 2), once this foundation is solid, per `Docs/Planning/InventoryLoadoutEquipping_Plan.md` §8's own step 7.
 
 ---
 
@@ -160,8 +201,8 @@ struct FZSItemInstance
 | T3.5 | **Aim-cone model.** `Server_Fire` resolves within a spread cone rather than a perfect ray. Per-weapon `HipFireSpreadDegrees` / `AimedSpreadDegrees` on `UZSWeaponConfig`. | P1-R5 |
 | T3.6 | **Headshot weighting** — the cone resolves to a **body zone**, not just a point, feeding the existing 4-zone model. Separate hip-fire vs. aimed weighting values. | P1-R5, OQ-B0-02 |
 | T3.7 | **Elevation interface + single-floor stub.** `IZSElevationProvider` (or a `UZSElevationSubsystem`) answers "what floor/Z-plane is this actor on?" Aim rays resolve against that plane. B0 ships a stub that always returns the ground plane; B4 implements real multi-level. **Building the interface now means B4 is a swap, not a retrofit.** | P1-R6 |
-| T3.8 | **PT2 camera sign-off passes** (below). | — |
-| T3.9 | **Only after T3.8:** delete `ToggleCameraPerspective`, `IA_ToggleView`, `EZSCameraPerspective`, and the ThirdPerson camera path. Update `CLAUDE.md`'s architecture section. | P1-R1, CR-04 |
+| T3.8 | **PT2 camera feel/tuning checkpoint passes** (below). ⚑ **Changed 2026-07-26**: this is no longer a go/no-go gate on whether to delete the perspective code — the dev confirmed top-down permanently, no fallback wanted. A bad PT2 result now means *re-tune* (cone width, zoom presets, headshot weighting), not *revert*. | — |
+| T3.9 | Delete `ToggleCameraPerspective`, `IA_ToggleView`, `EZSCameraPerspective`, and the ThirdPerson camera path **without waiting on PT2's result** — the dev already confirmed this direction. Update `CLAUDE.md`'s architecture section. | P1-R1, CR-04 |
 
 ---
 
@@ -200,7 +241,7 @@ struct FZSItemInstance
 |---|---|---|
 | T6.1 | **`EZSWoundInfectionState`** per zone, distinct from `EZSInfectionStage`. Progresses on the game-hour clock when a wound is dirty and untreated. Slows healing. **Never fatal alone.** | P3-R1 |
 | T6.2 | `Server_Disinfect` cures wound infection; **explicitly does nothing to bite infection.** | P3-R1 |
-| T6.3 | **Ambiguity preserved.** Both tiers surface through the same player-facing signals (nausea, temperature, weakness). No UI element names which tier is active. This constrains B1 — record it as a design constraint on the HUD, not just a note here. | P3-R2, OQ-B0-07 |
+| T6.3 | ⚑ **REVERSED 2026-07-26 (dev-confirmed) — was "preserve ambiguity," is now the opposite.** Both tiers must be **plainly, legibly shown** — the player should know when they've been bitten and know when an infection (either tier) is active. No more "identical signals, no UI element names the tier." This constrains B1 the same way the old rule did, just in the other direction — record it as a design requirement on the HUD (show it clearly), not a suppression rule. | P3-R2, CR-06 |
 | T6.4 | **Bite-infection fatal timeline** authored in in-game hours per stage into `UZSHealthConfig` + `TuningReference.md`. | P3-R12, OQ-B0-08 |
 | T6.5 | **Medical-tier incubation delay** — per-tier delay field on `UZSItemConfig`'s Bandage/Disinfectant entries, extending the amputation decision window. | P3-R9 |
 
@@ -243,8 +284,8 @@ struct FZSItemInstance
 |---|---|---|
 | T9.1 | **Loot stays at the death location** — the player's `CarrySlots` instances spawn as `AZSWorldItemActor`s (or a corpse container) on death, preserving `InstanceId` and state. Directly enabled by T2. | P3-R11 |
 | T9.2 | **The dead player becomes a zombie** — `AZombieCharacter` gains a death-triggered spawn path (it currently only supports placement/config-driven spawning). | P3-R11 |
-| T9.3 | Co-op respawn-as-new-character flow re-verified against the new loot rules. | — |
-| T9.4 | **Deferred to B3:** party-wipe ends the world; solo death ends the world outright. Both are save-topology decisions — OQ-B3-01. Record the dependency; do not implement here. | CR-07 |
+| T9.3 | Respawn-as-new-character flow re-verified against the new loot rules — **solo and co-op alike**, no special-casing needed. | — |
+| T9.4 | ⚑ **Simplified 2026-07-26 (dev-confirmed) — no longer deferred, because there's nothing left to defer.** The old plan deferred an asymmetric "solo death ends the world" rule to B3. That rule is gone: death always respawns into the **same persistent world**, solo included. `Server_RespawnAsNewCharacter`'s existing always-same-world behavior already matches this — nothing further to build here. B3 still owns save *topology* (one continuously-overwritten world, corruption-recovery backups), just not a death-triggered world-ending rule. | CR-07 |
 
 ---
 
@@ -255,10 +296,10 @@ struct FZSItemInstance
 | T10.1 | **Jamming.** `UZSWeaponConfig` gains `bJamImmune` (true for revolvers/bolt-actions) + a jam-chance curve scaling off `InstanceState.CurrentDurability` × `ConditionQuality`. Jammed state on `AZSWeapon`; clear-jam action via montage + `bIsBusy`. | P5-R1 |
 | T10.2 | Jam has **legible feedback** — distinct audio cue + a HUD indicator hook for B1. A silent jam is a bug report. | P5-R1 |
 | T10.3 | **Melee costs stamina.** Per-weapon `MeleeStaminaCost` on `UZSWeaponConfig` + an `UnarmedStaminaCost` tunable. **No separate strain mechanic** — stamina alone governs swing-spam. | P5-R2 |
-| T10.4 | **Downed zombie state.** A real AI state (Blackboard key + BT branch), entered from knockback/damage thresholds — not just the current physical `LaunchCharacter` impulse. | P5-R3, OQ-B0-03 |
+| T10.4 | **Downed zombie state.** A real AI state (Blackboard key + BT branch), entered from knockback/damage thresholds — not just the current physical `LaunchCharacter` impulse. **Dev-confirmed KEEP 2026-07-26**, with one added constraint: "find alternatives to make sure this isn't copying PZ" — the state itself is fine, but see T10.6 for the finisher-mechanic requirement. | P5-R3, OQ-B0-03 |
 | T10.5 | **`PerformMeleeSwing` excludes downed targets** from a standing swing's arc, unconditionally. | P5-R3 |
-| T10.6 | **Stomp/finisher action** — a deliberate input that targets a downed enemy. Needs an input-action decision (OQ-B0-03). | P5-R3 |
-| T10.7 | Melee weapon display/attachment resolved and a real melee `UZSWeaponConfig` authored (replacing T1.1's temporary version). | P5-R9, OQ-B0-11 |
+| T10.6 | **Stomp/finisher action** — a deliberate input that targets a downed enemy. ⚑ **Needs a design pass before implementation, not just an input-action decision** — the dev wants a mechanic that reads as this game's own take, not a direct port of PZ's stomp. Flag for a quick check-in on the specific execution before building it; the input-binding options in OQ-B0-03 are still reasonable, the *finishing action itself* is what needs a fresh take. | P5-R3 |
+| T10.7 | ✅ **RESOLVED 2026-07-26 (dev-confirmed).** Melee weapon display: grouped poses by weapon *category*, not one universal pose and not one per individual weapon — long-guns (rifle/shotgun/LMG) share a `TP_Mesh` pose, pistols share their own, melee weapons share their own. Author the real melee `UZSWeaponConfig` against this (replacing T1.1's temporary rifle-pose reuse). | P5-R9, OQ-B0-11 |
 
 ---
 
@@ -294,7 +335,7 @@ CONFIRMED requirement (Consolidated §12): a **single, reusable** stress-test sc
 | ID | When | What is specifically being tested | Pass condition |
 |---|---|---|---|
 | **PT1** | End of B0-T1 | **2-client baseline re-established.** Fire, reload, aim, sprint, crouch, hotbar switch, melee, loot, drop — from *both* clients, with each observing the other. | The last verified 2-client state (P0's exit) is matched or exceeded. Every divergence between what a client sees locally and what the other client sees is logged. |
-| **PT2** | B0-T3, **before T3.9** | **⚑ CAMERA SIGN-OFF — the replacement for the deleted over-shoulder hedge (CR-04).** Play 20+ minutes: navigate an interior, fight 3+ zombies at range and in melee, loot a container, read your own character's state at both zoom extremes. | You can commit to top-down-only permanently. **If this fails, stop — do not delete the perspective code.** Reopen Decision 1 instead. This is the single highest-consequence gate in B0. |
+| **PT2** | B0-T3 | **⚑ CAMERA FEEL/TUNING CHECKPOINT** (reframed 2026-07-26 — no longer gates the perspective-code deletion, which already happened per the dev's confirmed direction). Play 20+ minutes: navigate an interior, fight 3+ zombies at range and in melee, loot a container, read your own character's state at both zoom extremes. | Aim-cone, zoom range, and headshot weighting feel right at the dev's own stated bar (PZ-like feel, DK2 framing). **If this fails, re-tune the numbers** — cone width, zoom presets, headshot split — within top-down. There's no fallback camera to revert to, so failure here means another tuning pass, not a design reopening. |
 | **PT3** | End of B0-T4 | **Survival needs.** Run a compressed-clock session through hunger/thirst/fatigue decay into severe tiers. Get wet in the debug rain, get cold, stack them. Sprint while encumbered to exhaustion. | Needs degrade performance without killing outright (the pillar). Wet+cold compounds. Encumbrance never hard-blocks sprint. All 8 needs reach and leave every severity tier. |
 | **PT4** | End of B0-T8 | **Noise stress test (CONFIRMED requirement).** Specific scenarios, not general pass/fail: (a) unsuppressed gunshot at a known distance — verify exactly the zombies inside `FireNoiseRadius` respond and those outside do not; (b) melee swing at close range vs. a sleeping/wandering group; (c) sprint-start noise; (d) **wet vs. dry footsteps at the same distance produce measurably different response radii**; (e) two clients firing simultaneously — verify noise events do not double-count or drop; (f) a noise event fired at the edge of a streaming boundary. | Each scenario's actual response radius matches its configured radius within tolerance, **measured**, from both clients. |
 | **PT5** | End of B0-T10 | **Full combat loop.** Loot a weapon → hotbar it → equip → fight → weapon degrades → jams → clear the jam → weapon breaks. Melee to exhaustion. Knock a zombie down and stomp it. | Durability persists across an unequip/re-equip cycle (the refactor's headline fix). Jams are legible. A standing swing never hits a downed zombie. |
@@ -312,4 +353,4 @@ CONFIRMED requirement (Consolidated §12): a **single, reusable** stress-test sc
 
 ## What B0 explicitly does NOT do
 
-Inventory UI · moodle UI · HUD (all B1) · real multi-level geometry · weather visuals · basements (B4) · save/load (B3) · horde-coordination redesign (B7) · stat-modifying attachments (post-beta unless OQ says otherwise) · zone system (B4) · door-thumping (B4, needs doors) · any new weapon or item content beyond the minimum needed to run the verification stages (T4).
+Inventory UI · moodle UI · HUD (all B1) · real multi-level geometry (B4 builds it on graybox; B4X builds it at content scale) · weather visuals · procedural basements (**cut entirely, dev-confirmed 2026-07-26** — fixed authored map instead) · save/load (B3) · horde-coordination redesign (B7, though the ambition behind it is now confirmed high) · **stat-affecting weapon attachments (confirmed wanted, but scoped as its own later weapon-depth pass in Stage 2 — not "maybe never," just "not here")** · zone system (B4) · door-thumping (B4, needs doors) · vehicles (own Stage-2 phase, `BV`) · zombie "freshness" mechanic (scheduled with the zombie AI depth pass, `OQ-B4-12`) · any new weapon or item content beyond the minimum needed to run the verification stages (T4).
