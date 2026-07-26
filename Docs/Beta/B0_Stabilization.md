@@ -293,12 +293,12 @@ struct FZSItemInstance
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T10.1 | **Jamming.** `UZSWeaponConfig` gains `bJamImmune` (true for revolvers/bolt-actions) + a jam-chance curve scaling off `InstanceState.CurrentDurability` × `ConditionQuality`. Jammed state on `AZSWeapon`; clear-jam action via montage + `bIsBusy`. | P5-R1 |
+| T10.1 | **Jamming.** `UZSWeaponConfig` gains `bJamImmune` (true for revolvers/bolt-actions) + a jam-chance curve scaling off `InstanceState.CurrentDurability` × `ConditionQuality`. Jammed state on `AZSWeapon`; clear-jam action via montage + `bIsBusy`. ⚑ **Named and bound 2026-07-26 per `Docs/InputBindings.md`: "Rack Firearm," `Alt+R`** — confirm whether racking has any use outside clearing a jam (e.g. required after certain reloads) before implementing, since the name implies a manual-chamber action, not just a jam-clear button. | P5-R1 |
 | T10.2 | Jam has **legible feedback** — distinct audio cue + a HUD indicator hook for B1. A silent jam is a bug report. | P5-R1 |
 | T10.3 | **Melee costs stamina.** Per-weapon `MeleeStaminaCost` on `UZSWeaponConfig` + an `UnarmedStaminaCost` tunable. **No separate strain mechanic** — stamina alone governs swing-spam. | P5-R2 |
 | T10.4 | **Downed zombie state.** A real AI state (Blackboard key + BT branch), entered from knockback/damage thresholds — not just the current physical `LaunchCharacter` impulse. **Dev-confirmed KEEP 2026-07-26**, with one added constraint: "find alternatives to make sure this isn't copying PZ" — the state itself is fine, but see T10.6 for the finisher-mechanic requirement. | P5-R3, OQ-B0-03 |
 | T10.5 | **`PerformMeleeSwing` excludes downed targets** from a standing swing's arc, unconditionally. | P5-R3 |
-| T10.6 | **Stomp/finisher action.** ⚑ **RESOLVED 2026-07-26 (dev-confirmed)** — the differentiated take: contextual on `IA_Attack` when standing over a downed target, but the *execution branches on what's equipped*. Bare-handed → stomp. Melee weapon equipped → a downward swing/strike using that weapon instead of a generic stomp animation. That equipped-dependent branch (rather than one universal finisher regardless of loadout) is what keeps this from reading as a direct PZ port. | P5-R3, OQ-B0-03 |
+| T10.6 | **Stomp/finisher action.** ⚑ **RESOLVED 2026-07-26 (dev-confirmed), binding updated same day per `Docs/InputBindings.md`** — the differentiated take: execution branches on what's equipped (bare-handed → stomp; melee weapon equipped → a downward swing/strike using that weapon instead of a generic stomp animation), but the **input is `Space`**, not contextual on `IA_Attack` as first resolved — bundled as one context-aware action alongside two new, not-yet-designed moves: **Shove** and **Mount/Climb**. That equipped-dependent finisher branch is still what keeps this from reading as a direct PZ port; the binding just moved. Shove and Mount/Climb need their own design/task entries before this can be considered fully scoped. | P5-R3, OQ-B0-03 |
 | T10.7 | ✅ **RESOLVED 2026-07-26 (dev-confirmed).** Melee weapon display: grouped poses by weapon *category*, not one universal pose and not one per individual weapon — long-guns (rifle/shotgun/LMG) share a `TP_Mesh` pose, pistols share their own, melee weapons share their own. Author the real melee `UZSWeaponConfig` against this (replacing T1.1's temporary rifle-pose reuse). | P5-R9, OQ-B0-11 |
 
 ---
@@ -310,7 +310,7 @@ Scheduled in B0 rather than later because **B4's darkness mechanic is CONFIRMED*
 | Sub-task | Definition of done | Ref |
 |---|---|---|
 | T11.1 | `SecondaryHand` slot on `AZSPlayerCharacter`, honouring `EZSWeaponHandedness` (two-handed primary blocks it) and `bUsableInSecondaryHand`. | P5-R8 |
-| T11.2 | **`IA_SecondaryAction`** input + `HandleSecondaryAction()` dispatching on the secondary's config, reusing `PerformMeleeSwing`/`Server_Fire` rather than a parallel implementation. | OQ-B0-10 |
+| T11.2 | **`IA_SecondaryAction`** input + `HandleSecondaryAction()` dispatching on the secondary's config, reusing `PerformMeleeSwing`/`Server_Fire` rather than a parallel implementation. ⚑ **Binding settled 2026-07-26 per `Docs/InputBindings.md`: `T`**, not `F` — `F` is spoken for by Interact. | OQ-B0-10 |
 | T11.3 | **Activatable-item concept**: `UZSItemConfig` gains `bIsToggleable` + an on/off cosmetic hook, so a flashlight works without being a `UZSWeaponConfig`. `IA_SecondaryAction` checks this before falling through to attack dispatch. | Planning §6 |
 | T11.4 | A working flashlight item — the thing B4's darkness mechanic will be designed against. | X-2 |
 

@@ -88,6 +88,7 @@ Labels `phase-0`–`phase-6` + Projects board ("ZombieShooter Core Loop") set up
 - `Docs/SessionHandoff.md` — current status only, rewritten each session.
 - `Docs/ProjectZomboid_DesignReference.md` + `Docs/DevMarkupNotes.md` — PZ systems breakdown + dev markup this project's design was built against.
 - `Docs/TuningReference.md` — gameplay tunables, update when new tunables added.
+- `Docs/InputBindings.md` — the dev's target keymap, update when a binding changes or a new action is added. Not yet implemented against — Enhanced Input mapping contexts should track this, not the other way around.
 - `Docs/Testing/` — verification runbooks for completed systems.
 - `Docs/Infima Pack - Official Implementation Guide/` — Infima's own docs; still actively relevant (skeleton/animation source of record, not a placeholder).
 - UE5.8 docs: https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-documentation — check here first on engine-level setup/config problems (navigation, physics, editor tooling behavior), not just project code.

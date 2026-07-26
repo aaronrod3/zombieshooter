@@ -37,6 +37,28 @@ Every design decision not explicitly confirmed elsewhere, grouped by the phase i
 ### OQ-X-08 — Target release window 🟢
 **Rec:** no public date until B11 is underway — the §3.2 estimate is a forecast, not a commitment.
 
+### OQ-X-09 — Run vs. Sprint as two distinct speed tiers 🟡 *(new 2026-07-26, from `Docs/InputBindings.md`)*
+The dev's keybind list gives Run (hold Left Shift) and Sprint (double-click Left Shift) as separate actions. Current design/code has only one sprint tier (`StartSprint`, stamina-gated).
+| Option | Tradeoff |
+|---|---|
+| **Run is a free, non-stamina jog between Walk and Sprint** | Gives players a faster default pace without touching the stamina economy; Sprint keeps its scarcity. Needs a third movement-speed value and a new input path (hold vs. double-click detection). |
+| Run is just a rename/remap of the existing single sprint tier, no new tier | Zero new design; but then "Sprint" (double-click) needs its own separate, actually-new behavior to justify existing at all. |
+
+**No rec yet — needs a design call before B0-T4/T10 build against it.**
+
+### OQ-X-10 — Toggle Safety (multiplayer PvP) 🟡 *(new 2026-07-26, from `Docs/InputBindings.md`)*
+The keybind list includes a weapon-safety toggle scoped explicitly to PvP — but this project has no designed PvP mode anywhere in the plan (co-op vs. zombies/hostile roamers is the stated design).
+| Option | Tradeoff |
+|---|---|
+| PvP is real, scoped scope (friendly-fire toggle, or a dedicated PvP mode) | Safety mechanic has a real purpose; but PvP is a meaningfully new scope item with no design anywhere yet. |
+| Safety is really about accidental-discharge prevention in general (co-op friendly fire), "PvP" in the dev's note is shorthand, not a new mode | No new mode needed; the mechanic still needs its own design pass (what does "safety on" actually block, and why would a player want it off). |
+
+**No rec yet — needs a scoping conversation, not an assumption either way.**
+
+### OQ-X-11 — In-game text chat and push-to-talk voice 🟡 *(new 2026-07-26, from `Docs/InputBindings.md`)*
+The keybind list includes Toggle Chat (Enter) and Push-to-Talk (V), neither of which exists in the plan. **This isn't a reversal of OQ-B10-09** ("no voice chat, rely on Discord") — that was only ever a recommendation, never dev-confirmed — but it does mean OQ-B10-09 needs a real answer now instead of defaulting to the old rec.
+**No rec yet.** If confirmed, text chat is new B10 scope (a chat widget, replicated messages) and in-game voice is a bigger scope item than "rely on Discord" — needs its own sizing before committing.
+
 ---
 
 ## B0 — Stabilization
@@ -116,7 +138,7 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 ### OQ-B3-01 — Save topology and world lifetime ✅ RESOLVED 2026-07-26, ⚠ then a conflicting answer arrived
 **One continuously-overwritten world** (not multiple save slots) — "so player can't load an old save to fix a mistake," no player-facing rollback. **Death always respawns into the same persistent world**, solo included — no asymmetric solo-ends-the-world rule; `Server_RespawnAsNewCharacter`'s existing behavior already matches this, nothing further to build. Rotating crash/corruption backups are unaffected (a different concern from save-scumming). See `00_MasterPlan.md` CR-07.
 
-**⚠ Unresolved conflict, same day:** a later message in the same answer batch said "option 1" for this question, which is the *original* table's multi-save-slot option — the opposite of the above. Not applied; kept as the previously-reasoned answer rather than silently overwritten. **Needs a one-line confirmation**: still one continuously-overwritten world, or switch to multiple slots?
+**Conflict resolved 2026-07-26.** Dev confirmed directly: "one continuously-overwritten world stays." The multi-save-slot answer above was not what was meant; no change to the decision.
 
 ### OQ-B3-02 — Serialization format ✅ RESOLVED 2026-07-26
 **`USaveGame` + `FArchive`**, with a debug JSON export path for bug triage.
@@ -331,7 +353,7 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 | **CR-03 / OQ-B0-04** Temperature/Wet scope | Keep all three, scoped-down model. | 2026-07-26 |
 | **CR-04** Camera fallback | Cut now, not gated on a sign-off. | 2026-07-26 |
 | **CR-06 / OQ-B0-07** Infection legibility | Plain/clear feedback, **not** ambiguous (reverses original rec). | 2026-07-26 |
-| **CR-07/12 / OQ-B3-01** Save topology & death rule | One continuously-overwritten world; death always → new character, world persists. ⚠ *see conflict note above.* | 2026-07-26 |
+| **CR-07/12 / OQ-B3-01** Save topology & death rule | One continuously-overwritten world; death always → new character, world persists. Confirmed twice, conflict resolved. | 2026-07-26 |
 | **CR-08** Horde ambition | Genuinely large hordes (100+) confirmed important, not a cuttable stretch goal. | 2026-07-26 |
 | **CR-10 / OQ-B0-05** Fatigue perception | Presentation degradation — player's own perception degrades. | 2026-07-26 |
 | **OQ-B0-01** Scroll-wheel arbitration | Scroll = zoom; hotbar drops scroll-cycling entirely. | 2026-07-26 |
@@ -365,12 +387,11 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 | **OQ-B12-01** Pricing | ~$9.99 target. | 2026-07-26 |
 | **OQ-B12-02** Early Access vs. single launch | Early Access confirmed, Steam-only at first. | 2026-07-26 |
 
-**🟡 Partially resolved — direction confirmed, specifics still deferred (7)**
+**🟡 Partially resolved — direction confirmed, specifics still deferred (6)**
 
 | Question | What's resolved | What's still open |
 |---|---|---|
 | **OQ-B0-12** Weapon roster | Melee roster size ("right," 4–6). | Firearm roster — dev will provide once basic features are set. |
-| **OQ-B3-01** ⚠ Save topology | *(see the conflict flag in the question's own entry above)* | Which answer is current: one continuously-overwritten world, or multiple save slots. |
 | **OQ-B4-03** Interior visibility | Approach confirmed: spike roof-fade vs. camera-relative cutaway. | Which technique wins — the spike hasn't run yet. |
 | **OQ-B4-12** Zombie AI depth pass | Scope confirmed, plus a new "freshness" mechanic added. | The pass itself (crowd-following, `ClearLastKnownLocation` wiring) still needs to run. |
 | **OQ-B5-01** The plot | Confirmed: brainstorm together live when B5 starts, not now. | The actual plot — genuinely still nothing, by design. |
@@ -385,6 +406,6 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 | Before B7 | OQ-B7-01 (horde-coordination *approach* — still gated on profiling measurements, ambition is confirmed but the technical answer isn't) |
 | Before B8 | OQ-B8-01, OQ-B8-02 (budget numbers — re-baselined for 4+ players, but still pending actual measurement) |
 
-**🟡 SEQUENCEABLE (~28)** — decide in parallel with early implementation on that phase.
+**🟡 SEQUENCEABLE (~31)** — decide in parallel with early implementation on that phase. Includes three new items from `Docs/InputBindings.md` (OQ-X-09 Run/Sprint tiers, OQ-X-10 Toggle Safety/PvP, OQ-X-11 chat/voice).
 
 **🟢 LATE (11)** — OQ-X-05, OQ-X-08, OQ-B1-03, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B10-05, OQ-B10-09, OQ-B12-03, OQ-B12-04, OQ-B12-05.
