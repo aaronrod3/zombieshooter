@@ -277,12 +277,12 @@ This is mostly an engineering correctness question, not a feel question — but 
 
 These are all genuinely far off, and asking for real decisions on them now would repeat the exact "too much at once" problem this whole exercise exists to fix. Just flag if your ambition differs from the current draft assumption — we'll run a focused, short version of this same questionnaire again when each of these actually comes up.
 
-- **Audio.** Assumption: UE's built-in audio tools (no paid middleware), sparse/event-driven music rather than a continuous score. Different ambition? **Your answer:** ___
-- **Accessibility & settings.** Assumption: full remapping, gamepad support (built but not verified until late), colorblind modes, difficulty presets. Different ambition? **Your answer:** ___
-- **Multiplayer hardening & release engineering.** Assumption: 2–4 players, listen-server only (no dedicated servers), Steam networking so testers don't need to port-forward. Still matches? **Your answer:** ___
-- **Art direction & pipeline.** Open budget question: is there money for a marketplace environment kit / sound library, or is this free-assets-and-Blender only? This changes a lot downstream. **Your answer:** ___
-- **Performance & minimum spec.** Assumption target: roughly a GTX 1060 / RX 580 class machine, 16GB RAM, ~150 zombies on screen. Do you personally have (or care about supporting) hardware below that? **Your answer:** ___
-- **Business & release.** Pricing, Early Access vs. single launch, store presence — genuinely not needed yet. Anything you already know you want here? **Your answer:** ___
+- **Audio.** Assumption: UE's built-in audio tools (no paid middleware), sparse/event-driven music rather than a continuous score. Different ambition? **Your answer:** sounds good
+- **Accessibility & settings.** Assumption: full remapping, gamepad support (built but not verified until late), colorblind modes, difficulty presets. Different ambition? **Your answer:** sounds good
+- **Multiplayer hardening & release engineering.** Assumption: 2–4 players, listen-server only (no dedicated servers), Steam networking so testers don't need to port-forward. Still matches? **Your answer:** 4+ players, option for dedicated servers if players want to pay for it, but primarily listen-server
+- **Art direction & pipeline.** Open budget question: is there money for a marketplace environment kit / sound library, or is this free-assets-and-Blender only? This changes a lot downstream. **Your answer:** mostly free, cheaper assets, want Door Kickers 2 level of detail so I can create assets myself later.
+- **Performance & minimum spec.** Assumption target: roughly a GTX 1060 / RX 580 class machine, 16GB RAM, ~150 zombies on screen. Do you personally have (or care about supporting) hardware below that? **Your answer:** want to keep the game light
+- **Business & release.** Pricing, Early Access vs. single launch, store presence — genuinely not needed yet. Anything you already know you want here? **Your answer:** probably around the 9.99 range to encourage people to buy it, early access for sure, on steam only at first.
 
 ---
 
@@ -299,7 +299,7 @@ Independent of whatever order makes the most *engineering* sense, what do you mo
 - [ ] The first hint of the investigation arc (one clue, one radio broadcast)
 - [ ] Other: ___
 
-**Your answer / ranking:** ___
+**Your answer / ranking:** I ultimately first want a full working beta, but I want several test phases that combine or test individual features together/separately to ensure they work. Need to build off each other in a smart way to properly test.
 
 ---
 
