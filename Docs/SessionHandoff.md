@@ -3,6 +3,8 @@
 > Read this first, every session. This file is rewritten every session, not appended to — it holds only the last completed task and what's needed next. This is the **sole owner of verification status** (compiled? PIE-tested?) — `CLAUDE.md` describes architecture/current-state design, not status, to avoid the same fact needing edits in multiple places. Full history lives in git commit log, not here.
 >
 > **Plan of record has two halves.** `Docs/GameDevPlan.md` = design (pillars, §3 scope contract, Decisions). `Docs/Beta/` = production plan to beta (phases B0–B12, tasks, gates). Start at `Docs/Beta/README.md`. Conventions: `CLAUDE.md`.
+>
+> **Away session?** If the user opened with "start the next part of the plan" or similar (they're stepping away, not working alongside you), read `Docs/AsyncSessionProtocol.md` once now and follow it for the rest of the session without re-reading it.
 
 ## Current phase: B0 — Stabilization & Reconciliation
 
