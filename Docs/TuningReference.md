@@ -167,6 +167,12 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `OverloadWeightRatio` | 1.5 | Weight ratio (current/max) at which `GetEncumbranceMultiplier()` bottoms out at `MinEncumbranceMultiplier` |
 | `MinEncumbranceMultiplier` | 0.5 | Movement-speed floor while badly overloaded — a soft penalty (folded into `AZSPlayerCharacter::UpdateMovementSpeed`), not a hard carry block |
 | `DropDistance` | 100 | How far in front of the owner `Server_DropItem` spawns the `AZSWorldItemActor` |
+| `Server_DropAllItems(DropLocation)` | — | B0-T9.1, 2026-07-26: not a tunable, a mechanism note — dumps every `CarrySlots` instance as its own `AZSWorldItemActor` at `DropLocation` (no `DropDistance` offset — this drops in place, not thrown), preserving each instance's identity. Called by `AZSPlayerCharacter::Server_HandleDeathLootAndZombie` on death. |
+
+## Death (`AZSPlayerCharacter`, Category `ZS|Health`) — B0-T9, 2026-07-26
+| Property | Default | Effect |
+|---|---|---|
+| `DeathZombieClass` | unset | B0-T9.2: which zombie Blueprint (needs a real `UZSZombieConfig` on its CDO) a dead player turns into, spawned at the death location alongside the dropped loot pile (`Server_HandleDeathLootAndZombie`). Unset = death proceeds normally, just without the zombie-conversion half — **content gap**, no `BP_Zombie_*` assigned yet. |
 
 ## Per-Item Config (`UZSItemConfig`) — P6 fields added 2026-07-21
 | Field | Default | Effect |

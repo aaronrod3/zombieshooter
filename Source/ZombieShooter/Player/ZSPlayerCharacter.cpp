@@ -34,6 +34,7 @@
 #include "../Survival/ZSItemConfig.h"
 #include "../Zombies/ZSNoiseSystem.h"
 #include "../Inventory/ZSInventoryComponent.h"
+#include "../Zombies/ZombieCharacter.h"
 #include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/DamageEvents.h"
@@ -1223,7 +1224,35 @@ void AZSPlayerCharacter::HandleDeath()
 
 	if (HasAuthority())
 	{
+		Server_HandleDeathLootAndZombie();
 		GetWorldTimerManager().SetTimer(RespawnTimerHandle, this, &AZSPlayerCharacter::Server_RespawnAsNewCharacter, RespawnDelaySeconds, false);
+	}
+}
+
+void AZSPlayerCharacter::Server_HandleDeathLootAndZombie()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	const FVector DeathLocation = GetActorLocation();
+
+	// B0-T9.1: preserves every carried instance's InstanceId/InstanceState at the death location -
+	// already covers whatever was equipped/hotbarred too, since equipping never removes an instance
+	// from CarrySlots (see UZSInventoryComponent's class comment).
+	if (InventoryComponent)
+	{
+		InventoryComponent->Server_DropAllItems(DeathLocation);
+	}
+
+	// B0-T9.2: content gap until a real zombie Blueprint is assigned here - death still proceeds
+	// normally either way.
+	if (DeathZombieClass)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		GetWorld()->SpawnActor<AZombieCharacter>(DeathZombieClass, DeathLocation, GetActorRotation(), SpawnParams);
 	}
 }
 

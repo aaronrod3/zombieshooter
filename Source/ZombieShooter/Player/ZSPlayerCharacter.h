@@ -26,6 +26,7 @@ class UZSItemConfig;
 class UDamageType;
 class USkeletalMesh;
 class UZSInventoryComponent;
+class AZombieCharacter;
 struct FInputActionValue;
 struct FDamageEvent;
 
@@ -578,6 +579,13 @@ protected:
 	float RespawnDelaySeconds = 5.f;
 
 	FTimerHandle RespawnTimerHandle;
+
+	/** B0-T9.2: which zombie Blueprint (e.g. BP_Zombie_Shambler - needs a real UZSZombieConfig assigned on its CDO, per the multi-config rule; a raw AZombieCharacter spawned with no config has nothing to assemble mesh/AI from) a dead player turns into. Unset = no-op, same "content not authored yet" pattern as every other optional class reference in this project - death still proceeds normally, just without the zombie-conversion half. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|Health")
+	TSubclassOf<AZombieCharacter> DeathZombieClass;
+
+	/** B0-T9.1/T9.2, server-only, called from HandleDeath before the respawn timer starts: drops every carried instance at the death location (InventoryComponent->Server_DropAllItems - already covers whatever was equipped/hotbarred too, since this project's equip model never removes an instance from CarrySlots) and, if DeathZombieClass is set, spawns one there. Dev-confirmed 2026-07-26 framing ("the character becomes a zombie, holding on to loot and clothing it had on when it died") is satisfied by co-locating both rather than giving AZombieCharacter a literal carry-inventory system it has no other use for - the loot pile and the zombie stand in the same spot. */
+	void Server_HandleDeathLootAndZombie();
 
 	/** Maps a hit's bone name to a body zone via common mannequin bone-name substrings (spine/pelvis -> Torso, head/neck -> Head, arm/hand/clavicle -> Arms, leg/foot/thigh/calf -> Legs). Falls back to Torso if unrecognized - a safe, central-mass default. */
 	static EZSBodyZone BodyZoneFromBoneName(FName BoneName);

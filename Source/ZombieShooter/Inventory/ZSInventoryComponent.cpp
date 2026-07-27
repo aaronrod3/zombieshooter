@@ -450,6 +450,34 @@ void UZSInventoryComponent::Server_DropItem(UZSItemConfig* Item, int32 Count)
 		*OwnerActor->GetName(), *Item->DisplayName.ToString(), TotalRemoved, GetCurrentWeight(), GetMaxCarryWeight());
 }
 
+void UZSInventoryComponent::Server_DropAllItems(FVector DropLocation)
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor || !OwnerActor->HasAuthority())
+	{
+		return;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	// Same one-AZSWorldItemActor-per-instance reasoning as Server_DropItem - a death drop should
+	// preserve every individual instance's identity (durability, a bag's own nested contents) just
+	// as much as a deliberate single-item drop does, not collapse everything into one pile.
+	for (const FZSItemInstance& Instance : CarrySlots)
+	{
+		if (AZSWorldItemActor* WorldItem = GetWorld()->SpawnActor<AZSWorldItemActor>(AZSWorldItemActor::StaticClass(), DropLocation, OwnerActor->GetActorRotation(), SpawnParams))
+		{
+			WorldItem->InitializeFromInstance(Instance);
+		}
+	}
+
+	CarrySlots.Empty();
+	EquippedBack = FGuid();
+	EquippedHip = FGuid();
+	OnRep_InventoryState();
+}
+
 void UZSInventoryComponent::OnRep_InventoryState()
 {
 	OnInventoryChanged.Broadcast();

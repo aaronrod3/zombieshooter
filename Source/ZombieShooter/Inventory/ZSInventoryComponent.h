@@ -110,6 +110,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_DropItem(UZSItemConfig* Item, int32 Count);
 
+	/** B0-T9.1: dumps every top-level CarrySlots instance (which already covers whatever's referenced by the hotbar or the two equip slots, per this project's "equipping never removes from CarrySlots" model - see the class comment) as its own AZSWorldItemActor at DropLocation, each preserving its InstanceId/InstanceState (and, for a bag, its nested ContainedItems) exactly like Server_DropItem does for a single stack. Clears CarrySlots/EquippedBack/EquippedHip afterward. Called from AZSPlayerCharacter::HandleDeath - "loot stays at the death location," not scattered one call at a time. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	void Server_DropAllItems(FVector DropLocation);
+
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Inventory")
 	FZSOnInventoryChanged OnInventoryChanged;
 
