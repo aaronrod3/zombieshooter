@@ -8,6 +8,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
 #include "EnhancedInputComponent.h"
@@ -186,6 +187,18 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	InventoryComponent = CreateDefaultSubobject<UZSInventoryComponent>(TEXT("InventoryComponent"));
 	CameraDirector = CreateDefaultSubobject<UZSCameraDirector>(TEXT("CameraDirector"));
 
+	// B0-T11.4: a real light source, not delegated to unauthored Blueprint content - see the header
+	// comment on FlashlightComponent for the positioning/perf caveats.
+	FlashlightComponent = CreateDefaultSubobject<USpotLightComponent>(TEXT("FlashlightComponent"));
+	FlashlightComponent->SetupAttachment(GetMesh());
+	FlashlightComponent->SetRelativeLocation(FVector(20.f, 0.f, 40.f));
+	FlashlightComponent->SetRelativeRotation(FRotator(0.f, 0.f, 0.f));
+	FlashlightComponent->Intensity = 5000.f;
+	FlashlightComponent->OuterConeAngle = 30.f;
+	FlashlightComponent->AttenuationRadius = 2000.f;
+	FlashlightComponent->SetCastShadows(false);
+	FlashlightComponent->SetVisibility(false);
+
 	// B0-T7.4: only interactable while blacked out (bIsInteractable toggled in Enter/ExitBlackout) -
 	// see the header comment for why UpdateNearestInteractable needed widening to find this.
 	ReviveInteractable = CreateDefaultSubobject<UZSInteractableComponent>(TEXT("ReviveInteractable"));
@@ -233,6 +246,10 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	// B0-T10.6 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
 	static ConstructorHelpers::FObjectFinder<UInputAction> FinisherActionFinder(TEXT("/Game/ZS/Input/IA_Finisher.IA_Finisher"));
 	if (FinisherActionFinder.Succeeded()) { FinisherAction = FinisherActionFinder.Object; }
+
+	// B0-T11.2 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
+	static ConstructorHelpers::FObjectFinder<UInputAction> SecondaryActionFinder(TEXT("/Game/ZS/Input/IA_SecondaryAction.IA_SecondaryAction"));
+	if (SecondaryActionFinder.Succeeded()) { SecondaryAction = SecondaryActionFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> CrouchActionFinder(TEXT("/Game/ZS/Input/IA_Crouch.IA_Crouch"));
 	if (CrouchActionFinder.Succeeded()) { CrouchAction = CrouchActionFinder.Object; }
@@ -285,6 +302,8 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(AZSPlayerCharacter, bIsSprinting);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsReadyToSleep);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsBlackedOut);
+	DOREPLIFETIME(AZSPlayerCharacter, SecondaryHandInstanceId);
+	DOREPLIFETIME(AZSPlayerCharacter, bSecondaryItemActive);
 }
 
 void AZSPlayerCharacter::BeginPlay()
@@ -425,6 +444,11 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		if (FinisherAction)
 		{
 			EnhancedInputComponent->BindAction(FinisherAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleFinisher);
+		}
+
+		if (SecondaryAction)
+		{
+			EnhancedInputComponent->BindAction(SecondaryAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleSecondaryAction);
 		}
 
 		if (CrouchAction)
@@ -2070,6 +2094,123 @@ void AZSPlayerCharacter::Server_StartRackFirearm_Implementation()
 	{
 		Multicast_PlayTPActionMontage(Config->TP_ClearJam);
 		BeginBusyAction(Config->TP_ClearJam);
+	}
+}
+
+// =====================================================================
+// B0-T11 - SecondaryHand & activatable items
+// =====================================================================
+
+void AZSPlayerCharacter::Server_EquipToSecondaryHand_Implementation(FGuid InstanceId)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	UZSInventoryComponent* Inventory = GetInventoryComponent();
+	if (!Inventory)
+	{
+		return;
+	}
+
+	// A two-handed primary blocks SecondaryHand entirely.
+	if (const UZSWeaponConfig* PrimaryConfig = CurrentWeapon ? CurrentWeapon->GetConfig() : nullptr)
+	{
+		if (PrimaryConfig->Handedness == EZSWeaponHandedness::TwoHanded)
+		{
+			return;
+		}
+	}
+
+	const FZSItemInstance Instance = Inventory->GetInstance(InstanceId);
+	if (!Instance.IsValid() || !Instance.Config)
+	{
+		return;
+	}
+
+	const UZSWeaponConfig* SecondaryWeaponConfig = Cast<UZSWeaponConfig>(Instance.Config);
+	const bool bLegalWeapon = SecondaryWeaponConfig
+		&& SecondaryWeaponConfig->Handedness == EZSWeaponHandedness::OneHanded
+		&& SecondaryWeaponConfig->bUsableInSecondaryHand;
+	const bool bLegalToggleable = Instance.Config->bIsToggleable;
+
+	if (!bLegalWeapon && !bLegalToggleable)
+	{
+		return;
+	}
+
+	SecondaryHandInstanceId = InstanceId;
+	OnRep_SecondaryHandInstanceId();
+}
+
+void AZSPlayerCharacter::Server_UnequipSecondaryHand_Implementation()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	SecondaryHandInstanceId = FGuid();
+	OnRep_SecondaryHandInstanceId();
+
+	if (bSecondaryItemActive)
+	{
+		bSecondaryItemActive = false;
+		OnRep_SecondaryItemActive();
+	}
+}
+
+void AZSPlayerCharacter::HandleSecondaryAction()
+{
+	Server_HandleSecondaryAction();
+}
+
+void AZSPlayerCharacter::Server_HandleSecondaryAction_Implementation()
+{
+	if (!HasAuthority() || !SecondaryHandInstanceId.IsValid())
+	{
+		return;
+	}
+
+	const UZSInventoryComponent* Inventory = GetInventoryComponent();
+	const FZSItemInstance Instance = Inventory ? Inventory->GetInstance(SecondaryHandInstanceId) : FZSItemInstance();
+	if (!Instance.IsValid() || !Instance.Config)
+	{
+		return;
+	}
+
+	if (Instance.Config->bIsToggleable)
+	{
+		bSecondaryItemActive = !bSecondaryItemActive;
+		OnRep_SecondaryItemActive();
+		return;
+	}
+
+	// B0-T11.2 content gap: an offhand weapon (Cast<UZSWeaponConfig>(Instance.Config) would succeed
+	// here) doesn't actually fire/swing yet - that needs its own spawned AZSWeapon actor and ammo/
+	// equip choreography mirroring CurrentWeapon's, which
+	// Docs/Planning/InventoryLoadoutEquipping_Plan.md §6 itself flags as "genuinely new surface, not
+	// just wiring... scope it as its own small task, not a rider." The slot/validation mechanism
+	// (Server_EquipToSecondaryHand) is real and testable today; only the dispatch-to-attack half is
+	// stubbed here.
+}
+
+void AZSPlayerCharacter::OnRep_SecondaryHandInstanceId()
+{
+	OnSecondaryHandChanged.Broadcast();
+}
+
+void AZSPlayerCharacter::OnRep_SecondaryItemActive()
+{
+	OnSecondaryItemToggled(bSecondaryItemActive);
+}
+
+void AZSPlayerCharacter::OnSecondaryItemToggled_Implementation(bool bActive)
+{
+	if (FlashlightComponent)
+	{
+		FlashlightComponent->SetVisibility(bActive);
 	}
 }
 

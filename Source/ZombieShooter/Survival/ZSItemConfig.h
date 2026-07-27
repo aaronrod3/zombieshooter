@@ -139,4 +139,8 @@ public:
 	/** World-space pickup representation - AZSWorldItemActor::InitializeItem assigns this to its PickupMesh. Unset is a no-op (an invisible pickup, same "content not sourced yet" pattern as AZombieCharacter's mesh) rather than an error. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	TObjectPtr<UStaticMesh> WorldMesh;
+
+	/** B0-T11.3, 2026-07-26: whether IA_SecondaryAction toggles this item on/off (a flashlight) instead of dispatching an attack when it's the one equipped in SecondaryHand - checked before falling through to weapon-attack dispatch (see AZSPlayerCharacter::Server_HandleSecondaryAction). Only meaningful for an item equipped in SecondaryHand; meaningless for anything else. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
+	bool bIsToggleable = false;
 };

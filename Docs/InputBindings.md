@@ -47,7 +47,7 @@
 | Action | Key |
 |---|---|
 | Hotbar Slots 1–9 | 1–9 |
-| Equip / Toggle Light Source | `T` (assignable) |
+| Equip / Toggle Light Source | `T` (assignable) — 🔧 implemented 2026-07-26 as `AZSPlayerCharacter::SecondaryAction`/`HandleSecondaryAction` (B0-T11.2) |
 
 ## Vehicles (`BV` phase — first pass at this keymap, vehicles not built yet)
 

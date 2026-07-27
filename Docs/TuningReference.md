@@ -202,6 +202,17 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `WorldMesh` | unset | `AZSWorldItemActor`'s pickup mesh — unset is an invisible pickup, same "content not sourced yet" pattern as the zombie mesh |
 | `MedicalIncubationDelayGameHours` | 0 | B0-T6.5, 2026-07-26: Bandage/Disinfectant only - applied to the bite-infection-source zone, pushes the infection clock back by this many game-hours. 0 (a basic bandage/disinfectant) = no effect; a "better" medical tier authors a real value |
 | `InsulationValue` | 0 | B0-T4.4, 2026-07-26: equippable items only - sums into `UZSNeedsComponent`'s Temperature target while worn in `Back`/`Hip`. Proxy scope: no dedicated clothing-slot system exists yet, so whatever's equipped in the two general gear slots is what's summed - a real wardrobe system is bigger scope than this pass |
+| `bIsToggleable` | false | B0-T11.3, 2026-07-26: whether `IA_SecondaryAction` toggles this item on/off (a flashlight) instead of dispatching an attack, when it's the item equipped in `SecondaryHand` - checked before falling through to weapon-attack dispatch |
+
+## SecondaryHand & Flashlight (`AZSPlayerCharacter`, Category `ZS|Loadout`/`ZS|Combat`) — B0-T11, 2026-07-26
+🔧 **Code complete, not yet PIE-verified.** `SecondaryHandInstanceId` (a GUID into `CarrySlots`, same reference-not-remove model as `HotbarSlots`) accepts either (a) a `UZSWeaponConfig` with `Handedness == OneHanded && bUsableInSecondaryHand` (an offhand pistol), or (b) any `UZSItemConfig` with `bIsToggleable` (a flashlight) — a `TwoHanded` primary blocks the slot entirely either way (`Server_EquipToSecondaryHand`). `IA_SecondaryAction` (`T`) dispatches via `Server_HandleSecondaryAction`: a toggleable item flips `bSecondaryItemActive` (broadcasting `OnSecondaryItemToggled`, whose default C++ implementation toggles `FlashlightComponent`'s visibility — a real `USpotLightComponent` on the character, not delegated to unauthored Blueprint content). **Content gap, by design (see `Docs/Planning/InventoryLoadoutEquipping_Plan.md` §6's own scope note)**: an offhand *weapon* doesn't actually fire/swing yet — that would need its own spawned `AZSWeapon` actor and ammo/equip choreography mirroring `CurrentWeapon`'s, flagged as its own follow-up task, not built here. The slot/validation mechanism and the flashlight toggle are both real and testable today.
+
+| Property | Default | Effect |
+|---|---|---|
+| `FlashlightComponent` (Intensity/OuterConeAngle/AttenuationRadius) | 5000 / 30° / 2000 | `USpotLightComponent` defaults — content-polish task to retune once a real flashlight mesh/socket exists. Attached at a rough chest-height offset on `GetMesh()` (no confirmed left-hand socket on the skeleton) — positioning is cosmetic polish, the light itself works today |
+| `FlashlightComponent`'s shadow casting | off | A per-player dynamic shadow-casting spotlight is a real perf cost, not needed for B0 |
+
+**Content gap**: `IA_SecondaryAction` needs manual creation in-editor (`T`, per `Docs/InputBindings.md`), and no real `DA_ZS_ItemConfig_Flashlight` instance (`bIsToggleable = true`) has been authored yet.
 
 ## Loot (`UZSLootTableConfig`, `AZSGameState`) — built 2026-07-21, untested
 | Property | Default | Effect |

@@ -27,6 +27,7 @@ class UDamageType;
 class USkeletalMesh;
 class UZSInventoryComponent;
 class AZombieCharacter;
+class USpotLightComponent;
 struct FInputActionValue;
 struct FDamageEvent;
 
@@ -40,6 +41,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnNearestInteractableChanged, UZS
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnActiveHotbarIndexChanged, int32, NewIndex);
 /** P5: broadcast by OnRep_HotbarSlots - a hotbar UI binds this to refresh its slot icons without polling. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnHotbarChanged);
+/** B0-T11.1: broadcast by OnRep_SecondaryHandInstanceId - a loadout UI binds this to refresh the SecondaryHand slot icon without polling. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnSecondaryHandChanged);
 
 /**
  *  The player-controlled character for ZombieShooter. Kept non-abstract (no mandatory
@@ -103,6 +106,10 @@ protected:
 	/** B0-T10.6: Space per Docs/InputBindings.md - the finisher half of the bundled Melee Shove/Stomp/Mount/Climb action (Shove and Mount/Climb are separately-undesigned, not implemented - see the Finisher section below). Not yet created as a .uasset. */
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> FinisherAction;
+
+	/** B0-T11.2: `T` per Docs/InputBindings.md ("Equip / Toggle Light Source") - settled 2026-07-26, resolving OQ-B0-10. Not yet created as a .uasset. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> SecondaryAction;
 
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> CrouchAction;
@@ -293,6 +300,65 @@ protected:
 	float UnequipTimeSeconds = 0.4f;
 
 	FTimerHandle HotbarSwitchTimerHandle;
+
+	// =====================================================================
+	// B0-T11 - SecondaryHand & activatable items (Docs/Planning/InventoryLoadoutEquipping_Plan.md
+	// §6). SecondaryHandInstanceId is a GUID into GetInventoryComponent()'s CarrySlots, same
+	// "never physically removed, just referenced" model HotbarSlots/EquippedBack/Hip already use.
+	// Legal contents: (a) a UZSWeaponConfig with Handedness == OneHanded && bUsableInSecondaryHand
+	// (offhand pistol), or (b) any UZSItemConfig with bIsToggleable (a flashlight) - a TwoHanded
+	// primary blocks the slot entirely either way. IA_SecondaryAction (T) dispatches on whichever
+	// of those two is actually equipped.
+	// =====================================================================
+
+public:
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
+	FGuid GetSecondaryHandInstanceId() const { return SecondaryHandInstanceId; }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
+	bool IsSecondaryItemActive() const { return bSecondaryItemActive; }
+
+	/** B0-T11.1: validates and, if legal, equips InstanceId into SecondaryHand - see this section's header comment for the legality rules. No-op (SecondaryHandInstanceId unchanged) if InstanceId fails either check. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
+	void Server_EquipToSecondaryHand(FGuid InstanceId);
+
+	/** Clears SecondaryHandInstanceId and, if the outgoing item was active (a flashlight left on), turns it back off. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
+	void Server_UnequipSecondaryHand();
+
+	/** Client-callable entry point, bound to SecondaryAction (IA_SecondaryAction, T). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	void HandleSecondaryAction();
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
+	FZSOnSecondaryHandChanged OnSecondaryHandChanged;
+
+protected:
+
+	/** B0-T11.2/T11.3: resolves SecondaryHandInstanceId's config - a toggleable item (bIsToggleable) flips bSecondaryItemActive; a weapon config is a currently-unimplemented gap (see the .cpp comment - it would need its own spawned AZSWeapon actor and ammo/equip choreography mirroring CurrentWeapon's, out of scope for this pass per the Planning doc's own "genuinely new surface, scope it as its own small task" note). No-op if SecondaryHandInstanceId is empty/invalid. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_HandleSecondaryAction();
+
+	/** B0-T11.4: cosmetic toggle hook - the default C++ implementation toggles FlashlightComponent's visibility, so a real flashlight works with zero Blueprint authoring; override in BP_ZS_PlayerCharacter for richer per-item VFX/SFX later. */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
+	void OnSecondaryItemToggled(bool bActive);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_SecondaryHandInstanceId, Category = "ZS|Loadout")
+	FGuid SecondaryHandInstanceId;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_SecondaryItemActive, Category = "ZS|Loadout")
+	bool bSecondaryItemActive = false;
+
+	UFUNCTION()
+	void OnRep_SecondaryHandInstanceId();
+
+	UFUNCTION()
+	void OnRep_SecondaryItemActive();
+
+	/** B0-T11.4: a real, always-present light source (not delegated to unauthored Blueprint content) - toggled on/off by OnSecondaryItemToggled's default implementation. Attached at a rough chest-height forward offset on GetMesh() (no confirmed left-hand socket exists on the skeleton to attach to instead) - positioning is a content-polish task, the light itself is functionally real today. Shadow casting off by default - a per-player dynamic shadow-casting spotlight is a real perf cost, not needed for B0's purposes. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USpotLightComponent> FlashlightComponent;
 
 	// =====================================================================
 	// B0-T3.9 - Camera (TopDown only - ThirdPerson/OverShoulder deleted 2026-07-26, dev-confirmed
