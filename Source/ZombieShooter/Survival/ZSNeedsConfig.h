@@ -48,6 +48,58 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rates|Stamina")
 	float StaminaRegenPerSecondIdle = 8.f;
 
+	/** B0-T4.8, 2026-07-26: sprint stamina drain is scaled by 1/GetEncumbranceMultiplier() (a lower encumbrance multiplier = heavier load = drains stamina faster) - never a hard sprint block, just costs more to sustain. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rates|Stamina", meta = (ClampMin = "1"))
+	float MaxEncumbranceStaminaDrainMultiplier = 2.f;
+
+	// ---- Wet (B0-T4.1, 2026-07-26) - binary flag, no real weather source yet (B4's job); debug
+	// setter (UZSNeedsComponent::Server_SetWet) is the only way to trigger it until then. ----
+
+	/** Game-hours a wet player stays wet before automatically drying out, absent a real weather system re-triggering it. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Wet", meta = (ClampMin = "0"))
+	float WetDryOutGameHours = 2.f;
+
+	// ---- Temperature (B0-T4.3, 2026-07-26) - single 0-100 scalar, same abstracted scale as every
+	// other need (0 = hypothermic, NeutralTemperature = comfortable, 100 = hyperthermic). Four
+	// inputs per the dev-confirmed scope: ambient (ImplicitAmbient below, no real weather/time-of-day
+	// feed yet), indoor/outdoor (Server_SetIndoors - stub, no indoor-detection system exists), wet
+	// (WetTemperaturePenalty), clothing insulation (summed from equipped Back/Hip items, see
+	// UZSItemConfig::InsulationValue). ----
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Temperature", meta = (ClampMin = "0", ClampMax = "100"))
+	float NeutralTemperature = 50.f;
+
+	/** How far CurrentTemperature moves toward its target per game-hour. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Temperature", meta = (ClampMin = "0"))
+	float TemperatureChangeRatePerGameHour = 15.f;
+
+	/** Subtracted from the target while wet - "wetness accelerates cold" (ProjectZomboid_DesignReference.md §7). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Temperature", meta = (ClampMin = "0"))
+	float WetTemperaturePenalty = 20.f;
+
+	/** Added to the target while indoors (stub - Server_SetIndoors, no real indoor-detection system exists yet). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Temperature", meta = (ClampMin = "0"))
+	float IndoorTemperatureBonus = 15.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Temperature", meta = (ClampMin = "0", ClampMax = "100"))
+	float HypothermiaThreshold = 25.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Temperature", meta = (ClampMin = "0", ClampMax = "100"))
+	float HyperthermiaThreshold = 75.f;
+
+	/** B0-T4.5: performance multiplier at the extreme end (0 or 100) - a linear falloff from 1.0 at the threshold, not an authored curve (unlike Hunger/Thirst/Fatigue above), so hypothermia/hyperthermia are testable without new content. Never touches health directly - performance-debuff-first, same as every other need. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Temperature", meta = (ClampMin = "0", ClampMax = "1"))
+	float TemperatureExtremePerformanceMultiplier = 0.5f;
+
+	// ---- Perception (B0-T4.6, 2026-07-26, CR-10) - fatigue degrades the player's OWN presentation
+	// (vignette, muffled audio), not zombie detection. Data-only stub: UZSNeedsComponent exposes
+	// GetPerceptionMultiplier() for a future camera/audio pass (B1) to actually consume - no
+	// post-process/audio-mixing implementation happens here, that's real feel-tuning work, not
+	// architecture. ----
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Perception")
+	TObjectPtr<UCurveFloat> FatiguePerceptionCurve;
+
 	// ---- Consequence curves ----
 	// X = current need value (0-100), Y = performance multiplier (0-1, 1 = no penalty). Applied to
 	// stamina regen rate, aim accuracy, and attack/action recovery speed before any need is allowed

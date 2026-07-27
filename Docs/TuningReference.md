@@ -17,6 +17,8 @@ Set on `BP_ZS_PlayerCharacter`'s CDO or a C++ default in `ZSPlayerCharacter.h`. 
 - `SprintSpeedMultiplier` (Category `ZS|Movement`, default `1.6`) — sprint speed = `BaseWalkSpeed * SprintSpeedMultiplier`.
 - Base walk speed, jump velocity, air control, braking deceleration, etc. are **standard `UCharacterMovementComponent` properties** (`MaxWalkSpeed`, `JumpZVelocity`, `AirControl`, `BrakingDecelerationWalking`, `BrakingDecelerationFalling`, `MinAnalogWalkSpeed`) — set as constructor defaults in `AZSPlayerCharacter`, editable per-instance via `BP_ZS_PlayerCharacter`'s `CharacterMovement` component defaults.
 - `GetCharacterMovement()->bOrientRotationToMovement` is **`true`** (restored in the P0 de-scope, now that FP's camera-lock constraint is gone) — P1's cursor-aim will override facing only while actively aiming/attacking/interacting.
+- `SprintNoiseRadius` (default `1200`) — one noise event on sprint start (`Server_StartSprint`), not per-tick.
+- `WetFootstepNoiseRadius`/`WetFootstepNoiseIntervalSeconds` (default `600` / `0.6s`) — B0-T4.2, 2026-07-26: while `NeedsComponent->IsWet()` and actually moving (not sprinting — sprint's own report already covers that case), reports a noise event on a walking cadence via `TickWetFootstepNoise`. Dry footsteps report nothing at all (no footstep-audio-cue system exists to key off of), so this is what makes a wet player "audibly distinct," per the sub-task's definition of done.
 
 ## Per-Weapon Config (`UZSWeaponConfig` — e.g. `DA_ZS_WeaponConfig_AssaultRifle`)
 The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content references, not tuning, and are omitted here). **Every field here is per-weapon** — a new weapon gets its own `DA_ZS_WeaponConfig_<Name>` instance with its own values, never a C++ branch (see `CLAUDE.md`'s multi-weapon rule). Config was slimmed from ~90 to ~22 fields in the P0 de-scope (cosmetic/FP-only fields removed).
@@ -89,8 +91,17 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `FatigueRecoveryPerSleptGameHour` | 12.5 | Fatigue lost per in-game hour slept |
 | `StaminaDrainPerSecondSprinting` | 12 | Stamina lost per real second sprinting |
 | `StaminaRegenPerSecondIdle` | 8 | Stamina regained per real second not sprinting, scaled by `GetPerformanceMultiplier()` |
-| `HungerPerformanceCurve`/`ThirstPerformanceCurve`/`FatiguePerformanceCurve` | unset (= no penalty) | `UCurveFloat` assets, need value (0-100) → performance multiplier (0-1); multiplied together into `GetPerformanceMultiplier()`. Not authored yet — content task, not a code task. |
-| `SeverityTier2Max`/`SeverityTier3Max`/`SeverityTier4Max` | 75 / 50 / 25 | 4-tier moodle severity thresholds shared across Hunger/Thirst/Fatigue |
+| `MaxEncumbranceStaminaDrainMultiplier` | 2 | B0-T4.8, 2026-07-26: sprint stamina drain scales by `1/GetEncumbranceMultiplier()`, clamped to this ceiling — heavier load drains stamina faster, never a hard sprint block (`StartSprint`'s gate stays `Stamina > 0` only) |
+| `WetDryOutGameHours` | 2 | B0-T4.1, 2026-07-26: game-hours a wet player stays wet before auto-drying, absent a real weather system re-triggering it. `UZSNeedsComponent::Server_SetWet` is the only trigger until B4 |
+| `NeutralTemperature` | 50 | B0-T4.3, 2026-07-26: `Temperature`'s comfortable resting value on the 0-100 scale (0 = hypothermic, 100 = hyperthermic) |
+| `TemperatureChangeRatePerGameHour` | 15 | How far `Temperature` moves toward its target per in-game hour |
+| `WetTemperaturePenalty` | 20 | Subtracted from the temperature target while `bIsWet` |
+| `IndoorTemperatureBonus` | 15 | Added to the temperature target while `bIsIndoors` (stub input — `Server_SetIndoors`, no real indoor-detection system exists yet) |
+| `HypothermiaThreshold`/`HyperthermiaThreshold` | 25 / 75 | Temperature bounds past which `GetTemperaturePerformanceMultiplier()` starts falling below 1.0 |
+| `TemperatureExtremePerformanceMultiplier` | 0.5 | B0-T4.5: performance multiplier at the extreme end (Temperature at 0 or 100) — a linear falloff from 1.0 at the threshold, not an authored curve, so hypothermia/hyperthermia are testable without new content |
+| `FatiguePerceptionCurve` | unset (= no degradation) | B0-T4.6, 2026-07-26 (CR-10): `UCurveFloat`, inverted-Fatigue value (0-100) → perception multiplier (0-1), read by `GetPerceptionMultiplier()`. Presentation-only (vignette/audio) — never touches gameplay math, distinct from `GetPerformanceMultiplier()`. Not authored yet — content task |
+| `HungerPerformanceCurve`/`ThirstPerformanceCurve`/`FatiguePerformanceCurve` | unset (= no penalty) | `UCurveFloat` assets, need value (0-100) → performance multiplier (0-1); multiplied together (with `GetTemperaturePerformanceMultiplier()`, B0-T4.5) into `GetPerformanceMultiplier()`. Not authored yet — content task, not a code task. Each factor is independently clamped to [0,1], so the product can never exceed 1.0 — B0-T4.7's "penalty-only" requirement holds by construction |
+| `SeverityTier2Max`/`SeverityTier3Max`/`SeverityTier4Max` | 75 / 50 / 25 | B0-T4.9: 4-tier moodle severity thresholds shared across Hunger/Thirst/Fatigue/Stamina, and (via a transformed "comfort value") Temperature. `Wet` is binary (no 4-tier shape applies); Injury/Pain and Infection/Sickness get their own severity concepts on `UZSHealthComponent` (wound flags, `EZSInfectionStage`) rather than this shared scale — see `Docs/Beta/B0_Stabilization.md` T4.9 note |
 
 ## World Clock (`AZSGameState`, Category `ZS|WorldClock`)
 | Property | Default | Effect |
@@ -148,6 +159,7 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `Rarity` | `Common` | Consulted by the finite rarity-pool system (Rare/VeryRare only — see `AZSGameState` below); also bands `ConditionQuality` roll (B0-T2.10) |
 | `WorldMesh` | unset | `AZSWorldItemActor`'s pickup mesh — unset is an invisible pickup, same "content not sourced yet" pattern as the zombie mesh |
 | `MedicalIncubationDelayGameHours` | 0 | B0-T6.5, 2026-07-26: Bandage/Disinfectant only - applied to the bite-infection-source zone, pushes the infection clock back by this many game-hours. 0 (a basic bandage/disinfectant) = no effect; a "better" medical tier authors a real value |
+| `InsulationValue` | 0 | B0-T4.4, 2026-07-26: equippable items only - sums into `UZSNeedsComponent`'s Temperature target while worn in `Back`/`Hip`. Proxy scope: no dedicated clothing-slot system exists yet, so whatever's equipped in the two general gear slots is what's summed - a real wardrobe system is bigger scope than this pass |
 
 ## Loot (`UZSLootTableConfig`, `AZSGameState`) — built 2026-07-21, untested
 | Property | Default | Effect |

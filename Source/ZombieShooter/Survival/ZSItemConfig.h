@@ -132,6 +132,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	EZSItemRarity Rarity = EZSItemRarity::Common;
 
+	/** B0-T4.4, 2026-07-26: only meaningful for an equippable item worn as clothing - sums into UZSNeedsComponent's Temperature model while equipped. Proxy scope note: this project has no dedicated clothing equip-slot system yet (only the two general Back/Hip gear slots exist) - whatever's equipped in those two slots is what's summed for now, a real wardrobe system is bigger scope than this pass. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (EditCondition = "bIsEquippable"))
+	float InsulationValue = 0.f;
+
 	/** World-space pickup representation - AZSWorldItemActor::InitializeItem assigns this to its PickupMesh. Unset is a no-op (an invisible pickup, same "content not sourced yet" pattern as AZombieCharacter's mesh) rather than an error. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	TObjectPtr<UStaticMesh> WorldMesh;

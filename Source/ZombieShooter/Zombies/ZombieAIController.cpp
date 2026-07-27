@@ -4,6 +4,7 @@
 #include "ZombieCharacter.h"
 #include "ZSZombieConfig.h"
 #include "ZSZombieBlackboardKeys.h"
+#include "../Player/ZSPlayerCharacter.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISenseConfig_Hearing.h"
@@ -114,6 +115,13 @@ void AZombieAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAIStimul
 		if (Zombie)
 		{
 			Zombie->SetChasing(true);
+		}
+
+		// B0-T4.10: the "no recent hostile detection/pursuit" half of IsSafeToSleep() - a zombie
+		// actually sensing a player (not just existing nearby) is what resets their cooldown.
+		if (AZSPlayerCharacter* SensedPlayer = Cast<AZSPlayerCharacter>(Actor))
+		{
+			SensedPlayer->Server_NotifyHostileDetection();
 		}
 	}
 	else

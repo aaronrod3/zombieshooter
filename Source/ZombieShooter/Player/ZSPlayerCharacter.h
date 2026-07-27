@@ -461,12 +461,26 @@ public:
 	UPROPERTY(EditAnywhere, Category = "ZS|Survival")
 	float DefaultSleepHours = 8.f;
 
+	/** B0-T4.10: how long (real seconds) since the last actual zombie detection before IsSafeToSleep() considers the aggro-cooldown clear. Code default, not dev-specified - retune freely. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Survival", meta = (ClampMin = "0"))
+	float HostileDetectionCooldownSeconds = 30.f;
+
+protected:
+
+	/** Server-only, not replicated - only IsSafeToSleep()'s boolean result matters to callers, and that's only ever read/called on the server (RequestSleep gates through it there too). -1000 so a fresh spawn isn't in cooldown. */
+	float LastHostileDetectionTime = -1000.f;
+
+public:
+
 	UFUNCTION(BlueprintPure, Category = "ZS|Survival")
 	bool IsReadyToSleep() const { return bIsReadyToSleep; }
 
-	/** Stub - always true until P4 wires a real "no hostiles within a radius" check; zombies (the only hostiles planned for v1) don't exist yet. */
+	/** B0-T4.10: a real gate on whether sleep can be *initiated* at all, not just a warning - two conditions, both required. (1) No recent hostile detection/pursuit - Server_NotifyHostileDetection (called from AZombieAIController::HandleTargetPerceptionUpdated whenever a zombie actually senses this player, not just exists nearby) resets a cooldown; this returns false while inside that cooldown window. (2) Real shelter (barricaded room / locked door / vehicle) - **stubbed true, not built**: B0 doesn't build real multi-level geometry or a barricade system (that's B4's job), so there's nothing yet to actually check. Condition (1) alone is real and enforced; condition (2) is an honest gap, not faked. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Survival")
-	bool IsSafeToSleep() const { return true; }
+	bool IsSafeToSleep() const;
+
+	/** Server-only: resets the hostile-detection cooldown IsSafeToSleep() checks. Called whenever a zombie's AI perception actually senses this player (see AZombieAIController::HandleTargetPerceptionUpdated) - not a Server RPC, since it's only ever called from already-server-authoritative AI code. */
+	void Server_NotifyHostileDetection();
 
 	/** Called by AZSGameState once every player is ready and the clock has advanced - clears this player's ready flag. Public (cross-class, same pattern as AZSWeapon/AZSPlayerCharacter's OnRep_ cross-calls), not itself a Server RPC since AZSGameState only ever calls this from server-authoritative code. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Survival")
@@ -709,6 +723,27 @@ protected:
 	float SprintNoiseRadius = 1200.f;
 
 	float BaseWalkSpeed = 0.f;
+
+	// ---- B0-T4.2: wet footstep noise ----
+	// Dry footsteps report no noise at all (no footstep-audio-cue system exists to key a report off
+	// of) - a wet player's footsteps become "audibly distinct" by being the only ones that report
+	// anything, on a walking cadence rather than sprint's one-shot-on-start pattern. Only while
+	// walking, not sprinting - sprint's own Server_StartSprint report already covers the "loud
+	// action" case, so this isn't layered on top of it (avoids a sprinting-while-wet double-report).
+
+	/** Noise radius reported on each wet-footstep tick. Smaller than SprintNoiseRadius by default - a wet walk is audible, not as loud as a sprint. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Movement")
+	float WetFootstepNoiseRadius = 600.f;
+
+	/** Seconds between wet-footstep noise reports while moving - approximates a footstep cadence without a real footstep-audio-cue system to key off of. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Movement")
+	float WetFootstepNoiseIntervalSeconds = 0.6f;
+
+	/** Server-only, not replicated - same "server bookkeeping" reasoning as UZSNeedsComponent's WetElapsedGameHours. */
+	float TimeSinceLastWetFootstepNoise = 0.f;
+
+	/** Server-only: reports a noise event on a walking cadence while NeedsComponent->IsWet() and actually moving, not sprinting. */
+	void TickWetFootstepNoise(float DeltaSeconds);
 
 	// =====================================================================
 	// Phase 2 - Movement / Stance

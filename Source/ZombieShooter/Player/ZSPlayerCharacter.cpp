@@ -342,6 +342,31 @@ void AZSPlayerCharacter::Tick(float DeltaSeconds)
 	UpdateThirdPersonCameraTick(DeltaSeconds);
 	UpdateCursorFacing(DeltaSeconds);
 	UpdateNearestInteractable();
+	TickWetFootstepNoise(DeltaSeconds);
+}
+
+void AZSPlayerCharacter::TickWetFootstepNoise(float DeltaSeconds)
+{
+	if (!HasAuthority() || bIsSprinting || !NeedsComponent || !NeedsComponent->IsWet())
+	{
+		return;
+	}
+
+	// GetCharacterMovement()->Velocity rather than GetVelocity() - both resolve the same on the
+	// server, but this reads the authoritative movement component directly rather than the
+	// possibly-smoothed root-motion velocity used for cosmetic purposes elsewhere.
+	if (GetCharacterMovement()->Velocity.SizeSquared2D() < KINDA_SMALL_NUMBER)
+	{
+		TimeSinceLastWetFootstepNoise = 0.f;
+		return;
+	}
+
+	TimeSinceLastWetFootstepNoise += DeltaSeconds;
+	if (TimeSinceLastWetFootstepNoise >= WetFootstepNoiseIntervalSeconds)
+	{
+		TimeSinceLastWetFootstepNoise = 0.f;
+		UZSNoiseSystem::ReportNoise(this, GetActorLocation(), 1.f, this, WetFootstepNoiseRadius);
+	}
 }
 
 void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -1176,6 +1201,22 @@ void AZSPlayerCharacter::ResetSleepReady()
 {
 	bIsReadyToSleep = false;
 	OnRep_IsReadyToSleep();
+}
+
+bool AZSPlayerCharacter::IsSafeToSleep() const
+{
+	// B0-T4.10: condition (2), real shelter, is stubbed true - see the header comment for why.
+	return (GetWorld()->GetTimeSeconds() - LastHostileDetectionTime) >= HostileDetectionCooldownSeconds;
+}
+
+void AZSPlayerCharacter::Server_NotifyHostileDetection()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	LastHostileDetectionTime = GetWorld()->GetTimeSeconds();
 }
 
 void AZSPlayerCharacter::Server_RequestSleep_Implementation(float SleepHours)

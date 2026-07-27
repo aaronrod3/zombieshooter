@@ -73,6 +73,55 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
 	bool CanSprint() const { return Stamina > 0.f; }
 
+	// ---- B0-T4.1: Wet ----
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	bool IsWet() const { return bIsWet; }
+
+	/** Server-authoritative debug/entry-point setter - no real weather system exists yet to call this from (that's B4's job). Setting true (re-)starts the dry-out timer; setting false clears it immediately. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Needs")
+	void Server_SetWet(bool bNewWet);
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Needs")
+	FZSOnNeedChanged OnWetChanged;
+
+	// ---- B0-T4.3: Temperature ----
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	float GetTemperature() const { return Temperature; }
+
+	/** Server-authoritative debug/entry-point setter for the indoor/outdoor input - no real indoor-detection system exists yet (that's B4's multi-level job). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Needs")
+	void Server_SetIndoors(bool bNewIndoors);
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Needs")
+	FZSOnNeedChanged OnTemperatureChanged;
+
+	// ---- B0-T4.9: severity tiers, shared 4-tier thresholds (reuses UZSNeedsConfig::GetSeverityTier) ----
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	int32 GetHungerSeverityTier() const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	int32 GetThirstSeverityTier() const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	int32 GetFatigueSeverityTier() const;
+
+	/** Reuses the same 0-100/"higher = better" thresholds as Hunger/Thirst - Stamina is real-time rather than game-hour decayed, but the 4-tier shape still applies (Fine/Winded/Exhausted/Depleted) for a moodle to key off. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	int32 GetStaminaSeverityTier() const;
+
+	/** Reuses the same 0-100/4-tier thresholds as Hunger/Thirst/Fatigue, fed a transformed "comfort value" (100 at NeutralTemperature, falling toward 0 at either extreme) rather than the raw Temperature scalar - Temperature is bad in both directions, unlike the other three. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	int32 GetTemperatureSeverityTier() const;
+
+	// ---- B0-T4.6: perception (CR-10) - see UZSNeedsConfig's own comment on FatiguePerceptionCurve. ----
+
+	/** 0-1, 1 = no degradation. Distinct from GetPerformanceMultiplier() - this is presentation-only (vignette/audio), never touches gameplay math. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	float GetPerceptionMultiplier() const;
+
 	/** Restores Hunger/Thirst from Item's config. Server-only - no-ops off HasAuthority(). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Needs")
 	void Server_ConsumeItem(UZSItemConfig* Item);
@@ -111,6 +160,18 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_Stamina, Category = "ZS|Needs")
 	float Stamina = 100.f;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_IsWet, Category = "ZS|Needs")
+	bool bIsWet = false;
+
+	/** Server-only, not replicated - only bIsWet's resulting state needs client visibility, same "server bookkeeping" reasoning as UZSHealthComponent's progress trackers. */
+	float WetElapsedGameHours = 0.f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_Temperature, Category = "ZS|Needs")
+	float Temperature = 50.f;
+
+	/** Server-only, not replicated - a debug/stub input (Server_SetIndoors), same as bIsWet's dry-timer. */
+	bool bIsIndoors = false;
+
 	UFUNCTION()
 	void OnRep_Hunger();
 
@@ -123,9 +184,24 @@ protected:
 	UFUNCTION()
 	void OnRep_Stamina();
 
+	UFUNCTION()
+	void OnRep_IsWet();
+
+	UFUNCTION()
+	void OnRep_Temperature();
+
 	/** Server-only: applies GameHours of Hunger/Thirst/Fatigue decay via NeedsConfig's rates, then broadcasts. Shared by TickComponent and Server_ApplySleepRecovery. */
 	void ApplyGameHoursDecay(float GameHours);
 
-	/** Server-only: per-tick real-time Stamina drain (sprinting) / regen (not sprinting), scaled by GetPerformanceMultiplier - force-stops sprint via the owning AZSPlayerCharacter if Stamina hits 0 mid-sprint. */
+	/** Server-only: per-tick real-time Stamina drain (sprinting) / regen (not sprinting), scaled by GetPerformanceMultiplier and (B0-T4.8) the owning character's encumbrance - force-stops sprint via the owning AZSPlayerCharacter if Stamina hits 0 mid-sprint. */
 	void TickStamina(float DeltaTime);
+
+	/** B0-T4.1: server-only, game-hour scaled - counts down WetElapsedGameHours toward NeedsConfig->WetDryOutGameHours while bIsWet, then auto-clears. */
+	void TickWet(float GameHours);
+
+	/** B0-T4.3: server-only, game-hour scaled - interpolates Temperature toward a target computed from the 4 inputs (see UZSNeedsConfig's comment). */
+	void TickTemperature(float GameHours);
+
+	/** B0-T4.5: linear falloff past HypothermiaThreshold/HyperthermiaThreshold - see UZSNeedsConfig::TemperatureExtremePerformanceMultiplier's own comment for why this isn't curve-driven like the other three. */
+	float GetTemperaturePerformanceMultiplier() const;
 };
