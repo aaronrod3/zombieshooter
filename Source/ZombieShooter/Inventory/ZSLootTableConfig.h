@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "ZSInventoryTypes.h"
+#include "ZSItemInstance.h"
 #include "ZSLootTableConfig.generated.h"
 
 class UZSItemConfig;
@@ -55,7 +55,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "0"))
 	int32 NumRolls = 3;
 
-	/** Weighted-random rolls NumRolls times across Entries, each successful roll adding MinCount-MaxCount of that entry's Item to the result. Rare/VeryRare items (UZSItemConfig::Rarity) are gated through World's AZSGameState::Server_TryConsumeRarityPoolSlot - a roll that lands on an exhausted pool entry is simply skipped, not re-rolled (a slightly leaner container is fine and keeps "genuinely rare" meaningful; re-rolling would just swap it for something else every time). Needs a UWorld to reach AZSGameState - a null World (or one with no AZSGameState) just skips the rarity-pool check entirely, so this is still callable in isolation (e.g. from a unit test) without crashing. */
+	/** Weighted-random rolls NumRolls times across Entries, each successful roll minting a fresh FZSItemInstance (own GUID, Location = World) with MinCount-MaxCount of that entry's Item. Rare/VeryRare items (UZSItemConfig::Rarity) are gated through World's AZSGameState::Server_TryConsumeRarityPoolSlot - a roll that lands on an exhausted pool entry is simply skipped, not re-rolled (a slightly leaner container is fine and keeps "genuinely rare" meaningful; re-rolling would just swap it for something else every time). Needs a UWorld to reach AZSGameState - a null World (or one with no AZSGameState) just skips the rarity-pool check entirely, so this is still callable in isolation (e.g. from a unit test) without crashing. */
 	UFUNCTION(BlueprintCallable, Category = "Loot")
-	TArray<FZSInventorySlot> RollLoot(UWorld* World) const;
+	TArray<FZSItemInstance> RollLoot(UWorld* World) const;
 };

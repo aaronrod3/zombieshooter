@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "ZSInventoryTypes.h"
+#include "ZSItemInstance.h"
 #include "../Survival/ZSItemConfig.h"
 #include "ZSInventoryComponent.generated.h"
 
@@ -17,8 +17,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnInventoryChanged);
  *  CurrentWeapon/HotbarSlots), which reference into this component's item data but are dispatched
  *  on by a different system (IA_Attack) for a different reason. This component owns two things:
  *
- *  1. A flat CarrySlots list (stacks of UZSItemConfig + count) - general loot, no grid/weight-
- *     independent-of-stacking complexity, matching the "roughly 1/3 of PZ's depth" pillar.
+ *  1. A flat CarrySlots list of FZSItemInstance (B0-T2 Step A: each a stable InstanceId + Config +
+ *     StackCount, not a bare Config+count) - general loot, no grid/weight-independent-of-stacking
+ *     complexity, matching the "roughly 1/3 of PZ's depth" pillar.
  *  2. Two equip slots (EZSEquipSlot::Back/Hip - GameDevPlan.md §7 P6, resolved 2026-07-21
  *     autonomously, dev unavailable to consult, flagged for review) for bags/clothing that grant
  *     a carry-capacity bonus (UZSItemConfig::CarryCapacityBonus) while worn - "equip-only vs.
@@ -59,18 +60,22 @@ public:
 
 	/** Returns a copy, not a reference - UFUNCTION-exposed container getters in this project return by value (matches how every other Blueprint-callable getter here works; not called per-tick, so the copy cost is irrelevant). */
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
-	TArray<FZSInventorySlot> GetCarrySlots() const { return CarrySlots; }
+	TArray<FZSItemInstance> GetCarrySlots() const { return CarrySlots; }
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	UZSItemConfig* GetEquippedItem(EZSEquipSlot Slot) const;
 
-	/** Server-authoritative: stacks onto existing partial CarrySlots entries first (respecting Item->MaxStackSize), then appends new slots for the remainder. Doesn't weight-check - a container hand-off or world pickup should still succeed content-wise; GetEncumbranceMultiplier already penalizes being overloaded instead of hard-blocking it (same philosophy as every other survival system here). No-op (returns 0) if Item is null, Count <= 0, or called off a non-authoritative machine. */
+	/** Server-authoritative: mints a fresh FZSItemInstance for Item/Count - stacks onto existing partial CarrySlots entries first (respecting Item->MaxStackSize, minting one new instance per stack-size-sized remainder for non-stackable items), then appends new instances for whatever's left. Use this when there's no pre-existing instance to preserve (e.g. a direct grant); use Server_AddItemInstance when there is (e.g. a world pickup or container loot transfer - see B0-T2's identity-preservation requirement). Doesn't weight-check - a container hand-off or world pickup should still succeed content-wise; GetEncumbranceMultiplier already penalizes being overloaded instead of hard-blocking it. No-op (returns 0) if Item is null, Count <= 0, or called off a non-authoritative machine. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	int32 Server_AddItem(UZSItemConfig* Item, int32 Count);
 
-	/** Server-authoritative: removes up to Count of Item from CarrySlots, emptiest-matching-stack-last (iterates back-to-front so partial stacks at the end get consumed before earlier ones - no gameplay significance to the order, just deterministic). Returns how many were actually removed (may be less than Count if fewer were carried). */
+	/** Server-authoritative: adds an already-existing FZSItemInstance to CarrySlots, preserving its InstanceId/InstanceState (durability, condition) if non-stackable, or merging its StackCount into a matching stack (discarding the incoming instance's own identity, per the stackable/stateful mutual-exclusion invariant) if stackable. This is what makes a dropped weapon's durability survive being picked back up. No-op (returns false) if the instance is invalid or called off a non-authoritative machine. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
-	int32 Server_RemoveItem(UZSItemConfig* Item, int32 Count);
+	bool Server_AddItemInstance(FZSItemInstance Instance);
+
+	/** Server-authoritative: removes up to Count of Item from CarrySlots, emptiest-matching-stack-last (iterates back-to-front so partial stacks at the end get consumed before earlier ones - no gameplay significance to the order, just deterministic). Returns the actual instances removed - a whole instance when fully consumed (preserving its InstanceId/InstanceState), or a freshly-minted instance representing a split-off stack fragment when only partially consuming a stack (a stack's sub-units have no individual identity). Sum each returned instance's StackCount for the total actually removed (may be less than Count if fewer were carried). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	TArray<FZSItemInstance> Server_RemoveItem(UZSItemConfig* Item, int32 Count);
 
 	/** Server-authoritative: moves one unit of Item (which the caller must already be carrying - same "caller already holds a direct reference" convention AZSPlayerCharacter::UseItem established in P2/P3) from CarrySlots into the given equip slot. Whatever was previously equipped there is returned to CarrySlots, not discarded. No-op (returns false) if Item->bIsEquippable is false, Item->EquipSlot doesn't match Slot, or Item isn't actually carried. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
@@ -104,7 +109,7 @@ protected:
 	float DropDistance = 100.f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory")
-	TArray<FZSInventorySlot> CarrySlots;
+	TArray<FZSItemInstance> CarrySlots;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory")
 	TObjectPtr<UZSItemConfig> EquippedBack;

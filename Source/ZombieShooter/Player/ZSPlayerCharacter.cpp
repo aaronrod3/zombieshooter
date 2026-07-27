@@ -41,6 +41,40 @@
 #include "CollisionShape.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "HAL/IConsoleManager.h"
+
+// Temporary B0-T2 Checkpoint A test hook - there's no real drop-item input bound yet (a known,
+// intentionally-deferred gap, see CLAUDE.md's Inventory/ note), so this exposes Server_DropItem via
+// the PIE console for testing InstanceId persistence through a drop/re-pickup cycle. Only works from
+// the HOST's console window - Server_DropItem is a plain HasAuthority()-gated function, not a real
+// Server RPC (see UZSInventoryComponent.h), so a non-host client's console has no authority to
+// invoke it locally. Remove once real drop input lands (Docs/InputBindings.md).
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugDropFirstCarriedItem(
+	TEXT("ZS.DebugDropFirstItem"),
+	TEXT("Drops 1 unit of the first item in the local (host) player's CarrySlots - B0-T2 Checkpoint A testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSInventoryComponent* Inventory = Character ? Character->GetInventoryComponent() : nullptr;
+		if (!Inventory)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugDropFirstItem: no local pawn/inventory found"));
+			return;
+		}
+
+		const TArray<FZSItemInstance> Carried = Inventory->GetCarrySlots();
+		if (Carried.Num() == 0)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugDropFirstItem: nothing carried"));
+			return;
+		}
+
+		const FZSItemInstance& First = Carried[0];
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugDropFirstItem: dropping %s, InstanceId %s"),
+			*GetNameSafe(First.Config), *First.InstanceId.ToString());
+		Inventory->Server_DropItem(First.Config, 1);
+	}));
 
 AZSPlayerCharacter::AZSPlayerCharacter()
 {

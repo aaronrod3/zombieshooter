@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "ZSInventoryTypes.h"
+#include "ZSItemInstance.h"
 #include "ZSContainerActor.generated.h"
 
 class UStaticMeshComponent;
@@ -34,7 +34,7 @@ public:
 
 	/** Returns a copy, not a reference - see UZSInventoryComponent::GetCarrySlots' comment for why. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
-	TArray<FZSInventorySlot> GetContainerSlots() const { return ContainerSlots; }
+	TArray<FZSItemInstance> GetContainerSlots() const { return ContainerSlots; }
 
 protected:
 
@@ -50,7 +50,7 @@ protected:
 	TObjectPtr<UZSLootTableConfig> LootTable;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ContainerSlots, Category = "ZS|Inventory")
-	TArray<FZSInventorySlot> ContainerSlots;
+	TArray<FZSItemInstance> ContainerSlots;
 
 	/** Keeps InteractableComponent->bIsInteractable in sync with whether there's anything left to loot - an empty container (looted, or LootTable rolled nothing) stops showing a prompt, per UZSInteractableComponent's own "already-looted container" example. */
 	UFUNCTION()

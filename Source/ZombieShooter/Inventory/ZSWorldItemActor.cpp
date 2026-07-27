@@ -30,8 +30,7 @@ void AZSWorldItemActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(AZSWorldItemActor, Item);
-	DOREPLIFETIME(AZSWorldItemActor, Count);
+	DOREPLIFETIME(AZSWorldItemActor, ItemInstance);
 }
 
 void AZSWorldItemActor::BeginPlay()
@@ -51,29 +50,42 @@ void AZSWorldItemActor::InitializeItem(UZSItemConfig* InItem, int32 InCount)
 		return;
 	}
 
-	Item = InItem;
-	Count = InCount;
-
-	// OnRep_X never fires on the machine that has authority - apply the cosmetic assembly
-	// directly here too, same pattern as every other config-driven actor in this project.
-	OnRep_Item();
+	FZSItemInstance NewInstance;
+	NewInstance.InstanceId = FGuid::NewGuid();
+	NewInstance.Config = InItem;
+	NewInstance.StackCount = InCount;
+	InitializeFromInstance(NewInstance);
 }
 
-void AZSWorldItemActor::OnRep_Item()
+void AZSWorldItemActor::InitializeFromInstance(const FZSItemInstance& InInstance)
 {
-	if (!Item)
+	if (!HasAuthority())
 	{
 		return;
 	}
 
-	if (PickupMesh && Item->WorldMesh)
+	ItemInstance = InInstance;
+
+	// OnRep_X never fires on the machine that has authority - apply the cosmetic assembly
+	// directly here too, same pattern as every other config-driven actor in this project.
+	OnRep_ItemInstance();
+}
+
+void AZSWorldItemActor::OnRep_ItemInstance()
+{
+	if (!ItemInstance.Config)
 	{
-		PickupMesh->SetStaticMesh(Item->WorldMesh);
+		return;
+	}
+
+	if (PickupMesh && ItemInstance.Config->WorldMesh)
+	{
+		PickupMesh->SetStaticMesh(ItemInstance.Config->WorldMesh);
 	}
 
 	if (InteractableComponent)
 	{
-		InteractableComponent->InteractionVerb = FText::FromString(FString::Printf(TEXT("Pick up %s x%d"), *Item->DisplayName.ToString(), Count));
+		InteractableComponent->InteractionVerb = FText::FromString(FString::Printf(TEXT("Pick up %s x%d"), *ItemInstance.Config->DisplayName.ToString(), ItemInstance.StackCount));
 	}
 }
 
@@ -81,16 +93,19 @@ void AZSWorldItemActor::HandleInteracted(UZSInteractableComponent* Interactable,
 {
 	// Temporary verification logging for B0-T1 Stage G re-test - remove once a world-prompt widget
 	// exists and failures here are visible without the log (same note as Server_Fire).
-	if (!HasAuthority() || !Interactor || !Item)
+	if (!HasAuthority() || !Interactor || !ItemInstance.IsValid())
 	{
-		UE_LOG(LogZombieShooter, Log, TEXT("%s: pickup rejected - Interactor=%s Item=%s"), *GetName(), *GetNameSafe(Interactor), *GetNameSafe(Item));
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: pickup rejected - Interactor=%s Item=%s"), *GetName(), *GetNameSafe(Interactor), *GetNameSafe(ItemInstance.Config));
 		return;
 	}
 
 	if (UZSInventoryComponent* Inventory = Interactor->GetInventoryComponent())
 	{
-		Inventory->Server_AddItem(Item, Count);
-		UE_LOG(LogZombieShooter, Log, TEXT("%s: picked up %s x%d"), *Interactor->GetName(), *Item->DisplayName.ToString(), Count);
+		Inventory->Server_AddItemInstance(ItemInstance);
+		// InstanceId logged here (B0-T2 Checkpoint A) so a dropped-then-repicked-up item's GUID can
+		// be diffed against the one Server_DropItem logged when it was dropped.
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: picked up %s x%d, InstanceId %s"),
+			*Interactor->GetName(), *ItemInstance.Config->DisplayName.ToString(), ItemInstance.StackCount, *ItemInstance.InstanceId.ToString());
 	}
 
 	Destroy();

@@ -25,11 +25,11 @@ float UZSInventoryComponent::GetCurrentWeight() const
 {
 	float Total = 0.f;
 
-	for (const FZSInventorySlot& Slot : CarrySlots)
+	for (const FZSItemInstance& Instance : CarrySlots)
 	{
-		if (Slot.Item)
+		if (Instance.Config)
 		{
-			Total += Slot.Item->Weight * Slot.Count;
+			Total += Instance.Config->Weight * Instance.StackCount;
 		}
 	}
 
@@ -88,29 +88,31 @@ int32 UZSInventoryComponent::Server_AddItem(UZSItemConfig* Item, int32 Count)
 	int32 Remaining = Count;
 
 	// Fill existing partial stacks first.
-	for (FZSInventorySlot& Slot : CarrySlots)
+	for (FZSItemInstance& Instance : CarrySlots)
 	{
 		if (Remaining <= 0)
 		{
 			break;
 		}
 
-		if (Slot.Item == Item && Slot.Count < StackSize)
+		if (Instance.Config == Item && Instance.StackCount < StackSize)
 		{
-			const int32 ToAdd = FMath::Min(StackSize - Slot.Count, Remaining);
-			Slot.Count += ToAdd;
+			const int32 ToAdd = FMath::Min(StackSize - Instance.StackCount, Remaining);
+			Instance.StackCount += ToAdd;
 			Remaining -= ToAdd;
 		}
 	}
 
-	// New slots for whatever's left.
+	// New instances for whatever's left - each mints its own GUID (B0-T2.2).
 	while (Remaining > 0)
 	{
-		FZSInventorySlot NewSlot;
-		NewSlot.Item = Item;
-		NewSlot.Count = FMath::Min(Remaining, StackSize);
-		CarrySlots.Add(NewSlot);
-		Remaining -= NewSlot.Count;
+		FZSItemInstance NewInstance;
+		NewInstance.InstanceId = FGuid::NewGuid();
+		NewInstance.Config = Item;
+		NewInstance.StackCount = FMath::Min(Remaining, StackSize);
+		NewInstance.Location = EZSCarryLocation::OnPerson;
+		CarrySlots.Add(NewInstance);
+		Remaining -= NewInstance.StackCount;
 	}
 
 	OnRep_InventoryState();
@@ -123,39 +125,114 @@ int32 UZSInventoryComponent::Server_AddItem(UZSItemConfig* Item, int32 Count)
 	return Count;
 }
 
-int32 UZSInventoryComponent::Server_RemoveItem(UZSItemConfig* Item, int32 Count)
+bool UZSInventoryComponent::Server_AddItemInstance(FZSItemInstance Instance)
 {
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !Instance.IsValid() || Instance.StackCount <= 0)
+	{
+		return false;
+	}
+
+	const int32 StackSize = FMath::Max(Instance.Config->MaxStackSize, 1);
+
+	if (StackSize > 1)
+	{
+		// Stackable: merge into existing partial stacks first, same splitting logic as Server_AddItem
+		// - the incoming instance's own InstanceId/InstanceState are discarded on merge, since a
+		// merged stack has no sub-identity (FZSItemInstance's own invariant comment).
+		int32 Remaining = Instance.StackCount;
+		for (FZSItemInstance& Existing : CarrySlots)
+		{
+			if (Remaining <= 0)
+			{
+				break;
+			}
+
+			if (Existing.Config == Instance.Config && Existing.StackCount < StackSize)
+			{
+				const int32 ToAdd = FMath::Min(StackSize - Existing.StackCount, Remaining);
+				Existing.StackCount += ToAdd;
+				Remaining -= ToAdd;
+			}
+		}
+
+		while (Remaining > 0)
+		{
+			FZSItemInstance NewInstance;
+			NewInstance.InstanceId = FGuid::NewGuid();
+			NewInstance.Config = Instance.Config;
+			NewInstance.StackCount = FMath::Min(Remaining, StackSize);
+			NewInstance.Location = EZSCarryLocation::OnPerson;
+			CarrySlots.Add(NewInstance);
+			Remaining -= NewInstance.StackCount;
+		}
+	}
+	else
+	{
+		// Non-stackable: the instance keeps its own identity intact - this is what makes a dropped
+		// weapon's durability survive being picked back up (B0-T2's headline fix).
+		Instance.Location = EZSCarryLocation::OnPerson;
+		CarrySlots.Add(Instance);
+	}
+
+	OnRep_InventoryState();
+
+	// Temporary verification logging for B0-T1 Stage G re-test - remove once a real inventory UI
+	// exists and this is visible without the log (same note as Server_Fire).
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_AddItemInstance - weight now %.1f / %.1f (encumbrance x%.2f)"),
+		*GetOwner()->GetName(), GetCurrentWeight(), GetMaxCarryWeight(), GetEncumbranceMultiplier());
+
+	return true;
+}
+
+TArray<FZSItemInstance> UZSInventoryComponent::Server_RemoveItem(UZSItemConfig* Item, int32 Count)
+{
+	TArray<FZSItemInstance> Removed;
+
 	if (!GetOwner() || !GetOwner()->HasAuthority() || !Item || Count <= 0)
 	{
-		return 0;
+		return Removed;
 	}
 
 	int32 Remaining = Count;
 
 	for (int32 Index = CarrySlots.Num() - 1; Index >= 0 && Remaining > 0; --Index)
 	{
-		FZSInventorySlot& Slot = CarrySlots[Index];
-		if (Slot.Item != Item)
+		FZSItemInstance& Instance = CarrySlots[Index];
+		if (Instance.Config != Item)
 		{
 			continue;
 		}
 
-		const int32 ToRemove = FMath::Min(Slot.Count, Remaining);
-		Slot.Count -= ToRemove;
-		Remaining -= ToRemove;
+		const int32 ToRemove = FMath::Min(Instance.StackCount, Remaining);
 
-		if (Slot.Count <= 0)
+		if (ToRemove >= Instance.StackCount)
 		{
+			// Whole instance consumed - preserve its identity (GUID/InstanceState) in the output.
+			Removed.Add(Instance);
 			CarrySlots.RemoveAt(Index);
 		}
+		else
+		{
+			// Partial stack split-off - the remainder has no individual identity to preserve, so it
+			// gets a fresh GUID rather than reusing the still-carried stack's.
+			Instance.StackCount -= ToRemove;
+
+			FZSItemInstance Fragment;
+			Fragment.InstanceId = FGuid::NewGuid();
+			Fragment.Config = Instance.Config;
+			Fragment.StackCount = ToRemove;
+			Fragment.Location = Instance.Location;
+			Removed.Add(Fragment);
+		}
+
+		Remaining -= ToRemove;
 	}
 
-	const int32 ActuallyRemoved = Count - Remaining;
-	if (ActuallyRemoved > 0)
+	if (Removed.Num() > 0)
 	{
 		OnRep_InventoryState();
 	}
-	return ActuallyRemoved;
+	return Removed;
 }
 
 bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, UZSItemConfig* Item)
@@ -170,7 +247,7 @@ bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, UZSItemConfig*
 		return false;
 	}
 
-	if (Server_RemoveItem(Item, 1) <= 0)
+	if (Server_RemoveItem(Item, 1).IsEmpty())
 	{
 		// Not actually carried - nothing to equip.
 		return false;
@@ -215,8 +292,8 @@ void UZSInventoryComponent::Server_DropItem(UZSItemConfig* Item, int32 Count)
 		return;
 	}
 
-	const int32 Removed = Server_RemoveItem(Item, Count);
-	if (Removed <= 0)
+	const TArray<FZSItemInstance> Removed = Server_RemoveItem(Item, Count);
+	if (Removed.Num() == 0)
 	{
 		return;
 	}
@@ -226,15 +303,29 @@ void UZSInventoryComponent::Server_DropItem(UZSItemConfig* Item, int32 Count)
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	if (AZSWorldItemActor* WorldItem = GetWorld()->SpawnActor<AZSWorldItemActor>(AZSWorldItemActor::StaticClass(), DropLocation, OwnerActor->GetActorRotation(), SpawnParams))
+	// One AZSWorldItemActor per removed instance/fragment (in practice almost always just one - see
+	// Server_RemoveItem) so each preserves its own InstanceId/InstanceState (e.g. a weapon's
+	// durability) rather than collapsing distinct instances into a single pile - B0-T2's headline
+	// "durability survives drop/re-pickup" fix, verified at Checkpoint A with the GUID alone.
+	int32 TotalRemoved = 0;
+	for (const FZSItemInstance& Instance : Removed)
 	{
-		WorldItem->InitializeItem(Item, Removed);
+		TotalRemoved += Instance.StackCount;
+		if (AZSWorldItemActor* WorldItem = GetWorld()->SpawnActor<AZSWorldItemActor>(AZSWorldItemActor::StaticClass(), DropLocation, OwnerActor->GetActorRotation(), SpawnParams))
+		{
+			WorldItem->InitializeFromInstance(Instance);
+		}
+
+		// Temporary GUID logging for B0-T2 Checkpoint A - remove alongside the rest of this
+		// session's verification logging (B0-T5.5).
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: dropped instance InstanceId %s (x%d)"),
+			*OwnerActor->GetName(), *Instance.InstanceId.ToString(), Instance.StackCount);
 	}
 
 	// Temporary verification logging for B0-T1 Stage G re-test - remove once a real inventory UI
 	// exists and this is visible without the log (same note as Server_Fire).
 	UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_DropItem - dropped %s x%d, weight now %.1f / %.1f"),
-		*OwnerActor->GetName(), *Item->DisplayName.ToString(), Removed, GetCurrentWeight(), GetMaxCarryWeight());
+		*OwnerActor->GetName(), *Item->DisplayName.ToString(), TotalRemoved, GetCurrentWeight(), GetMaxCarryWeight());
 }
 
 void UZSInventoryComponent::OnRep_InventoryState()

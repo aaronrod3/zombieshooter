@@ -10,9 +10,9 @@ FPrimaryAssetId UZSLootTableConfig::GetPrimaryAssetId() const
 	return FPrimaryAssetId(TEXT("ZSLootTableConfig"), GetFName());
 }
 
-TArray<FZSInventorySlot> UZSLootTableConfig::RollLoot(UWorld* World) const
+TArray<FZSItemInstance> UZSLootTableConfig::RollLoot(UWorld* World) const
 {
-	TArray<FZSInventorySlot> Result;
+	TArray<FZSItemInstance> Result;
 
 	float TotalWeight = 0.f;
 	for (const FZSLootTableEntry& Entry : Entries)
@@ -62,10 +62,12 @@ TArray<FZSInventorySlot> UZSLootTableConfig::RollLoot(UWorld* World) const
 			continue;
 		}
 
-		FZSInventorySlot Slot;
-		Slot.Item = Chosen->Item;
-		Slot.Count = FMath::RandRange(Chosen->MinCount, Chosen->MaxCount);
-		Result.Add(Slot);
+		FZSItemInstance Instance;
+		Instance.InstanceId = FGuid::NewGuid();
+		Instance.Config = Chosen->Item;
+		Instance.StackCount = FMath::RandRange(Chosen->MinCount, Chosen->MaxCount);
+		Instance.Location = EZSCarryLocation::World;
+		Result.Add(Instance);
 	}
 
 	return Result;

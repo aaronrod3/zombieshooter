@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "ZSItemInstance.h"
 #include "ZSWorldItemActor.generated.h"
 
 class UZSItemConfig;
@@ -21,7 +22,8 @@ class AZSPlayerCharacter;
  *  Reuses P1's UZSInteractableComponent rather than inventing a second interaction path -
  *  HandleInteracted is bound to its OnInteracted delegate in BeginPlay (fires server-side only,
  *  same as every other interactable in this project - see UZSInteractableComponent's own doc
- *  comment), adds Item/Count to the interactor's UZSInventoryComponent, and destroys this actor.
+ *  comment), adds ItemInstance to the interactor's UZSInventoryComponent (preserving its
+ *  InstanceId/InstanceState - see ZSItemInstance.h), and destroys this actor.
  */
 UCLASS()
 class AZSWorldItemActor : public AActor
@@ -34,15 +36,22 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	/** Server-only: sets the replicated Item/Count this pickup represents and assembles its cosmetic mesh. Safe to call right after SpawnActor - mirrors AZSWeapon::InitializeFromConfig's "call right after spawn, not BeginPlay" reasoning. */
+	/** Server-only: mints a fresh FZSItemInstance for InItem/InCount and assembles the cosmetic mesh - the hand-authored/placed-loot path (CLAUDE.md's "Blueprint subclass calling InitializeItem in BeginPlay" pattern for pre-populated pickups), where there's no pre-existing instance to preserve. Delegates to InitializeFromInstance. Safe to call right after SpawnActor - mirrors AZSWeapon::InitializeFromConfig's "call right after spawn, not BeginPlay" reasoning. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void InitializeItem(UZSItemConfig* InItem, int32 InCount);
 
-	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
-	UZSItemConfig* GetItem() const { return Item; }
+	/** Server-only: as above, but for the drop/relocate path where an instance already exists (UZSInventoryComponent::Server_DropItem) and its InstanceId/InstanceState (durability, condition) must survive the round trip - B0-T2's headline exit criterion. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	void InitializeFromInstance(const FZSItemInstance& InInstance);
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
-	int32 GetCount() const { return Count; }
+	const FZSItemInstance& GetItemInstance() const { return ItemInstance; }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	UZSItemConfig* GetItem() const { return ItemInstance.Config; }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	int32 GetCount() const { return ItemInstance.StackCount; }
 
 protected:
 
@@ -54,16 +63,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UZSInteractableComponent> InteractableComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_Item, Category = "ZS|Inventory")
-	TObjectPtr<UZSItemConfig> Item;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ItemInstance, Category = "ZS|Inventory")
+	FZSItemInstance ItemInstance;
 
-	/** No OnRep needed - always set in the same InitializeItem call as Item, and nothing client-side reacts to Count on its own (the interaction prompt text is assembled from Item + Count together in OnRep_Item). */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "ZS|Inventory")
-	int32 Count = 0;
-
-	/** Cosmetic mesh assembly + interaction-prompt text from Item - called from InitializeItem on the server (OnRep never fires on the authoring machine itself) and via replication on clients. */
+	/** Cosmetic mesh assembly + interaction-prompt text from ItemInstance - called from InitializeFromInstance on the server (OnRep never fires on the authoring machine itself) and via replication on clients. */
 	UFUNCTION()
-	void OnRep_Item();
+	void OnRep_ItemInstance();
 
 	/** Bound to InteractableComponent->OnInteracted in BeginPlay. Only meaningfully runs server-side - OnInteract itself (and therefore this broadcast) only ever fires on the server, per AZSPlayerCharacter::Server_Interact/UZSInteractableComponent's own doc comment - so no HasAuthority() gate is needed on the binding itself, only inside the handler as a defensive check. */
 	UFUNCTION()

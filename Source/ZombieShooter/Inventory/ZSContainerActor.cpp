@@ -76,12 +76,17 @@ void AZSContainerActor::HandleInteracted(UZSInteractableComponent* Interactable,
 	}
 
 	int32 ItemsTransferred = 0;
-	for (const FZSInventorySlot& Slot : ContainerSlots)
+	for (const FZSItemInstance& Instance : ContainerSlots)
 	{
-		if (Slot.Item && Slot.Count > 0)
+		if (Instance.IsValid() && Instance.StackCount > 0)
 		{
-			Inventory->Server_AddItem(Slot.Item, Slot.Count);
+			Inventory->Server_AddItemInstance(Instance);
 			++ItemsTransferred;
+
+			// Temporary GUID logging for B0-T2 Checkpoint A - remove alongside the rest of this
+			// session's verification logging (B0-T5.5).
+			UE_LOG(LogZombieShooter, Log, TEXT("%s: transferred %s x%d, InstanceId %s"),
+				*GetName(), *Instance.Config->DisplayName.ToString(), Instance.StackCount, *Instance.InstanceId.ToString());
 		}
 	}
 
