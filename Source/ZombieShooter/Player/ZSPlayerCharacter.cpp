@@ -183,6 +183,13 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	HealthComponent = CreateDefaultSubobject<UZSHealthComponent>(TEXT("HealthComponent"));
 	InventoryComponent = CreateDefaultSubobject<UZSInventoryComponent>(TEXT("InventoryComponent"));
 
+	// B0-T7.4: only interactable while blacked out (bIsInteractable toggled in Enter/ExitBlackout) -
+	// see the header comment for why UpdateNearestInteractable needed widening to find this.
+	ReviveInteractable = CreateDefaultSubobject<UZSInteractableComponent>(TEXT("ReviveInteractable"));
+	ReviveInteractable->SetupAttachment(RootComponent);
+	ReviveInteractable->InteractionVerb = FText::FromString(TEXT("Revive"));
+	ReviveInteractable->bIsInteractable = false;
+
 	// Default Input Actions. AZSPlayerCharacter has no mandatory Blueprint child
 	// (see class comment), so these EditAnywhere references need a constructor-time
 	// default the way a Blueprint's CDO normally would provide one.
@@ -262,6 +269,7 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(AZSPlayerCharacter, bIsAiming);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsSprinting);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsReadyToSleep);
+	DOREPLIFETIME(AZSPlayerCharacter, bIsBlackedOut);
 }
 
 void AZSPlayerCharacter::BeginPlay()
@@ -269,6 +277,11 @@ void AZSPlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	BaseWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+
+	if (ReviveInteractable)
+	{
+		ReviveInteractable->OnInteracted.AddDynamic(this, &AZSPlayerCharacter::HandleReviveInteracted);
+	}
 
 	// P5: cache the CDO/BP-authored body mesh before anything is ever equipped - since nothing
 	// auto-equips anymore (see below), GetMesh()'s mesh at this exact point *is* the correct
@@ -580,8 +593,8 @@ bool AZSPlayerCharacter::CanSwitchLoadout() const
 {
 	// Same bIsBusy gate CanAttack()/CanFire()/CanReload() already use - blocks starting a switch
 	// mid-swing/mid-shot/mid-reload, and (since CompleteHotbarSwitch's own window also sets
-	// bIsBusy) blocks starting a second switch mid-switch.
-	return !bIsBusy;
+	// bIsBusy) blocks starting a second switch mid-switch. B0-T7.2: also blocked while blacked out.
+	return !bIsBusy && !bIsBlackedOut;
 }
 
 void AZSPlayerCharacter::HandleHotbarSelect(const FInputActionValue& Value)
@@ -632,6 +645,13 @@ void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
 		{
 			if (const UZSWeaponConfig* WeaponConfig = Cast<UZSWeaponConfig>(Inventory->GetInstance(TargetInstanceId).Config))
 			{
+				// B0-T7.5: arm amputation restricts weapon use to OneHanded options only.
+				if (WeaponConfig->Handedness == EZSWeaponHandedness::TwoHanded
+					&& HealthComponent && HealthComponent->GetZoneWound(EZSBodyZone::Arms).bAmputated)
+				{
+					return;
+				}
+
 				SwitchDelay = FMath::Max(WeaponConfig->EquipTimeSeconds, 0.f);
 			}
 		}
@@ -931,10 +951,14 @@ void AZSPlayerCharacter::UpdateNearestInteractable()
 	// WorldStatic + WorldDynamic: an interactable could be either (a static door mesh, a dynamic
 	// loot container) - no dedicated "Interactable" trace channel exists yet (would need a
 	// DefaultEngine.ini collision-channel addition, not just C++; deliberately not adding one for
-	// v1 to avoid touching project settings unreviewed - see this session's blocker notes).
+	// v1 to avoid touching project settings unreviewed - see this session's blocker notes). B0-T7.4,
+	// 2026-07-26: also queries ECC_Pawn now, so a blacked-out teammate's UZSInteractableComponent
+	// (AZSPlayerCharacter::ReviveInteractable) is actually findable - same reuse-this-system
+	// convention as every other interactable type, not a parallel revive-detection scan.
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionShape Sphere = FCollisionShape::MakeSphere(InteractionTraceRadius);
@@ -945,8 +969,10 @@ void AZSPlayerCharacter::UpdateNearestInteractable()
 
 	for (const FOverlapResult& Overlap : Overlaps)
 	{
-		if (!Overlap.GetActor())
+		if (!Overlap.GetActor() || Overlap.GetActor() == this)
 		{
+			// Self-exclusion only actually matters now that Pawn is queried too (T7.4) - a player
+			// can't interact with (e.g. revive) themselves.
 			continue;
 		}
 
@@ -1321,12 +1347,113 @@ void AZSPlayerCharacter::AmputateZone(EZSBodyZone Zone)
 
 void AZSPlayerCharacter::Server_AmputateZone_Implementation(EZSBodyZone Zone)
 {
-	if (!HasAuthority() || !HealthComponent)
+	if (!HasAuthority() || !HealthComponent || bIsBusy)
 	{
 		return;
 	}
 
-	HealthComponent->Server_AmputateZone(Zone);
+	// B0-T7.1: real choreography (bIsBusy gate + cosmetic montage + a real duration) instead of an
+	// instant mutator - matches the project's timed-action convention. AmputationMontage isn't
+	// authored yet (content gap), so the busy window comes from the plain AmputationDurationSeconds
+	// timer, not montage notify timing - same "no content yet" pattern EquipTimeSeconds uses.
+	SetBusy(true);
+	if (AmputationMontage)
+	{
+		Multicast_PlayTPActionMontage(AmputationMontage);
+	}
+
+	FTimerDelegate CompleteDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::CompleteAmputation, Zone);
+	GetWorldTimerManager().SetTimer(AmputationTimerHandle, CompleteDelegate, FMath::Max(AmputationDurationSeconds, 0.01f), false);
+}
+
+void AZSPlayerCharacter::CompleteAmputation(EZSBodyZone Zone)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	SetBusy(false);
+
+	if (!HealthComponent || !HealthComponent->Server_AmputateZone(Zone))
+	{
+		// Invalid target (Head/Torso, already amputated) - HealthComponent already validated and
+		// rejected it; don't enter blackout over a no-op amputation.
+		return;
+	}
+
+	// B0-T7.2/T7.3: enter blackout after the amputation itself actually succeeds.
+	EnterBlackout();
+}
+
+void AZSPlayerCharacter::EnterBlackout()
+{
+	if (!HasAuthority() || bIsBlackedOut)
+	{
+		return;
+	}
+
+	bIsBlackedOut = true;
+	OnRep_IsBlackedOut();
+
+	GetCharacterMovement()->DisableMovement();
+
+	if (ReviveInteractable)
+	{
+		ReviveInteractable->bIsInteractable = true;
+	}
+
+	// B0-T7.3 (solo and co-op alike): a single lump-sum jump (matching AZSGameState's existing
+	// sleep/time-skip mechanism), not a sustained per-player clock-rate multiplier - the world clock
+	// is shared across every connected player and can't run at two speeds for one incapacitated
+	// player without affecting everyone else's real-time experience too.
+	if (AZSGameState* GameState = GetWorld()->GetGameState<AZSGameState>())
+	{
+		GameState->Server_AdvanceTimeByGameHours(BlackoutTimeSkipGameHours);
+	}
+
+	FTimerDelegate RecoverDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::ExitBlackout, false);
+	GetWorldTimerManager().SetTimer(BlackoutTimerHandle, RecoverDelegate, FMath::Max(BlackoutDurationSeconds, 0.01f), false);
+}
+
+void AZSPlayerCharacter::ExitBlackout(bool bWasRevived)
+{
+	if (!HasAuthority() || !bIsBlackedOut)
+	{
+		return;
+	}
+
+	bIsBlackedOut = false;
+	OnRep_IsBlackedOut();
+
+	GetWorldTimerManager().ClearTimer(BlackoutTimerHandle);
+
+	if (ReviveInteractable)
+	{
+		ReviveInteractable->bIsInteractable = false;
+	}
+
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: blackout ended (%s)"), *GetName(), bWasRevived ? TEXT("revived") : TEXT("recovered naturally"));
+}
+
+void AZSPlayerCharacter::OnRep_IsBlackedOut()
+{
+	OnBlackoutChanged.Broadcast(bIsBlackedOut);
+}
+
+void AZSPlayerCharacter::HandleReviveInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor)
+{
+	if (!HasAuthority() || !Interactor || !bIsBlackedOut)
+	{
+		return;
+	}
+
+	// B0-T7.4: a revive shortens the blackout - ends it immediately rather than modeling a separate
+	// reduced-duration timer, since there's no revive montage/channeled-action content yet to
+	// justify a real "revive takes time" mechanic (v1 simplification).
+	ExitBlackout(true);
 }
 
 void AZSPlayerCharacter::UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone)
@@ -1439,7 +1566,7 @@ void AZSPlayerCharacter::Server_ForceStopAiming_Implementation()
 
 bool AZSPlayerCharacter::CanFire() const
 {
-	return !bIsSprinting && !bIsBusy && CurrentWeapon && CurrentWeapon->CanFire();
+	return !bIsSprinting && !bIsBusy && !bIsBlackedOut && CurrentWeapon && CurrentWeapon->CanFire();
 }
 
 void AZSPlayerCharacter::HandleFireStarted()
@@ -1568,7 +1695,8 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 
 bool AZSPlayerCharacter::CanAttack() const
 {
-	return !bIsSprinting && !bIsBusy;
+	// B0-T7.2: "not normal play" while blacked out - can't fire/melee lying incapacitated.
+	return !bIsSprinting && !bIsBusy && !bIsBlackedOut;
 }
 
 void AZSPlayerCharacter::HandleAttack()

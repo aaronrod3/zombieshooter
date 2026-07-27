@@ -500,7 +500,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
 	UZSHealthComponent* GetHealthComponent() const { return HealthComponent; }
 
-	/** Client-callable entry point - GameDevPlan.md P3's "simplest version first" amputation: any zone context, solo-capable, no tool-item requirement enforced here (open questions on tool/timing/co-op-assist are refinements in GameDevPlan.md §7, not blockers). Routes through Server_AmputateZone to HealthComponent->Server_AmputateZone, which is the actual authority on whether it's valid (Arms/Legs only, not already amputated). */
+	/** Client-callable entry point - GameDevPlan.md P3's "simplest version first" amputation: any zone context, solo-capable, no tool-item requirement enforced here (open questions on tool/timing/co-op-assist are refinements in GameDevPlan.md §7, not blockers). Routes through Server_AmputateZone, which now runs the real B0-T7.1 choreography (bIsBusy + montage + real duration) before HealthComponent->Server_AmputateZone actually mutates anything - HealthComponent stays the authority on whether it's valid (Arms/Legs only, not already amputated), this class only owns the timing/blackout consequences layered on top. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Health")
 	void AmputateZone(EZSBodyZone Zone);
 
@@ -508,6 +508,63 @@ protected:
 
 	UFUNCTION(Server, Reliable, Category = "ZS|Health")
 	void Server_AmputateZone(EZSBodyZone Zone);
+
+	/** B0-T7.1: cosmetic TP montage for the amputation choreography - unset is a no-op, same "unset = no-op" convention as every other optional montage field in this project (content gap, not yet authored). The real bIsBusy gate duration comes from AmputationDurationSeconds below, not this montage's own length/notifies - there's no montage content yet to place an AN_ZS_UnlockActions notify on, same "plain timer, not notify-driven" reasoning EquipTimeSeconds/UnequipTimeSeconds already use. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Health")
+	TObjectPtr<UAnimMontage> AmputationMontage;
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0"))
+	float AmputationDurationSeconds = 3.f;
+
+	/** Timer callback for Server_AmputateZone's choreography window - actually mutates HealthComponent, clears bIsBusy, then enters blackout (EnterBlackout). Server-only. */
+	void CompleteAmputation(EZSBodyZone Zone);
+
+	FTimerHandle AmputationTimerHandle;
+
+public:
+
+	// =====================================================================
+	// B0-T7.2-T7.4 - Blackout (incapacitated-after-amputation state, not death, not normal play)
+	// =====================================================================
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	bool IsBlackedOut() const { return bIsBlackedOut; }
+
+	/** Reuses the existing generic bool-change delegate rather than declaring a single-purpose one. */
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Health")
+	FZSOnBoolStateChanged OnBlackoutChanged;
+
+protected:
+
+	/** Not death - collision/damageability stay on throughout (an incapacitated player is still a valid target, per T7.3's "enemies can find and kill" requirement), only movement/input are suspended. Not normal play either - movement is fully disabled for the duration. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_IsBlackedOut, Category = "ZS|Health")
+	bool bIsBlackedOut = false;
+
+	UFUNCTION()
+	void OnRep_IsBlackedOut();
+
+	/** Server-only: sets bIsBlackedOut, disables movement, flips ReviveInteractable on, and jumps the world clock forward by BlackoutTimeSkipGameHours via AZSGameState::Server_AdvanceTimeByGameHours - a single lump-sum jump (matching the existing sleep/time-skip mechanism) rather than a sustained per-player clock-rate multiplier, since the world clock is shared across every connected player and can't run at two speeds at once. Schedules automatic recovery after BlackoutDurationSeconds of real time unless revived first. No-op if already blacked out or off a non-authoritative machine. Called from CompleteAmputation. */
+	void EnterBlackout();
+
+	/** Server-only: clears bIsBlackedOut, re-enables movement, flips ReviveInteractable off, clears the auto-recovery timer. bWasRevived is cosmetic/logging only - a revive (B0-T7.4) just calls this early rather than modeling a separate reduced-duration timer (no revive montage/channeled-action content exists yet to justify one - v1 simplification). */
+	void ExitBlackout(bool bWasRevived);
+
+	/** B0-T7.3: how many game-hours the world clock jumps forward the instant blackout begins - "you were unconscious and time passed you by." Dev's stated figure: ~12. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0"))
+	float BlackoutTimeSkipGameHours = 12.f;
+
+	/** B0-T7.3: real-time seconds the player stays incapacitated/vulnerable before automatically recovering if nobody revives them first. Code default, not dev-specified - retune freely. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0"))
+	float BlackoutDurationSeconds = 60.f;
+
+	FTimerHandle BlackoutTimerHandle;
+
+	/** B0-T7.4: only interactable while bIsBlackedOut (bIsInteractable toggled in Enter/ExitBlackout) - lets a teammate revive a downed player, ending their blackout early. UpdateNearestInteractable's overlap scan was widened to also query ECC_Pawn this session specifically so this is findable (players were never Pawn-object-queried before, since no interactable had ever lived on a Pawn). "Move the downed body" (the other half of T7.4) isn't built - a real drag/carry system is bigger scope than this pass, revive-shortens-blackout is the concrete, testable mechanic. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UZSInteractableComponent> ReviveInteractable;
+
+	UFUNCTION()
+	void HandleReviveInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor);
 
 public:
 

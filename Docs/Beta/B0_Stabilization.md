@@ -251,11 +251,11 @@ struct FZSItemInstance
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T7.1 | Amputation gets a **montage + `bIsBusy` gate**, matching the project's own timed-action convention instead of a bare mutator. | P3-R10 |
-| T7.2 | **Blackout state** — an incapacitated, vulnerable state after amputation. Not death, not normal play. | P3-R7 |
-| T7.3 | **Solo:** game time accelerates ~12 in-game hours during blackout. Enemies can find and kill the incapacitated player, making location choice a real tactical decision. | P3-R7 |
-| T7.4 | **Co-op:** teammate can move the downed body; a revive action shortens the blackout. | P3-R7 |
-| T7.5 | Arm amputation enforces `OneHanded`-only weapon use (needs T2.12's handedness field). | P3-R8 |
+| T7.1 | 🔧 **Code complete 2026-07-26, not yet PIE-verified.** Amputation gets a **montage + `bIsBusy` gate** (`Server_AmputateZone`→`CompleteAmputation`, real timer via `AmputationDurationSeconds`, not montage-notify-driven since no montage is authored yet - content gap). | P3-R10 |
+| T7.2 | 🔧 **Code complete.** **Blackout state** (`bIsBlackedOut`) — incapacitated, vulnerable after a successful amputation. Not death (collision/damageability stay on - a blacked-out player is still a valid target), not normal play (movement disabled via `DisableMovement`, `CanAttack`/`CanFire`/`CanSwitchLoadout` all gated off). | P3-R7 |
+| T7.3 | 🔧 **Code complete.** **Solo:** `EnterBlackout` jumps the world clock forward `BlackoutTimeSkipGameHours` (12) via the existing `AZSGameState::Server_AdvanceTimeByGameHours` (a single lump-sum jump, not a sustained clock-rate multiplier - the world clock is shared across every connected player). Player stays vulnerable/immobile in real time for `BlackoutDurationSeconds` (60) before auto-recovering. | P3-R7 |
+| T7.4 | 🔧 **Code complete, partial scope.** **Co-op:** new `ReviveInteractable` component (only interactable while blacked out) lets a teammate revive early, ending the blackout immediately. `UpdateNearestInteractable`'s overlap scan widened to also query `ECC_Pawn` (was WorldStatic/WorldDynamic only - no interactable had ever lived on a Pawn before) plus a self-exclusion check. **"Move the downed body" not built** - a real drag/carry system is bigger scope than this pass; revive-shortens-blackout is the concrete mechanic delivered. | P3-R7 |
+| T7.5 | 🔧 **Code complete.** Arm amputation blocks equipping a `TwoHanded` weapon (`Server_SelectHotbarSlot_Implementation` checks `HealthComponent->GetZoneWound(Arms).bAmputated`). | P3-R8 |
 
 ---
 
