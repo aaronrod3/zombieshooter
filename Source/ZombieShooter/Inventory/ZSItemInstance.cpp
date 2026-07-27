@@ -3,11 +3,16 @@
 #include "ZSItemInstance.h"
 #include "../Survival/ZSItemConfig.h"
 
+float FZSItemInstanceBase::GetTotalWeight() const
+{
+	return Config ? Config->Weight * StackCount : 0.f;
+}
+
 float FZSItemInstance::GetTotalWeight() const
 {
-	float Total = Config ? Config->Weight * StackCount : 0.f;
+	float Total = FZSItemInstanceBase::GetTotalWeight();
 
-	for (const FZSItemInstance& Contained : ContainedItems)
+	for (const FZSItemInstanceBase& Contained : ContainedItems)
 	{
 		Total += Contained.GetTotalWeight();
 	}

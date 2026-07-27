@@ -2,7 +2,7 @@
 
 > **What this is.** You stepped away and asked for as much of B0 as possible to get done without you, plus a list of tests to work through on your return and a list of decisions that need your call. This is that list. Full technical detail for every item here already lives in `Docs/Beta/B0_Stabilization.md` (every sub-task row was updated as it was built) — this doc is the curated, sequential "start here" companion, not a replacement.
 >
-> **Nothing in this entire stretch has been compiled or run.** Every feature below is C++ that type-checks by my own reading, following every established pattern in the codebase, but the editor was never opened this session (per standing policy — I don't attempt `Build.bat` while you might have the editor open, and there was no way to run PIE headlessly either way). Section 0 is not optional.
+> **Update, 2026-07-27**: the module now compiles clean (`Build.bat ZombieShooterEditor Win64 Development` succeeded). One real error surfaced and was fixed along the way — `FZSItemInstance` had contained a `TArray<FZSItemInstance>` for bag contents (`ContainedItems`), which Unreal's header tool rejects (a USTRUCT can't hold an array of itself). Fixed by splitting the field's type into a non-recursive `FZSItemInstanceBase` — see the note at the top of §2.1's Checkpoint C below for the one behavior change this caused. **Nothing has been PIE-tested yet** — that's what the rest of this doc is for. Section 0 below is otherwise still accurate; items 1-2 are now done.
 
 ---
 
@@ -50,66 +50,117 @@ None of this blocks compiling or most testing, but several features degrade grac
 
 Work through in this order — later items build on earlier ones, so a failure early on may explain a failure downstream.
 
+### 2.0 — Before you start: how to observe/trigger state (no UI exists yet)
+
+**Watching replicated state live.** While PIE is running, click any actor in the World Outliner (your pawn, a zombie, `AZSGameState`) — the Details panel shows its properties updating live. Use the component dropdown at the top of Details to jump straight to `Zs Needs Component`/`Zs Health Component`/`Zs Inventory Component`/etc. on your pawn. Nested structs and arrays expand too — a `CarrySlots` entry's own `ContainedItems` (a bag's contents) is browsable right there in the tree, no console command required.
+
+Because this project deliberately marks replicated gameplay state `VisibleAnywhere` rather than `EditAnywhere` (`ZSGameState.h`'s own comment: "so nobody can hand-edit server-authoritative state through it"), **you can watch these values but not hand-edit them** — there's no shortcut of typing a new number into `CurrentHealth` or `bIsWet` in the Details panel. State only changes through the real mechanism (get shot, get wet, get bitten) or a `Server_`-prefixed function actually being invoked. If a property you need isn't visible in Details for some reason, the universal fallback is a temporary Blueprint "Print String" wired to the matching `GetX()` accessor.
+
+**Cross-client checks in 2-player PIE.** Only the host's window is a real editor instance with an Outliner. To check a *second* client's pawn/inventory, select *their* pawn from the **host's** Outliner (the server/host sees every replicated actor in the session, including remote clients' pawns) rather than looking for editor UI in the client's own window.
+
+**Console commands that exist today** (open the console with the default `` ` `` key; all four are host-only and only ever act on the local/host player):
+- `ZS.DebugDropFirstItem` — drops 1 unit of the first item in the host's `CarrySlots`.
+- `ZS.DebugStoreFirstItemInBag` — moves the first non-bag `CarrySlots` item into the first bag-type `CarrySlots` item.
+- `ZS.DebugListCarrySlots` — logs the host's full `CarrySlots` to the Output Log, including nested bag contents and each instance's weight.
+- `ZS.SpawnZombies <n>` — spawns `<n>` (1-500) zombies in a ring around the host's pawn.
+
+**No console command exists yet for**: forcing `bIsWet`/indoors, or forcing a specific wound. `UZSNeedsComponent::Server_SetWet(bool)`/`Server_SetIndoors(bool)` are real, callable functions, but today the only way to invoke them is a temporary Blueprint node (open `BP_ZS_PlayerCharacter`, add a debug key event calling `NeedsComponent → Server Set Wet`) — there's no `ZS.Debug` console wrapper for these, unlike the inventory ones above. *(Say the word if you'd like matching `ZS.DebugSetWet`/`ZS.DebugSetIndoors` commands added — same pattern as the four above, quick to add.)*
+
+**Compressing time for multi-hour/multi-day tests.** At the default `RealSecondsPerGameDay = 1440`, 1 game-hour = 1 real minute. That makes some tests directly waitable (Wet's 2h dry-out = 2 real minutes) but others impractical to sit through (an unsplinted Fracture's 240h recovery = 4 real hours). `RealSecondsPerGameDay` is `EditDefaultsOnly` on `AZSGameState` — **not** editable per-instance or live during a running PIE session, and `AZSGameMode` currently hardcodes the native `AZSGameState` class directly (no Blueprint subclass exists to hold an overridden default). For anything measured in many real hours:
+- **Preferred**: verify the *rate* over a short window instead of waiting for full completion — e.g. confirm `FractureRecoveryProgressGameHours` climbs by roughly 10 over 10 real minutes, rather than waiting the full 240 minutes for it to finish.
+- **If you want to actually watch one complete**: temporarily lower the default in `ZSGameState.h` (~line 139) to something like `60.f` (1 real second = 1 game hour), rebuild (header-only default change, fast incremental build), test, then revert and rebuild again before moving on.
+
+**Multiplayer tests**: PIE → Advanced Settings → Multiplayer Options → Number of Players ≥ 2, Net Mode "Play As Listen Server" (same setup Checkpoint A already used).
+
+**Profiling**: `stat fps`, `stat unit`, `stat ai` are standard engine console commands, needed for 2.10.
+
 ### 2.1 — Item-instance system (T2, prior session — still unverified)
-These checkpoints are already written up in detail in `B0_Stabilization.md`; only Checkpoint A has a confirmed pass. Referencing, not repeating, the instructions:
-- [ ] **Checkpoint B** (`B0_Stabilization.md` line ~156) — the headline durability-persistence test: loot a weapon, hotbar it, equip, use to half durability, unequip/re-equip, confirm durability held. Break a weapon, confirm it's gone from `CarrySlots` entirely.
-- [ ] **Checkpoint C** (~line 165) — equip a bag, confirm capacity rises; store/retrieve an item in it via `Server_StoreInBag`/`Server_RetrieveFromBag` (no UI yet — call via Blueprint or a temporary console hook); drop the bag, confirm contents travel with it; loot the same rare item twice, confirm `ConditionQuality` varies. Also confirms nested `ContainedItems` replication reaches a second client.
-- [ ] **Checkpoint D** (~line 173) — needs `AmmoItemConfig` authored first (Section 1 above). Fire empty, reload from a carried ammo stack, confirm the count drops correctly.
-- [ ] **Checkpoint E** (~line 181) — confirm a `TwoHanded` weapon config genuinely blocks `SecondaryHand` (now built — see 2.6 below).
+
+**Checkpoint B — durability persistence (the headline test).** Prerequisite: a weapon config with `MaxDurabilityHits > 0` (check the `DA_ZS_WeaponConfig_*` asset — durability tracking is a no-op at the default 0/unbreakable).
+1. Loot the weapon (world pickup or container "loot all").
+2. Press its hotbar number (1-9), wait for `EquipTimeSeconds` to elapse, confirm it's now `CurrentWeapon`.
+3. Melee-swing it until you've landed roughly half of `MaxDurabilityHits`. Watch `AZSWeapon::GetCurrentDurability()` — select the spawned weapon actor itself in the World Outliner (a distinct actor attached to your character) and check `CurrentDurability` in Details.
+4. Switch to a different hotbar slot, then switch back. **Pass**: `CurrentDurability` still reads the same half-value — not reset to `MaxDurabilityHits`.
+5. Keep swinging until `CurrentDurability` hits 0. **Pass**: the weapon actor is destroyed, its instance is entirely gone from `CarrySlots` (`ZS.DebugListCarrySlots`), and the hotbar slot that held it is now empty.
+
+**Checkpoint C — bag capacity & nested contents.** Prerequisite: a bag-type item config (`bIsEquippable = true`, `EquipSlot = Back`/`Hip`, `CarryCapacityBonus > 0`) and one other plain item.
+> **Note from this session's compile fix**: `ContainedItems` had to change type to fix a real build error (a struct can't contain an array of itself) — this caps bag nesting at one level, matching the "Tier 2 nesting isn't scoped" note that was already in the code. `Server_StoreInBag` now explicitly rejects storing an item whose own `ContainedItems` is non-empty (returns `false`) rather than silently truncating it. Worth a quick check that this returns false cleanly, alongside the normal flow below.
+1. Note `GetMaxCarryWeight()` before equipping the bag.
+2. Loot the bag. There's no bound input for gear-slot (Back/Hip) equipping yet either (same gap as store/retrieve below) — call `Server_EquipToSlot` via a temporary Blueprint node. **Pass**: `GetMaxCarryWeight()` rises by the bag's `CarryCapacityBonus`.
+3. Loot a second, non-bag item so you have 2+ items in `CarrySlots`.
+4. Run `ZS.DebugStoreFirstItemInBag`. Confirm via `ZS.DebugListCarrySlots`: the item now prints indented under the bag ("contains: ...") and no longer appears as its own top-level line.
+5. Drop the bag, walk up to the dropped `AZSWorldItemActor`, pick it back up. **Pass**: the item is still nested inside on re-pickup.
+6. **2-client check**: with a second player connected, inspect the bag from the **host's** Outliner after it replicates to them — confirm `ContainedItems` arrived correctly on the non-host side too.
+7. Loot the *same* rare-tier item twice. **Pass**: `InstanceState.ConditionQuality` differs between the two instances (rolled per-instance via `AZSGameState::ConditionQualityBands`).
+
+**Checkpoint D — ammo as a real item.** Blocked until `DA_ZS_ItemConfig_Ammo_<Caliber>` exists and is assigned to a weapon's `AmmoItemConfig` (Section 1) — until then `CanReload()` returns false for every weapon; don't debug a reload failure that's actually just missing content.
+1. Once assigned: get some of that ammo item into `CarrySlots`.
+2. Equip the matching weapon, fire it empty.
+3. Press Reload (`R`). **Pass**: the ammo stack's `StackCount` drops by the correct amount and the magazine refills.
+4. Drop some ammo, have a second player pick it up, confirm they can reload the same weapon type from it.
+
+**Checkpoint E — TwoHanded blocks SecondaryHand.**
+1. Equip a `TwoHanded` weapon as primary. Try to equip anything into SecondaryHand (see 2.9 for the exact flow). **Pass**: rejected, `SecondaryHandInstanceId` stays empty.
+2. Switch to a `OneHanded` weapon or bare fists, retry. **Pass**: SecondaryHand equip now succeeds.
 
 ### 2.2 — Wound model (T5)
-- [ ] Get bitten by a zombie from various angles/positions — confirm the wound zone (Head/Arms/Legs/Torso, visible via `HealthComponent`'s state) actually varies instead of always landing on Torso (the bug T5.1 fixed).
-- [ ] Take repeated Head-zone hits until a bleed starts; over enough hits, confirm you occasionally see a **critical head bleed** (steep bleed rate) — `CriticalHeadBleedChance` is only 8% per fresh Head bleed, so this may take several tries. Bandage it, confirm it clears.
-- [ ] Take a Legs Fracture wound, confirm `FractureRecoveryProgressGameHours` ticks up over in-game time (compress the clock for testing) and the wound heals on its own eventually — unsplinted should take ~240h, splinted ~96h. A fresh fracture hit should reset progress.
+1. **Zone variance.** Get bitten from a few different relative angles (front, side, while facing away). Watch `HealthComponent`'s `BodyZones` (Details, or `GetZoneWound(Zone)`) — the zone that takes the hit (`Head`/`Torso`/`Arms`/`Legs`) should vary across attempts, not always land on `Torso` (the bug T5.1 fixed).
+2. **Critical head bleed.** Take repeated Head-zone hits until a bleed starts there — `CriticalHeadBleedChance` is only 8% per fresh Head bleed, so expect several tries. Watch `bCriticalBleed` on the Head entry; once set, `CurrentHealth` should drain noticeably faster (4/s vs. the normal per-type rate). Bandage it (`Server_ApplyBandage`) — **pass** if both `bCriticalBleed` and `bBleeding` clear.
+3. **Fracture recovery.** Take a hit causing a Legs Fracture. Watch `FractureRecoveryProgressGameHours` on that zone — per 2.0's time-compression note, verify the *rate* (~1/real-minute) rather than waiting out the full 240h. Splint it (`Server_Splint`) and confirm `bSplinted = true` (the shorter 96h total is inferred from the tunable, not worth waiting to observe directly). Take a fresh Fracture hit on the same zone mid-recovery — **pass** if progress resets to 0.
 
 ### 2.3 — Two-tier infection (T6)
-- [ ] Get a dirty wound, leave it untreated past `WoundInfectionOnsetGameHours` (24h) — confirm it escalates to wound-`Infected` (a distinct state from bite infection) and bleed/fracture-recovery both worsen.
-- [ ] Disinfect or clean-bandage a wound-infected zone — confirm it clears immediately, and confirm this does **not** touch bite infection state (`InfectionStage`) at all.
-- [ ] Get bitten, let bite infection run — confirm the total time-to-death now varies run-to-run (48-96h range), not a fixed 72h. Apply a bandage/disinfectant with `MedicalIncubationDelayGameHours` set (needs a content-authored value — currently 0/no-effect on every existing item) and confirm it pushes the clock back.
+1. **Wound infection.** Get a dirty wound (`bClean = false`, the default for any fresh unbandaged wound) and leave it. Watch `WoundInfectionState` on that zone past `WoundInfectionOnsetGameHours` (24h — use the rate-check approach from 2.0 rather than a literal 24-minute wait). **Pass**: it flips `None → Infected`, and bleed/fracture-recovery rate visibly worsens (`WoundInfectionBleedMultiplier`/`WoundInfectionFractureRecoverySlowMultiplier`).
+2. **Clearing it.** `Server_Disinfect` or a clean `Server_ApplyBandage` on that zone. **Pass**: `WoundInfectionState` clears to `None` immediately, and `InfectionStage` (the separate *bite* infection on the same component) is untouched either way.
+3. **Bite infection variable duration.** Get bitten, let the hidden `BiteInfectionChance` roll succeed (40% — may take a few bites), watch `InfectionStage` progress `Incubating → Queasy → Fever → Critical`. **Pass**: total time-to-death varies within 48-96h across multiple separate infections, not a fixed 72h each time — this is a statistical check across several playthroughs, not a single-session pass/fail. Apply a bandage/disinfectant with nonzero `MedicalIncubationDelayGameHours` (needs content — every existing item is 0/no-effect today) and confirm `InfectionStageProgressGameHours` steps backward by that amount.
 
 ### 2.4 — Amputation & blackout (T7)
-- [ ] Let a bite infection reach the point where amputation is offered; amputate — confirm a busy/timed action occurs (no montage authored yet, so it's timer-only), infection clears, and the zone gets a permanent penalty.
-- [ ] Confirm amputation triggers **blackout**: movement disabled, can't attack/fire/switch loadout, but still damageable/targetable (not the same as death).
-- [ ] **Solo**: confirm the world clock jumps forward ~12 game-hours on blackout entry, and you auto-recover after ~60 real seconds.
-- [ ] **Co-op**: have a teammate interact with the blacked-out player (a new interactable, only active while blacked out) — confirm it ends blackout immediately instead of waiting out the timer.
-- [ ] Amputate an Arm, confirm you can no longer equip a `TwoHanded` weapon.
+1. Progress a bite infection to wherever amputation becomes available (no dedicated prompt exists yet — likely a direct `Server_AmputateZone` call in the meantime) on the infected zone. **Pass**: a busy/timed window occurs (`bIsBusy` true for `AmputationDurationSeconds`, no montage since none's authored), then `InfectionStage` clears to `None`, `bAmputated` is set, and the zone's multiplier is permanently `AmputatedZoneMultiplier` (0.25) regardless of any other wound state.
+2. **Pass**: immediately after, `bIsBlackedOut` is true (watch `OnBlackoutChanged` or select yourself in Outliner) — movement is disabled, `CanAttack()`/`CanFire()` both false, but you remain damageable/targetable (not the death path).
+3. **Solo**: watch `AZSGameState::GetTimeOfDayHours()`/`GetDayCount()` jump forward by `BlackoutTimeSkipGameHours` (12h) the instant blackout begins — check the value immediately before and after, it's a discrete jump not a wait. Then wait out `BlackoutDurationSeconds` (60 real seconds, real-time — no compression involved). **Pass**: `bIsBlackedOut` clears on its own.
+4. **Co-op**: black out one player; a teammate walking up finds `ReviveInteractable` active (only while blacked out). Interact (`F`). **Pass**: blackout ends immediately, not waiting the remaining timer.
+5. Amputate an Arm specifically. **Pass**: equipping a `TwoHanded` weapon afterward is rejected.
 
 ### 2.5 — Needs simulation (T4) — this is **PT3** from `B0_Stabilization.md`
-- [ ] `Server_SetWet(true)` (debug entry point, no real weather source yet) — confirm `bIsWet` replicates, and confirm it auto-clears after `WetDryOutGameHours` (2h default).
-- [ ] While wet and walking (not sprinting), confirm a noise event fires periodically (`WetFootstepNoiseRadius`/`Interval`) — **PT4's own note**: verify zombies actually respond differently to wet vs. dry footsteps at the same distance, since dry footsteps report nothing at all.
-- [ ] Toggle wet/indoors, equip clothing with `InsulationValue` (needs content authored first), confirm `Temperature` moves toward the expected target and `GetPerformanceMultiplier()` degrades near the hypothermia/hyperthermia thresholds (25/75).
-- [ ] Confirm Hunger/Thirst/Fatigue/Temperature can never push the performance multiplier **above** 1.0 no matter how sated/comfortable (T4.7 — should hold by construction, worth a spot-check anyway).
-- [ ] Sprint while overloaded (past `OverloadWeightRatio`) — confirm Stamina drains faster (up to `MaxEncumbranceStaminaDrainMultiplier`, 2x ceiling) but sprint is **never hard-blocked** by encumbrance, only by Stamina reaching 0.
-- [ ] Run Hunger/Thirst/Fatigue/Stamina/Temperature each through every severity tier (`GetXSeverityTier()`) and confirm sensible transitions.
-- [ ] Get chased by a zombie (triggers `Server_NotifyHostileDetection`), try to sleep — confirm it's blocked during the aggro-cooldown window. **Known gap**: the "real shelter" half of the sleep gate is stubbed `true` (no barricade/indoor system exists) — sleep will currently succeed anywhere once the aggro-cooldown clears, not just indoors. That's expected, not a bug to chase.
+1. Call `Server_SetWet(true)` (temporary Blueprint node — see 2.0). **Pass**: `bIsWet` replicates, and — directly waitable at 2 real minutes — auto-clears after `WetDryOutGameHours`.
+2. While wet and walking (not sprinting — sprint reports its own noise separately), confirm a noise event fires every `WetFootstepNoiseIntervalSeconds` (0.6s real-time). **This specifically needs a nearby zombie to be meaningful** — it's a comparative test (does a zombie react to the wet player at a distance a dry player wouldn't trigger a reaction from), not just "does the function run."
+3. Toggle wet/indoors, equip something with `InsulationValue` (needs content, Section 1), watch `Temperature` move toward the new target. Push past `HypothermiaThreshold`/`HyperthermiaThreshold` (25/75) and confirm `GetPerformanceMultiplier()`/`GetTemperaturePerformanceMultiplier()` drops below 1.0 near those edges.
+4. **T4.7 spot-check**: with Hunger/Thirst/Fatigue/Temperature all at their best values simultaneously, confirm `GetPerformanceMultiplier()` reads exactly 1.0, never higher.
+5. Load past `OverloadWeightRatio` (weight/max > 1.5) and sprint. **Pass**: Stamina drains faster (toward the 2x `MaxEncumbranceStaminaDrainMultiplier` ceiling) but sprint is only blocked once Stamina hits 0 — never blocked by encumbrance directly.
+6. Walk Hunger/Thirst/Fatigue/Stamina/Temperature each through all 4 severity tiers (`GetXSeverityTier()`) — confirm the tier changes at the expected thresholds (75/50/25).
+7. Get a zombie to notice you (`Server_NotifyHostileDetection` fires from its perception), immediately try `RequestSleep`. **Pass**: blocked until `HostileDetectionCooldownSeconds` elapses since the last detection. **Known, expected gap**: once that cooldown clears, sleep succeeds anywhere, indoors or not — the "real shelter" half of `IsSafeToSleep()` is stubbed `true` until B4. Not a bug.
 
 ### 2.6 — Camera & aiming (T3) — this is **PT2**
-- [ ] Confirm the character now **only** has the TopDown camera — no `ToggleCameraPerspective` input exists anymore, no ThirdPerson fallback.
-- [ ] Once `IA_Zoom` exists (Section 1): scroll wheel and `=`/`-` should zoom the TopDown camera smoothly between `MinCameraDistance`/`MaxCameraDistance` (600-1400 default).
-- [ ] Confirm `1`-`9` hotbar keys still work directly — scroll-wheel hotbar cycling is gone entirely (OQ-B0-01), don't expect the mouse wheel to touch the hotbar at all anymore.
-- [ ] Fire hip-fired vs. aimed at a stationary target from a fixed distance many times — confirm the spread cone is visibly tighter while aiming, and confirm headshots (Head-zone hits, per `HealthComponent`'s wound state) show up more often while aimed (~25%) than hip-fired (~5%). This only matters against **another player** right now — zombies have no zone model to weight yet, so headshot chance has no visible effect on zombie combat until that changes.
-- [ ] Full **PT2 pass**: 20+ minutes, interior navigation, 3+ zombie fights at range and melee, loot a container, check character state readable at both zoom extremes. If cone width/zoom/headshot split feel wrong, that's a retune, not a revert — there's no ThirdPerson fallback anymore.
+1. Confirm there's no way to leave TopDown at all — nothing to even call `ToggleCameraPerspective` on anymore.
+2. Once `IA_Zoom` exists (Section 1): scroll wheel and `=`/`-` zoom smoothly between `MinCameraDistance`/`MaxCameraDistance` (600-1400), not a snap.
+3. Press `1`-`9` — direct hotbar select still works; confirm the scroll wheel does *nothing* to the hotbar anymore (100% reassigned to zoom).
+4. Pick one stationary target (another player, not a zombie — see below) at a fixed distance. Fire a large sample (20-30 shots) hip-fired, then the same aimed. **Pass**: the aimed group's spread is visibly tighter, and its headshot rate is noticeably higher (~25% aimed vs. ~5% hip-fired) — a handful of shots won't show a clean split, you need real sample size. This only shows up against a **player** target (check `HealthComponent`'s hit zone) — zombies have no zone model to weight yet.
+5. Full **PT2 pass**: 20+ real minutes, at least one interior space, 3+ zombie fights at range and melee, loot a container, sanity-check character readability at both zoom extremes. Anything that feels off is a tuning note (adjust `TuningReference.md`), not a sign of a bug — there's no fallback camera to revert to.
 
 ### 2.7 — Death, loot & zombie conversion (T9)
-- [ ] Once `DeathZombieClass` is assigned (Section 1): die with a full inventory (including a bag with nested items, and whatever's hotbarred/equipped in Back/Hip) — confirm every carried item drops as its own world item at the death location, preserving durability/condition (check a partially-durability weapon specifically), and confirm a new zombie spawns at the same spot.
-- [ ] Confirm this triggers identically for a normal combat death **and** a bite-infection death (T6.4's timeline).
-- [ ] Respawn — confirm you get a genuinely fresh character (default starting loadout, not the gear you just dropped), and confirm this is identical in solo and co-op.
+Prerequisite: `AZSPlayerCharacter::DeathZombieClass` assigned (Section 1) — without it, death still works, you just won't see the zombie-conversion half.
+1. Load up: something hotbarred, something in Back/Hip, a bag with a nested item. Note the list (`ZS.DebugListCarrySlots`) before dying.
+2. Die to zombie damage. **Pass**: every item — hotbarred/equipped/nested-in-bag included — drops as its own `AZSWorldItemActor` at the death location, preserving durability/condition (check your half-durability weapon from Checkpoint B specifically).
+3. **Pass**: a new `DeathZombieClass` zombie spawns at the same spot.
+4. Repeat via a bite-infection death (let `InfectionStage` run out Critical) instead of direct damage. **Pass**: identical drop/zombie-spawn behavior.
+5. Respawn. **Pass**: default `StartingHotbarLoadout`, not the gear you just dropped — identical in solo and co-op.
 
 ### 2.8 — Combat revision (T10) — this is **PT5**
-- [ ] Fire a weapon repeatedly until it jams (chance scales with condition — a fresh/pristine weapon jams rarely, ~1%/shot). Confirm the trigger does nothing once jammed (no ammo consumed). Once `IA_Rack` exists (Section 1): rack the firearm, confirm the jam clears and firing resumes.
-- [ ] Melee-swing repeatedly (bare-fisted, then with a weapon) — confirm Stamina drains per swing whether it lands or not, and confirm swings **still work at 0 Stamina** (no hard block — a deliberate interpretation, see Decisions Log).
-- [ ] Land a strong knockback hit on a zombie (`DownedKnockbackThreshold`, 150 default) — confirm it enters a **downed** state: stops moving/attacking (the BT itself is paused as a stand-in — see Decisions Log), stays down for `DownedRecoverySeconds` (6s default) unless finished, then gets back up on its own.
-- [ ] Confirm a normal standing melee swing **never** hits a downed zombie, even if it's in range/arc.
-- [ ] Once `IA_Finisher` exists (Section 1): stand over a downed zombie, press Space — bare-handed should stomp; with a melee weapon equipped, it should use the weapon's own downward-strike montage instead (once authored — currently no-op cosmetically, but the kill itself should land either way). Confirm it's a guaranteed kill.
-- [ ] Full **PT5 pass**: loot → hotbar → equip → degrade → jam → clear jam → break, melee to exhaustion, knock down + finish both bare-handed and weapon-equipped.
+1. Fire the same weapon repeatedly (empty, reload, repeat) until it jams — a pristine weapon only jams ~1%/shot (`BaseJamChance`), so this takes a while; a heavily-degraded one (low `CurrentConditionQuality`, e.g. your Checkpoint B weapon) approaches `MaxJamChance` (30%) and jams much sooner. **Pass**: once `IsJammed()`, firing does nothing and consumes no ammo. Once `IA_Rack` exists (Section 1): `Alt+R`, wait `ClearJamTimeSeconds`, confirm firing resumes.
+2. Melee repeatedly, bare-fisted then weapon-equipped — watch Stamina drop by `UnarmedStaminaCost`/`MeleeStaminaCost` per swing regardless of whether it connects. **Pass**: swings still execute at 0 Stamina (no hard block — intentional, see Decisions Log).
+3. Land a hit clearing `DownedKnockbackThreshold` (150) on a zombie. **Pass**: `IsDowned()` flips true, it stops moving/attacking entirely (its whole BT is paused as a stand-in — see Decisions Log), and it recovers on its own after `DownedRecoverySeconds` (6s) if left alone.
+4. While a zombie is downed, land a normal standing melee swing on it anyway. **Pass**: it doesn't register at all — downed zombies are unconditionally excluded from the standing-melee target filter.
+5. Once `IA_Finisher` exists (Section 1): within `FinisherRange` (200) of a downed zombie, press Space. **Pass**: guaranteed kill either bare-handed (stomp) or weapon-equipped (strike) — the montage is cosmetic/no-op until authored, but the kill itself (`FinisherDamage` = 9999) should land regardless.
+6. Full **PT5 pass**: loot → hotbar → equip → degrade near-broken → jam → clear jam → break entirely; separately, melee to 0 Stamina; separately, knock down and finish a zombie both bare-handed and weapon-equipped.
 
 ### 2.9 — SecondaryHand & flashlight (T11)
-- [ ] Try to equip a one-handed weapon or a toggleable item into SecondaryHand while a `TwoHanded` weapon is in the primary hand — confirm it's rejected.
-- [ ] Equip a `bIsToggleable` item (needs `DA_ZS_ItemConfig_Flashlight`, Section 1) into SecondaryHand. Once `IA_SecondaryAction` exists: press `T`, confirm a real spotlight visibly turns on/off on the character (rough chest-height placement for now, not a real socket).
-- [ ] Confirm equipping a one-handed **weapon** (e.g. an offhand pistol config, if one exists) into SecondaryHand succeeds validation-wise, but pressing `T` over it does **nothing** — this is a known, documented gap (see Decisions Log), not a bug.
+1. With a `TwoHanded` weapon as primary, try equipping anything into SecondaryHand. **Pass**: rejected (same check as Checkpoint E in 2.1).
+2. Switch to `OneHanded`/bare fists. Equip a `bIsToggleable` item (needs `DA_ZS_ItemConfig_Flashlight`, Section 1) into SecondaryHand. Once `IA_SecondaryAction` exists (Section 1): press `T`. **Pass**: `IsSecondaryItemActive()` flips and a real spotlight visibly turns on/off (rough chest-height placement for now, not a real hand socket — don't be alarmed it's not final-looking).
+3. Equip a one-handed *weapon* into SecondaryHand instead (if one exists with `bUsableInSecondaryHand`). **Pass for validation**: the slot accepts it. **Then confirm the known gap**: pressing `T` over it does nothing at all — no fire, no swing. Documented (Decisions Log 3.2), not a bug to chase.
 
 ### 2.10 — Stress-test spawning (T12.1)
-- [ ] Once `StressTestZombieClass` is assigned (Section 1): run `ZS.SpawnZombies 25` (then 50/100/150/250) from the host console in any level — confirm the right count spawns scattered around the player, and confirm perf triage (`stat unit`/`stat fps`/`stat ai`) is possible against them. This is the actual T12.2-T12.5 profiling work (packaged build, triage sequence, baseline capture) — none of that is code, it's a session of running the game and recording numbers.
+Prerequisite: `AZSGameMode::StressTestZombieClass` assigned (Section 1).
+1. In any existing level (`Lvl_ZS_StressTest` doesn't exist yet, Section 1), run `ZS.SpawnZombies 25`. **Pass**: exactly 25 zombies appear scattered in a ring around your pawn.
+2. Repeat at 50, 100, 150, 250, checking `stat fps`/`stat unit`/`stat ai` after each batch settles (give the AI a few seconds to start ticking before reading numbers). Record the numbers somewhere — this run *is* T12.2-T12.5's profiling/triage work, there's no separate code step left for it.
 
 ---
 

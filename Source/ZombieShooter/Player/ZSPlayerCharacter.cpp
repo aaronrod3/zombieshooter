@@ -138,7 +138,7 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugListCarrySlots(
 		{
 			UE_LOG(LogZombieShooter, Log, TEXT("  %s x%d, InstanceId %s, Weight %.2f"),
 				*GetNameSafe(Instance.Config), Instance.StackCount, *Instance.InstanceId.ToString(), Instance.GetTotalWeight());
-			for (const FZSItemInstance& Contained : Instance.ContainedItems)
+			for (const FZSItemInstanceBase& Contained : Instance.ContainedItems)
 			{
 				UE_LOG(LogZombieShooter, Log, TEXT("    contains: %s x%d, InstanceId %s"),
 					*GetNameSafe(Contained.Config), Contained.StackCount, *Contained.InstanceId.ToString());

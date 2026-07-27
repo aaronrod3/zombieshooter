@@ -356,6 +356,14 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 		return false;
 	}
 
+	// A bag whose own ContainedItems is non-empty can't nest inside another bag - ContainedItems is
+	// typed FZSItemInstanceBase precisely so this can't be represented, so reject explicitly here
+	// rather than silently truncating the inner bag's contents on the slice below.
+	if (CarrySlots[ItemIndex].ContainedItems.Num() > 0)
+	{
+		return false;
+	}
+
 	FZSItemInstance MovedItem = CarrySlots[ItemIndex];
 	MovedItem.Location = EZSCarryLocation::Bag;
 	CarrySlots.RemoveAt(ItemIndex);
@@ -371,7 +379,7 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 		OnRep_InventoryState();
 		return false;
 	}
-	Bag->ContainedItems.Add(MovedItem);
+	Bag->ContainedItems.Add(static_cast<FZSItemInstanceBase>(MovedItem));
 
 	OnRep_InventoryState();
 	return true;
@@ -390,13 +398,13 @@ bool UZSInventoryComponent::Server_RetrieveFromBag(FGuid BagInstanceId, FGuid It
 		return false;
 	}
 
-	const int32 ItemIndex = Bag->ContainedItems.IndexOfByPredicate([ItemInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == ItemInstanceId; });
+	const int32 ItemIndex = Bag->ContainedItems.IndexOfByPredicate([ItemInstanceId](const FZSItemInstanceBase& Instance) { return Instance.InstanceId == ItemInstanceId; });
 	if (ItemIndex == INDEX_NONE)
 	{
 		return false;
 	}
 
-	FZSItemInstance MovedItem = Bag->ContainedItems[ItemIndex];
+	FZSItemInstance MovedItem(Bag->ContainedItems[ItemIndex]);
 	MovedItem.Location = EZSCarryLocation::OnPerson;
 	Bag->ContainedItems.RemoveAt(ItemIndex);
 

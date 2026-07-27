@@ -46,19 +46,13 @@ struct FZSItemInstanceState
 };
 
 /**
- *  The one and only way an item exists in the game, per B0-T2's exit criterion - a container slot,
- *  a carried slot, and a world pickup all point at the same logical item via this struct rather
- *  than each holding their own Config+Count. (Hotbar/equip-slot references move onto InstanceId
- *  too, but that's Step B/T2.4-T2.8 - not done yet as of Step A.)
- *
- *  Invariant: stackable and per-instance-stateful are mutually exclusive by construction.
- *  MaxStackSize > 1 => InstanceState is never read (a stack of 12 canned foods has no individual
- *  "durability," a stack of 1 weapon does). Anything that merges two instances into one stack
- *  therefore discards whichever instance's identity doesn't survive the merge - see
- *  UZSInventoryComponent::Server_AddItemInstance/Server_RemoveItem for where that happens.
+ *  Everything an item instance needs EXCEPT bag contents - split out from FZSItemInstance solely
+ *  because UHT rejects a USTRUCT containing an array of itself ("'Struct' recursion via arrays is
+ *  unsupported for properties"), which is what FZSItemInstance::ContainedItems being
+ *  TArray<FZSItemInstance> would be. See FZSItemInstance's own comment for how this caps nesting.
  */
 USTRUCT(BlueprintType)
-struct FZSItemInstance
+struct FZSItemInstanceBase
 {
 	GENERATED_BODY()
 
@@ -80,11 +74,40 @@ struct FZSItemInstance
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
 	FZSItemInstanceState InstanceState;
 
-	/** B0-T2.9: only meaningful for a bag-type instance (Config->bIsEquippable, EquipSlot Back/Hip) - what UZSInventoryComponent::Server_StoreInBag/Server_RetrieveFromBag moved into it. Empty for everything else. Dev-clarified 2026-07-26: "if a player drops a bag with items in it, the items stay in the bag" - since a bag's contents live *inside* its own FZSItemInstance rather than as separate CarrySlots entries, this holds automatically wherever the bag instance goes (equip, unequip, drop, world pickup) without any special-case code - Server_DropItem/AZSWorldItemActor already move a whole FZSItemInstance verbatim. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
-	TArray<FZSItemInstance> ContainedItems;
-
 	bool IsValid() const { return InstanceId.IsValid() && Config != nullptr; }
+
+	/** Config->Weight * StackCount only - FZSItemInstance (derived) adds its ContainedItems on top. */
+	float GetTotalWeight() const;
+};
+
+/**
+ *  The one and only way a top-level item exists in the game, per B0-T2's exit criterion - a
+ *  container slot, a carried slot, and a world pickup all point at the same logical item via this
+ *  struct rather than each holding their own Config+Count. (Hotbar/equip-slot references move onto
+ *  InstanceId too, but that's Step B/T2.4-T2.8 - not done yet as of Step A.)
+ *
+ *  Invariant: stackable and per-instance-stateful are mutually exclusive by construction.
+ *  MaxStackSize > 1 => InstanceState is never read (a stack of 12 canned foods has no individual
+ *  "durability," a stack of 1 weapon does). Anything that merges two instances into one stack
+ *  therefore discards whichever instance's identity doesn't survive the merge - see
+ *  UZSInventoryComponent::Server_AddItemInstance/Server_RemoveItem for where that happens.
+ */
+USTRUCT(BlueprintType)
+struct FZSItemInstance : public FZSItemInstanceBase
+{
+	GENERATED_BODY()
+
+	FZSItemInstance() = default;
+
+	/** Rebuilds a top-level instance from a bag-contents entry (Server_RetrieveFromBag) - ContainedItems defaults empty, which is correct: a nested FZSItemInstanceBase never had room for its own contents in the first place. */
+	explicit FZSItemInstance(const FZSItemInstanceBase& InBase) : FZSItemInstanceBase(InBase) {}
+
+	/** B0-T2.9: only meaningful for a bag-type instance (Config->bIsEquippable, EquipSlot Back/Hip) - what UZSInventoryComponent::Server_StoreInBag/Server_RetrieveFromBag moved into it. Empty for everything else. Dev-clarified 2026-07-26: "if a player drops a bag with items in it, the items stay in the bag" - since a bag's contents live *inside* its own FZSItemInstance rather than as separate CarrySlots entries, this holds automatically wherever the bag instance goes (equip, unequip, drop, world pickup) without any special-case code - Server_DropItem/AZSWorldItemActor already move a whole FZSItemInstance verbatim.
+	 *  Typed as FZSItemInstanceBase, not FZSItemInstance, so nesting bottoms out at one level - a bag
+	 *  can hold plain items but not another bag that itself has contents (Server_StoreInBag rejects
+	 *  storing an item whose own ContainedItems is non-empty rather than silently truncating it). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
+	TArray<FZSItemInstanceBase> ContainedItems;
 
 	/** Config->Weight * StackCount, plus every ContainedItems entry's own GetTotalWeight() - a bag full of loot weighs what it's carrying too. */
 	float GetTotalWeight() const;
