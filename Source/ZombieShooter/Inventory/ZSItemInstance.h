@@ -80,5 +80,12 @@ struct FZSItemInstance
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
 	FZSItemInstanceState InstanceState;
 
+	/** B0-T2.9: only meaningful for a bag-type instance (Config->bIsEquippable, EquipSlot Back/Hip) - what UZSInventoryComponent::Server_StoreInBag/Server_RetrieveFromBag moved into it. Empty for everything else. Dev-clarified 2026-07-26: "if a player drops a bag with items in it, the items stay in the bag" - since a bag's contents live *inside* its own FZSItemInstance rather than as separate CarrySlots entries, this holds automatically wherever the bag instance goes (equip, unequip, drop, world pickup) without any special-case code - Server_DropItem/AZSWorldItemActor already move a whole FZSItemInstance verbatim. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
+	TArray<FZSItemInstance> ContainedItems;
+
 	bool IsValid() const { return InstanceId.IsValid() && Config != nullptr; }
+
+	/** Config->Weight * StackCount, plus every ContainedItems entry's own GetTotalWeight() - a bag full of loot weighs what it's carrying too. */
+	float GetTotalWeight() const;
 };

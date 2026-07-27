@@ -98,6 +98,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_UnequipSlot(EZSEquipSlot Slot);
 
+	/** B0-T2.9: moves ItemInstanceId from the top-level CarrySlots into BagInstanceId's ContainedItems - "put this in that bag." Both must be top-level CarrySlots entries (a bag can't be stored inside itself or another bag - Tier 2 nesting isn't scoped). Requires BagInstanceId's Config->bIsEquippable (the "this can hold things" signal - no separate container-capability flag exists yet). No-op (returns false) if either GUID doesn't resolve, the target isn't actually a bag, or called off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	bool Server_StoreInBag(FGuid BagInstanceId, FGuid ItemInstanceId);
+
+	/** B0-T2.9: the reverse of Server_StoreInBag - moves ItemInstanceId out of BagInstanceId's ContainedItems back to a top-level CarrySlots entry. No-op (returns false) if the bag or the contained item isn't found. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	bool Server_RetrieveFromBag(FGuid BagInstanceId, FGuid ItemInstanceId);
+
 	/** Server-authoritative: removes up to Count of Item from CarrySlots and spawns an AZSWorldItemActor holding whatever was actually removed a short distance in front of the owning actor. No-op if nothing was actually carried to remove. "Dropped-item persistence in the running session" (GameDevPlan.md P6) means exactly this - a real replicated actor in the world, not a save-file-backed system (no save system exists yet, that's P7's). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_DropItem(UZSItemConfig* Item, int32 Count);

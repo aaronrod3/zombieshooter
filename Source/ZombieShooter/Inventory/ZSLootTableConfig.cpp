@@ -67,6 +67,15 @@ TArray<FZSItemInstance> UZSLootTableConfig::RollLoot(UWorld* World) const
 		Instance.Config = Chosen->Item;
 		Instance.StackCount = FMath::RandRange(Chosen->MinCount, Chosen->MaxCount);
 		Instance.Location = EZSCarryLocation::World;
+
+		// B0-T2.10: only meaningful for non-stackable (StackCount == 1) items per FZSItemInstance's
+		// own invariant - a stack of canned food has no individual condition to roll. Falls back to
+		// full condition (1.0) if there's no AZSGameState to read bands from.
+		if (Instance.StackCount == 1)
+		{
+			Instance.InstanceState.ConditionQuality = GameState ? GameState->RollConditionQuality(Chosen->Item->Rarity) : 1.f;
+		}
+
 		Result.Add(Instance);
 	}
 

@@ -4,10 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameStateBase.h"
+#include "../Survival/ZSItemConfig.h"
 #include "ZSGameState.generated.h"
 
 class AZSPlayerCharacter;
-class UZSItemConfig;
 
 /** Broadcast on every OnRep_ below - lets Blueprint/UI/moodle widgets bind to state changes instead of polling, per CLAUDE.md's replication convention. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnTimeOfDayChanged, float, NewTimeOfDayHours, int32, NewDayCount);
@@ -29,6 +29,19 @@ struct FZSRarityPoolEntry
 	/** How many of Item can still be granted this session. Decremented by Server_TryConsumeRarityPoolSlot, never regenerated - no restock in v1. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|Loot", meta = (ClampMin = "0"))
 	int32 RemainingCount = 1;
+};
+
+/** B0-T2.10: the ConditionQuality range UZSLootTableConfig::RollLoot rolls within for a given EZSItemRarity tier - rarer items skew toward better condition. */
+USTRUCT(BlueprintType)
+struct FZSConditionQualityBand
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|Loot", meta = (ClampMin = "0", ClampMax = "1"))
+	float MinQuality = 0.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|Loot", meta = (ClampMin = "0", ClampMax = "1"))
+	float MaxQuality = 1.f;
 };
 
 /**
@@ -108,10 +121,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Loot")
 	bool Server_TryConsumeRarityPoolSlot(UZSItemConfig* Item);
 
+	/** B0-T2.10: rolls a random value within Rarity's ConditionQualityBands entry. Called by UZSLootTableConfig::RollLoot for every rolled instance - lives here rather than on the loot table for the same shared/game-wide-policy reasoning as the rarity pool above. Pure/deterministic-safety note: uses FMath::FRandRange (not a replicated/seeded stream), same as RollLoot's own weighted-pick roll - fine for a cosmetic-adjacent value nothing depends on for competitive fairness. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Loot")
+	float RollConditionQuality(EZSItemRarity Rarity) const;
+
 protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loot")
 	TArray<FZSRarityPoolEntry> RarityPoolEntries;
+
+	/** B0-T2.10: indexed by EZSItemRarity (Common/Uncommon/Rare/VeryRare, 4 entries) - sized and defaulted in the constructor so every tier always has a band, no missing-key fallback needed. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loot")
+	TArray<FZSConditionQualityBand> ConditionQualityBands;
 
 	/** How many real-world seconds one full 24-hour game day takes. Lower = faster compression. PZ-style default: 1440s (24 real minutes) per game day. */
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|WorldClock", meta = (ClampMin = "1"))

@@ -76,6 +76,73 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugDropFirstCarriedItem(
 		Inventory->Server_DropItem(First.Config, 1);
 	}));
 
+// Temporary B0-T2 Checkpoint C test hook - no UI exists to drive Server_StoreInBag yet. Finds the
+// first bag-type instance (Config->bIsEquippable) and the first non-bag instance in the local
+// (host) player's top-level CarrySlots and stores one inside the other. Host-only, same authority
+// reasoning as ZS.DebugDropFirstItem. Remove once real inventory UI lands.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugStoreFirstItemInBag(
+	TEXT("ZS.DebugStoreFirstItemInBag"),
+	TEXT("Moves the first non-bag CarrySlots item into the first bag-type CarrySlots item - B0-T2 Checkpoint C testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSInventoryComponent* Inventory = Character ? Character->GetInventoryComponent() : nullptr;
+		if (!Inventory)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugStoreFirstItemInBag: no local pawn/inventory found"));
+			return;
+		}
+
+		const TArray<FZSItemInstance> Carried = Inventory->GetCarrySlots();
+		const FZSItemInstance* Bag = Carried.FindByPredicate([](const FZSItemInstance& Instance) { return Instance.Config && Instance.Config->bIsEquippable; });
+		if (!Bag)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugStoreFirstItemInBag: no bag-type item carried"));
+			return;
+		}
+
+		const FZSItemInstance* Item = Carried.FindByPredicate([Bag](const FZSItemInstance& Instance) { return Instance.InstanceId != Bag->InstanceId; });
+		if (!Item)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugStoreFirstItemInBag: nothing else carried to store"));
+			return;
+		}
+
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugStoreFirstItemInBag: storing %s (InstanceId %s) in %s (InstanceId %s)"),
+			*GetNameSafe(Item->Config), *Item->InstanceId.ToString(), *GetNameSafe(Bag->Config), *Bag->InstanceId.ToString());
+		Inventory->Server_StoreInBag(Bag->InstanceId, Item->InstanceId);
+	}));
+
+// Temporary B0-T2 Checkpoint C test hook - logs the local (host) player's full CarrySlots, including
+// nested ContainedItems, so bag contents are actually observable without an inventory UI. Remove
+// once real inventory UI lands.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugListCarrySlots(
+	TEXT("ZS.DebugListCarrySlots"),
+	TEXT("Logs the local (host) player's CarrySlots, including bag contents - B0-T2 Checkpoint C testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSInventoryComponent* Inventory = Character ? Character->GetInventoryComponent() : nullptr;
+		if (!Inventory)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugListCarrySlots: no local pawn/inventory found"));
+			return;
+		}
+
+		for (const FZSItemInstance& Instance : Inventory->GetCarrySlots())
+		{
+			UE_LOG(LogZombieShooter, Log, TEXT("  %s x%d, InstanceId %s, Weight %.2f"),
+				*GetNameSafe(Instance.Config), Instance.StackCount, *Instance.InstanceId.ToString(), Instance.GetTotalWeight());
+			for (const FZSItemInstance& Contained : Instance.ContainedItems)
+			{
+				UE_LOG(LogZombieShooter, Log, TEXT("    contains: %s x%d, InstanceId %s"),
+					*GetNameSafe(Contained.Config), Contained.StackCount, *Contained.InstanceId.ToString());
+			}
+		}
+	}));
+
 AZSPlayerCharacter::AZSPlayerCharacter()
 {
 	// Tick drives the third-person camera-distance interpolation.

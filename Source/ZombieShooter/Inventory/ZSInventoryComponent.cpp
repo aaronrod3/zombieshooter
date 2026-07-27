@@ -27,13 +27,10 @@ float UZSInventoryComponent::GetCurrentWeight() const
 
 	// B0-T2 Step B: equipping never removes an instance from CarrySlots (see Server_EquipToSlot), so
 	// an equipped bag's weight is already counted by this loop alone - no separate EquippedBack/Hip
-	// special-case needed anymore.
+	// special-case needed anymore. GetTotalWeight() (B0-T2.9) folds in a bag's ContainedItems too.
 	for (const FZSItemInstance& Instance : CarrySlots)
 	{
-		if (Instance.Config)
-		{
-			Total += Instance.Config->Weight * Instance.StackCount;
-		}
+		Total += Instance.GetTotalWeight();
 	}
 
 	return Total;
@@ -338,6 +335,75 @@ void UZSInventoryComponent::Server_UnequipSlot(EZSEquipSlot Slot)
 	TargetRef = FGuid();
 
 	OnRep_InventoryState();
+}
+
+bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemInstanceId)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !BagInstanceId.IsValid() || !ItemInstanceId.IsValid() || BagInstanceId == ItemInstanceId)
+	{
+		return false;
+	}
+
+	FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
+	if (!Bag || !Bag->Config || !Bag->Config->bIsEquippable)
+	{
+		return false;
+	}
+
+	const int32 ItemIndex = CarrySlots.IndexOfByPredicate([ItemInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == ItemInstanceId; });
+	if (ItemIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	FZSItemInstance MovedItem = CarrySlots[ItemIndex];
+	MovedItem.Location = EZSCarryLocation::Bag;
+	CarrySlots.RemoveAt(ItemIndex);
+
+	// Re-find Bag - CarrySlots.RemoveAt above may have reallocated/shifted the array, invalidating
+	// the earlier pointer.
+	Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
+	if (!Bag)
+	{
+		// Shouldn't happen (Bag != Item, so removing Item can't have removed Bag too), but don't
+		// silently drop the item if it somehow does - put it back rather than lose it.
+		CarrySlots.Add(MovedItem);
+		OnRep_InventoryState();
+		return false;
+	}
+	Bag->ContainedItems.Add(MovedItem);
+
+	OnRep_InventoryState();
+	return true;
+}
+
+bool UZSInventoryComponent::Server_RetrieveFromBag(FGuid BagInstanceId, FGuid ItemInstanceId)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !BagInstanceId.IsValid() || !ItemInstanceId.IsValid())
+	{
+		return false;
+	}
+
+	FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
+	if (!Bag)
+	{
+		return false;
+	}
+
+	const int32 ItemIndex = Bag->ContainedItems.IndexOfByPredicate([ItemInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == ItemInstanceId; });
+	if (ItemIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	FZSItemInstance MovedItem = Bag->ContainedItems[ItemIndex];
+	MovedItem.Location = EZSCarryLocation::OnPerson;
+	Bag->ContainedItems.RemoveAt(ItemIndex);
+
+	CarrySlots.Add(MovedItem);
+
+	OnRep_InventoryState();
+	return true;
 }
 
 void UZSInventoryComponent::Server_DropItem(UZSItemConfig* Item, int32 Count)

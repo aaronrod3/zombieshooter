@@ -9,6 +9,19 @@
 AZSGameState::AZSGameState()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	// B0-T2.10: default condition bands, indexed by EZSItemRarity - rarer tiers skew narrower and
+	// closer to full condition. Content can retune per-value in the Details panel; the array just
+	// needs to stay sized to 4 (one per EZSItemRarity value).
+	ConditionQualityBands.SetNum(4);
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::Common)].MinQuality = 0.3f;
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::Common)].MaxQuality = 0.75f;
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::Uncommon)].MinQuality = 0.45f;
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::Uncommon)].MaxQuality = 0.85f;
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::Rare)].MinQuality = 0.65f;
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::Rare)].MaxQuality = 0.95f;
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::VeryRare)].MinQuality = 0.85f;
+	ConditionQualityBands[static_cast<uint8>(EZSItemRarity::VeryRare)].MaxQuality = 1.f;
 }
 
 void AZSGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -191,4 +204,16 @@ bool AZSGameState::Server_TryConsumeRarityPoolSlot(UZSItemConfig* Item)
 
 	// Not listed at all - ungated, always succeeds.
 	return true;
+}
+
+float AZSGameState::RollConditionQuality(EZSItemRarity Rarity) const
+{
+	const uint8 Index = static_cast<uint8>(Rarity);
+	if (!ConditionQualityBands.IsValidIndex(Index))
+	{
+		return 1.f;
+	}
+
+	const FZSConditionQualityBand& Band = ConditionQualityBands[Index];
+	return FMath::FRandRange(FMath::Min(Band.MinQuality, Band.MaxQuality), Band.MaxQuality);
 }
