@@ -163,6 +163,20 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Attack Dispatch")
 	EZSAttackType AttackType = EZSAttackType::Ranged;
 
+	// ---- Handedness (B0-T2.12, Planning §7 Tier 1) - pure data-classification, not yet consumed by
+	// anything (B0-T11's SecondaryHand and B0-T7.5's arm-amputation restriction are the two already-
+	// written-down consumers). Defaults are the common case (a rifle is two-handed, most things
+	// aren't legal in an offhand slot at all) rather than a value every existing config needs to
+	// revisit. ----
+
+	/** TwoHanded blocks SecondaryHand entirely, overriding bUsableInSecondaryHand below. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Handedness")
+	EZSWeaponHandedness Handedness = EZSWeaponHandedness::TwoHanded;
+
+	/** Only meaningful when Handedness == OneHanded - whether this config is legal to place in SecondaryHand at all (a pistol: yes; a one-handed melee weapon might still be no, if the design intent is "primary-hand only"). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Handedness", meta = (EditCondition = "Handedness == EZSWeaponHandedness::OneHanded"))
+	bool bUsableInSecondaryHand = false;
+
 	// ---- Loadout (P5: real-time hotbar, AZSPlayerCharacter::Server_SelectHotbarSlot) ----
 
 	/** How long switching the hotbar to this weapon takes (SetBusy(true) for the duration, same choreography pattern as reload) - GameDevPlan.md P5's "equip/holster/switch takes real time, not instant". No separate holster-then-equip phases yet (v1 simplification, see Docs/Phases/P5_CombatCompletion.md) - this single delay covers both directions. */

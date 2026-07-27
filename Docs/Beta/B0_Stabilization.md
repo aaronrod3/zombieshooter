@@ -176,9 +176,9 @@ struct FZSItemInstance
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T2.12 | **`EZSWeaponHandedness { OneHanded, TwoHanded }`** + `bool bUsableInSecondaryHand` added to `UZSWeaponConfig`. Two-handed blocks `SecondaryHand`. Arm amputation restricts to `OneHanded`. | P5-R7, P3-R8 |
+| T2.12 | ✅ **Done 2026-07-26** (pure data-classification, no PIE test needed beyond a compile - nothing consumes these fields yet). `EZSWeaponHandedness { OneHanded, TwoHanded }` (`ZSWeaponTypes.h`) + `Handedness`/`bUsableInSecondaryHand` added to `UZSWeaponConfig`. Two-handed blocks `SecondaryHand`. Arm amputation restricts to `OneHanded`. Defaults (`TwoHanded`/`false`) match the common case rather than requiring every existing weapon config to be revisited. | P5-R7, P3-R8 |
 
-> **✋ Checkpoint E.** Confirm a two-handed weapon config genuinely blocks `SecondaryHand` (once B0-T11 exists) and that the field is readable/settable per weapon.
+> **✋ Checkpoint E.** Confirm a two-handed weapon config genuinely blocks `SecondaryHand` (now built, see B0-T11 below) and that the field is readable/settable per weapon.
 
 **Step F — full-cycle regression (T2.13).**
 

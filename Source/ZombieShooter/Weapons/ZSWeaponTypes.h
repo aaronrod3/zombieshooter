@@ -21,3 +21,11 @@ enum class EZSAttackType : uint8
 	Ranged,
 	Melee
 };
+
+/** B0-T2.12 (Docs/Planning/InventoryLoadoutEquipping_Plan.md §7 Tier 1): TwoHanded blocks SecondaryHand entirely, regardless of UZSWeaponConfig::bUsableInSecondaryHand - the literal prerequisite for "arm amputation restricts weapon use to one-handed options only" (B0-T7.5). */
+UENUM(BlueprintType)
+enum class EZSWeaponHandedness : uint8
+{
+	OneHanded,
+	TwoHanded
+};
