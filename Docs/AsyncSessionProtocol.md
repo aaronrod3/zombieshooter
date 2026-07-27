@@ -8,7 +8,7 @@ Trigger: the user opens with something like "this is an away session," or otherw
 
 ## Scope: one cluster, not one B-phase
 
-"Phase" in this workflow means **one task cluster**, sized to finish (implement + verify, or implement + fully document) inside a single session — roughly the size of one B0 sub-item (a single `Txx`), not an entire `B<N>_*.md` phase. Full phases run anywhere from a handful to 45-60+ sessions on their own (`Docs/Beta/00_MasterPlan.md`), so "start the next part of the plan" means one cluster from wherever `SessionHandoff.md`'s "Next step" and the active phase doc point, not the whole phase.
+"Phase" in this workflow means **one task cluster**, sized to finish (implement + verify, or implement + fully document) inside a single session — roughly the size of one B0 sub-item (a single `Txx`), not an entire `B<N>_*.md` phase. Full phases run anywhere from a handful to 45-60+ sessions on their own (`Docs/Beta/00_MasterPlan.md`), so an away session means one cluster from wherever `SessionHandoff.md`'s "Next step" and the active phase doc point, not the whole phase.
 
 **Stop after that one cluster.** Do not cascade into the next cluster without the user explicitly saying to proceed, even later in the same sitting.
 
