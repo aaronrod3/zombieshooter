@@ -92,9 +92,17 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> ReloadAction;
 
+	/** B0-T10.1: "Rack Firearm," Alt+R per Docs/InputBindings.md - clears a weapon jam. Not yet created as a .uasset - needs manual creation in-editor, same graceful-if-missing pattern as every other action here. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> RackAction;
+
 	/** Single attack button, meant to dispatch per equipped item once P5's loadout/unified-combat system exists - currently always bare-fist melee. See the "Attack input / bare-fist melee" section below. */
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> AttackAction;
+
+	/** B0-T10.6: Space per Docs/InputBindings.md - the finisher half of the bundled Melee Shove/Stomp/Mount/Climb action (Shove and Mount/Climb are separately-undesigned, not implemented - see the Finisher section below). Not yet created as a .uasset. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> FinisherAction;
 
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> CrouchAction;
@@ -871,8 +879,12 @@ protected:
 	/** Shared by Server_MeleeAttack and Server_WeaponMeleeAttack: self-validates the AttackInterval cooldown against the single shared LastAttackTime (only one melee swing - bare-fist or weapon - can ever be in flight at once, so one cooldown clock is correct), then finds the nearest valid target (any Pawn-type actor within Range and in front of the character, excluding self and other AZSPlayerCharacter instances - no PvP melee in v1) via a sphere overlap, same ECC_Pawn object-query pattern as UpdateNearestInteractable. Dead zombie corpses are excluded for free - AZombieCharacter::Die() disables collision, so they never appear in the overlap. Applies Damage via UGameplayStatics::ApplyPointDamage and KnockbackStrength via ApplyHitKnockback on a hit. Returns whether a target was actually hit (callers use this to decide whether to consume durability, etc.). */
 	bool PerformMeleeSwing(float Damage, float Range, float AttackInterval, TSubclassOf<UDamageType> DamageTypeClass, UAnimMontage* Montage, float KnockbackStrength);
 
-	/** P5: simple physical hit-reaction, not a full stagger/interrupt AI state (see Docs/Phases/P5_CombatCompletion.md) - LaunchCharacter's Target away from Direction if Target is an ACharacter and Strength > 0. Shared by PerformMeleeSwing and Server_Fire. */
-	static void ApplyHitKnockback(AActor* Target, const FVector& Direction, float Strength);
+	/** P5: simple physical hit-reaction, not a full stagger/interrupt AI state (see Docs/Phases/P5_CombatCompletion.md) - LaunchCharacter's Target away from Direction if Target is an ACharacter and Strength > 0. Shared by PerformMeleeSwing and Server_Fire. B0-T10.4: no longer static - also checks Strength against DownedKnockbackThreshold to stagger a zombie target into a downed state. */
+	void ApplyHitKnockback(AActor* Target, const FVector& Direction, float Strength);
+
+	/** B0-T10.4: knockback strength (ApplyHitKnockback's Strength param) at or above which a zombie target enters the downed state (AZombieCharacter::Server_EnterDownedState) instead of just physically launching. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Combat", meta = (ClampMin = "0"))
+	float DownedKnockbackThreshold = 150.f;
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee", meta = (ClampMin = "0"))
 	float UnarmedMeleeDamage = 20.f;
@@ -895,5 +907,61 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee", meta = (ClampMin = "0"))
 	float UnarmedMeleeKnockbackStrength = 80.f;
 
+	/** B0-T10.3: NeedsComponent->Server_ConsumeStamina cost per bare-fist swing - mirrors UZSWeaponConfig::MeleeStaminaCost for the unarmed case. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Combat|Melee", meta = (ClampMin = "0"))
+	float UnarmedStaminaCost = 8.f;
+
 	float LastAttackTime = -1000.f;
+
+	// =====================================================================
+	// B0-T10.6 - Finisher (Space) - bare-handed stomp / weapon downward-strike over a downed
+	// zombie. Shove and Mount/Climb (bundled onto the same Space input per Docs/InputBindings.md)
+	// are NOT implemented here - genuinely undesigned per OQ-B0-03's own resolution notes, not an
+	// oversight.
+	// =====================================================================
+
+public:
+
+	/** Client-callable entry point, bound to FinisherAction (Space) Started. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	void HandleFinisher();
+
+protected:
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_PerformFinisher();
+
+	/** Same ECC_Pawn sphere-overlap pattern PerformMeleeSwing uses, but the inverse filter - only considers AZombieCharacter targets where IsDowned() is true, ignoring dead corpses (collision disabled on death, same free exclusion PerformMeleeSwing gets) and upright zombies (a finisher isn't a second melee button). Returns the nearest match within Range, or nullptr. */
+	AZombieCharacter* FindNearestDownedZombie(float Range) const;
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Combat", meta = (ClampMin = "0"))
+	float FinisherRange = 200.f;
+
+	/** Deliberately large enough to guarantee a kill through the normal TakeDamage/ApplyPointDamage pipeline (no special-case health-zeroing bypass) - a finisher is an execution, not a damage roll. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Combat", meta = (ClampMin = "0"))
+	float FinisherDamage = 9999.f;
+
+	/** Cosmetic bare-handed stomp montage - used when no melee weapon is equipped. A melee weapon equipped uses its own UZSWeaponConfig::FinisherMontage (a downward swing/strike) instead. Unset is a no-op. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Combat")
+	TObjectPtr<UAnimMontage> UnarmedFinisherMontage;
+
+	// =====================================================================
+	// B0-T10.1/T10.2 - Weapon jamming: "Rack Firearm," Alt+R per Docs/InputBindings.md - clears a
+	// jam (AZSWeapon::Server_ClearJam). Whether racking has any use outside clearing a jam (e.g.
+	// required after certain reloads) is still an open question per B0_Stabilization.md's own note -
+	// not implemented here, this only covers the confirmed jam-clear case.
+	// =====================================================================
+
+public:
+
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
+	void StartRackFirearm();
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
+	bool CanRackFirearm() const;
+
+protected:
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_StartRackFirearm();
 };

@@ -58,6 +58,11 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `ProjectileSpeed` | 6000 | Projectile travel speed (`UProjectileMovementComponent::InitialSpeed`/`MaxSpeed`) |
 | `HipFireSpreadDegrees`/`AimedSpreadDegrees` | 5° / 1° | B0-T3.5, 2026-07-26: cone half-angle `Server_Fire` randomizes the fire direction within (`FMath::VRandCone`) — these are the rifle numbers from OQ-B0-02's dev-approved starting values; **content gap**: `DA_ZS_WeaponConfig_Pistol` still needs its own authored override (8°→2°) |
 | `HipFireHeadshotChance`/`AimedHeadshotChance` | 0.05 / 0.25 | B0-T3.6: 0-1 chance a landed hit is upgraded to the Head zone regardless of which bone the cone ray physically struck (`Hit.BoneName` override, read by `AZSPlayerCharacter::BodyZoneFromBoneName`) — OQ-B0-02's "~5% hip-fire / ~25% aimed" starting values. Only affects a target with a `UZSHealthComponent` (players) — zombies have no zone model to weight (`CLAUDE.md`'s Zombies/ note) |
+| `MeleeStaminaCost` | 10 | B0-T10.3, 2026-07-26: `NeedsComponent->Server_ConsumeStamina` cost per weapon-melee swing (whether it lands or not) — meaningful only when `AttackType == Melee` |
+| `FinisherMontage` | unset | B0-T10.6: cosmetic downward swing/strike montage used by the Space finisher when this (melee) weapon is equipped over a downed zombie, instead of the bare-handed stomp |
+| `bJamImmune` | false | B0-T10.1: true for weapons that never jam (revolvers/bolt-actions) — ranged only |
+| `BaseJamChance`/`MaxJamChance` | 0.01 / 0.3 | Per-shot jam chance, interpolated by `AZSWeapon::CurrentConditionQuality` (1 = pristine → `BaseJamChance`, 0 = worst → `MaxJamChance`). Rolled in `Server_Fire` before ammo is consumed — a jam replaces the shot outright |
+| `TP_ClearJam`/`ClearJamTimeSeconds` | unset / 1.5s | Cosmetic "Rack Firearm" (Alt+R) clear-jam montage + busy duration, same choreography pattern as `TP_Reload`/`EquipTimeSeconds` |
 | `AttackType` | `Ranged` | P5: which half of `IA_Attack`'s dispatch this weapon uses (`ZSWeaponTypes.h`'s `EZSAttackType`) — `Ranged` routes to `Server_Fire`, `Melee` currently falls back to the bare-fist stats below (no melee-specific weapon fields exist yet) |
 | `EquipTimeSeconds` | 0.75s | P5: how long switching the hotbar to this weapon takes (`Server_SelectHotbarSlot` → `CompleteHotbarSwitch`) — `SetBusy(true)` for the duration, same choreography pattern as reload |
 | `MeleeDamage`/`MeleeRange`/`MeleeAttackInterval` | 35 / 180 / 0.9s | P5, 2026-07-21: real per-weapon melee stats, used when `AttackType == Melee` — mirrors the `Unarmed*` fields below one-for-one |
@@ -86,6 +91,18 @@ Bound to `IA_Attack` — `IA_Fire` is no longer separately bound (P5, 2026-07-21
 | `UnarmedMeleeDamageTypeClass` | unset (→ `UZSDamageType_Laceration`) | Which `EZSWoundType` a melee hit applies to a player target |
 | `UnarmedMeleeMontage` | unset | Cosmetic TP swing montage — no-op until authored |
 | `UnarmedMeleeKnockbackStrength` | 80 | P5, 2026-07-21: same `ApplyHitKnockback` weapon melee/gunfire use, given a bare-fist punch a little heft too |
+| `UnarmedStaminaCost` | 8 | B0-T10.3, 2026-07-26: `NeedsComponent->Server_ConsumeStamina` cost per bare-fist swing (whether it lands or not) |
+
+## Downed State & Finisher (`AZSPlayerCharacter`/`AZombieCharacter`/`UZSZombieConfig`) — B0-T10.4-T10.6, 2026-07-26
+| Property | Default | Effect |
+|---|---|---|
+| `AZSPlayerCharacter::DownedKnockbackThreshold` | 150 | `ApplyHitKnockback`'s `Strength` at or above which a zombie target enters the downed state instead of just physically launching — centralized in `ApplyHitKnockback` so every damage path (hitscan, projectile, weapon melee, bare-fist) triggers it identically |
+| `UZSZombieConfig::DownedRecoverySeconds` | 6 | How long a downed zombie stays down before automatically recovering (`AZombieCharacter::Server_ExitDownedState`) unless finished first — a temporary stagger, not a permanent knockdown |
+| `AZSPlayerCharacter::FinisherRange` | 200 | Sphere-overlap radius `FindNearestDownedZombie` scans for a Space-finisher target |
+| `AZSPlayerCharacter::FinisherDamage` | 9999 | Deliberately large enough to guarantee a kill through the normal `TakeDamage`/`ApplyPointDamage` pipeline — an execution, not a damage roll |
+| `AZSPlayerCharacter::UnarmedFinisherMontage` | unset | Bare-handed stomp montage — used when no melee weapon is equipped over the downed target |
+
+**Content gap**: `BT_Zombie`'s graph isn't wired to branch on the new `bIsDowned` Blackboard key yet (no `unreal-mcp`/editor access this session to add the branch). `AZombieAIController::SetDowned` pauses/resumes the whole behavior tree directly (`BrainComponent::PauseLogic`/`ResumeLogic`) as a functional stand-in, so "downed" (stops chasing/attacking) actually works in PIE today even without the graph edit — the Blackboard key exists ready for a nicer BT-native branch later.
 
 ## TopDown Camera (`AZSPlayerCharacter`, Category `ZS|Camera|TopDown`)
 Boom length now lives on **Camera Director** above — this section is just the fixed pitch/yaw.
@@ -153,6 +170,7 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `MaxHealth` | 100 | Zombie's flat health pool (not `UZSHealthComponent` - see `CLAUDE.md`'s Zombies/ note) |
 | `MeleeDamage`/`MeleeRange`/`AttackInterval` | 15 / 150 / 1.5s | `Server_MeleeAttack`'s damage, self-validated range, and cooldown |
 | `AttackDamageTypeClass` | unset (falls back to `UZSDamageType_Bite`) | Which `EZSWoundType` a hit applies to a bitten player |
+| `DownedRecoverySeconds` | 6 | B0-T10.4 — see the Downed State & Finisher section below |
 | `WalkSpeed`/`ChaseSpeed` | 150 / 300 | `MaxWalkSpeed` at rest / while `SetChasing(true)` (not yet called by anything - no BT exists) |
 | `SightRadius`/`LoseSightRadius`/`PeripheralVisionAngleDegrees` | 1500 / 1800 / 90° | `AISenseConfig_Sight`, applied at `OnPossess` |
 | `HearingRange` | 3000 | `AISenseConfig_Hearing`, applied at `OnPossess` - this is what picks up `UZSNoiseSystem::ReportNoise` events |

@@ -16,4 +16,6 @@ namespace ZSZombieBlackboardKeys
 	static const FName bIsInMeleeRange(TEXT("bIsInMeleeRange"));
 	static const FName bIsIdling(TEXT("bIsIdling"));
 	static const FName bInvestigationTimerStarted(TEXT("bInvestigationTimerStarted"));
+	/** B0-T10.4, 2026-07-26: set by AZombieAIController::SetDowned. BT_Zombie's graph isn't wired to branch on this yet (content gap, no editor/MCP access this session) - SetDowned also directly pauses/resumes the whole behavior tree (BrainComponent::PauseLogic/ResumeLogic) as a functional stand-in, so the key exists ready for a real BT-native branch later without the feature being broken in the meantime. */
+	static const FName bIsDowned(TEXT("bIsDowned"));
 }

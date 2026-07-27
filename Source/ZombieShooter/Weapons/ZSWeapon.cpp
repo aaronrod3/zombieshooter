@@ -38,6 +38,8 @@ void AZSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	DOREPLIFETIME(AZSWeapon, CurrentFireMode);
 	DOREPLIFETIME(AZSWeapon, CurrentMagazineAmmo);
 	DOREPLIFETIME(AZSWeapon, CurrentDurability);
+	DOREPLIFETIME(AZSWeapon, CurrentConditionQuality);
+	DOREPLIFETIME(AZSWeapon, bIsJammed);
 }
 
 void AZSWeapon::InitializeFromConfig(UZSWeaponConfig* Config)
@@ -156,7 +158,7 @@ AZSMagazine* AZSWeapon::SpawnMagazine(FName SocketName)
 
 bool AZSWeapon::CanFire() const
 {
-	return CurrentConfig && CurrentFireMode != EZSFireMode::Safety && CurrentMagazineAmmo > 0;
+	return CurrentConfig && CurrentFireMode != EZSFireMode::Safety && CurrentMagazineAmmo > 0 && !bIsJammed;
 }
 
 bool AZSWeapon::Server_ConsumeAmmoRound()
@@ -222,7 +224,16 @@ void AZSWeapon::PerformReload_Implementation()
 
 void AZSWeapon::SeedDurabilityFromInstance(int32 InstanceDurability, float ConditionQuality)
 {
-	if (!HasAuthority() || !CurrentConfig || CurrentConfig->MaxDurabilityHits <= 0)
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// B0-T10.1: stored regardless of MaxDurabilityHits - a gun (MaxDurabilityHits == 0, "unbreakable"
+	// for melee purposes only) still needs this for its jam-chance roll.
+	CurrentConditionQuality = FMath::Clamp(ConditionQuality, 0.f, 1.f);
+
+	if (!CurrentConfig || CurrentConfig->MaxDurabilityHits <= 0)
 	{
 		// Unbreakable weapon - CurrentDurability stays whatever InitializeFromConfig set (0), same
 		// "never reaches/goes below 0" contract Server_ConsumeDurabilityHit already documents.
@@ -231,7 +242,43 @@ void AZSWeapon::SeedDurabilityFromInstance(int32 InstanceDurability, float Condi
 
 	CurrentDurability = (InstanceDurability >= 0)
 		? InstanceDurability
-		: FMath::RoundToInt(CurrentConfig->MaxDurabilityHits * FMath::Clamp(ConditionQuality, 0.f, 1.f));
+		: FMath::RoundToInt(CurrentConfig->MaxDurabilityHits * CurrentConditionQuality);
+}
+
+bool AZSWeapon::Server_RollForJam()
+{
+	if (!HasAuthority() || !CurrentConfig || CurrentConfig->bJamImmune || bIsJammed)
+	{
+		return false;
+	}
+
+	// Interpolates BaseJamChance (at CurrentConditionQuality == 1, pristine) to MaxJamChance (at 0,
+	// worst condition) - a worse-condition weapon jams more often, never less.
+	const float JamChance = FMath::Lerp(CurrentConfig->MaxJamChance, CurrentConfig->BaseJamChance, CurrentConditionQuality);
+	if (FMath::FRand() < JamChance)
+	{
+		bIsJammed = true;
+		OnRep_IsJammed();
+		return true;
+	}
+
+	return false;
+}
+
+void AZSWeapon::Server_ClearJam()
+{
+	if (!HasAuthority() || !bIsJammed)
+	{
+		return;
+	}
+
+	bIsJammed = false;
+	OnRep_IsJammed();
+}
+
+void AZSWeapon::OnRep_IsJammed()
+{
+	OnJamStateChanged.Broadcast(bIsJammed);
 }
 
 bool AZSWeapon::Server_ConsumeDurabilityHit()

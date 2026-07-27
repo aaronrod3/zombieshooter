@@ -48,6 +48,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
 	TSubclassOf<UDamageType> AttackDamageTypeClass;
 
+	/** B0-T10.4, 2026-07-26: how long this zombie type stays in the downed state (AZombieCharacter::Server_EnterDownedState, entered from a knockback impulse at or above AZSPlayerCharacter::DownedKnockbackThreshold) before recovering on its own - a temporary stagger, not a permanent knockdown. The T10.6 finisher (Space) is the deliberate way to end a downed zombie before it gets back up. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat", meta = (ClampMin = "0"))
+	float DownedRecoverySeconds = 6.f;
+
 	// ---- Movement ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (ClampMin = "0"))

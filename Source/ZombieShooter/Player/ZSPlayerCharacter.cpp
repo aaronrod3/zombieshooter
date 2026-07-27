@@ -220,11 +220,19 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReloadActionFinder(TEXT("/Game/ZS/Input/IA_Reload.IA_Reload"));
 	if (ReloadActionFinder.Succeeded()) { ReloadAction = ReloadActionFinder.Object; }
 
+	// B0-T10.1 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
+	static ConstructorHelpers::FObjectFinder<UInputAction> RackActionFinder(TEXT("/Game/ZS/Input/IA_Rack.IA_Rack"));
+	if (RackActionFinder.Succeeded()) { RackAction = RackActionFinder.Object; }
+
 	// Same graceful-if-missing pattern as above; IA_Attack is dev-authored content (not created by
 	// this commit) - the finder degrades safely (AttackAction stays null, binding below is skipped)
 	// if it's ever missing.
 	static ConstructorHelpers::FObjectFinder<UInputAction> AttackActionFinder(TEXT("/Game/ZS/Input/IA_Attack.IA_Attack"));
 	if (AttackActionFinder.Succeeded()) { AttackAction = AttackActionFinder.Object; }
+
+	// B0-T10.6 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
+	static ConstructorHelpers::FObjectFinder<UInputAction> FinisherActionFinder(TEXT("/Game/ZS/Input/IA_Finisher.IA_Finisher"));
+	if (FinisherActionFinder.Succeeded()) { FinisherAction = FinisherActionFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> CrouchActionFinder(TEXT("/Game/ZS/Input/IA_Crouch.IA_Crouch"));
 	if (CrouchActionFinder.Succeeded()) { CrouchAction = CrouchActionFinder.Object; }
@@ -403,10 +411,20 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartReload);
 		}
 
+		if (RackAction)
+		{
+			EnhancedInputComponent->BindAction(RackAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartRackFirearm);
+		}
+
 		if (AttackAction)
 		{
 			EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleAttack);
 			EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &AZSPlayerCharacter::HandleAttackStopped);
+		}
+
+		if (FinisherAction)
+		{
+			EnhancedInputComponent->BindAction(FinisherAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleFinisher);
 		}
 
 		if (CrouchAction)
@@ -1613,6 +1631,16 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 		return;
 	}
 
+	if (CurrentWeapon->Server_RollForJam())
+	{
+		// B0-T10.1/T10.2: jam replaces this shot outright - no ammo consumed, no shot resolved.
+		// CanFire() now excludes a jammed weapon, so the trigger just clicks until Rack Firearm
+		// (Alt+R, Server_StartRackFirearm) clears it. Legible feedback is OnJamStateChanged
+		// (AZSWeapon.h) - the HUD-indicator half of T10.2's definition of done; the audio-cue half
+		// is a content task, no audio system exists yet.
+		return;
+	}
+
 	CurrentWeapon->Server_ConsumeAmmoRound();
 
 	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
@@ -1760,6 +1788,18 @@ void AZSPlayerCharacter::ApplyHitKnockback(AActor* Target, const FVector& Direct
 	{
 		TargetCharacter->LaunchCharacter(Direction * Strength, true, false);
 	}
+
+	// B0-T10.4: a knockback with real heft behind it staggers a zombie into a temporary downed
+	// state - not every knockback, just the ones clearing DownedKnockbackThreshold. Centralized here
+	// since every damage path (hitscan, projectile, weapon melee, bare-fist melee) already routes
+	// its knockback through this one function.
+	if (Strength >= DownedKnockbackThreshold)
+	{
+		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(Target))
+		{
+			Zombie->Server_EnterDownedState();
+		}
+	}
 }
 
 bool AZSPlayerCharacter::PerformMeleeSwing(float Damage, float Range, float AttackInterval, TSubclassOf<UDamageType> DamageTypeClass, UAnimMontage* Montage, float KnockbackStrength)
@@ -1789,6 +1829,17 @@ bool AZSPlayerCharacter::PerformMeleeSwing(float Damage, float Range, float Atta
 		{
 			// No PvP melee in v1 - excludes self and every other player pawn.
 			continue;
+		}
+
+		// B0-T10.5: a standing swing never hits a downed zombie, unconditionally - finishing one
+		// requires the deliberate Space finisher (T10.6), not incidental splash damage from a
+		// normal swing while it's staggered.
+		if (const AZombieCharacter* Zombie = Cast<AZombieCharacter>(Candidate))
+		{
+			if (Zombie->IsDowned())
+			{
+				continue;
+			}
 		}
 
 		const FVector ToCandidate = Candidate->GetActorLocation() - GetActorLocation();
@@ -1848,6 +1899,14 @@ void AZSPlayerCharacter::Server_MeleeAttack_Implementation()
 		return;
 	}
 
+	// B0-T10.3: cost applies per swing attempt, unconditional of hit/miss - "stamina alone governs
+	// swing-spam," no separate strain mechanic layered on top, same soft-resource-not-hard-block
+	// philosophy as every other needs-driven system in this project.
+	if (NeedsComponent)
+	{
+		NeedsComponent->Server_ConsumeStamina(UnarmedStaminaCost);
+	}
+
 	PerformMeleeSwing(UnarmedMeleeDamage, UnarmedMeleeRange, UnarmedMeleeAttackInterval, UnarmedMeleeDamageTypeClass, UnarmedMeleeMontage, UnarmedMeleeKnockbackStrength);
 }
 
@@ -1859,6 +1918,12 @@ void AZSPlayerCharacter::Server_WeaponMeleeAttack_Implementation()
 	}
 
 	const UZSWeaponConfig* Config = CurrentWeapon->GetConfig();
+
+	if (NeedsComponent)
+	{
+		NeedsComponent->Server_ConsumeStamina(Config->MeleeStaminaCost);
+	}
+
 	const bool bHit = PerformMeleeSwing(Config->MeleeDamage, Config->MeleeRange, Config->MeleeAttackInterval, Config->MeleeDamageTypeClass, Config->MeleeMontage, Config->MeleeKnockbackStrength);
 
 	if (bHit && CurrentWeapon->Server_ConsumeDurabilityHit())
@@ -1893,6 +1958,118 @@ void AZSPlayerCharacter::Server_WeaponMeleeAttack_Implementation()
 		AttachWeaponToBodyMesh();
 		ActiveHotbarIndex = INDEX_NONE;
 		OnRep_ActiveHotbarIndex();
+	}
+}
+
+// =====================================================================
+// B0-T10.6 - Finisher (Space)
+// =====================================================================
+
+void AZSPlayerCharacter::HandleFinisher()
+{
+	if (!CanAttack())
+	{
+		return;
+	}
+
+	Server_PerformFinisher();
+}
+
+void AZSPlayerCharacter::Server_PerformFinisher_Implementation()
+{
+	if (!HasAuthority() || !CanAttack())
+	{
+		return;
+	}
+
+	AZombieCharacter* DownedTarget = FindNearestDownedZombie(FinisherRange);
+	if (!DownedTarget)
+	{
+		return;
+	}
+
+	// B0-T10.6: execution branches on what's equipped - bare-handed -> stomp; melee weapon equipped
+	// -> a downward swing/strike using that weapon instead of a generic stomp animation. That
+	// equipped-dependent branch (not one universal finisher animation) is the deliberate difference
+	// from a direct PZ port, per OQ-B0-03's resolution.
+	const UZSWeaponConfig* Config = CurrentWeapon ? CurrentWeapon->GetConfig() : nullptr;
+	const bool bUseWeaponStrike = Config && Config->AttackType == EZSAttackType::Melee;
+
+	Multicast_PlayTPActionMontage(bUseWeaponStrike ? Config->FinisherMontage : UnarmedFinisherMontage);
+
+	// Deliberately not a special-case health-zeroing bypass - routes through the same
+	// ApplyPointDamage -> TakeDamage -> HealthComponent/CurrentHealth pipeline every other hit uses,
+	// just with FinisherDamage sized to guarantee the kill (an execution, not a damage roll).
+	const FVector HitDirection = (DownedTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+	const FHitResult HitResult;
+	UGameplayStatics::ApplyPointDamage(DownedTarget, FinisherDamage, HitDirection, HitResult, GetController(), this, UZSDamageType_Laceration::StaticClass());
+}
+
+AZombieCharacter* AZSPlayerCharacter::FindNearestDownedZombie(float Range) const
+{
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+
+	TArray<FOverlapResult> Overlaps;
+	const FCollisionShape Sphere = FCollisionShape::MakeSphere(Range);
+	GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, ObjectQueryParams, Sphere);
+
+	AZombieCharacter* BestTarget = nullptr;
+	float BestDistSq = FLT_MAX;
+
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AZombieCharacter* Candidate = Cast<AZombieCharacter>(Overlap.GetActor());
+		if (!Candidate || !Candidate->IsDowned())
+		{
+			// Dead corpses are excluded for free (collision disabled on death); upright zombies are
+			// excluded deliberately - a finisher isn't a second melee button.
+			continue;
+		}
+
+		const float DistSq = FVector::DistSquared(GetActorLocation(), Candidate->GetActorLocation());
+		if (DistSq <= FMath::Square(Range) && DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			BestTarget = Candidate;
+		}
+	}
+
+	return BestTarget;
+}
+
+// =====================================================================
+// B0-T10.1/T10.2 - Weapon jamming: Rack Firearm (Alt+R)
+// =====================================================================
+
+bool AZSPlayerCharacter::CanRackFirearm() const
+{
+	return !bIsBusy && CurrentWeapon && CurrentWeapon->IsJammed();
+}
+
+void AZSPlayerCharacter::StartRackFirearm_Implementation()
+{
+	if (!CanRackFirearm())
+	{
+		return;
+	}
+
+	Server_StartRackFirearm();
+}
+
+void AZSPlayerCharacter::Server_StartRackFirearm_Implementation()
+{
+	if (!HasAuthority() || !CanRackFirearm())
+	{
+		return;
+	}
+
+	CurrentWeapon->Server_ClearJam();
+
+	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	{
+		Multicast_PlayTPActionMontage(Config->TP_ClearJam);
+		BeginBusyAction(Config->TP_ClearJam);
 	}
 }
 

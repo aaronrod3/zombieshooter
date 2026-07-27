@@ -73,6 +73,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
 	bool CanSprint() const { return Stamina > 0.f; }
 
+	/** B0-T10.3: server-only, unconditional flat drain (no performance-multiplier scaling, unlike TickStamina's sprint drain) - a melee swing costs the same stamina regardless of how fed/rested the swinger is; the needs system's performance multipliers already make swinging harder when exhausted (slower recovery), this is the direct cost on top. Clamps at 0, same floor every other Stamina mutation uses. No-op off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Needs")
+	void Server_ConsumeStamina(float Amount);
+
 	// ---- B0-T4.1: Wet ----
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Needs")

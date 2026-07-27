@@ -50,6 +50,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|AI")
 	void StartIdleDwell();
 
+	/** B0-T10.4: called by AZombieCharacter::Server_EnterDownedState/Server_ExitDownedState. Sets the "bIsDowned" Blackboard key either way (ready for a real BT-native branch once BT_Zombie's graph is wired for it - content gap, no editor/MCP access this session) and, as the functional stand-in until then, pauses/resumes the whole behavior tree via BrainComponent - stops chasing/attacking outright rather than leaving "downed" as a Blackboard flag nothing actually reacts to. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|AI")
+	void SetDowned(bool bDowned);
+
 protected:
 
 	virtual void OnPossess(APawn* InPawn) override;

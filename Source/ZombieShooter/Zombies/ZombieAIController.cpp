@@ -10,6 +10,7 @@
 #include "Perception/AISenseConfig_Hearing.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "BrainComponent.h"
 
 AZombieAIController::AZombieAIController()
 {
@@ -195,5 +196,25 @@ void AZombieAIController::HandleIdleDwellTimerExpired()
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
 		BB->SetValueAsBool(ZSZombieBlackboardKeys::bIsIdling, false);
+	}
+}
+
+void AZombieAIController::SetDowned(bool bDowned)
+{
+	if (UBlackboardComponent* BB = GetBlackboardComponent())
+	{
+		BB->SetValueAsBool(ZSZombieBlackboardKeys::bIsDowned, bDowned);
+	}
+
+	if (UBrainComponent* Brain = GetBrainComponent())
+	{
+		if (bDowned)
+		{
+			Brain->PauseLogic(TEXT("Downed"));
+		}
+		else
+		{
+			Brain->ResumeLogic(TEXT("Downed"));
+		}
 	}
 }

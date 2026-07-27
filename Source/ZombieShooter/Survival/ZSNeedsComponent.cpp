@@ -159,6 +159,17 @@ void UZSNeedsComponent::TickStamina(float DeltaTime)
 	OnRep_Stamina();
 }
 
+void UZSNeedsComponent::Server_ConsumeStamina(float Amount)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || Amount <= 0.f)
+	{
+		return;
+	}
+
+	Stamina = FMath::Clamp(Stamina - Amount, 0.f, 100.f);
+	OnRep_Stamina();
+}
+
 void UZSNeedsComponent::OnRep_Hunger()
 {
 	OnHungerChanged.Broadcast(Hunger);

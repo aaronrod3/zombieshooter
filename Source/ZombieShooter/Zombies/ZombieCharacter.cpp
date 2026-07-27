@@ -23,6 +23,7 @@ void AZombieCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 	DOREPLIFETIME(AZombieCharacter, CurrentHealth);
 	DOREPLIFETIME(AZombieCharacter, bIsDead);
+	DOREPLIFETIME(AZombieCharacter, bIsDowned);
 }
 
 void AZombieCharacter::BeginPlay()
@@ -134,6 +135,45 @@ void AZombieCharacter::Server_MeleeAttack(AActor* Target)
 	UGameplayStatics::ApplyPointDamage(Target, ZombieConfig->MeleeDamage, HitDirection, HitResult, GetController(), this, DamageTypeClass);
 }
 
+void AZombieCharacter::Server_EnterDownedState()
+{
+	if (!HasAuthority() || bIsDead || bIsDowned)
+	{
+		return;
+	}
+
+	bIsDowned = true;
+	OnRep_IsDowned();
+
+	GetCharacterMovement()->DisableMovement();
+
+	if (AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController()))
+	{
+		ZombieController->SetDowned(true);
+	}
+
+	const float RecoverySeconds = ZombieConfig ? ZombieConfig->DownedRecoverySeconds : 6.f;
+	GetWorldTimerManager().SetTimer(DownedRecoveryTimerHandle, this, &AZombieCharacter::Server_ExitDownedState, RecoverySeconds, false);
+}
+
+void AZombieCharacter::Server_ExitDownedState()
+{
+	if (!HasAuthority() || !bIsDowned || bIsDead)
+	{
+		return;
+	}
+
+	bIsDowned = false;
+	OnRep_IsDowned();
+
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+
+	if (AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController()))
+	{
+		ZombieController->SetDowned(false);
+	}
+}
+
 void AZombieCharacter::SetChasing(bool bChasing)
 {
 	if (!HasAuthority() || !ZombieConfig)
@@ -153,6 +193,9 @@ void AZombieCharacter::Die()
 
 	bIsDead = true;
 	OnRep_IsDead();
+
+	// A downed zombie finished off by the T10.6 finisher shouldn't still recover mid-corpse-linger.
+	GetWorldTimerManager().ClearTimer(DownedRecoveryTimerHandle);
 
 	GetCharacterMovement()->DisableMovement();
 	SetActorEnableCollision(false);
@@ -179,4 +222,9 @@ void AZombieCharacter::OnRep_IsDead()
 	{
 		OnDeath.Broadcast();
 	}
+}
+
+void AZombieCharacter::OnRep_IsDowned()
+{
+	OnDownedChanged.Broadcast(bIsDowned);
 }

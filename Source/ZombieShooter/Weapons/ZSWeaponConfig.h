@@ -207,6 +207,35 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (ClampMin = "0", EditCondition = "AttackType == EZSAttackType::Melee"))
 	int32 MaxDurabilityHits = 0;
 
+	/** B0-T10.3, 2026-07-26: Stamina cost per swing (whether it lands or not) via UZSNeedsComponent::Server_ConsumeStamina - "stamina alone governs swing-spam," no separate strain mechanic. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (ClampMin = "0", EditCondition = "AttackType == EZSAttackType::Melee"))
+	float MeleeStaminaCost = 10.f;
+
+	/** B0-T10.6: cosmetic-only downward swing/strike montage used by the Space finisher when a melee weapon is equipped over a downed target, instead of the bare-handed stomp (AZSPlayerCharacter::UnarmedFinisherMontage). Unset is a no-op, same as every other optional montage field. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee", meta = (EditCondition = "AttackType == EZSAttackType::Melee"))
+	TObjectPtr<UAnimMontage> FinisherMontage;
+
+	// ---- Jamming (B0-T10.1/T10.2, 2026-07-26) - ranged only; meaningless while AttackType == Melee. ----
+
+	/** True for weapons that never jam (revolvers/bolt-actions - simple, forgiving mechanisms) - content-authored per weapon, defaults false since most guns can. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jamming", meta = (EditCondition = "AttackType == EZSAttackType::Ranged"))
+	bool bJamImmune = false;
+
+	/** Jam chance per shot at CurrentConditionQuality == 1 (pristine). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jamming", meta = (ClampMin = "0", ClampMax = "1", EditCondition = "AttackType == EZSAttackType::Ranged && !bJamImmune"))
+	float BaseJamChance = 0.01f;
+
+	/** Jam chance per shot at CurrentConditionQuality == 0 (worst condition). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jamming", meta = (ClampMin = "0", ClampMax = "1", EditCondition = "AttackType == EZSAttackType::Ranged && !bJamImmune"))
+	float MaxJamChance = 0.3f;
+
+	/** Cosmetic-only "Rack Firearm" clear-jam montage (Alt+R per Docs/InputBindings.md). Unset is a no-op. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jamming", meta = (EditCondition = "AttackType == EZSAttackType::Ranged && !bJamImmune"))
+	TObjectPtr<UAnimMontage> TP_ClearJam;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jamming", meta = (ClampMin = "0", EditCondition = "AttackType == EZSAttackType::Ranged && !bJamImmune"))
+	float ClearJamTimeSeconds = 1.5f;
+
 	// ---- Hit feedback (P5: simple physical knockback - not a full stagger/interrupt AI state,
 	// see Docs/Phases/P5_CombatCompletion.md for why that's out of scope for now) ----
 

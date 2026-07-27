@@ -24,6 +24,7 @@
 | Melee Shove / Stomp / Mount / Climb | Space |
 | Reload Weapon | R |
 | Rack Firearm (chamber / clear jam) | Alt + R |
+🔧 **B0-T10.1/T10.2/T10.6 implemented 2026-07-26**: only the confirmed halves — clear-jam (`AZSPlayerCharacter::RackAction`/`StartRackFirearm`) and the finisher (`FinisherAction`/`HandleFinisher`, stomp/weapon-strike over a downed zombie only). Shove and Mount/Climb (bundled on the same Space input) remain unimplemented — genuinely undesigned, not an oversight. Both `IA_Rack`/`IA_Finisher` still need manual creation in-editor as `.uasset`s.
 | Toggle Safety (multiplayer PvP) | X |
 
 ## Camera
