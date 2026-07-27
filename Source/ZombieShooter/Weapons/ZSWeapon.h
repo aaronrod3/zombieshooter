@@ -49,6 +49,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	bool Server_ConsumeAmmoRound();
 
+	/** B0-T2.11: true only if the magazine isn't already full, CurrentConfig->AmmoItemConfig is set, and the owning character's UZSInventoryComponent actually carries at least one unit of it - checking real inventory state instead of a flat CurrentReserveAmmo > 0. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
 	bool CanReload() const;
 
@@ -63,7 +64,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	void SeedDurabilityFromInstance(int32 InstanceDurability, float ConditionQuality);
 
-	/** Transfers ammo reserve -> magazine synchronously. The reload montage that follows is purely cosmetic (see CoreLoopPlan.md Phase 2 "Key architecture decisions"). Gameplay execution point - overridable per-weapon. */
+	/** B0-T2.11: removes up to (MagazineCapacity - CurrentMagazineAmmo) units of CurrentConfig->AmmoItemConfig from the owning character's UZSInventoryComponent::CarrySlots and adds whatever was actually available to CurrentMagazineAmmo - reserve ammo is real inventory now, not a flat counter on this actor. Synchronous; the reload montage that follows is purely cosmetic (see CoreLoopPlan.md Phase 2 "Key architecture decisions"). Gameplay execution point - overridable per-weapon. */
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void PerformReload();
 
@@ -88,9 +89,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Weapon")
 	FZSOnAmmoChanged OnMagazineAmmoChanged;
 
-	UPROPERTY(BlueprintAssignable, Category = "ZS|Weapon")
-	FZSOnAmmoChanged OnReserveAmmoChanged;
-
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -105,9 +103,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentMagazineAmmo, Category = "ZS|Weapon")
 	int32 CurrentMagazineAmmo = 0;
 
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentReserveAmmo, Category = "ZS|Weapon")
-	int32 CurrentReserveAmmo = 0;
-
 	/** P5: seeded from CurrentConfig->MaxDurabilityHits in InitializeFromConfig. Stays at 0 (and Server_ConsumeDurabilityHit stays a no-op) for an unbreakable weapon. No OnRep needed - nothing client-side reacts to durability yet (no UI), same "plain replicated state" reasoning as AZSGameState::UtilitiesShutoffDay. */
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "ZS|Weapon")
 	int32 CurrentDurability = 0;
@@ -121,9 +116,6 @@ protected:
 
 	UFUNCTION()
 	void OnRep_CurrentMagazineAmmo();
-
-	UFUNCTION()
-	void OnRep_CurrentReserveAmmo();
 
 	/** Cosmetic-only assembly from CurrentConfig: base weapon mesh, static-mesh attachments, magazine prop. Called from InitializeFromConfig on the server and OnRep_CurrentConfig on clients - each machine assembles its own local, unreplicated cosmetics. */
 	void AssembleCosmeticsFromConfig();

@@ -146,16 +146,16 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Poses")
 	TObjectPtr<UAnimSequenceBase> TP_AimPose;
 
-	// ---- Ammo (real gameplay state - lives on AZSWeapon, seeded from here) ----
+	// ---- Ammo (B0-T2.11, 2026-07-26: reserve ammo is a real inventory item now, not a flat counter
+	// on AZSWeapon - see AmmoItemConfig below. MagazineCapacity is the one piece of ammo state that
+	// stays here, since a loaded magazine isn't itself a carried item.) ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo", meta = (ClampMin = "1"))
 	int32 MagazineCapacity = 30;
 
+	/** Which UZSItemConfig this weapon's magazine reloads from - AZSWeapon::PerformReload removes up to (MagazineCapacity - CurrentMagazineAmmo) units of this from the owning player's UZSInventoryComponent::CarrySlots. Unset means this weapon can never reload (CanReload() stays false) - fine for a starting/placeholder config, but every real ranged weapon needs one set. Author a stackable (MaxStackSize in the hundreds) DA_ZS_ItemConfig_Ammo_<Caliber> instance and point this at it - a content task, not yet done for any weapon. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo")
-	int32 StartingReserveAmmo = 90;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo")
-	int32 MaxReserveAmmo = 180;
+	TObjectPtr<UZSItemConfig> AmmoItemConfig;
 
 	// ---- Attack dispatch (P5) ----
 

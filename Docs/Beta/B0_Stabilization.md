@@ -168,9 +168,9 @@ struct FZSItemInstance
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T2.11 | **Ammo becomes a real inventory item.** Remove `AZSWeapon::CurrentReserveAmmo`/`MaxReserveAmmo`; reload draws from a matching ammo `FZSItemInstance` stack. Ammo now weighs, loots, drops, and can be shared. | P5-R6, OQ-B0-09 |
+| T2.11 | 🔧 **Code complete 2026-07-26, not yet PIE-verified.** **Ammo becomes a real inventory item.** Removed `AZSWeapon::CurrentReserveAmmo` and `UZSWeaponConfig::StartingReserveAmmo`/`MaxReserveAmmo` entirely; new `UZSWeaponConfig::AmmoItemConfig` names which `UZSItemConfig` a weapon reloads from, `CanReload()`/`PerformReload()` check/draw from the owning player's `UZSInventoryComponent::CarrySlots` directly. Ammo now weighs, loots, drops, and can be shared, same as any other stackable item. **Content gap, not yet done**: no `DA_ZS_ItemConfig_Ammo_*` instances exist and no weapon config has `AmmoItemConfig` assigned yet - every weapon's `CanReload()` returns false until this is authored (can't do it myself without editor access). | P5-R6, OQ-B0-09 |
 
-> **✋ Checkpoint D.** Fire a weapon empty, reload from a carried ammo stack, confirm the stack count drops by the right amount. Drop ammo, have a second player pick it up and reload from it.
+> **✋ Checkpoint D — not yet run.** Needs `AmmoItemConfig` authored and assigned first (see the content gap above). Then: fire a weapon empty, reload from a carried ammo stack, confirm the stack count drops by the right amount. Drop ammo, have a second player pick it up and reload from it.
 
 **Step E — handedness fields (T2.12).** Cheap, pure data-classification.
 

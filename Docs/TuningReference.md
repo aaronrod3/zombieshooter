@@ -24,8 +24,7 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | Field | AR default | Effect |
 |---|---|---|
 | `MagazineCapacity` | 30 | Rounds per magazine |
-| `StartingReserveAmmo` | 90 | Reserve ammo at spawn |
-| `MaxReserveAmmo` | 180 | Reserve ammo cap |
+| `AmmoItemConfig` | unset | B0-T2.11, 2026-07-26: which `UZSItemConfig` this weapon's magazine reloads from - reserve ammo is a real, lootable, stackable inventory item now, not a flat counter (`StartingReserveAmmo`/`MaxReserveAmmo` removed entirely). Unset means the weapon can never reload. Needs a real `DA_ZS_ItemConfig_Ammo_<Caliber>` instance authored and assigned per weapon - content task, not done yet for AR/Pistol. |
 | `SupportedFireModes` | `[Semi, Auto]` | Which fire modes `CycleFireMode` cycles through |
 | `RoundsPerMinute` | 600 | Fire rate |
 | `RecoilPitchRange` | (0.5, 1.5) | Per-shot recoil pitch kick, randomized within this range |

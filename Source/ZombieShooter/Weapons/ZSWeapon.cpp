@@ -4,6 +4,7 @@
 #include "ZSWeaponConfig.h"
 #include "ZSPlayerCharacter.h"
 #include "ZSMagazine.h"
+#include "../Inventory/ZSInventoryComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
 
@@ -36,7 +37,6 @@ void AZSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	DOREPLIFETIME(AZSWeapon, CurrentConfig);
 	DOREPLIFETIME(AZSWeapon, CurrentFireMode);
 	DOREPLIFETIME(AZSWeapon, CurrentMagazineAmmo);
-	DOREPLIFETIME(AZSWeapon, CurrentReserveAmmo);
 	DOREPLIFETIME(AZSWeapon, CurrentDurability);
 }
 
@@ -50,7 +50,6 @@ void AZSWeapon::InitializeFromConfig(UZSWeaponConfig* Config)
 	CurrentConfig = Config;
 
 	CurrentMagazineAmmo = Config->MagazineCapacity;
-	CurrentReserveAmmo = Config->StartingReserveAmmo;
 	CurrentDurability = Config->MaxDurabilityHits;
 
 	if (Config->SupportedFireModes.Num() > 0)
@@ -119,11 +118,6 @@ void AZSWeapon::OnRep_CurrentMagazineAmmo()
 	OnMagazineAmmoChanged.Broadcast(CurrentMagazineAmmo);
 }
 
-void AZSWeapon::OnRep_CurrentReserveAmmo()
-{
-	OnReserveAmmoChanged.Broadcast(CurrentReserveAmmo);
-}
-
 UStaticMeshComponent* AZSWeapon::AssignNewStaticMesh(const FName& SocketName, UStaticMesh* Mesh, const FName& ComponentName)
 {
 	if (!Mesh || SocketName.IsNone() || !BaseWeaponMesh->DoesSocketExist(SocketName))
@@ -178,7 +172,26 @@ bool AZSWeapon::Server_ConsumeAmmoRound()
 
 bool AZSWeapon::CanReload() const
 {
-	return CurrentConfig && CurrentReserveAmmo > 0 && CurrentMagazineAmmo < CurrentConfig->MagazineCapacity;
+	if (!CurrentConfig || !CurrentConfig->AmmoItemConfig || CurrentMagazineAmmo >= CurrentConfig->MagazineCapacity)
+	{
+		return false;
+	}
+
+	const AZSPlayerCharacter* OwningCharacter = GetOwner<AZSPlayerCharacter>();
+	const UZSInventoryComponent* Inventory = OwningCharacter ? OwningCharacter->GetInventoryComponent() : nullptr;
+	if (!Inventory)
+	{
+		return false;
+	}
+
+	for (const FZSItemInstance& Instance : Inventory->GetCarrySlots())
+	{
+		if (Instance.Config == CurrentConfig->AmmoItemConfig && Instance.StackCount > 0)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void AZSWeapon::PerformReload_Implementation()
@@ -188,11 +201,23 @@ void AZSWeapon::PerformReload_Implementation()
 		return;
 	}
 
-	const int32 AmmoNeeded = CurrentConfig->MagazineCapacity - CurrentMagazineAmmo;
-	const int32 AmmoToTransfer = FMath::Min(AmmoNeeded, CurrentReserveAmmo);
+	AZSPlayerCharacter* OwningCharacter = GetOwner<AZSPlayerCharacter>();
+	UZSInventoryComponent* Inventory = OwningCharacter ? OwningCharacter->GetInventoryComponent() : nullptr;
+	if (!Inventory)
+	{
+		return;
+	}
 
-	CurrentMagazineAmmo += AmmoToTransfer;
-	CurrentReserveAmmo -= AmmoToTransfer;
+	const int32 AmmoNeeded = CurrentConfig->MagazineCapacity - CurrentMagazineAmmo;
+	const TArray<FZSItemInstance> Removed = Inventory->Server_RemoveItem(CurrentConfig->AmmoItemConfig, AmmoNeeded);
+
+	int32 AmmoAvailable = 0;
+	for (const FZSItemInstance& Instance : Removed)
+	{
+		AmmoAvailable += Instance.StackCount;
+	}
+
+	CurrentMagazineAmmo += AmmoAvailable;
 }
 
 void AZSWeapon::SeedDurabilityFromInstance(int32 InstanceDurability, float ConditionQuality)
