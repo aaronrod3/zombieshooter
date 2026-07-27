@@ -39,6 +39,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bleed", meta = (ClampMin = "1"))
 	float DirtyWoundBleedMultiplier = 1.5f;
 
+	/** B0-T5.3: rare, rolled per bleeding Head-zone hit (Server_ApplyDamage) - distinct and urgent, not just "worse Torso bleed." Code default, not dev-specified - retune freely. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bleed", meta = (ClampMin = "0", ClampMax = "1"))
+	float CriticalHeadBleedChance = 0.08f;
+
+	/** Overrides the normal wound-type bleed rate entirely while FZSBodyZoneWound::bCriticalBleed is set - deliberately steep, this is meant to force an urgent bandage, not be survivable passively. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bleed", meta = (ClampMin = "0"))
+	float BleedDamagePerSecond_CriticalHead = 4.f;
+
 	// ---- Zone gameplay-effect multipliers (GameDevPlan.md P3: "leg wounds -> mobility/speed, arm wounds -> attack speed/reload time") ----
 	// 1 = no penalty, lower = worse. Worst-active-wound-per-zone wins, not stacked across zones of the same limb pair (v1 has one combined Legs/Arms zone each, not left/right).
 
@@ -51,6 +59,14 @@ public:
 	/** Splinting a Fracture doesn't fully restore mobility - just brings it up to roughly a Laceration's penalty. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects|Legs", meta = (ClampMin = "0", ClampMax = "1"))
 	float LegSplintedFractureMobilityMultiplier = 0.7f;
+
+	/** B0-T5.4: game-hours a Fracture takes to heal on its own (UZSHealthComponent::TickFractureRecovery, same AZSGameState game-hour clock UZSNeedsComponent/infection use). Code defaults, not dev-specified - retune freely. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fracture Recovery", meta = (ClampMin = "0"))
+	float FractureRecoveryDurationGameHours = 240.f;
+
+	/** Splinting shortens recovery but doesn't trivialize it - still meaningfully multi-day, just less than unsplinted. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fracture Recovery", meta = (ClampMin = "0"))
+	float SplintedFractureRecoveryDurationGameHours = 96.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects|Arms", meta = (ClampMin = "0", ClampMax = "1"))
 	float ArmWoundedAttackSpeedMultiplier = 0.75f;

@@ -56,6 +56,7 @@ void UZSHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 
 	TickBleed(DeltaTime);
 	TickInfection(DeltaTime);
+	TickFractureRecovery(DeltaTime);
 }
 
 float UZSHealthComponent::GetMaxHealth() const
@@ -153,15 +154,9 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 	CurrentHealth = FMath::Clamp(CurrentHealth - DamageAmount, 0.f, GetMaxHealth());
 	OnRep_CurrentHealth();
 
-	// Temporary confirmation while no hit-reaction VFX/damage numbers exist yet - same "remove once
-	// real feedback is built" note as AZSPlayerCharacter's Server_Fire/Server_MeleeAttack logging.
-	UE_LOG(LogZombieShooter, Log, TEXT("%s: took %.1f damage (%s zone, %s wound) from %s - health now %.1f"),
-		*GetOwner()->GetName(), DamageAmount, *UEnum::GetValueAsString(Zone), *UEnum::GetValueAsString(WoundType),
-		DamageCauser ? *DamageCauser->GetName() : TEXT("Unknown"), CurrentHealth);
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.5f, FColor::Red, FString::Printf(TEXT("%s took %.0f dmg (%s) - HP %.0f"), *GetOwner()->GetName(), DamageAmount, *UEnum::GetValueAsString(WoundType), CurrentHealth));
-	}
+	// B0-T5.5: temporary UE_LOG/on-screen confirmation removed - OnDamageImpact is the stub a
+	// Blueprint subclass binds cosmetic VFX/SFX to; real pass is B7.
+	OnDamageImpact(Zone, WoundType, DamageAmount);
 
 	FZSBodyZoneWound* ZoneWound = FindZoneMutable(Zone);
 	if (ZoneWound && !ZoneWound->bAmputated)
@@ -174,9 +169,23 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 		ZoneWound->bClean = false;
 		ZoneWound->bSplinted = false;
 
+		// B0-T5.4: a fresh fracture-causing hit (whether newly fracturing the zone or re-hitting an
+		// already-fractured one) restarts recovery, same "re-wounding resets splint" reasoning as
+		// bSplinted above.
+		if (ZoneWound->WoundType == EZSWoundType::Fracture)
+		{
+			ZoneWound->FractureRecoveryProgressGameHours = 0.f;
+		}
+
 		if (WoundType != EZSWoundType::Fracture)
 		{
 			ZoneWound->bBleeding = true;
+
+			// B0-T5.3: rare critical head bleed roll - only for a fresh bleeding hit to the Head zone.
+			if (Zone == EZSBodyZone::Head && HealthConfig && FMath::FRand() < HealthConfig->CriticalHeadBleedChance)
+			{
+				ZoneWound->bCriticalBleed = true;
+			}
 		}
 
 		OnRep_BodyZones();
@@ -207,6 +216,7 @@ void UZSHealthComponent::Server_ApplyBandage(EZSBodyZone Zone, bool bCleanBandag
 	}
 
 	ZoneWound->bBleeding = false;
+	ZoneWound->bCriticalBleed = false;
 	ZoneWound->bClean = bCleanBandage;
 	OnRep_BodyZones();
 }
@@ -268,9 +278,11 @@ bool UZSHealthComponent::Server_AmputateZone(EZSBodyZone Zone)
 	ZoneWound->bAmputated = true;
 	ZoneWound->WoundType = EZSWoundType::None;
 	ZoneWound->bBleeding = false;
+	ZoneWound->bCriticalBleed = false;
 	ZoneWound->bClean = true;
 	ZoneWound->bSplinted = false;
 	ZoneWound->bIsInfectionSource = false;
+	ZoneWound->FractureRecoveryProgressGameHours = 0.f;
 
 	OnRep_BodyZones();
 
@@ -324,12 +336,20 @@ void UZSHealthComponent::TickBleed(float DeltaTime)
 		}
 
 		float Rate = 0.f;
-		switch (ZoneWound.WoundType)
+		if (ZoneWound.bCriticalBleed)
 		{
-		case EZSWoundType::Scratch: Rate = HealthConfig->BleedDamagePerSecond_Scratch; break;
-		case EZSWoundType::Laceration: Rate = HealthConfig->BleedDamagePerSecond_Laceration; break;
-		case EZSWoundType::Bite: Rate = HealthConfig->BleedDamagePerSecond_Bite; break;
-		default: continue;
+			// B0-T5.3: overrides the normal wound-type rate entirely - deliberately steep.
+			Rate = HealthConfig->BleedDamagePerSecond_CriticalHead;
+		}
+		else
+		{
+			switch (ZoneWound.WoundType)
+			{
+			case EZSWoundType::Scratch: Rate = HealthConfig->BleedDamagePerSecond_Scratch; break;
+			case EZSWoundType::Laceration: Rate = HealthConfig->BleedDamagePerSecond_Laceration; break;
+			case EZSWoundType::Bite: Rate = HealthConfig->BleedDamagePerSecond_Bite; break;
+			default: continue;
+			}
 		}
 
 		if (!ZoneWound.bClean)
@@ -412,6 +432,57 @@ void UZSHealthComponent::TickInfection(float DeltaTime)
 		break;
 	default:
 		break;
+	}
+}
+
+void UZSHealthComponent::TickFractureRecovery(float DeltaTime)
+{
+	if (!HealthConfig)
+	{
+		return;
+	}
+
+	const AZSGameState* GameState = GetWorld()->GetGameState<AZSGameState>();
+	if (!GameState)
+	{
+		return;
+	}
+
+	const float SecondsPerDay = GameState->GetRealSecondsPerGameDay();
+	if (SecondsPerDay <= 0.f)
+	{
+		return;
+	}
+
+	const float GameHours = (DeltaTime / SecondsPerDay) * 24.f;
+	bool bAnyHealed = false;
+
+	for (FZSBodyZoneWound& ZoneWound : BodyZones)
+	{
+		if (ZoneWound.WoundType != EZSWoundType::Fracture || ZoneWound.bAmputated)
+		{
+			continue;
+		}
+
+		ZoneWound.FractureRecoveryProgressGameHours += GameHours;
+
+		const float Duration = ZoneWound.bSplinted
+			? HealthConfig->SplintedFractureRecoveryDurationGameHours
+			: HealthConfig->FractureRecoveryDurationGameHours;
+
+		if (Duration > 0.f && ZoneWound.FractureRecoveryProgressGameHours >= Duration)
+		{
+			ZoneWound.WoundType = EZSWoundType::None;
+			ZoneWound.bClean = true;
+			ZoneWound.bSplinted = false;
+			ZoneWound.FractureRecoveryProgressGameHours = 0.f;
+			bAnyHealed = true;
+		}
+	}
+
+	if (bAnyHealed)
+	{
+		OnRep_BodyZones();
 	}
 }
 

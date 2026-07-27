@@ -121,6 +121,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Health")
 	FZSOnDeath OnDeath;
 
+	/** B0-T5.5: replaces this session's temporary UE_LOG/on-screen damage confirmation - bind cosmetic hit-impact VFX/SFX to this in a Blueprint subclass. No default implementation; a real pass is B7. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "ZS|Health")
+	void OnDamageImpact(EZSBodyZone Zone, EZSWoundType WoundType, float DamageAmount);
+
 protected:
 
 	// VisibleAnywhere (not just BlueprintReadOnly) deliberately - BlueprintReadOnly alone doesn't
@@ -164,6 +168,9 @@ protected:
 
 	/** Server-only: advances InfectionStageProgressGameHours using AZSGameState's game-hour clock (same conversion UZSNeedsComponent uses), transitions EZSInfectionStage forward on each duration threshold, calls Die() at the end of Critical. No-op while InfectionStage is None. */
 	void TickInfection(float DeltaTime);
+
+	/** B0-T5.4: server-only, per-zone - advances FZSBodyZoneWound::FractureRecoveryProgressGameHours (same game-hour conversion as TickInfection) for every zone currently WoundType::Fracture and not amputated; clears the wound back to None once FractureRecoveryDurationGameHours (or the shorter SplintedFractureRecoveryDurationGameHours) is reached. No-op for zones that aren't fractured. */
+	void TickFractureRecovery(float DeltaTime);
 
 	/** Server-only: HealthConfig->BiteInfectionChance roll. No-op if already infected (one infection arc at a time, per "simplify" scope). On success, marks Zone bIsInfectionSource and sets InfectionStage to Incubating. */
 	void Server_RollForInfection(EZSBodyZone Zone);

@@ -104,8 +104,11 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `MaxHealth` | 100 | Overall health pool |
 | `BleedDamagePerSecond_Scratch`/`_Laceration`/`_Bite` | 0.1 / 0.4 / 0.3 | Per-second drain while that zone is bleeding (Fracture never bleeds) |
 | `DirtyWoundBleedMultiplier` | 1.5 | Bleed rate multiplier while a wound is dirty (not disinfected/clean-bandaged) |
+| `CriticalHeadBleedChance` | 0.08 | B0-T5.3, 2026-07-26: rare per-hit roll on a fresh bleeding Head-zone wound |
+| `BleedDamagePerSecond_CriticalHead` | 4 | B0-T5.3: overrides the normal wound-type bleed rate entirely while active - deliberately steep |
 | `LegLacerationMobilityMultiplier` | 0.75 | Move speed multiplier, any non-Fracture Legs wound |
 | `LegFractureMobilityMultiplier`/`LegSplintedFractureMobilityMultiplier` | 0.35 / 0.7 | Move speed multiplier, Legs Fracture unsplinted/splinted |
+| `FractureRecoveryDurationGameHours`/`SplintedFractureRecoveryDurationGameHours` | 240 / 96 | B0-T5.4, 2026-07-26: game-hours a Fracture takes to heal on its own, unsplinted/splinted - splint shortens by 60%, doesn't trivialize |
 | `ArmWoundedAttackSpeedMultiplier`/`ArmWoundedReloadSpeedMultiplier` | 0.75 / 0.7 | Fire-rate / reload-speed multiplier, any active Arms wound |
 | `AmputatedZoneMultiplier` | 0.25 | Overrides all of the above once a zone is permanently amputated |
 | `BiteInfectionChance` | 0.4 | Hidden per-Bite roll (0-1) |

@@ -77,4 +77,12 @@ struct FZSBodyZoneWound
 	/** Permanent - set by Server_AmputateZone. Only valid for Arms/Legs. Once true, WoundType is forced None (nothing left to wound) and the zone's gameplay-effect multiplier is permanently at its harshest value regardless of WoundType. */
 	UPROPERTY(BlueprintReadOnly)
 	bool bAmputated = false;
+
+	/** B0-T5.3: only meaningful for Zone == Head while bBleeding - a rare outcome rolled in UZSHealthComponent::Server_ApplyDamage (UZSHealthConfig::CriticalHeadBleedChance) that makes UZSHealthComponent::TickBleed use BleedDamagePerSecond_CriticalHead instead of the wound-type-based rate. Cleared by any bandage, same as bBleeding. */
+	UPROPERTY(BlueprintReadOnly)
+	bool bCriticalBleed = false;
+
+	/** B0-T5.4: game-hours accumulated toward healing a Fracture (UZSHealthComponent::TickFractureRecovery) - only meaningful while WoundType == Fracture. Server bookkeeping more than something meant for client display; replicates as part of the whole struct like everything else here. */
+	UPROPERTY(BlueprintReadOnly)
+	float FractureRecoveryProgressGameHours = 0.f;
 };
