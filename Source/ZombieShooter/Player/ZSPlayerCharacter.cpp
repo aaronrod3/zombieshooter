@@ -28,6 +28,7 @@
 #include "../Interaction/ZSInteractableComponent.h"
 #include "../Survival/ZSNeedsComponent.h"
 #include "../Framework/ZSGameState.h"
+#include "../Framework/ZSElevationSubsystem.h"
 #include "../Combat/ZSHealthComponent.h"
 #include "../Combat/ZSDamageTypes.h"
 #include "../Survival/ZSItemConfig.h"
@@ -182,6 +183,7 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	NeedsComponent = CreateDefaultSubobject<UZSNeedsComponent>(TEXT("NeedsComponent"));
 	HealthComponent = CreateDefaultSubobject<UZSHealthComponent>(TEXT("HealthComponent"));
 	InventoryComponent = CreateDefaultSubobject<UZSInventoryComponent>(TEXT("InventoryComponent"));
+	CameraDirector = CreateDefaultSubobject<UZSCameraDirector>(TEXT("CameraDirector"));
 
 	// B0-T7.4: only interactable while blacked out (bIsInteractable toggled in Enter/ExitBlackout) -
 	// see the header comment for why UpdateNearestInteractable needed widening to find this.
@@ -229,8 +231,13 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> SprintActionFinder(TEXT("/Game/ZS/Input/IA_Sprint.IA_Sprint"));
 	if (SprintActionFinder.Succeeded()) { SprintAction = SprintActionFinder.Object; }
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> ToggleViewActionFinder(TEXT("/Game/ZS/Input/IA_ToggleView.IA_ToggleView"));
-	if (ToggleViewActionFinder.Succeeded()) { ToggleViewAction = ToggleViewActionFinder.Object; }
+	// B0-T3.4/T3.9: IA_ToggleView deleted (Content/ZS/Input/IA_ToggleView.uasset is now orphaned -
+	// needs manual deletion in-editor, no MCP access this session to do it headlessly). IA_Zoom
+	// doesn't exist yet either - needs manual creation (Axis1D, `=`/`-` and mouse wheel per
+	// Docs/InputBindings.md) - the finder degrades safely (ZoomAction stays null, binding below is
+	// skipped) until then, same pattern as every other not-yet-authored action here.
+	static ConstructorHelpers::FObjectFinder<UInputAction> ZoomActionFinder(TEXT("/Game/ZS/Input/IA_Zoom.IA_Zoom"));
+	if (ZoomActionFinder.Succeeded()) { ZoomAction = ZoomActionFinder.Object; }
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> FireModeSwitchActionFinder(TEXT("/Game/ZS/Input/IA_FireModeSwitch.IA_FireModeSwitch"));
 	if (FireModeSwitchActionFinder.Succeeded()) { FireModeSwitchAction = FireModeSwitchActionFinder.Object; }
@@ -246,15 +253,14 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> SleepActionFinder(TEXT("/Game/ZS/Input/IA_Sleep.IA_Sleep"));
 	if (SleepActionFinder.Succeeded()) { SleepAction = SleepActionFinder.Object; }
 
-	// P5 actions - same graceful-if-missing pattern as above; neither exists yet as of this commit,
-	// need manual creation in-editor (IA_HotbarSelect as Axis1D with per-digit-key Scalar modifiers
-	// in IMC_ZS_Default, IA_HotbarCycle as Axis1D bound to the mouse wheel) - the finders degrade
-	// safely (both stay null, bindings below are skipped) until then.
+	// P5 action - same graceful-if-missing pattern as above; doesn't exist yet as of this commit,
+	// needs manual creation in-editor (IA_HotbarSelect as Axis1D with per-digit-key Scalar modifiers
+	// in IMC_ZS_Default) - the finder degrades safely (stays null, binding below is skipped) until
+	// then. IA_HotbarCycle deliberately not recreated here - OQ-B0-01 (2026-07-26) resolved "hotbar
+	// drops scroll-cycling entirely, keeps 1-9 direct-select," so CycleHotbar/HandleHotbarCycle were
+	// removed rather than rebound; scroll wheel now belongs to ZoomAction above instead.
 	static ConstructorHelpers::FObjectFinder<UInputAction> HotbarSelectActionFinder(TEXT("/Game/ZS/Input/IA_HotbarSelect.IA_HotbarSelect"));
 	if (HotbarSelectActionFinder.Succeeded()) { HotbarSelectAction = HotbarSelectActionFinder.Object; }
-
-	static ConstructorHelpers::FObjectFinder<UInputAction> HotbarCycleActionFinder(TEXT("/Game/ZS/Input/IA_HotbarCycle.IA_HotbarCycle"));
-	if (HotbarCycleActionFinder.Succeeded()) { HotbarCycleAction = HotbarCycleActionFinder.Object; }
 }
 
 void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -291,7 +297,7 @@ void AZSPlayerCharacter::BeginPlay()
 		UnarmedBodyMesh = BodyMesh->GetSkeletalMeshAsset();
 	}
 
-	ApplyCameraPerspective(CurrentCameraPerspective);
+	EnableTopDownPerspective();
 
 	// P5: the player starts unequipped by design (GameDevPlan.md P5) - nothing is auto-equipped at
 	// BeginPlay anymore (StartingWeaponConfig's old auto-equip behavior is retired in favor of the
@@ -339,7 +345,7 @@ void AZSPlayerCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	UpdateThirdPersonCameraTick(DeltaSeconds);
+	UpdateCameraTick(DeltaSeconds);
 	UpdateCursorFacing(DeltaSeconds);
 	UpdateNearestInteractable();
 	TickWetFootstepNoise(DeltaSeconds);
@@ -413,9 +419,12 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 			EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AZSPlayerCharacter::StopSprint);
 		}
 
-		if (ToggleViewAction)
+		if (ZoomAction)
 		{
-			EnhancedInputComponent->BindAction(ToggleViewAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::ToggleCameraPerspective);
+			// Triggered, not Started - a mouse wheel tick (or a held `=`/`-`) is a momentary/repeating
+			// Axis1D value with no natural Started/Completed pair, same reasoning as the old
+			// HotbarCycleAction binding this replaces.
+			EnhancedInputComponent->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &AZSPlayerCharacter::HandleZoom);
 		}
 
 		if (FireModeSwitchAction)
@@ -440,12 +449,6 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 			EnhancedInputComponent->BindAction(HotbarSelectAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleHotbarSelect);
 		}
 
-		if (HotbarCycleAction)
-		{
-			// Triggered, not Started - a mouse wheel tick is a momentary Axis1D value with no natural
-			// Started/Completed pair (it returns to zero the next frame on its own).
-			EnhancedInputComponent->BindAction(HotbarCycleAction, ETriggerEvent::Triggered, this, &AZSPlayerCharacter::HandleHotbarCycle);
-		}
 	}
 	else
 	{
@@ -469,12 +472,10 @@ void AZSPlayerCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
-		// TopDown: the boom's own yaw (fixed/stepped, not chasing the controller - see
-		// EnableTopDownPerspective) is "camera" for movement-relative-to-camera purposes.
-		// ThirdPerson: unchanged, the controller's continuously mouse-orbited look rotation.
-		const float MovementYaw = (CurrentCameraPerspective == EZSCameraPerspective::TopDown)
-			? CameraBoom->GetComponentRotation().Yaw
-			: GetController()->GetControlRotation().Yaw;
+		// The boom's own yaw (fixed/stepped, not chasing the controller - see
+		// EnableTopDownPerspective) is "camera" for movement-relative-to-camera purposes - TopDown
+		// is the only perspective now (B0-T3.9).
+		const float MovementYaw = CameraBoom->GetComponentRotation().Yaw;
 		const FRotator YawRotation(0, MovementYaw, 0);
 
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
@@ -589,31 +590,6 @@ void AZSPlayerCharacter::SelectHotbarSlot(int32 SlotIndex)
 	Server_SelectHotbarSlot(SlotIndex);
 }
 
-void AZSPlayerCharacter::CycleHotbar(int32 Direction)
-{
-	if (!CanSwitchLoadout() || Direction == 0 || HotbarSlots.Num() == 0)
-	{
-		return;
-	}
-
-	const int32 Step = Direction > 0 ? 1 : -1;
-	const int32 NumSlots = HotbarSlots.Num();
-
-	// Scans up to NumSlots steps from the current index for the next non-empty slot, wrapping - so
-	// scrolling always lands on a real weapon (or silently gives up if the whole hotbar is empty)
-	// instead of stopping on a gap.
-	int32 Candidate = ActiveHotbarIndex;
-	for (int32 Attempt = 0; Attempt < NumSlots; ++Attempt)
-	{
-		Candidate = (Candidate + Step + NumSlots) % NumSlots;
-		if (HotbarSlots[Candidate].IsValid())
-		{
-			Server_SelectHotbarSlot(Candidate);
-			return;
-		}
-	}
-}
-
 bool AZSPlayerCharacter::CanSwitchLoadout() const
 {
 	// Same bIsBusy gate CanAttack()/CanFire()/CanReload() already use - blocks starting a switch
@@ -631,17 +607,6 @@ void AZSPlayerCharacter::HandleHotbarSelect(const FInputActionValue& Value)
 	}
 
 	SelectHotbarSlot(OneBasedSlot - 1);
-}
-
-void AZSPlayerCharacter::HandleHotbarCycle(const FInputActionValue& Value)
-{
-	const float RawValue = Value.Get<float>();
-	if (FMath::IsNearlyZero(RawValue))
-	{
-		return;
-	}
-
-	CycleHotbar(RawValue > 0.f ? 1 : -1);
 }
 
 void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
@@ -774,65 +739,19 @@ void AZSPlayerCharacter::OnRep_ActiveHotbarIndex()
 }
 
 // =====================================================================
-// Phase 2 - Camera / Perspective
+// B0-T3.9 - Camera (TopDown only)
 // =====================================================================
-
-void AZSPlayerCharacter::ToggleCameraPerspective_Implementation()
-{
-	// P1: real TopDown/ThirdPerson(OverShoulder) toggle, per Decision 1 - GameDevPlan.md.
-	const EZSCameraPerspective NextPerspective = (CurrentCameraPerspective == EZSCameraPerspective::TopDown)
-		? EZSCameraPerspective::ThirdPerson
-		: EZSCameraPerspective::TopDown;
-	ApplyCameraPerspective(NextPerspective);
-}
-
-void AZSPlayerCharacter::ApplyCameraPerspective(EZSCameraPerspective NewPerspective)
-{
-	CurrentCameraPerspective = NewPerspective;
-
-	switch (NewPerspective)
-	{
-	case EZSCameraPerspective::TopDown:
-		EnableTopDownPerspective();
-		break;
-	case EZSCameraPerspective::ThirdPerson:
-	default:
-		EnableThirdPersonPerspective();
-		break;
-	}
-}
-
-void AZSPlayerCharacter::EnableThirdPersonPerspective()
-{
-	CameraBoom->bUsePawnControlRotation = true;
-	FollowCamera->AttachToComponent(CameraBoom, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
-	FollowCamera->SetFieldOfView(ThirdPersonFOV);
-	FollowCamera->Activate();
-
-	// ThirdPerson's boom orbits via captured mouse delta (bUsePawnControlRotation) - a visible,
-	// OS-cursor-following mouse fights that, so hide/capture it here. Local-only: a cursor mode
-	// change is meaningless (and GetController() may not even be a PlayerController) on a remote
-	// proxy's copy of this pawn.
-	if (IsLocallyControlled())
-	{
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
-		{
-			PC->SetInputMode(FInputModeGameOnly());
-			PC->SetShowMouseCursor(false);
-		}
-	}
-}
 
 void AZSPlayerCharacter::EnableTopDownPerspective()
 {
-	// TopDown's boom doesn't chase the controller's look rotation the way ThirdPerson's does -
-	// pitch and yaw are both fixed (TopDownFixedYaw captured once here, camera rotation input
-	// removed 2026-07-20 at the dev's request). Movement direction (DoMove) and facing
-	// (UpdateCursorFacing) take over the job continuous mouse-look orbit used to do.
+	// TopDown's boom doesn't chase the controller's look rotation - pitch and yaw are both fixed
+	// (TopDownFixedYaw captured once here, camera rotation input removed 2026-07-20 at the dev's
+	// request). Movement direction (DoMove) and facing (UpdateCursorFacing) take over the job
+	// continuous mouse-look orbit used to do.
 	CameraBoom->bUsePawnControlRotation = false;
 	TopDownFixedYaw = CameraBoom->GetComponentRotation().Yaw;
 	FollowCamera->AttachToComponent(CameraBoom, FAttachmentTransformRules::SnapToTargetNotIncludingScale, USpringArmComponent::SocketName);
-	FollowCamera->SetFieldOfView(ThirdPersonFOV);
+	FollowCamera->SetFieldOfView(CameraFOV);
 	FollowCamera->Activate();
 
 	// GetCursorGroundLocation needs a real, visible OS cursor to deproject - GameAndUI keeps
@@ -861,24 +780,26 @@ void AZSPlayerCharacter::AttachWeaponToBodyMesh()
 	CurrentWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, CurrentWeapon->GetConfig()->SocketGunAttachment);
 }
 
-void AZSPlayerCharacter::UpdateThirdPersonCameraTick(float DeltaTime)
+void AZSPlayerCharacter::UpdateCameraTick(float DeltaTime)
 {
-	if (CurrentCameraPerspective == EZSCameraPerspective::TopDown)
+	if (CameraDirector)
 	{
-		// Zoom in/out (TopDownMin/MaxCameraDistance) isn't wired to an input action yet - holds
-		// at TopDownCameraDistance for now, same "not yet wired" state ThirdPerson's zoom is in.
-		CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, TopDownCameraDistance, DeltaTime, FOVInterpSpeed);
-
-		// Pitch and yaw are both fixed (TopDownFixedYaw, captured once in EnableTopDownPerspective)
-		// - no player-driven rotation. Reapplied every tick as a safety net against anything else
-		// nudging the boom's rotation, not because it's expected to drift.
-		CameraBoom->SetWorldRotation(FRotator(TopDownCameraPitch, TopDownFixedYaw, 0.f));
-		return;
+		CameraDirector->TickZoom(DeltaTime);
+		CameraBoom->TargetArmLength = CameraDirector->GetTargetArmLength();
 	}
 
-	// Zoom in/out (Min/MaxCameraDistance, CameraZoomStep) isn't wired to an input action yet -
-	// P1's camera work owns that. This just holds the arm at InitialCameraDistance for now.
-	CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, InitialCameraDistance, DeltaTime, FOVInterpSpeed);
+	// Pitch and yaw are both fixed (TopDownFixedYaw, captured once in EnableTopDownPerspective) -
+	// no player-driven rotation. Reapplied every tick as a safety net against anything else nudging
+	// the boom's rotation, not because it's expected to drift.
+	CameraBoom->SetWorldRotation(FRotator(TopDownCameraPitch, TopDownFixedYaw, 0.f));
+}
+
+void AZSPlayerCharacter::HandleZoom(const FInputActionValue& Value)
+{
+	if (CameraDirector)
+	{
+		CameraDirector->ApplyManualZoom(Value.Get<float>());
+	}
 }
 
 // =====================================================================
@@ -899,9 +820,16 @@ bool AZSPlayerCharacter::GetCursorGroundLocation(FVector& OutLocation) const
 		return false;
 	}
 
-	// Ground plane at the character's own Z - matches the plan's "screen ray -> ground plane"
-	// wording exactly; P7's real terrain can refine this to an actual line trace later.
-	const FPlane GroundPlane(GetActorLocation(), FVector::UpVector);
+	// B0-T3.7: Z comes from UZSElevationSubsystem, not GetActorLocation() directly - B0 ships a
+	// single-floor stub (always the querying actor's own Z, identical behavior to before this
+	// existed), but every caller now resolves through the swappable subsystem so B4's real
+	// multi-level implementation is a subsystem swap, not a retrofit of every call site.
+	float PlaneZ = GetActorLocation().Z;
+	if (const UZSElevationSubsystem* ElevationSubsystem = GetWorld()->GetSubsystem<UZSElevationSubsystem>())
+	{
+		PlaneZ = ElevationSubsystem->GetElevationZ(this, GetActorLocation());
+	}
+	const FPlane GroundPlane(FVector(GetActorLocation().X, GetActorLocation().Y, PlaneZ), FVector::UpVector);
 	const float Distance = FMath::RayPlaneIntersectionParam(RayOrigin, RayDirection, GroundPlane);
 	if (!FMath::IsFinite(Distance) || Distance < 0.f)
 	{
@@ -1676,10 +1604,16 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 			}
 		}
 
+		// B0-T3.5: resolve within a spread cone rather than a perfect ray - aiming narrows the cone
+		// (AimedSpreadDegrees vs. HipFireSpreadDegrees), no camera change either way per OQ-B0-02.
+		const float SpreadDegrees = bIsAiming ? Config->AimedSpreadDegrees : Config->HipFireSpreadDegrees;
+		const float HeadshotChance = bIsAiming ? Config->AimedHeadshotChance : Config->HipFireHeadshotChance;
+		const FVector FireDirection = FMath::VRandCone(GetActorForwardVector(), FMath::DegreesToRadians(SpreadDegrees));
+
 		// 2026-07-26: weapons configured with a ProjectileClass spawn a real traveling projectile
 		// from the muzzle instead of resolving the shot as an instant trace - see ZSProjectile.h.
-		// Direction comes from the same already-cursor-facing actor rotation the hitscan path below
-		// uses for TraceEnd.
+		// Direction comes from the same randomized cone direction the hitscan path below uses for
+		// TraceEnd (both start from the cursor-facing forward vector UpdateCursorFacing already set).
 		if (Config->ProjectileClass)
 		{
 			FActorSpawnParameters SpawnParams;
@@ -1687,14 +1621,14 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 			SpawnParams.Instigator = this;
 			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-			if (AZSProjectile* Projectile = GetWorld()->SpawnActor<AZSProjectile>(Config->ProjectileClass, TraceStart, GetActorRotation(), SpawnParams))
+			if (AZSProjectile* Projectile = GetWorld()->SpawnActor<AZSProjectile>(Config->ProjectileClass, TraceStart, FireDirection.Rotation(), SpawnParams))
 			{
-				Projectile->InitializeProjectile(Config, this, GetController());
+				Projectile->InitializeProjectile(Config, this, GetController(), HeadshotChance);
 			}
 			return;
 		}
 
-		const FVector TraceEnd = TraceStart + GetActorForwardVector() * Config->FireRange;
+		const FVector TraceEnd = TraceStart + FireDirection * Config->FireRange;
 
 		FCollisionQueryParams QueryParams;
 		QueryParams.AddIgnoredActor(this);
@@ -1714,6 +1648,17 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 			const TSubclassOf<UDamageType> DamageTypeClass = Config->FireDamageTypeClass
 				? Config->FireDamageTypeClass
 				: TSubclassOf<UDamageType>(UZSDamageType_Laceration::StaticClass());
+
+			// B0-T3.6: the cone resolves to a body zone, not just a point - AZSPlayerCharacter::TakeDamage
+			// infers the zone from Hit.BoneName (BodyZoneFromBoneName), so overriding it here to a known
+			// head-bone-matching string is the minimal way to feed a weighted headshot into that existing
+			// inference without restructuring the FPointDamageEvent pipeline. Only fires on a genuine hit;
+			// a miss (bHitActor false) can't be "upgraded" to a headshot. No-op against a target with no
+			// UZSHealthComponent (e.g. a zombie - CLAUDE.md's Zombies/ note: flat health, no zone model).
+			if (FMath::FRand() < HeadshotChance)
+			{
+				Hit.BoneName = TEXT("head");
+			}
 
 			const FVector HitFromDirection = (Hit.ImpactPoint - TraceStart).GetSafeNormal();
 			UGameplayStatics::ApplyPointDamage(Hit.GetActor(), Config->FireDamage, HitFromDirection, Hit, GetController(), this, DamageTypeClass);

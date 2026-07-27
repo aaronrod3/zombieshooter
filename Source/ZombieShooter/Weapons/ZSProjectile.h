@@ -33,8 +33,10 @@ public:
 	 * the damage/knockback contract from the same config fields Server_Fire's hitscan path used,
 	 * plus this projectile's own cosmetic mesh and travel speed. Sets outgoing velocity from the
 	 * projectile's current (spawn) forward vector, so the caller should spawn it already rotated
-	 * toward the intended fire direction. */
-	void InitializeProjectile(const UZSWeaponConfig* InConfig, AActor* InInstigatorActor, AController* InInstigatorController);
+	 * toward the intended fire direction. InHeadshotChance mirrors Server_Fire's hitscan-path
+	 * headshot-weighting roll (B0-T3.6) - resolved from the shooter's aim state at fire time, since
+	 * the projectile itself has no notion of hip-fire vs. aimed once it's in flight. */
+	void InitializeProjectile(const UZSWeaponConfig* InConfig, AActor* InInstigatorActor, AController* InInstigatorController, float InHeadshotChance = 0.f);
 
 protected:
 	UFUNCTION()
@@ -59,6 +61,9 @@ private:
 
 	float Damage = 0.f;
 	float KnockbackStrength = 0.f;
+
+	/** B0-T3.6: 0-1 chance HandleHit's landed hit resolves to the Head zone - see InitializeProjectile's comment. */
+	float HeadshotChance = 0.f;
 
 	UPROPERTY()
 	TSubclassOf<UDamageType> DamageTypeClass;

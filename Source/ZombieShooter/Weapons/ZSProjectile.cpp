@@ -43,7 +43,7 @@ AZSProjectile::AZSProjectile()
 	InitialLifeSpan = 5.f;
 }
 
-void AZSProjectile::InitializeProjectile(const UZSWeaponConfig* InConfig, AActor* InInstigatorActor, AController* InInstigatorController)
+void AZSProjectile::InitializeProjectile(const UZSWeaponConfig* InConfig, AActor* InInstigatorActor, AController* InInstigatorController, float InHeadshotChance)
 {
 	if (!HasAuthority() || !InConfig)
 	{
@@ -54,6 +54,7 @@ void AZSProjectile::InitializeProjectile(const UZSWeaponConfig* InConfig, AActor
 	InstigatorControllerRef = InInstigatorController;
 	Damage = InConfig->FireDamage;
 	KnockbackStrength = InConfig->FireKnockbackStrength;
+	HeadshotChance = InHeadshotChance;
 	DamageTypeClass = InConfig->FireDamageTypeClass
 		? InConfig->FireDamageTypeClass
 		: TSubclassOf<UDamageType>(UZSDamageType_Laceration::StaticClass());
@@ -84,8 +85,17 @@ void AZSProjectile::HandleHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 	}
 	bHasHit = true;
 
+	// B0-T3.6: same headshot-weighting override the hitscan path uses (Server_Fire) - mutate the
+	// local copy of Hit before it feeds AZSPlayerCharacter::TakeDamage's BodyZoneFromBoneName
+	// inference. A capsule-collision hit (no real bone) would otherwise always resolve to Torso.
+	FHitResult WeightedHit = Hit;
+	if (FMath::FRand() < HeadshotChance)
+	{
+		WeightedHit.BoneName = TEXT("head");
+	}
+
 	const FVector HitFromDirection = ProjectileMovement->Velocity.GetSafeNormal();
-	UGameplayStatics::ApplyPointDamage(OtherActor, Damage, HitFromDirection, Hit, InstigatorControllerRef, InstigatorActorRef, DamageTypeClass);
+	UGameplayStatics::ApplyPointDamage(OtherActor, Damage, HitFromDirection, WeightedHit, InstigatorControllerRef, InstigatorActorRef, DamageTypeClass);
 
 	if (KnockbackStrength > 0.f)
 	{

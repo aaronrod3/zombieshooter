@@ -8,6 +8,7 @@
 #include "TimerManager.h"
 #include "ZSCharacterTypes.h"
 #include "ZSWeaponConfig.h"
+#include "ZSCameraDirector.h"
 #include "../Combat/ZSHealthTypes.h"
 #include "ZSPlayerCharacter.generated.h"
 
@@ -100,9 +101,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> SprintAction;
 
-	/** Kept through the P0 de-scope: P1's TopDown/OverShoulder pair re-uses this toggle. */
+	/** B0-T3.4: Axis1D - dev-authored IMC maps `=`/Mouse Wheel Up to +1 and `-`/Mouse Wheel Down to -1 (Docs/InputBindings.md). Not yet created as a .uasset - needs manual creation in-editor, same graceful-if-missing pattern as every other action here. Replaces IA_ToggleView (deleted - see CLAUDE.md, top-down is permanent, no ThirdPerson fallback). */
 	UPROPERTY(EditAnywhere, Category="Input")
-	TObjectPtr<UInputAction> ToggleViewAction;
+	TObjectPtr<UInputAction> ZoomAction;
 
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> FireModeSwitchAction;
@@ -122,10 +123,6 @@ protected:
 	/** Axis1D - dev-authored IMC maps Digit1..Digit9 to this one action, each key applying a Scalar modifier of 1..9, so HandleHotbarSelect reads a single float and converts to a 0-based slot index. Same graceful-if-missing pattern as every other action here. */
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> HotbarSelectAction;
-
-	/** Axis1D - mouse wheel. Sign of the value picks cycle direction; see HandleHotbarCycle. */
-	UPROPERTY(EditAnywhere, Category="Input")
-	TObjectPtr<UInputAction> HotbarCycleAction;
 
 public:
 
@@ -240,10 +237,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Loadout")
 	void SelectHotbarSlot(int32 SlotIndex);
 
-	/** Client-callable entry point, bound to HotbarCycleAction. Positive Direction cycles toward higher indices, negative toward lower - skips empty slots (never lands on a no-op gap), wraps around, no-ops if the whole hotbar is empty. */
-	UFUNCTION(BlueprintCallable, Category = "ZS|Loadout")
-	void CycleHotbar(int32 Direction);
-
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
 	FZSOnActiveHotbarIndexChanged OnActiveHotbarIndexChanged;
 
@@ -281,11 +274,10 @@ protected:
 	/** B0-T2 Step B: writes CurrentWeapon's live durability back into the CarrySlots instance ActiveHotbarIndex/HotbarSlots currently point at, before that AZSWeapon actor gets destroyed - the actual fix for durability resetting on unequip/re-equip. No-op if there's no current weapon, no valid active slot, or GetInventoryComponent() is unset. Not called from the weapon-breaking path (T2.8 removes the instance instead of preserving it). */
 	void WriteBackCurrentWeaponDurability();
 
-	/** Shared no-op guard for SelectHotbarSlot/CycleHotbar's input handlers and Server_SelectHotbarSlot itself - same bIsBusy gate CanAttack()/CanFire()/CanReload() already use, so a hotbar switch can't be started mid-swing, mid-shot, or mid-reload, and a second switch can't be started mid-switch. */
+	/** Shared no-op guard for SelectHotbarSlot's input handler and Server_SelectHotbarSlot itself - same bIsBusy gate CanAttack()/CanFire()/CanReload() already use, so a hotbar switch can't be started mid-swing, mid-shot, or mid-reload, and a second switch can't be started mid-switch. */
 	bool CanSwitchLoadout() const;
 
 	void HandleHotbarSelect(const FInputActionValue& Value);
-	void HandleHotbarCycle(const FInputActionValue& Value);
 
 	/** Flat fallback used when CompleteHotbarSwitch has no destination config to read EquipTimeSeconds from (switching to bare-fist has no UZSWeaponConfig involved). */
 	UPROPERTY(EditAnywhere, Category = "ZS|Loadout", meta = (ClampMin = "0"))
@@ -294,63 +286,37 @@ protected:
 	FTimerHandle HotbarSwitchTimerHandle;
 
 	// =====================================================================
-	// Phase 2 - Camera / Perspective
+	// B0-T3.9 - Camera (TopDown only - ThirdPerson/OverShoulder deleted 2026-07-26, dev-confirmed
+	// permanent, see CLAUDE.md). B0-T3.1-T3.3's auto-zoom/manual-override logic lives on
+	// UZSCameraDirector (CameraDirector below), not inline here.
 	// =====================================================================
 
 public:
 
-	/** Gameplay execution point - override in BP_ZS_PlayerCharacter to add transition FX/sound without a C++ recompile. A no-op while ThirdPerson is the only perspective; P1's TopDown/OverShoulder pair makes it a real toggle again. */
-	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Camera")
-	void ToggleCameraPerspective();
-
 	UFUNCTION(BlueprintPure, Category = "ZS|Camera")
-	EZSCameraPerspective GetCameraPerspective() const { return CurrentCameraPerspective; }
+	UZSCameraDirector* GetCameraDirector() const { return CameraDirector; }
 
 protected:
 
-	void ApplyCameraPerspective(EZSCameraPerspective NewPerspective);
-	void EnableThirdPersonPerspective();
 	void EnableTopDownPerspective();
 
-	void UpdateThirdPersonCameraTick(float DeltaTime);
+	/** Called from Tick() - applies CameraDirector's live zoom target to CameraBoom and reasserts the fixed TopDown pitch/yaw. */
+	void UpdateCameraTick(float DeltaTime);
 
-	/** Defaults to TopDown - the survival pivot's real camera per GameDevPlan.md Decision 1. ThirdPerson remains reachable via ToggleCameraPerspective as the "OverShoulder" fallback. */
-	UPROPERTY(BlueprintReadOnly, Category = "ZS|Camera")
-	EZSCameraPerspective CurrentCameraPerspective = EZSCameraPerspective::TopDown;
+	/** B0-T3.4: handler for ZoomAction - forwards the raw Axis1D value to CameraDirector::ApplyManualZoom. */
+	void HandleZoom(const FInputActionValue& Value);
 
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
-	float ThirdPersonFOV = 105.f;
-
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
-	float FOVInterpSpeed = 10.f;
-
-	/** Third-person spring-arm length. Not yet wired to a zoom input action - kept as a tunable for P1's camera work. */
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
-	float InitialCameraDistance = 140.f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UZSCameraDirector> CameraDirector;
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
-	float MinCameraDistance = 65.f;
+	float CameraFOV = 105.f;
 
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
-	float MaxCameraDistance = 270.f;
-
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera")
-	float CameraZoomStep = 50.f;
-
-	// ---- P1: TopDown camera tunables (GameDevPlan.md Decision 1 / Docs/Phases/P1_CameraControl.md) ----
+	// ---- TopDown camera tunables (GameDevPlan.md Decision 1 / Docs/Phases/P1_CameraControl.md) ----
 
 	/** Boom pitch while in TopDown, degrees (negative = looking down). Door Kickers 2 reference: steeper than a classic ~45deg isometric. */
 	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
 	float TopDownCameraPitch = -70.f;
-
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
-	float TopDownCameraDistance = 900.f;
-
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
-	float TopDownMinCameraDistance = 600.f;
-
-	UPROPERTY(EditAnywhere, Category = "ZS|Camera|TopDown")
-	float TopDownMaxCameraDistance = 1400.f;
 
 	/** TopDown yaw is fixed, not player-rotatable - captured once in EnableTopDownPerspective and never changed. Camera-rotation input (Q/E, 45-degree steps) was removed 2026-07-20 at the dev's request - it was suspected of interfering with movement. Revisit later if TopDown rotation is wanted again. */
 	float TopDownFixedYaw = 0.f;
@@ -363,7 +329,7 @@ protected:
 	// attacking, or interacting with the cursor, the actor's full rotation (not a spine-twist)
 	// instead faces the cursor's projected ground position. Runs from Tick(), after Super::Tick()
 	// so it overrides whatever CharacterMovementComponent's own bOrientRotationToMovement pass
-	// computed that frame - same post-super-tick pattern UpdateThirdPersonCameraTick already uses.
+	// computed that frame - same post-super-tick pattern UpdateCameraTick already uses.
 
 protected:
 

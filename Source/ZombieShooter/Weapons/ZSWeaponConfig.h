@@ -244,6 +244,29 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage")
 	TSubclassOf<UDamageType> FireDamageTypeClass;
 
+	// ---- Aim cone / headshot weighting (B0-T3.5/T3.6, 2026-07-26, OQ-B0-02) - Server_Fire resolves
+	// within a spread cone instead of a perfect ray, and separately weights whether the resolved hit
+	// counts as a headshot rather than relying purely on which bone the randomized ray physically
+	// strikes. OQ-B0-02's dev-approved starting numbers were per-weapon-type (pistol 8deg->2deg,
+	// rifle 5deg->1deg); the field defaults below match the rifle numbers - every other weapon
+	// (including DA_ZS_WeaponConfig_Pistol) needs its own authored override, a content task. ----
+
+	/** Cone half-angle in degrees while hip-firing (not aiming). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aim Cone", meta = (ClampMin = "0"))
+	float HipFireSpreadDegrees = 5.f;
+
+	/** Cone half-angle in degrees while aiming (bIsAiming). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aim Cone", meta = (ClampMin = "0"))
+	float AimedSpreadDegrees = 1.f;
+
+	/** 0-1 chance a landed hip-fire hit resolves to the Head zone regardless of which bone the randomized cone ray actually struck - OQ-B0-02's "~5% hip-fire" starting value. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aim Cone", meta = (ClampMin = "0", ClampMax = "1"))
+	float HipFireHeadshotChance = 0.05f;
+
+	/** Same, while aiming - OQ-B0-02's "~25% aimed" starting value. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Aim Cone", meta = (ClampMin = "0", ClampMax = "1"))
+	float AimedHeadshotChance = 0.25f;
+
 	// ---- Projectile (2026-07-26: replaces the old instant-hitscan Server_Fire path per-weapon) ----
 
 	/** Unset (the old default) keeps the instant hitscan trace. Set = Server_Fire spawns and launches this class from the muzzle instead - reuses FireDamage/FireDamageTypeClass/FireKnockbackStrength above for the actual hit contract, so those fields mean the same thing either way. */

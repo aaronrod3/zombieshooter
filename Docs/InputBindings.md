@@ -74,7 +74,7 @@
 This list resolves a couple of already-open questions and surfaces a few genuinely new mechanics that weren't previously scoped anywhere. Flagging both kinds so neither gets lost.
 
 **Resolves existing open questions:**
-- **OQ-B0-01 (scroll-wheel arbitration)** — consistent with the existing resolution: scroll wheel is zoom, `=`/`-` are the keyboard alternative.
+- **OQ-B0-01 (scroll-wheel arbitration)** — consistent with the existing resolution: scroll wheel is zoom, `=`/`-` are the keyboard alternative. 🔧 **Implemented 2026-07-26** (`Docs/Beta/B0_Stabilization.md` T3.4): `AZSPlayerCharacter::ZoomAction` (Axis1D) → `HandleZoom` → `UZSCameraDirector::ApplyManualZoom`. `IA_HotbarCycle`/`CycleHotbar` were removed rather than rebound. **Content gap**: `IA_Zoom` doesn't exist as a `.uasset` yet — needs manual creation in-editor (Axis1D, mouse wheel + `=`/`-` Scalar modifiers in `IMC_ZS_Default`).
 - **OQ-B0-10 (`IA_SecondaryAction` / light source binding)** — settles on **`T`** for light-source toggle. Note `F` is spoken for by **Interact**, not this action — the earlier assumption that `F` would double as the light toggle no longer holds now that Interact has its own dedicated key. Update `B0_Stabilization.md` T11.2 to bind `T`, not `F`.
 
 **Changes an already-written task — needs a doc update, not just tracking:**

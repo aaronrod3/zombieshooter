@@ -3,15 +3,29 @@
 > A map of every gameplay-feel tunable in the project and exactly where to change it — not a design doc, just "where do I go to make X feel different." Update this whenever a new system introduces a numeric tunable worth exposing here. Values shown are current defaults as of 2026-07-20 — check the actual asset/class for the live value before relying on a number here.
 
 ## Camera (`AZSPlayerCharacter`, Category `ZS|Camera`)
-Set on `BP_ZS_PlayerCharacter`'s CDO or a C++ default in `ZSPlayerCharacter.h`. FirstPerson/GunCamera/Bodycam perspectives and their FOV/spring-offset tunables were removed in the P0 de-scope — this section now covers ThirdPerson only, pending P1's TopDown addition.
+🔧 **B0-T3.9, 2026-07-26: TopDown only now** — `EZSCameraPerspective`, `ToggleCameraPerspective`, `IA_ToggleView`, and the whole ThirdPerson/OverShoulder camera path were deleted (dev-confirmed permanent, no fallback wanted). `Content/ZS/Input/IA_ToggleView.uasset` is now orphaned — needs manual deletion in-editor (no MCP access this session to do it headlessly).
 
 | Property | Default | Effect |
 |---|---|---|
-| `ThirdPersonFOV` | 105° | ThirdPerson perspective FOV |
-| `FOVInterpSpeed` | 10 | How fast FOV/third-person arm-length transitions interpolate |
-| `InitialCameraDistance` | 140 | ThirdPerson spring-arm resting length |
-| `MinCameraDistance`/`MaxCameraDistance` | 65 / 270 | TP camera zoom bounds — **not yet wired to an input action**, no zoom control exists yet |
-| `CameraZoomStep` | 50 | Same — unused until zoom input exists |
+| `CameraFOV` | 105° | TopDown camera FOV (renamed from `ThirdPersonFOV` — TopDown is the only perspective now) |
+| `TopDownCameraPitch` | -70° | Boom pitch (negative = looking down) |
+
+Zoom distance/bounds moved off the character entirely — see **Camera Director** below.
+
+## Camera Director (`UZSCameraDirector`, on `AZSPlayerCharacter`, Category `ZS|Camera|Presets`/`ZS|Camera|Bounds`) — B0-T3.1-T3.3, 2026-07-26
+🔧 **Code complete, not yet PIE-verified.** New component owning TopDown zoom distance — a push/pop `EZSCameraContext` stack (`Outdoor`/`Interior`/`Underground`/`Driving`) for auto-zoom presets, plus a manual-override layer that immediately and fully disengages auto-zoom (no cooldown) until a context change moves the active context away from whatever it was at override time. `AZSPlayerCharacter::Tick` calls `CameraDirector->TickZoom()` explicitly (not a self-ticking component) and applies the result to `CameraBoom->TargetArmLength`.
+
+| Property | Default | Effect |
+|---|---|---|
+| `OutdoorDistance` | 900 | Auto-zoom preset, `EZSCameraContext::Outdoor` (also the starting/default context) |
+| `InteriorDistance` | 650 | Auto-zoom preset, `Interior` |
+| `UndergroundDistance` | 550 | Auto-zoom preset, `Underground` |
+| `DrivingDistance` | 1100 | Auto-zoom preset, `Driving` — reserved for the `BV` vehicle phase, nothing pushes this context yet |
+| `MinCameraDistance`/`MaxCameraDistance` | 600 / 1400 | Manual-zoom clamp bounds |
+| `CameraZoomStep` | 100 | Distance change per unit of `ApplyManualZoom` input |
+| `ZoomInterpSpeed` | 6 | How fast the live arm length interpolates toward its target (auto or manual) |
+
+**Content gap**: nothing calls `PushContext`/`PopContext` yet — no indoor/underground-detection system exists (B4's job, see `UZSElevationSubsystem` below). The mechanism is real and testable via `ApplyManualZoom` (mouse wheel / `=`/`-`) today; auto-zoom context switching needs B4's trigger volumes to actually fire.
 
 ## Movement (`AZSPlayerCharacter`)
 - `SprintSpeedMultiplier` (Category `ZS|Movement`, default `1.6`) — sprint speed = `BaseWalkSpeed * SprintSpeedMultiplier`.
@@ -42,6 +56,8 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | `ProjectileClass` | unset (AR/Pistol: `AZSProjectile`) | P5, 2026-07-26: when set, `Server_Fire` spawns a real traveling `AZSProjectile` from `SocketMuzzle` instead of resolving an instant hitscan trace — opt-in per weapon, unset keeps the old hitscan path |
 | `ProjectileMesh` | unset (AR/Pistol: engine placeholder `Sphere`) | Cosmetic mesh on the spawned projectile — needs a real bullet mesh per weapon before this is presentable |
 | `ProjectileSpeed` | 6000 | Projectile travel speed (`UProjectileMovementComponent::InitialSpeed`/`MaxSpeed`) |
+| `HipFireSpreadDegrees`/`AimedSpreadDegrees` | 5° / 1° | B0-T3.5, 2026-07-26: cone half-angle `Server_Fire` randomizes the fire direction within (`FMath::VRandCone`) — these are the rifle numbers from OQ-B0-02's dev-approved starting values; **content gap**: `DA_ZS_WeaponConfig_Pistol` still needs its own authored override (8°→2°) |
+| `HipFireHeadshotChance`/`AimedHeadshotChance` | 0.05 / 0.25 | B0-T3.6: 0-1 chance a landed hit is upgraded to the Head zone regardless of which bone the cone ray physically struck (`Hit.BoneName` override, read by `AZSPlayerCharacter::BodyZoneFromBoneName`) — OQ-B0-02's "~5% hip-fire / ~25% aimed" starting values. Only affects a target with a `UZSHealthComponent` (players) — zombies have no zone model to weight (`CLAUDE.md`'s Zombies/ note) |
 | `AttackType` | `Ranged` | P5: which half of `IA_Attack`'s dispatch this weapon uses (`ZSWeaponTypes.h`'s `EZSAttackType`) — `Ranged` routes to `Server_Fire`, `Melee` currently falls back to the bare-fist stats below (no melee-specific weapon fields exist yet) |
 | `EquipTimeSeconds` | 0.75s | P5: how long switching the hotbar to this weapon takes (`Server_SelectHotbarSlot` → `CompleteHotbarSwitch`) — `SetBusy(true)` for the duration, same choreography pattern as reload |
 | `MeleeDamage`/`MeleeRange`/`MeleeAttackInterval` | 35 / 180 / 0.9s | P5, 2026-07-21: real per-weapon melee stats, used when `AttackType == Melee` — mirrors the `Unarmed*` fields below one-for-one |
@@ -72,12 +88,14 @@ Bound to `IA_Attack` — `IA_Fire` is no longer separately bound (P5, 2026-07-21
 | `UnarmedMeleeKnockbackStrength` | 80 | P5, 2026-07-21: same `ApplyHitKnockback` weapon melee/gunfire use, given a bare-fist punch a little heft too |
 
 ## TopDown Camera (`AZSPlayerCharacter`, Category `ZS|Camera|TopDown`)
+Boom length now lives on **Camera Director** above — this section is just the fixed pitch/yaw.
+
 | Property | Default | Effect |
 |---|---|---|
-| `TopDownCameraPitch` | -70° | Boom pitch while in TopDown (steeper than a classic ~45° isometric) |
-| `TopDownCameraDistance` | 900 | Boom length while in TopDown |
-| `TopDownMinCameraDistance`/`TopDownMaxCameraDistance` | 600 / 1400 | TopDown zoom bounds — not yet wired to an input action |
 | `TopDownFixedYaw` | captured once per `EnableTopDownPerspective()` call | Not player-rotatable — the Q/E yaw-rotation feature was built then removed 2026-07-20 at dev request |
+
+## Elevation (`UZSElevationSubsystem`, a `UWorldSubsystem`) — B0-T3.7, 2026-07-26
+🔧 **Code complete, not yet PIE-verified.** Answers "what floor/Z-plane is this actor on?" for `AZSPlayerCharacter::GetCursorGroundLocation`'s cursor-facing ground-projection (previously hardcoded to the querying actor's own Z inline). B0 ships a single-floor stub — `GetElevationZ` always returns the querying actor's own current Z, identical behavior to before this existed. B4's real multi-level implementation replaces the stub body only; callers don't change.
 
 ## AnimGraph (`ABP_ZS_ThirdPerson`, on Infima's `SKEL_TFA_Mannequin`)
 No tunables documented yet — Stage A locomotion (Idle/Move state machine, crouch layer, aim layer) is not built as of this file's last update. This section will fill in as Stage A lands; use Infima's own animation set as the source, not the broken Lyra-sourced import (see `CLAUDE.md`).
