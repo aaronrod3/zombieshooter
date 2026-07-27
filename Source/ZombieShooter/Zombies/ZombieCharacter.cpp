@@ -4,10 +4,64 @@
 #include "ZSZombieConfig.h"
 #include "ZombieAIController.h"
 #include "../Combat/ZSDamageTypes.h"
+#include "../Framework/ZSGameMode.h"
+#include "../ZombieShooter.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "HAL/IConsoleManager.h"
+
+// B0-T12.1, 2026-07-26: the code-buildable half of "Lvl_ZS_StressTest ... scriptable via console
+// (ZS.SpawnZombies <n>)" - the graybox level itself is a .umap content asset this session has no
+// editor/MCP access to create, so it's an honest content gap (see Docs/Beta/B0_Stabilization.md
+// T12.1). This command works in any level once AZSGameMode::StressTestZombieClass is assigned to a
+// real BP_Zombie_* Blueprint. Host-only (GetAuthGameMode() is only ever non-null on the server) -
+// scatters Count zombies in a flat ring around the local player's pawn so they can actually
+// path/spread for a meaningful stress test, not stack on one point.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSSpawnZombies(
+	TEXT("ZS.SpawnZombies"),
+	TEXT("B0-T12.1: spawns <n> zombies (AZSGameMode::StressTestZombieClass) scattered around the local player's pawn, for profiling. Usage: ZS.SpawnZombies <n>. Host-only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		const AZSGameMode* GameMode = World ? World->GetAuthGameMode<AZSGameMode>() : nullptr;
+		if (!GameMode)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.SpawnZombies: host-only, no authoritative AZSGameMode found"));
+			return;
+		}
+
+		if (!GameMode->StressTestZombieClass)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.SpawnZombies: AZSGameMode::StressTestZombieClass is unset - assign a real BP_Zombie_* class (with a UZSZombieConfig on its CDO) first"));
+			return;
+		}
+
+		int32 Count = (Args.Num() > 0) ? FCString::Atoi(*Args[0]) : 10;
+		Count = FMath::Clamp(Count, 1, 500);
+
+		const APlayerController* PC = World->GetFirstPlayerController();
+		const APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+		const FVector Origin = Pawn ? Pawn->GetActorLocation() : FVector::ZeroVector;
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+		int32 SpawnedCount = 0;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const FVector2D RandomOffset = FMath::RandPointInCircle(2000.f);
+			const FVector SpawnLocation = Origin + FVector(RandomOffset.X, RandomOffset.Y, 0.f);
+
+			if (World->SpawnActor<AZombieCharacter>(GameMode->StressTestZombieClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams))
+			{
+				++SpawnedCount;
+			}
+		}
+
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.SpawnZombies: spawned %d/%d zombies around %s"), SpawnedCount, Count, *Origin.ToString());
+	}));
 
 AZombieCharacter::AZombieCharacter()
 {

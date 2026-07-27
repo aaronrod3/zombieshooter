@@ -324,7 +324,7 @@ CONFIRMED requirement (Consolidated §12): a **single, reusable** stress-test sc
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T12.1 | `Lvl_ZS_StressTest` — a fixed graybox map with deterministic zombie spawn counts, scriptable via console (`ZS.SpawnZombies <n>`). | X-5 |
+| T12.1 | 🔧 **Partially code-complete 2026-07-26, not yet PIE-verified - console command only, map is an honest content gap.** New `ZS.SpawnZombies <n>` console command (`Zombies/ZombieCharacter.cpp`), host-only, spawns `<n>` (clamped 1-500) instances of new `AZSGameMode::StressTestZombieClass` scattered in a 2000-unit ring around the local player's pawn - works in any level today, not just a dedicated one. **`Lvl_ZS_StressTest` itself (the fixed graybox map) is not built** - a `.umap` is a content/editor asset this session has no `unreal-mcp` access to create; same for `StressTestZombieClass` itself (no `BP_Zombie_*` assigned, command warns and no-ops until then). | X-5 |
 | T12.2 | **Packaged Development build** produced. Never profile Debug or raw PIE — CONFIRMED methodology. | X-4 |
 | T12.3 | Triage sequence run and recorded: `stat unit` / `stat fps` (Game/Draw/RHI/GPU-bound), then `stat ai` / `stat anim` / `stat physics`, then `stat gpu` / `stat drawcount`. | X-4 |
 | T12.4 | Baseline captured at 25 / 50 / 100 / 150 / 250 zombies. **Zombie count is the primary budget metric** (CONFIRMED). Results committed to `Docs/Testing/PerfBaseline_B0.md`. |

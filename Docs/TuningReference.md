@@ -178,6 +178,9 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `InvestigationDurationSeconds` | 10 | How long `AZombieAIController::StartInvestigationTimer` investigates a lost target's last known location before giving up |
 | `IdleDwellDurationSeconds` | 3 | How long `StartIdleDwell` pauses between wander moves |
 
+### Stress-test spawning (`AZSGameMode::StressTestZombieClass`) — B0-T12.1, 2026-07-26
+`ZS.SpawnZombies <n>` (`Zombies/ZombieCharacter.cpp`, host-only) spawns `<n>` (clamped 1-500, default 10) instances of `StressTestZombieClass` in a 2000-unit ring around the local player's pawn. Unset `StressTestZombieClass` = the command warns and no-ops. **Content gaps**: no `BP_Zombie_*` assigned yet, and `Lvl_ZS_StressTest` (the dedicated graybox map T12.1 actually calls for) doesn't exist - the command works in any level in the meantime.
+
 ## Inventory (`UZSInventoryComponent`, Category `ZS|Inventory`) — built 2026-07-21, untested
 | Property | Default | Effect |
 |---|---|---|
