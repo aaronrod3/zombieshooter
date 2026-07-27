@@ -195,6 +195,20 @@ void AZSWeapon::PerformReload_Implementation()
 	CurrentReserveAmmo -= AmmoToTransfer;
 }
 
+void AZSWeapon::SeedDurabilityFromInstance(int32 InstanceDurability, float ConditionQuality)
+{
+	if (!HasAuthority() || !CurrentConfig || CurrentConfig->MaxDurabilityHits <= 0)
+	{
+		// Unbreakable weapon - CurrentDurability stays whatever InitializeFromConfig set (0), same
+		// "never reaches/goes below 0" contract Server_ConsumeDurabilityHit already documents.
+		return;
+	}
+
+	CurrentDurability = (InstanceDurability >= 0)
+		? InstanceDurability
+		: FMath::RoundToInt(CurrentConfig->MaxDurabilityHits * FMath::Clamp(ConditionQuality, 0.f, 1.f));
+}
+
 bool AZSWeapon::Server_ConsumeDurabilityHit()
 {
 	if (!HasAuthority() || !CurrentConfig || CurrentConfig->MaxDurabilityHits <= 0)

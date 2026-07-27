@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
 #include "ZSWeaponTypes.h"
+#include "../Survival/ZSItemConfig.h"
 #include "ZSWeaponConfig.generated.h"
 
 class USkeletalMesh;
@@ -32,10 +32,21 @@ class UDamageType;
    USkeletalMesh, requiring a rigged weapon skeleton) onto plain static-mesh parts sourced from
    Content/LowPolyWeapons/ and Content/Mega_Survival_Tools/ - see the Setup/Attachments sections
    below. AZSWeapon's own base component is a UStaticMeshComponent now, not skeletal.
+
+   B0-T2 Step B (2026-07-26): now extends UZSItemConfig, not UPrimaryDataAsset directly - the
+   Docs/Planning/InventoryLoadoutEquipping_Plan.md §6 model requires a carried weapon to flow
+   through the same FZSItemInstance pool (Inventory/ZSItemInstance.h) as every other item, and
+   FZSItemInstance::Config is typed UZSItemConfig* - a weapon-as-item can't sit in CarrySlots/
+   HotbarSlots at all without this relationship existing. Inherits Weight/MaxStackSize(=1, correct
+   for weapons)/Rarity/WorldMesh/DisplayName for free; ItemUseType/bIsEquippable/EquipSlot/
+   CarryCapacityBonus/consumable fields are inherited but semantically unused by weapons (no
+   different in kind from any other EditCondition-gated "not always meaningful" field already in
+   this project). Every DA_ZS_WeaponConfig_* instance needs a real Weight authored now (inherited
+   default 0.5 is a placeholder, too light for e.g. a rifle) - content task, not yet done.
 */
 
 UCLASS(BlueprintType)
-class UZSWeaponConfig : public UPrimaryDataAsset
+class UZSWeaponConfig : public UZSItemConfig
 {
 	GENERATED_BODY()
 

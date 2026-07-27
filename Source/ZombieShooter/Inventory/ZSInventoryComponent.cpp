@@ -25,6 +25,9 @@ float UZSInventoryComponent::GetCurrentWeight() const
 {
 	float Total = 0.f;
 
+	// B0-T2 Step B: equipping never removes an instance from CarrySlots (see Server_EquipToSlot), so
+	// an equipped bag's weight is already counted by this loop alone - no separate EquippedBack/Hip
+	// special-case needed anymore.
 	for (const FZSItemInstance& Instance : CarrySlots)
 	{
 		if (Instance.Config)
@@ -33,9 +36,6 @@ float UZSInventoryComponent::GetCurrentWeight() const
 		}
 	}
 
-	if (EquippedBack) { Total += EquippedBack->Weight; }
-	if (EquippedHip) { Total += EquippedHip->Weight; }
-
 	return Total;
 }
 
@@ -43,8 +43,11 @@ float UZSInventoryComponent::GetMaxCarryWeight() const
 {
 	float MaxWeight = BaseCarryWeight;
 
-	if (EquippedBack) { MaxWeight += EquippedBack->CarryCapacityBonus; }
-	if (EquippedHip) { MaxWeight += EquippedHip->CarryCapacityBonus; }
+	const FZSItemInstance BackInstance = GetInstance(EquippedBack);
+	if (BackInstance.Config) { MaxWeight += BackInstance.Config->CarryCapacityBonus; }
+
+	const FZSItemInstance HipInstance = GetInstance(EquippedHip);
+	if (HipInstance.Config) { MaxWeight += HipInstance.Config->CarryCapacityBonus; }
 
 	return MaxWeight;
 }
@@ -67,13 +70,28 @@ float UZSInventoryComponent::GetEncumbranceMultiplier() const
 	return FMath::Lerp(1.f, MinEncumbranceMultiplier, OverloadAlpha);
 }
 
-UZSItemConfig* UZSInventoryComponent::GetEquippedItem(EZSEquipSlot Slot) const
+FZSItemInstance UZSInventoryComponent::GetInstance(FGuid InstanceId) const
+{
+	if (InstanceId.IsValid())
+	{
+		for (const FZSItemInstance& Instance : CarrySlots)
+		{
+			if (Instance.InstanceId == InstanceId)
+			{
+				return Instance;
+			}
+		}
+	}
+	return FZSItemInstance();
+}
+
+FZSItemInstance UZSInventoryComponent::GetEquippedItem(EZSEquipSlot Slot) const
 {
 	switch (Slot)
 	{
-	case EZSEquipSlot::Back: return EquippedBack;
-	case EZSEquipSlot::Hip: return EquippedHip;
-	default: return nullptr;
+	case EZSEquipSlot::Back: return GetInstance(EquippedBack);
+	case EZSEquipSlot::Hip: return GetInstance(EquippedHip);
+	default: return FZSItemInstance();
 	}
 }
 
@@ -235,31 +253,70 @@ TArray<FZSItemInstance> UZSInventoryComponent::Server_RemoveItem(UZSItemConfig* 
 	return Removed;
 }
 
-bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, UZSItemConfig* Item)
+bool UZSInventoryComponent::Server_RemoveInstanceById(FGuid InstanceId, FZSItemInstance& OutRemoved)
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority() || !Item || Slot == EZSEquipSlot::None)
+	OutRemoved = FZSItemInstance();
+
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !InstanceId.IsValid())
 	{
 		return false;
 	}
 
-	if (!Item->bIsEquippable || Item->EquipSlot != Slot)
+	for (int32 Index = 0; Index < CarrySlots.Num(); ++Index)
+	{
+		if (CarrySlots[Index].InstanceId == InstanceId)
+		{
+			OutRemoved = CarrySlots[Index];
+			CarrySlots.RemoveAt(Index);
+			OnRep_InventoryState();
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UZSInventoryComponent::Server_UpdateInstanceState(FGuid InstanceId, const FZSItemInstanceState& NewState)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !InstanceId.IsValid())
 	{
 		return false;
 	}
 
-	if (Server_RemoveItem(Item, 1).IsEmpty())
+	for (FZSItemInstance& Instance : CarrySlots)
 	{
-		// Not actually carried - nothing to equip.
+		if (Instance.InstanceId == InstanceId)
+		{
+			Instance.InstanceState = NewState;
+			OnRep_InventoryState();
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid InstanceId)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || Slot == EZSEquipSlot::None || !InstanceId.IsValid())
+	{
 		return false;
 	}
 
-	TObjectPtr<UZSItemConfig>& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedHip;
-	if (TargetRef)
+	if (InstanceId == EquippedBack || InstanceId == EquippedHip)
 	{
-		// Whatever was previously equipped goes back to the carry list, not discarded.
-		Server_AddItem(TargetRef, 1);
+		// Already worn in the other gear slot - can't equip the same physical bag twice at once.
+		return false;
 	}
-	TargetRef = Item;
+
+	const FZSItemInstance Instance = GetInstance(InstanceId);
+	if (!Instance.IsValid() || !Instance.Config->bIsEquippable || Instance.Config->EquipSlot != Slot)
+	{
+		return false;
+	}
+
+	// Nothing is removed from CarrySlots - equipping just points the slot at an instance that's
+	// still (and stays) resident there. See the header comment on this function.
+	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedHip;
+	TargetRef = InstanceId;
 
 	OnRep_InventoryState();
 	return true;
@@ -272,14 +329,13 @@ void UZSInventoryComponent::Server_UnequipSlot(EZSEquipSlot Slot)
 		return;
 	}
 
-	TObjectPtr<UZSItemConfig>& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedHip;
-	if (!TargetRef)
+	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedHip;
+	if (!TargetRef.IsValid())
 	{
 		return;
 	}
 
-	Server_AddItem(TargetRef, 1);
-	TargetRef = nullptr;
+	TargetRef = FGuid();
 
 	OnRep_InventoryState();
 }

@@ -215,20 +215,21 @@ protected:
 	// P5 - Loadout: real-time hotbar (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)
 	// =====================================================================
 	// CurrentWeapon above *is* the PrimaryHand slot IA_Attack dispatches on - this section adds what
-	// fills it in real time. A fixed 9-slot hotbar of weapon-config references stands in for P6's
-	// real UZSInventoryComponent, which doesn't exist yet (same "author a reference directly on the
-	// character/BP" placeholder pattern StartingWeaponConfig used before this - StartingHotbarLoadout
-	// below is its direct replacement, an array instead of a single field). Switching slots isn't
-	// instant - Server_SelectHotbarSlot schedules the actual EquipWeapon call after the target
-	// config's EquipTimeSeconds (or UnequipTimeSeconds when switching to bare-fist), gated by the
-	// same bIsBusy the reload/melee/fire paths already respect - one busy window covers both
-	// holster-old and equip-new (v1 simplification; no equip montage content exists yet to justify a
-	// real two-phase notify-driven version, same as BeginBusyAction's reload window). Re-selecting
-	// the already-equipped slot unequips back to bare-fist (a toggle, not a separate "unequip"
-	// input/key). SecondaryHand (the independently-usable offhand slot from GameDevPlan.md P5's
-	// resolved design) is deliberately NOT built here - how its own action gets triggered is still
-	// an open, unresolved design question (GameDevPlan.md §7), so a slot with no way to use it would
-	// just be dead code.
+	// fills it in real time. A fixed 9-slot hotbar of instance GUIDs into GetInventoryComponent()'s
+	// CarrySlots (B0-T2 Step B, 2026-07-26 - previously a bare array of UZSWeaponConfig* references
+	// with no connection to the inventory at all, P6's own phase file flagged this as the known gap).
+	// StartingHotbarLoadout stays config-authored on the character/BP (unchanged authoring
+	// experience) but now seeds a real FZSItemInstance per entry at BeginPlay and points these GUIDs
+	// at them, so a looted weapon is equally hotbar-able, not just a pre-authored starting one.
+	// Switching slots isn't instant - Server_SelectHotbarSlot schedules the actual EquipWeapon call
+	// after the target config's EquipTimeSeconds (or UnequipTimeSeconds when switching to bare-fist),
+	// gated by the same bIsBusy the reload/melee/fire paths already respect - one busy window covers
+	// both holster-old and equip-new (v1 simplification; no equip montage content exists yet to
+	// justify a real two-phase notify-driven version, same as BeginBusyAction's reload window).
+	// Re-selecting the already-equipped slot unequips back to bare-fist (a toggle, not a separate
+	// "unequip" input/key). Unequipping/switching writes the outgoing weapon's live durability back
+	// into its CarrySlots instance first (WriteBackCurrentWeaponDurability) - the actual fix for
+	// durability resetting across an equip cycle.
 
 public:
 
@@ -257,9 +258,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loadout")
 	TArray<TObjectPtr<UZSWeaponConfig>> StartingHotbarLoadout;
 
-	/** Always exactly NumHotbarSlots elements (nulls for empty slots) once BeginPlay runs, regardless of how many entries StartingHotbarLoadout authored - so every number key 1-9 is always a valid target. */
+	/** Always exactly NumHotbarSlots elements (invalid FGuid = empty slot) once BeginPlay runs, regardless of how many entries StartingHotbarLoadout authored - so every number key 1-9 is always a valid target. B0-T2 Step B: was TArray<TObjectPtr<UZSWeaponConfig>> - now GUIDs into GetInventoryComponent()'s CarrySlots, so a looted weapon is actually hotbar-able (the gap CLAUDE.md's Inventory/ note used to flag). BeginPlay seeds a real FZSItemInstance per StartingHotbarLoadout entry and points these at the new GUIDs. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_HotbarSlots, Category = "ZS|Loadout")
-	TArray<TObjectPtr<UZSWeaponConfig>> HotbarSlots;
+	TArray<FGuid> HotbarSlots;
 
 	UFUNCTION()
 	void OnRep_HotbarSlots();
@@ -276,6 +277,9 @@ protected:
 
 	/** Timer callback for both directions - PendingIndex is INDEX_NONE for "finish unequipping to bare-fist", otherwise a valid HotbarSlots index to actually EquipWeapon(). Server-only (only ever scheduled from Server_SelectHotbarSlot, which already gates on HasAuthority()). */
 	void CompleteHotbarSwitch(int32 PendingIndex);
+
+	/** B0-T2 Step B: writes CurrentWeapon's live durability back into the CarrySlots instance ActiveHotbarIndex/HotbarSlots currently point at, before that AZSWeapon actor gets destroyed - the actual fix for durability resetting on unequip/re-equip. No-op if there's no current weapon, no valid active slot, or GetInventoryComponent() is unset. Not called from the weapon-breaking path (T2.8 removes the instance instead of preserving it). */
+	void WriteBackCurrentWeaponDurability();
 
 	/** Shared no-op guard for SelectHotbarSlot/CycleHotbar's input handlers and Server_SelectHotbarSlot itself - same bIsBusy gate CanAttack()/CanFire()/CanReload() already use, so a hotbar switch can't be started mid-swing, mid-shot, or mid-reload, and a second switch can't be started mid-switch. */
 	bool CanSwitchLoadout() const;

@@ -59,6 +59,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
 	int32 GetCurrentDurability() const { return CurrentDurability; }
 
+	/** B0-T2 Step B: overrides the fresh-spawn durability InitializeFromConfig just set, with the value carried over from the FZSItemInstance this weapon was equipped from - this is the actual "durability persists through equip/unequip" fix. InstanceDurability == -1 means "never touched yet" (a freshly-looted weapon's first equip) - falls back to Config->MaxDurabilityHits x ConditionQuality in that case, same seeding CurrentConfig would otherwise have used, just scaled by loot condition (B0-T2.10). Call right after InitializeFromConfig; no-op off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	void SeedDurabilityFromInstance(int32 InstanceDurability, float ConditionQuality);
+
 	/** Transfers ammo reserve -> magazine synchronously. The reload montage that follows is purely cosmetic (see CoreLoopPlan.md Phase 2 "Key architecture decisions"). Gameplay execution point - overridable per-weapon. */
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void PerformReload();

@@ -62,8 +62,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	TArray<FZSItemInstance> GetCarrySlots() const { return CarrySlots; }
 
+	/** B0-T2 Step B: the one lookup every GUID-holding slot (HotbarSlots, EquippedBack/Hip) resolves through. Returns a default-constructed (invalid) instance if InstanceId isn't found in CarrySlots - callers should check IsValid() before trusting the result (e.g. the referenced item was dropped/consumed elsewhere since the slot last pointed at it). */
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
-	UZSItemConfig* GetEquippedItem(EZSEquipSlot Slot) const;
+	FZSItemInstance GetInstance(FGuid InstanceId) const;
+
+	/** B0-T2 Step B: whatever's currently referenced by Slot, resolved through CarrySlots - equipping never physically removes an instance from CarrySlots (see Server_EquipToSlot), so this is just GetInstance(EquippedBack/Hip). Invalid instance if the slot is empty. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	FZSItemInstance GetEquippedItem(EZSEquipSlot Slot) const;
 
 	/** Server-authoritative: mints a fresh FZSItemInstance for Item/Count - stacks onto existing partial CarrySlots entries first (respecting Item->MaxStackSize, minting one new instance per stack-size-sized remainder for non-stackable items), then appends new instances for whatever's left. Use this when there's no pre-existing instance to preserve (e.g. a direct grant); use Server_AddItemInstance when there is (e.g. a world pickup or container loot transfer - see B0-T2's identity-preservation requirement). Doesn't weight-check - a container hand-off or world pickup should still succeed content-wise; GetEncumbranceMultiplier already penalizes being overloaded instead of hard-blocking it. No-op (returns 0) if Item is null, Count <= 0, or called off a non-authoritative machine. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
@@ -77,11 +82,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	TArray<FZSItemInstance> Server_RemoveItem(UZSItemConfig* Item, int32 Count);
 
-	/** Server-authoritative: moves one unit of Item (which the caller must already be carrying - same "caller already holds a direct reference" convention AZSPlayerCharacter::UseItem established in P2/P3) from CarrySlots into the given equip slot. Whatever was previously equipped there is returned to CarrySlots, not discarded. No-op (returns false) if Item->bIsEquippable is false, Item->EquipSlot doesn't match Slot, or Item isn't actually carried. */
+	/** Server-authoritative: removes exactly the instance matching InstanceId from CarrySlots (GUID-exact, unlike Server_RemoveItem's Config+Count matching). Used where identity, not just "some unit of this Config," is what matters - a weapon breaking (the specific carried instance is destroyed) being the main case. Returns false (OutRemoved left default) if not found or called off a non-authoritative machine. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
-	bool Server_EquipToSlot(EZSEquipSlot Slot, UZSItemConfig* Item);
+	bool Server_RemoveInstanceById(FGuid InstanceId, FZSItemInstance& OutRemoved);
 
-	/** Server-authoritative: returns whatever's equipped in Slot to CarrySlots and clears the slot. No-op if the slot is already empty. */
+	/** B0-T2 Step B: sets InstanceId's InstanceState in place within CarrySlots (durability/condition) - this is the actual mechanism behind "a weapon's durability survives unequip/re-equip." No-op (returns false) if InstanceId isn't currently carried or called off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	bool Server_UpdateInstanceState(FGuid InstanceId, const FZSItemInstanceState& NewState);
+
+	/** Server-authoritative: points Slot at InstanceId. Validates the instance exists in CarrySlots, Config->bIsEquippable, and Config->EquipSlot matches Slot; rejects if InstanceId is already equipped in the *other* gear slot (can't wear the same bag in both Back and Hip). B0-T2 Step B: doesn't remove anything from CarrySlots - equipped items stay resident there (see class comment), so a bag's own contents are never disturbed by equipping/unequipping it (Step C's "items stay in the bag" requirement). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	bool Server_EquipToSlot(EZSEquipSlot Slot, FGuid InstanceId);
+
+	/** Server-authoritative: clears Slot's GUID. Nothing moves - see Server_EquipToSlot's comment. No-op if the slot is already empty. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_UnequipSlot(EZSEquipSlot Slot);
 
@@ -111,11 +124,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory")
 	TArray<FZSItemInstance> CarrySlots;
 
+	/** B0-T2 Step B: was TObjectPtr<UZSItemConfig> - now a GUID into CarrySlots (FGuid() = empty), same reasoning as AZSPlayerCharacter::HotbarSlots. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory")
-	TObjectPtr<UZSItemConfig> EquippedBack;
+	FGuid EquippedBack;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory")
-	TObjectPtr<UZSItemConfig> EquippedHip;
+	FGuid EquippedHip;
 
 	/** Shared OnRep for all three properties above - broadcasts FZSOnInventoryChanged. Manually called right after every authoritative mutation too (see class comment). */
 	UFUNCTION()

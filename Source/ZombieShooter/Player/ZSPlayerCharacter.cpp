@@ -218,10 +218,25 @@ void AZSPlayerCharacter::BeginPlay()
 	// hotbar below). HasAuthority()-only: HotbarSlots itself replicates the result to clients.
 	if (HasAuthority())
 	{
-		HotbarSlots.Init(nullptr, NumHotbarSlots);
-		for (int32 SlotIndex = 0; SlotIndex < StartingHotbarLoadout.Num() && SlotIndex < NumHotbarSlots; ++SlotIndex)
+		HotbarSlots.Init(FGuid(), NumHotbarSlots);
+
+		// B0-T2 Step B: StartingHotbarLoadout stays config-authored (unchanged authoring experience),
+		// but now seeds a real FZSItemInstance into CarrySlots per starting weapon so HotbarSlots has
+		// an actual carried instance to point at, same as a looted weapon would.
+		if (UZSInventoryComponent* Inventory = GetInventoryComponent())
 		{
-			HotbarSlots[SlotIndex] = StartingHotbarLoadout[SlotIndex];
+			for (int32 SlotIndex = 0; SlotIndex < StartingHotbarLoadout.Num() && SlotIndex < NumHotbarSlots; ++SlotIndex)
+			{
+				if (UZSWeaponConfig* StartingConfig = StartingHotbarLoadout[SlotIndex])
+				{
+					FZSItemInstance NewInstance;
+					NewInstance.InstanceId = FGuid::NewGuid();
+					NewInstance.Config = StartingConfig;
+					NewInstance.StackCount = 1;
+					Inventory->Server_AddItemInstance(NewInstance);
+					HotbarSlots[SlotIndex] = NewInstance.InstanceId;
+				}
+			}
 		}
 	}
 
@@ -486,7 +501,7 @@ void AZSPlayerCharacter::CycleHotbar(int32 Direction)
 	for (int32 Attempt = 0; Attempt < NumSlots; ++Attempt)
 	{
 		Candidate = (Candidate + Step + NumSlots) % NumSlots;
-		if (HotbarSlots[Candidate])
+		if (HotbarSlots[Candidate].IsValid())
 		{
 			Server_SelectHotbarSlot(Candidate);
 			return;
@@ -533,22 +548,56 @@ void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
 
 	// Re-selecting the already-equipped slot toggles back to bare-fist instead of re-equipping.
 	const bool bUnequipping = (SlotIndex == ActiveHotbarIndex);
-	UZSWeaponConfig* TargetConfig = bUnequipping ? nullptr : HotbarSlots[SlotIndex].Get();
+	const FGuid TargetInstanceId = bUnequipping ? FGuid() : HotbarSlots[SlotIndex];
 
-	if (!TargetConfig && !bUnequipping)
+	if (!bUnequipping && !TargetInstanceId.IsValid())
 	{
 		// Selecting an already-empty, not-currently-active slot - nothing to equip and nothing to
 		// unequip either.
 		return;
 	}
 
-	const float SwitchDelay = TargetConfig ? FMath::Max(TargetConfig->EquipTimeSeconds, 0.f) : UnequipTimeSeconds;
+	// B0-T2 Step B: HotbarSlots holds a GUID now, not a config - resolve it to read EquipTimeSeconds.
+	float SwitchDelay = UnequipTimeSeconds;
+	if (!bUnequipping)
+	{
+		if (const UZSInventoryComponent* Inventory = GetInventoryComponent())
+		{
+			if (const UZSWeaponConfig* WeaponConfig = Cast<UZSWeaponConfig>(Inventory->GetInstance(TargetInstanceId).Config))
+			{
+				SwitchDelay = FMath::Max(WeaponConfig->EquipTimeSeconds, 0.f);
+			}
+		}
+	}
+
 	const int32 PendingIndex = bUnequipping ? INDEX_NONE : SlotIndex;
 
 	SetBusy(true);
 
 	FTimerDelegate SwitchDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::CompleteHotbarSwitch, PendingIndex);
 	GetWorldTimerManager().SetTimer(HotbarSwitchTimerHandle, SwitchDelegate, FMath::Max(SwitchDelay, 0.01f), false);
+}
+
+void AZSPlayerCharacter::WriteBackCurrentWeaponDurability()
+{
+	if (!CurrentWeapon || !HotbarSlots.IsValidIndex(ActiveHotbarIndex))
+	{
+		return;
+	}
+
+	const FGuid InstanceId = HotbarSlots[ActiveHotbarIndex];
+	if (!InstanceId.IsValid())
+	{
+		return;
+	}
+
+	if (UZSInventoryComponent* Inventory = GetInventoryComponent())
+	{
+		// Preserve ConditionQuality, only the durability actually changed during use.
+		FZSItemInstanceState NewState = Inventory->GetInstance(InstanceId).InstanceState;
+		NewState.CurrentDurability = CurrentWeapon->GetCurrentDurability();
+		Inventory->Server_UpdateInstanceState(InstanceId, NewState);
+	}
 }
 
 void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
@@ -558,10 +607,27 @@ void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
 		return;
 	}
 
-	if (PendingIndex == INDEX_NONE || !HotbarSlots.IsValidIndex(PendingIndex) || !HotbarSlots[PendingIndex])
+	UZSInventoryComponent* Inventory = GetInventoryComponent();
+	const bool bTargetsAWeapon = HotbarSlots.IsValidIndex(PendingIndex) && HotbarSlots[PendingIndex].IsValid();
+	const FZSItemInstance TargetInstance = (bTargetsAWeapon && Inventory) ? Inventory->GetInstance(HotbarSlots[PendingIndex]) : FZSItemInstance();
+	UZSWeaponConfig* TargetWeaponConfig = Cast<UZSWeaponConfig>(TargetInstance.Config);
+
+	// B0-T2 Step B: write back whatever was previously equipped's live durability BEFORE it gets
+	// destroyed (by EquipWeapon below, or directly here) - mirrors EquipWeapon's own "server calls
+	// the client-side counterpart logic directly, since OnRep never fires on the authoring machine
+	// itself" pattern, just for durability persistence instead of cosmetics.
+	WriteBackCurrentWeaponDurability();
+
+	if (!TargetWeaponConfig)
 	{
-		// Unequip to bare-fist - mirrors EquipWeapon's own "server calls the client-side counterpart
-		// logic directly, since OnRep never fires on the authoring machine itself" pattern.
+		// Unequip to bare-fist - also covers a stale GUID (the referenced item was dropped/consumed
+		// elsewhere since this slot last pointed at it): clear the slot instead of equipping garbage.
+		if (bTargetsAWeapon)
+		{
+			HotbarSlots[PendingIndex] = FGuid();
+			OnRep_HotbarSlots();
+		}
+
 		if (CurrentWeapon)
 		{
 			CurrentWeapon->Destroy();
@@ -573,7 +639,11 @@ void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
 	}
 	else
 	{
-		EquipWeapon(HotbarSlots[PendingIndex]);
+		EquipWeapon(TargetWeaponConfig);
+		if (CurrentWeapon)
+		{
+			CurrentWeapon->SeedDurabilityFromInstance(TargetInstance.InstanceState.CurrentDurability, TargetInstance.InstanceState.ConditionQuality);
+		}
 		ActiveHotbarIndex = PendingIndex;
 	}
 
@@ -1589,9 +1659,16 @@ void AZSPlayerCharacter::Server_WeaponMeleeAttack_Implementation()
 			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 2.f, FColor::Orange, FString::Printf(TEXT("%s broke!"), *BrokenWeaponName));
 		}
 
-		if (HotbarSlots.IsValidIndex(ActiveHotbarIndex))
+		if (HotbarSlots.IsValidIndex(ActiveHotbarIndex) && HotbarSlots[ActiveHotbarIndex].IsValid())
 		{
-			HotbarSlots[ActiveHotbarIndex] = nullptr;
+			// B0-T2.8: the instance is genuinely destroyed/consumed, not just orphaned from the
+			// hotbar while still technically "owned" - remove it from CarrySlots entirely.
+			if (UZSInventoryComponent* Inventory = GetInventoryComponent())
+			{
+				FZSItemInstance RemovedInstance;
+				Inventory->Server_RemoveInstanceById(HotbarSlots[ActiveHotbarIndex], RemovedInstance);
+			}
+			HotbarSlots[ActiveHotbarIndex] = FGuid();
 			OnRep_HotbarSlots();
 		}
 
