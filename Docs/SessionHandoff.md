@@ -6,31 +6,20 @@
 
 ## Current phase: B0 — Stabilization & Reconciliation
 
-`Docs/Beta/B0_Stabilization.md`. **B0-T0 complete. B0-T8 (zombie AI) complete and PIE-verified.** **B0-T1 (verification sweep) still in progress, pass 4 not yet run.** Pass 3's blocker (Stage C — ranged hits landing on the wrong actor) is root-caused and fixed (see below), and combat itself has since moved onto a bigger change (the projectile system, T10.8) that pass 3 never tested. **B0-T2 stays gated until a pass-4 sweep re-confirms all stages, including ranged combat via the new projectile path** — do not start B0-T2 yet.
+`Docs/Beta/B0_Stabilization.md`. **Start here, not there**: `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` is the curated build-first, test-in-order, decisions-to-make companion for everything below — read it before doing anything else this session.
 
-## Last completed (2026-07-26) — Stage C root-caused + fixed, projectile system built and rolled out to AR + Pistol, T10.9 bug found and code-fixed (untested)
+## Last completed (2026-07-26) — large autonomous push, nothing compiled or PIE-tested yet
 
-**Stage C root cause (pass 3's blocker): `AZombieCharacter_C`'s capsule had an explicit `Visibility: ECR_Ignore` override**, letting the hitscan trace (`ECC_Visibility`) pass straight through every zombie to whatever level prop was behind it — unrelated to the `weapon_r`→`RightHandSocket` socket work done earlier (that was a real, separate bug: `weapon_r` abandoned entirely, new `RightHandSocket` created on `hand_r`, all 3 weapon configs updated). Fixed: capsule's `Visibility` response set to `ECR_Block`. Both fixes are content-only (Blueprint CDO / Data Asset properties), no rebuild was needed, and both were PIE-confirmed by the dev before combat moved on to the bigger change below.
+The dev stepped away and asked for as much of B0 to get done solo as possible, with a compiled test list and decisions log for the return. Result: **T2 Steps B-E, T5, T6, T7, T4, T3, T9, T10 (remainder), T11, and T12.1 are all code-complete** (ten commits, `b947dd1`..`cc19659` plus the T2/T5/T6/T7 commits before them — `git log --oneline b0-baseline..main` shows the full sequence). **None of it has been compiled, Live-Coding-patched, or opened in the editor** — the editor was never touched this stretch, per standing policy (don't attempt `Build.bat` while it might be open; no way to run PIE headlessly either way).
 
-**Projectile system (T10.8), dev-approved "full projectile system, go ahead":** new `AZSProjectile` actor (`Source/ZombieShooter/Weapons/ZSProjectile.h`/`.cpp`) — sphere collision root, cosmetic `NoCollision` mesh child, `UProjectileMovementComponent` (no gravity/bounce). New `UZSWeaponConfig` fields `ProjectileClass`/`ProjectileMesh`/`ProjectileSpeed` (opt-in per weapon — unset keeps the old hitscan path). `Server_Fire_Implementation` branches on `Config->ProjectileClass` right after computing the muzzle `TraceStart`.
-- **AssaultRifle**: PIE-confirmed hitting zombies correctly, **2-player replication check passed** (projectile travel visible on both the firing client and the host).
-- **Pistol**: config wired up identically (`ProjectileClass`/`ProjectileMesh` set, same values as AR) — **not yet PIE-confirmed by the dev**, first thing to check next session.
-- `ProjectileMesh` is the engine placeholder Sphere for both weapons — needs a real bullet mesh per weapon eventually (content task, dev's to source).
-- Deferred, not scoped: bullet casing ejection (dev's idea, noted in T10.8, pick up once the core system is solid).
-
-**T10.9 — new bug found during the AR 2-player check, now code-fixed but NOT yet compiled or PIE-tested:** Player 2 (non-host client)'s cursor-facing rotation (`UpdateCursorFacing`'s `SetActorRotation()`) never reached the server — it's a local-only call, outside `CharacterMovementComponent`'s replication path. Affects every cursor-facing-gated action for non-host clients (ranged/melee/interact), not just fire. **Fix**: new `Server_UpdateCursorFacingRotation(FRotator)` — `Unreliable` server RPC (`ZSPlayerCharacter.h`/`.cpp`), called from `UpdateCursorFacing` alongside the existing local `SetActorRotation`. **This is a header change — needs a full `Build.bat` rebuild, not Live Coding**, before it can be tested.
-
-**Weapon-attachment sockets — answered, no code change:** `SocketMuzzle`/`SocketTrigger`/`SocketMagazineAttachment`/`SocketHandguard`/`SocketGrip`/`SocketOptic` all live on each **weapon's own Static Mesh asset** (create via that mesh's Static Mesh Editor → Socket Manager), not on the character skeleton — separate from `RightHandSocket` (the one skeletal socket, on `hand_r`, for attaching the whole weapon to the hand). The projectile spawn point already reuses `Config->SocketMuzzle` (same socket the hitscan trace and `MuzzleMesh` attachment use) via `BaseWeaponMesh->GetSocketLocation()`, falling back to eye height if the socket doesn't exist — so no new/separate socket is needed for the projectile specifically. Collision with the weapon itself is a non-issue regardless of spawn point: `BaseWeaponMesh` and all attachment sub-meshes are already `NoCollision`. Dev is creating/verifying `SocketMuzzle` on the AR/Pistol meshes themselves next session — worth a spot-check that projectiles now spawn from the actual barrel tip rather than eye height.
-
-**Committed and pushed** (`63588a6`): Pistol projectile config, zombie collision fix, T10.9 RPC code, `TuningReference.md`/`B0_Stabilization.md` doc updates. `Content/Poly-MegaSurvivalFood/` (dev's own Fab assets) intentionally left untracked, not committed.
+**What's left of B0**: T0.2 (Compile All Blueprints pass), the T1 verification sweep (Stages C onward — Stage C's own blocker was already root-caused/fixed in a prior session), every checkpoint/PT listed in `B0_Stabilization.md` and the companion doc, T8.2 (a small open BT-wiring decision), and T12.2-T12.5 (packaged-build profiling) — all of these need the dev's hands (editor, PIE, or an actual judgment call), not more solo code.
 
 ## Next step
 
-1. **Full `Build.bat` rebuild** — required for T10.9's header change before anything else below can be tested.
-2. **Confirm Pistol projectile in PIE** (equip, fire at a zombie — same pattern as AR).
-3. **Re-test T10.9's exact repro**: Player 2 shooting in a direction that requires rotating, confirm the server now sees the correct facing (was previously silently wrong, no visible error).
-4. **Pass 4 — full B0-T1 stage re-sweep** (Stages B–G), now that Stage C's root cause is fixed and combat has moved onto the projectile path. This is what actually unblocks B0-T2 (item-instance refactor) — the dev's original sequencing ("once the sweep is clean").
-5. Dev is separately setting up `SocketMuzzle` on the AR/Pistol static meshes (see above) — not blocking, but re-verify projectile spawn origin once done.
+1. **Full `Build.bat` rebuild** (not Live Coding — dozens of headers changed this stretch). Regenerate IDE project files too (new files: `Player/ZSCameraDirector.h/.cpp`, `Framework/ZSElevationSubsystem.h/.cpp`).
+2. Fix whatever the first real compile pass surfaces — none of this code has been type-checked by a compiler yet, only by careful reading against established patterns.
+3. **"Compile All Blueprints" pass**, clean, before trusting any PIE result.
+4. Then work through `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` in order — it lists content that needs authoring first (new Input Actions, a few Data Assets, two `TSubclassOf` Blueprint-class assignments), then a single ordered test checklist spanning every system touched this stretch, then a decisions log of judgment calls and documented gaps worth a second look.
 
 ## B0-T0.1 — build policy for this phase (standing, for the duration of B0)
 
@@ -38,32 +27,26 @@
 - **"Compile All Blueprints" pass after every patch cluster**, before trusting any PIE result.
 - When something that "should just work" behaves wrong after a recompile, **check the Output Log for `is not a child class of` or `invalid target type` before anything else.**
 - **When stuck on an engine-level setup problem, check the official UE 5.8 docs site** before extended trial-and-error or engine-source spelunking.
-- **After large multi-file sessions, regenerate IDE project files** (`Build.bat -projectfiles ...`) — new files this session (`ZSProjectile.h`/`.cpp`); confirm Rider's project files are current before next session if not already done.
+- **After large multi-file sessions, regenerate IDE project files** (`Build.bat -projectfiles ...`) — several new files this stretch (see above); confirm Rider's project files are current before trusting IntelliSense.
 
 ## Known tooling gotchas (worth remembering)
 
 - `unreal-mcp`'s `SkeletalMeshTools.add_socket` does not reliably honor `bone_name` for at least one bone on this project's skeleton (`weapon_r` — confirmed a genuine tool bug, not a virtual-bone limitation) — silently parents to `root` instead. Confirmed fine for `pelvis`/`hand_r`. **Workaround**: drive the real Skeleton Tree UI via `SlateInspectorToolset` instead (right-click bone → "Add Socket" → F2 to rename), then verify with `get_socket_bone`.
 - **Any mesh rigidly attached to the character needs `NoCollision` explicitly set** (standing convention, `CLAUDE.md` Architecture section) — worth checking on any future attached cosmetic (clothing, held items), not just weapons.
+- `unreal-mcp` was disconnected for this entire autonomous stretch — every Data Asset, Blueprint, Input Action, and level that would normally get authored alongside the C++ was instead left as an explicitly documented content gap (see the companion checklist doc's Section 1/3.3). None of it was faked or silently skipped.
 
 ## Decisions made 2026-07-23 through 2026-07-26
 
-See `Docs/Beta/00_MasterPlan.md` §2 for the full rescope decision log (two-stage plan, infection now plainly legible not ambiguous, vehicles back in scope, 4+ players, etc. — too many individual decisions to duplicate here). Combat-specific:
-- **Weapon/equip socket — `RightHandSocket` on `hand_r`**, not `weapon_r` (abandoned) or `ik_hand_gun` (rejected, IK-control bone). General right-hand equip point, not weapon-specific.
-- **Ranged weapons move to a full simulated projectile system** — dev-approved, AssaultRifle + Pistol done, see above.
-- **T0.3 — keep `BP_ZombieAIController`**, in case it's wanted later.
-- **T0.5 / OQ-B9-01 — all gamepad work and testing deferred to B9.**
-- **Zombie AI native migration + navmesh fix — done, PIE-verified.**
+See `Docs/Beta/00_MasterPlan.md` §2 for the full rescope decision log (two-stage plan, infection now plainly legible not ambiguous, vehicles back in scope, 4+ players, etc.). See `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §3 for every judgment call and documented gap from this session's solo push specifically (melee-stamina interpretation, downed-zombie BT stand-in, offhand-weapon-fire scope cut, and more) — flagged for review, not blocking.
 
 ## Verification status
 
-**PIE-confirmed working:** AnimBP rifle-pose fix, weapon placement (Stage B), hotbar unequip (Stage D), hotbar cycling all 3 slots (Stage E), melee dispatch/damage/durability break (Stage F), container loot-all + world item pickup (Stage G, log-confirmed), zombie AI (wander/investigate/chase), ranged hitscan-turned-projectile combat vs. zombies (AssaultRifle, single + 2-player).
+**PIE-confirmed working (from before this stretch):** AnimBP rifle-pose fix, weapon placement (Stage B), hotbar unequip (Stage D), hotbar cycling all 3 slots (Stage E — note: hotbar *cycling* itself was since removed, B0-T3.4, scroll wheel is camera zoom now), melee dispatch/damage/durability break (Stage F), container loot-all + world item pickup (Stage G), zombie AI (wander/investigate/chase), ranged hitscan-turned-projectile combat vs. zombies (AssaultRifle + Pistol, single + 2-player), Item-instance Checkpoint A (drop/re-pickup GUID persistence).
 
-**Not yet PIE-confirmed:** Pistol projectile rollout; T10.9's aim-sync RPC fix (needs rebuild first).
+**Code-complete, awaiting first compile + PIE verification:** everything listed in "Last completed" above — see `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` for the full ordered test list.
 
-**Known gap, not a bug:** item drop has no input binding anywhere (`Server_DropItem` is never called) — deferred intentionally, to be designed alongside future inventory-management work.
-
-**Known gap, still unfixed:** `AZombieCharacter::Server_MeleeAttack` passes a blank `FHitResult`, so every zombie bite lands on Torso. Scheduled as **B0-T5.1**.
+**Known gap, not a bug:** `AZombieCharacter::Server_MeleeAttack`'s bite-zone bug (always landing on Torso) has a code fix in place (B0-T5.1) but isn't PIE-confirmed yet.
 
 ## Other still-open items (lower priority)
 
-Crouch pose bug untouched. Temporary debug instrumentation still needs removing before B1 (→ **B0-T5.5**): muzzle-trace debug draw and `UE_LOG` hit-confirmation in `Server_Fire`/`Server_MeleeAttack`/`AZSProjectile::HandleHit`, plus Stage G's interact/inventory logging (`TryInteract`, `ZSContainerActor`/`ZSWorldItemActor`/`ZSInventoryComponent`).
+Crouch pose bug untouched. Temporary debug instrumentation still needs removing before B1 (→ B0-T5.5, partially done — the `Server_Fire`/`Server_MeleeAttack` hit-confirmation logging was replaced with a real delegate hook, but the muzzle-trace debug draw and Stage G's interact/inventory logging are still in place). Three temporary `ZS.Debug*` console commands (drop/store-in-bag/list-carry-slots) exist purely for Checkpoint A/C testing without a real inventory UI — remove once one exists.
