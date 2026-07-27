@@ -1,10 +1,10 @@
 # Async Session Protocol
 
-> Read this once, at the start of a session the user has flagged as an "away" session (e.g. "start the next part of the plan," "go ahead and work on X while I'm out"). Follow it for the rest of that session without re-reading it. This doc is not auto-loaded — `SessionHandoff.md` points here when it applies.
+> Read this once, at the start of a session the user has flagged as an "away" session (e.g. "this is an away session," "go ahead and work on X while I'm out"). Follow it for the rest of that session without re-reading it. This doc is not auto-loaded — `SessionHandoff.md` points here when it applies.
 
 ## Is this an away session?
 
-Trigger: the user opens with something like "start the next part of the plan," or otherwise signals they're stepping away rather than working alongside you in real time. If it's genuinely ambiguous, ask once at the very start which mode this is — don't ask again after that.
+Trigger: the user opens with something like "this is an away session," or otherwise signals they're stepping away rather than working alongside you in real time. If it's genuinely ambiguous, ask once at the very start which mode this is — don't ask again after that.
 
 ## Scope: one cluster, not one B-phase
 
