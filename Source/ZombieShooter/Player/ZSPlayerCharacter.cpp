@@ -1353,12 +1353,17 @@ void AZSPlayerCharacter::Server_UseItem_Implementation(UZSItemConfig* Item, EZSB
 		if (HealthComponent)
 		{
 			HealthComponent->Server_ApplyBandage(TargetZone, Item->bIsCleanBandage);
+			// B0-T6.5: a "better" medical tier's MedicalIncubationDelayGameHours extends the
+			// amputation decision window - no-op (0) for a basic bandage, and a no-op entirely
+			// unless TargetZone actually is the bite-infection source.
+			HealthComponent->Server_DelayInfection(TargetZone, Item->MedicalIncubationDelayGameHours);
 		}
 		break;
 	case EZSItemUseType::Disinfectant:
 		if (HealthComponent)
 		{
 			HealthComponent->Server_Disinfect(TargetZone);
+			HealthComponent->Server_DelayInfection(TargetZone, Item->MedicalIncubationDelayGameHours);
 		}
 		break;
 	case EZSItemUseType::Splint:

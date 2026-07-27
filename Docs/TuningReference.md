@@ -112,7 +112,11 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `ArmWoundedAttackSpeedMultiplier`/`ArmWoundedReloadSpeedMultiplier` | 0.75 / 0.7 | Fire-rate / reload-speed multiplier, any active Arms wound |
 | `AmputatedZoneMultiplier` | 0.25 | Overrides all of the above once a zone is permanently amputated |
 | `BiteInfectionChance` | 0.4 | Hidden per-Bite roll (0-1) |
-| `IncubatingDurationGameHours`/`QueasyDurationGameHours`/`FeverDurationGameHours`/`CriticalDurationGameHours` | 6 / 8 / 6 / 4 | Game-hours per infection stage — death at the end of Critical if not amputated first |
+| `MinBiteInfectionDurationGameHours`/`MaxBiteInfectionDurationGameHours` | 48 / 96 | B0-T6.4, 2026-07-26: dev-confirmed 2-4 in-game-day range - each infection rolls its own total within this band |
+| `IncubatingDurationGameHours`/`QueasyDurationGameHours`/`FeverDurationGameHours`/`CriticalDurationGameHours` | 18 / 24 / 18 / 12 | ⚑ B0-T6.4: no longer fixed durations - a **base proportional split** (sums to 72h/3 days, the range's midpoint) scaled per-infection to fit the rolled total above. Death at the end of the scaled Critical duration if not amputated first |
+| `WoundInfectionOnsetGameHours` | 24 | B0-T6.1, 2026-07-26: how long a wound can stay dirty before it's marked Infected (distinct from bite infection) |
+| `WoundInfectionBleedMultiplier` | 1.3 | B0-T6.1: additional bleed-rate multiplier while Infected, stacks with `DirtyWoundBleedMultiplier` |
+| `WoundInfectionFractureRecoverySlowMultiplier` | 0.5 | B0-T6.1: fracture recovery accrues at this fraction of normal speed while the zone is wound-infected |
 
 ## Zombies (`UZSZombieConfig` — e.g. `DA_ZS_ZombieConfig_Shambler`, read by `AZombieCharacter`/`AZombieAIController`)
 | Field | Default | Effect |
@@ -138,11 +142,12 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 ## Per-Item Config (`UZSItemConfig`) — P6 fields added 2026-07-21
 | Field | Default | Effect |
 |---|---|---|
-| `Weight` | 0.5 | Per-unit weight, consumed by `UZSInventoryComponent::GetCurrentWeight()` |
-| `MaxStackSize` | 1 | How many stack per `FZSInventorySlot` — 1 = doesn't stack |
+| `Weight` | 0.5 | Per-unit weight, consumed by `UZSInventoryComponent::GetCurrentWeight()`/`FZSItemInstance::GetTotalWeight()` |
+| `MaxStackSize` | 1 | How many stack per `FZSItemInstance` (B0-T2 renamed from `FZSInventorySlot`) — 1 = doesn't stack |
 | `bIsEquippable`/`EquipSlot`/`CarryCapacityBonus` | false / `None` / 0 | Whether this item claims one of the two resolved equip slots (`Back`/`Hip`) and how much carry capacity it grants while worn |
-| `Rarity` | `Common` | Consulted by the finite rarity-pool system (Rare/VeryRare only — see `AZSGameState` below) |
+| `Rarity` | `Common` | Consulted by the finite rarity-pool system (Rare/VeryRare only — see `AZSGameState` below); also bands `ConditionQuality` roll (B0-T2.10) |
 | `WorldMesh` | unset | `AZSWorldItemActor`'s pickup mesh — unset is an invisible pickup, same "content not sourced yet" pattern as the zombie mesh |
+| `MedicalIncubationDelayGameHours` | 0 | B0-T6.5, 2026-07-26: Bandage/Disinfectant only - applied to the bite-infection-source zone, pushes the infection clock back by this many game-hours. 0 (a basic bandage/disinfectant) = no effect; a "better" medical tier authors a real value |
 
 ## Loot (`UZSLootTableConfig`, `AZSGameState`) — built 2026-07-21, untested
 | Property | Default | Effect |

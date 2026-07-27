@@ -101,6 +101,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Medical", meta = (EditCondition = "ItemUseType == EZSItemUseType::Bandage"))
 	bool bIsCleanBandage = true;
 
+	/** B0-T6.5: only meaningful when ItemUseType is Bandage or Disinfectant - applying this item to the bite-infection-source zone (UZSHealthComponent::Server_DelayInfection) pushes back the infection clock by this many game-hours, extending the window before the next stage (and eventually death) hits. 0 = no effect, the default for a basic bandage/disinfectant - a "better" medical tier is what actually authors a real value here. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Medical", meta = (ClampMin = "0", EditCondition = "ItemUseType == EZSItemUseType::Bandage || ItemUseType == EZSItemUseType::Disinfectant"))
+	float MedicalIncubationDelayGameHours = 0.f;
+
 	// ---- P6: general inventory fields (Docs/Phases/P6_InventoryLoot.md) - every item, not just
 	// consumables/medical, carries these once UZSInventoryComponent exists to read them. ----
 

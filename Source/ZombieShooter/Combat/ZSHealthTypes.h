@@ -31,7 +31,7 @@ enum class EZSWoundType : uint8
 	Bite
 };
 
-/** Delayed-onset infection arc (GameDevPlan.md P3) - deliberately UI-ambiguous vs. ordinary sickness; a moodle/UI layer should not display this enum name verbatim to the player. */
+/** Delayed-onset bite-infection arc (GameDevPlan.md P3). ⚑ REVERSED 2026-07-26 (dev-confirmed, B0-T6.3): this used to be deliberately UI-ambiguous vs. ordinary sickness - it is now the opposite. Both this and EZSWoundInfectionState below must be plainly, legibly shown to the player (a HUD/moodle requirement for B1, not built here) - the player should always know when they've been bitten and know when either infection tier is active. */
 UENUM(BlueprintType)
 enum class EZSInfectionStage : uint8
 {
@@ -40,6 +40,14 @@ enum class EZSInfectionStage : uint8
 	Queasy,
 	Fever,
 	Critical
+};
+
+/** B0-T6.1: a *wound* going untreated long enough to fester, distinct from EZSInfectionStage's bite-borne infection - never fatal alone (only ever slows recovery/worsens bleed, see UZSHealthComponent::TickWoundInfection), and Server_Disinfect (unlike bite infection) cures it directly. Binary rather than staged - "roughly 1/3 PZ depth" doesn't need a second multi-stage progression on top of the bite arc. */
+UENUM(BlueprintType)
+enum class EZSWoundInfectionState : uint8
+{
+	None,
+	Infected
 };
 
 /**
@@ -85,4 +93,12 @@ struct FZSBodyZoneWound
 	/** B0-T5.4: game-hours accumulated toward healing a Fracture (UZSHealthComponent::TickFractureRecovery) - only meaningful while WoundType == Fracture. Server bookkeeping more than something meant for client display; replicates as part of the whole struct like everything else here. */
 	UPROPERTY(BlueprintReadOnly)
 	float FractureRecoveryProgressGameHours = 0.f;
+
+	/** B0-T6.1: escalates from a dirty, untreated wound (UZSHealthComponent::TickWoundInfection) - see EZSWoundInfectionState's own comment for how this differs from bite infection. Must be shown to the player per T6.3 (B1's job, not built here). */
+	UPROPERTY(BlueprintReadOnly)
+	EZSWoundInfectionState WoundInfectionState = EZSWoundInfectionState::None;
+
+	/** B0-T6.1: game-hours accumulated while dirty (!bClean) and untreated - resets to 0 the moment the wound is cleaned (Server_Disinfect or a clean Server_ApplyBandage), whether or not it had already become Infected. Server bookkeeping, same replication reasoning as FractureRecoveryProgressGameHours. */
+	UPROPERTY(BlueprintReadOnly)
+	float WoundInfectionProgressGameHours = 0.f;
 };

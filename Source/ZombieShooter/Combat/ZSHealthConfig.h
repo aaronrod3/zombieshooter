@@ -78,21 +78,51 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects", meta = (ClampMin = "0", ClampMax = "1"))
 	float AmputatedZoneMultiplier = 0.25f;
 
-	// ---- Infection (delayed-onset arc, game-hour scaled - reads AZSGameState's world clock same as UZSNeedsComponent) ----
+	// ---- Bite infection (delayed-onset arc, game-hour scaled - reads AZSGameState's world clock
+	// same as UZSNeedsComponent). ⚑ B0-T6.4, 2026-07-26: the 4 stage durations below are now a base
+	// proportional split, not fixed values - Server_RollForInfection scales all 4 by the same factor
+	// so their total lands somewhere in [MinBiteInfectionDurationGameHours,
+	// MaxBiteInfectionDurationGameHours] (dev-confirmed range: 2-4 in-game days, not a flat 3) for
+	// THAT infection specifically - every bite infection gets its own randomized total. Base values
+	// below sum to 72h (3 days, the range's midpoint) as a readable reference point. ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection", meta = (ClampMin = "0", ClampMax = "1"))
 	float BiteInfectionChance = 0.4f;
 
+	/** Dev-confirmed 2026-07-26: 2 in-game days minimum. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection", meta = (ClampMin = "0"))
+	float MinBiteInfectionDurationGameHours = 48.f;
+
+	/** Dev-confirmed 2026-07-26: 4 in-game days maximum. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection", meta = (ClampMin = "0"))
+	float MaxBiteInfectionDurationGameHours = 96.f;
+
+	/** Base proportional weight, not this infection's actual duration - see the category comment above. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection")
-	float IncubatingDurationGameHours = 6.f;
+	float IncubatingDurationGameHours = 18.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection")
-	float QueasyDurationGameHours = 8.f;
+	float QueasyDurationGameHours = 24.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection")
-	float FeverDurationGameHours = 6.f;
+	float FeverDurationGameHours = 18.f;
 
-	/** After this many game-hours in Critical without amputation, the infection kills outright (UZSHealthComponent::Die). */
+	/** Base proportional weight, not this infection's actual duration. After the scaled Critical duration elapses without amputation, the infection kills outright (UZSHealthComponent::Die). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Infection")
-	float CriticalDurationGameHours = 4.f;
+	float CriticalDurationGameHours = 12.f;
+
+	// ---- Wound infection (B0-T6.1, 2026-07-26) - a *wound* left dirty and untreated, distinct from
+	// the bite-borne arc above. Never fatal alone; only slows recovery / worsens bleed. ----
+
+	/** How long a wound can stay dirty (!bClean) before UZSHealthComponent::TickWoundInfection marks it Infected. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Wound Infection", meta = (ClampMin = "0"))
+	float WoundInfectionOnsetGameHours = 24.f;
+
+	/** Additional bleed-rate multiplier while a zone's WoundInfectionState is Infected - stacks with DirtyWoundBleedMultiplier (an infected wound is also always dirty). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Wound Infection", meta = (ClampMin = "1"))
+	float WoundInfectionBleedMultiplier = 1.3f;
+
+	/** Fracture recovery progress accrues at this fraction of normal speed while the zone's WoundInfectionState is Infected - "slows healing," per T6.1's own definition-of-done, not "halts" it. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Wound Infection", meta = (ClampMin = "0", ClampMax = "1"))
+	float WoundInfectionFractureRecoverySlowMultiplier = 0.5f;
 };

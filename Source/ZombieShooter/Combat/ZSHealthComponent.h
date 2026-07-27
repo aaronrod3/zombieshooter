@@ -109,6 +109,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Health")
 	bool Server_AmputateZone(EZSBodyZone Zone);
 
+	/** B0-T6.5: pushes InfectionStageProgressGameHours back by GameHours (never below 0) - a "better" medical item's UZSItemConfig::MedicalIncubationDelayGameHours applied to the bite-infection-source zone, extending the amputation decision window. No-op if Zone isn't the current infection source, InfectionStage is None, or called off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Health")
+	void Server_DelayInfection(EZSBodyZone Zone, float GameHours);
+
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Health")
 	FZSOnHealthChanged OnHealthChanged;
 
@@ -157,6 +161,9 @@ protected:
 	/** Server-only, not replicated - only the resulting stage (InfectionStage) needs client visibility. How far through the current stage's duration we are, in game-hours. */
 	float InfectionStageProgressGameHours = 0.f;
 
+	/** B0-T6.4: rolled once per infection onset (Server_RollForInfection) - this infection's actual per-stage durations, scaled from HealthConfig's base 4 (proportional-weight) durations so their total lands within [MinBiteInfectionDurationGameHours, MaxBiteInfectionDurationGameHours]. Indexed by EZSInfectionStage - 1 (Incubating=0 .. Critical=3; None never needs a duration). Server-only, not replicated - same reasoning as InfectionStageProgressGameHours. */
+	float RolledInfectionStageDurationsGameHours[4] = { 0.f, 0.f, 0.f, 0.f };
+
 	FZSBodyZoneWound* FindZoneMutable(EZSBodyZone Zone);
 	const FZSBodyZoneWound* FindZone(EZSBodyZone Zone) const;
 
@@ -169,8 +176,11 @@ protected:
 	/** Server-only: advances InfectionStageProgressGameHours using AZSGameState's game-hour clock (same conversion UZSNeedsComponent uses), transitions EZSInfectionStage forward on each duration threshold, calls Die() at the end of Critical. No-op while InfectionStage is None. */
 	void TickInfection(float DeltaTime);
 
-	/** B0-T5.4: server-only, per-zone - advances FZSBodyZoneWound::FractureRecoveryProgressGameHours (same game-hour conversion as TickInfection) for every zone currently WoundType::Fracture and not amputated; clears the wound back to None once FractureRecoveryDurationGameHours (or the shorter SplintedFractureRecoveryDurationGameHours) is reached. No-op for zones that aren't fractured. */
+	/** B0-T5.4: server-only, per-zone - advances FZSBodyZoneWound::FractureRecoveryProgressGameHours (same game-hour conversion as TickInfection) for every zone currently WoundType::Fracture and not amputated; clears the wound back to None once FractureRecoveryDurationGameHours (or the shorter SplintedFractureRecoveryDurationGameHours) is reached, scaled down further by WoundInfectionFractureRecoverySlowMultiplier if that zone's WoundInfectionState is Infected. No-op for zones that aren't fractured. */
 	void TickFractureRecovery(float DeltaTime);
+
+	/** B0-T6.1: server-only, per-zone - accumulates FZSBodyZoneWound::WoundInfectionProgressGameHours for every zone with an active (WoundType != None, not amputated), dirty (!bClean) wound; sets WoundInfectionState to Infected once WoundInfectionOnsetGameHours is reached. Resets progress and state to None the instant a zone becomes clean again (Server_Disinfect or a clean Server_ApplyBandage), whether or not it had already escalated. */
+	void TickWoundInfection(float DeltaTime);
 
 	/** Server-only: HealthConfig->BiteInfectionChance roll. No-op if already infected (one infection arc at a time, per "simplify" scope). On success, marks Zone bIsInfectionSource and sets InfectionStage to Incubating. */
 	void Server_RollForInfection(EZSBodyZone Zone);

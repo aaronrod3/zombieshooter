@@ -57,6 +57,7 @@ void UZSHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	TickBleed(DeltaTime);
 	TickInfection(DeltaTime);
 	TickFractureRecovery(DeltaTime);
+	TickWoundInfection(DeltaTime);
 }
 
 float UZSHealthComponent::GetMaxHealth() const
@@ -218,6 +219,13 @@ void UZSHealthComponent::Server_ApplyBandage(EZSBodyZone Zone, bool bCleanBandag
 	ZoneWound->bBleeding = false;
 	ZoneWound->bCriticalBleed = false;
 	ZoneWound->bClean = bCleanBandage;
+	if (bCleanBandage)
+	{
+		// B0-T6.2: a clean bandage cures wound infection immediately, same as Server_Disinfect below
+		// - explicitly does NOT touch InfectionStage (bite infection is a separate arc).
+		ZoneWound->WoundInfectionState = EZSWoundInfectionState::None;
+		ZoneWound->WoundInfectionProgressGameHours = 0.f;
+	}
 	OnRep_BodyZones();
 }
 
@@ -235,6 +243,12 @@ void UZSHealthComponent::Server_Disinfect(EZSBodyZone Zone)
 	}
 
 	ZoneWound->bClean = true;
+
+	// B0-T6.2: cures wound infection - explicitly does NOT touch InfectionStage (bite infection is a
+	// separate arc; only Server_AmputateZone on the infection-source zone clears that).
+	ZoneWound->WoundInfectionState = EZSWoundInfectionState::None;
+	ZoneWound->WoundInfectionProgressGameHours = 0.f;
+
 	OnRep_BodyZones();
 }
 
@@ -283,6 +297,8 @@ bool UZSHealthComponent::Server_AmputateZone(EZSBodyZone Zone)
 	ZoneWound->bSplinted = false;
 	ZoneWound->bIsInfectionSource = false;
 	ZoneWound->FractureRecoveryProgressGameHours = 0.f;
+	ZoneWound->WoundInfectionState = EZSWoundInfectionState::None;
+	ZoneWound->WoundInfectionProgressGameHours = 0.f;
 
 	OnRep_BodyZones();
 
@@ -294,6 +310,22 @@ bool UZSHealthComponent::Server_AmputateZone(EZSBodyZone Zone)
 	}
 
 	return true;
+}
+
+void UZSHealthComponent::Server_DelayInfection(EZSBodyZone Zone, float GameHours)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || GameHours <= 0.f || InfectionStage == EZSInfectionStage::None)
+	{
+		return;
+	}
+
+	const FZSBodyZoneWound* ZoneWound = FindZone(Zone);
+	if (!ZoneWound || !ZoneWound->bIsInfectionSource)
+	{
+		return;
+	}
+
+	InfectionStageProgressGameHours = FMath::Max(InfectionStageProgressGameHours - GameHours, 0.f);
 }
 
 FZSBodyZoneWound* UZSHealthComponent::FindZoneMutable(EZSBodyZone Zone)
@@ -357,6 +389,12 @@ void UZSHealthComponent::TickBleed(float DeltaTime)
 			Rate *= HealthConfig->DirtyWoundBleedMultiplier;
 		}
 
+		// B0-T6.1: stacks with the dirty multiplier above - an infected wound is also always dirty.
+		if (ZoneWound.WoundInfectionState == EZSWoundInfectionState::Infected)
+		{
+			Rate *= HealthConfig->WoundInfectionBleedMultiplier;
+		}
+
 		TotalBleedDamage += Rate * DeltaTime;
 	}
 
@@ -396,13 +434,16 @@ void UZSHealthComponent::TickInfection(float DeltaTime)
 	const float GameHours = (DeltaTime / SecondsPerDay) * 24.f;
 	InfectionStageProgressGameHours += GameHours;
 
+	// B0-T6.4: reads this infection's own rolled/scaled durations (Server_RollForInfection), not
+	// HealthConfig's base proportional weights directly - see the header comment on
+	// RolledInfectionStageDurationsGameHours.
 	float StageDuration = 0.f;
 	switch (InfectionStage)
 	{
-	case EZSInfectionStage::Incubating: StageDuration = HealthConfig->IncubatingDurationGameHours; break;
-	case EZSInfectionStage::Queasy: StageDuration = HealthConfig->QueasyDurationGameHours; break;
-	case EZSInfectionStage::Fever: StageDuration = HealthConfig->FeverDurationGameHours; break;
-	case EZSInfectionStage::Critical: StageDuration = HealthConfig->CriticalDurationGameHours; break;
+	case EZSInfectionStage::Incubating: StageDuration = RolledInfectionStageDurationsGameHours[0]; break;
+	case EZSInfectionStage::Queasy: StageDuration = RolledInfectionStageDurationsGameHours[1]; break;
+	case EZSInfectionStage::Fever: StageDuration = RolledInfectionStageDurationsGameHours[2]; break;
+	case EZSInfectionStage::Critical: StageDuration = RolledInfectionStageDurationsGameHours[3]; break;
 	default: return;
 	}
 
@@ -464,7 +505,11 @@ void UZSHealthComponent::TickFractureRecovery(float DeltaTime)
 			continue;
 		}
 
-		ZoneWound.FractureRecoveryProgressGameHours += GameHours;
+		// B0-T6.1: an infected wound "slows healing," not just worsens bleed.
+		const float InfectionSlow = (ZoneWound.WoundInfectionState == EZSWoundInfectionState::Infected)
+			? HealthConfig->WoundInfectionFractureRecoverySlowMultiplier
+			: 1.f;
+		ZoneWound.FractureRecoveryProgressGameHours += GameHours * InfectionSlow;
 
 		const float Duration = ZoneWound.bSplinted
 			? HealthConfig->SplintedFractureRecoveryDurationGameHours
@@ -481,6 +526,74 @@ void UZSHealthComponent::TickFractureRecovery(float DeltaTime)
 	}
 
 	if (bAnyHealed)
+	{
+		OnRep_BodyZones();
+	}
+}
+
+void UZSHealthComponent::TickWoundInfection(float DeltaTime)
+{
+	if (!HealthConfig)
+	{
+		return;
+	}
+
+	const AZSGameState* GameState = GetWorld()->GetGameState<AZSGameState>();
+	if (!GameState)
+	{
+		return;
+	}
+
+	const float SecondsPerDay = GameState->GetRealSecondsPerGameDay();
+	if (SecondsPerDay <= 0.f)
+	{
+		return;
+	}
+
+	const float GameHours = (DeltaTime / SecondsPerDay) * 24.f;
+	bool bAnyChanged = false;
+
+	for (FZSBodyZoneWound& ZoneWound : BodyZones)
+	{
+		if (ZoneWound.WoundType == EZSWoundType::None || ZoneWound.bAmputated)
+		{
+			continue;
+		}
+
+		if (ZoneWound.bClean)
+		{
+			// B0-T6.2: cleaned (Server_Disinfect or a clean bandage) cures wound infection
+			// immediately, whether or not it had already escalated to Infected.
+			if (ZoneWound.WoundInfectionState != EZSWoundInfectionState::None || ZoneWound.WoundInfectionProgressGameHours > 0.f)
+			{
+				ZoneWound.WoundInfectionState = EZSWoundInfectionState::None;
+				ZoneWound.WoundInfectionProgressGameHours = 0.f;
+				bAnyChanged = true;
+			}
+			continue;
+		}
+
+		ZoneWound.WoundInfectionProgressGameHours += GameHours;
+		bAnyChanged = true;
+
+		if (ZoneWound.WoundInfectionState == EZSWoundInfectionState::None
+			&& ZoneWound.WoundInfectionProgressGameHours >= HealthConfig->WoundInfectionOnsetGameHours)
+		{
+			ZoneWound.WoundInfectionState = EZSWoundInfectionState::Infected;
+
+			// Temporary visibility until B1's real "plainly shown" UI exists (B0-T6.3) - same
+			// pattern/cleanup note as every other temporary confirmation this session (B0-T5.5).
+			UE_LOG(LogZombieShooter, Warning, TEXT("%s: %s wound infection now Infected"),
+				*GetOwner()->GetName(), *UEnum::GetValueAsString(ZoneWound.Zone));
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(INDEX_NONE, 3.f, FColor::Orange,
+					FString::Printf(TEXT("%s wound infection: %s"), *GetOwner()->GetName(), *UEnum::GetValueAsString(ZoneWound.Zone)));
+			}
+		}
+	}
+
+	if (bAnyChanged)
 	{
 		OnRep_BodyZones();
 	}
@@ -507,11 +620,27 @@ void UZSHealthComponent::Server_RollForInfection(EZSBodyZone Zone)
 		OnRep_BodyZones();
 	}
 
+	// B0-T6.4: this infection's own randomized total (dev-confirmed range: 2-4 in-game days), scaled
+	// from HealthConfig's 4 base proportional-weight durations so relative stage pacing is preserved
+	// while the total varies run-to-run - see RolledInfectionStageDurationsGameHours's own comment.
+	const float BaseTotal = HealthConfig->IncubatingDurationGameHours + HealthConfig->QueasyDurationGameHours
+		+ HealthConfig->FeverDurationGameHours + HealthConfig->CriticalDurationGameHours;
+	const float TargetTotal = FMath::FRandRange(HealthConfig->MinBiteInfectionDurationGameHours, HealthConfig->MaxBiteInfectionDurationGameHours);
+	const float ScaleFactor = (BaseTotal > 0.f) ? (TargetTotal / BaseTotal) : 1.f;
+
+	RolledInfectionStageDurationsGameHours[0] = HealthConfig->IncubatingDurationGameHours * ScaleFactor;
+	RolledInfectionStageDurationsGameHours[1] = HealthConfig->QueasyDurationGameHours * ScaleFactor;
+	RolledInfectionStageDurationsGameHours[2] = HealthConfig->FeverDurationGameHours * ScaleFactor;
+	RolledInfectionStageDurationsGameHours[3] = HealthConfig->CriticalDurationGameHours * ScaleFactor;
+
 	InfectionStage = EZSInfectionStage::Incubating;
 	InfectionStageProgressGameHours = 0.f;
 	OnRep_InfectionStage();
 
-	UE_LOG(LogZombieShooter, Warning, TEXT("%s: bite infection roll HIT - infection now Incubating"), *GetOwner()->GetName());
+	// Temporary visibility until B1's real "plainly shown" UI exists (B0-T6.3, reversed from the old
+	// deliberately-ambiguous design) - remove alongside the rest of this session's temp logging.
+	UE_LOG(LogZombieShooter, Warning, TEXT("%s: bite infection roll HIT - infection now Incubating, total duration %.1f game-hours"),
+		*GetOwner()->GetName(), TargetTotal);
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 3.f, FColor::Purple, FString::Printf(TEXT("%s INFECTED (Incubating)"), *GetOwner()->GetName()));
