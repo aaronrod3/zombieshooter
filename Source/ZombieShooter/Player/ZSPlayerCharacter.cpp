@@ -273,6 +273,38 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugListCarrySlots(
 		}
 	}));
 
+// Temporary B0-T5/T6 test hook - CurrentHealth/BodyZones/InfectionStage are all VisibleAnywhere, not
+// logged anywhere, so watching them during an active zombie fight means either alt-tabbing to a live
+// Details panel mid-fight or getting bitten repeatedly and hoping you remember what changed. This
+// dumps the local (host) player's full wound state to the Output Log in one shot instead. Host-only,
+// same authority reasoning as ZS.DebugDropFirstItem. Remove once real wound/moodle UI lands.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugListWounds(
+	TEXT("ZS.DebugListWounds"),
+	TEXT("Logs the local (host) player's CurrentHealth, bite-infection stage, and every body zone's wound state - B0-T5/T6 testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSHealthComponent* Health = Character ? Character->GetHealthComponent() : nullptr;
+		if (!Health)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugListWounds: no local pawn/health component found"));
+			return;
+		}
+
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugListWounds: CurrentHealth %.1f, bite InfectionStage %s"),
+			Health->GetCurrentHealth(), *UEnum::GetValueAsString(Health->GetInfectionStage()));
+
+		const EZSBodyZone Zones[] = { EZSBodyZone::Head, EZSBodyZone::Torso, EZSBodyZone::Arms, EZSBodyZone::Legs };
+		for (EZSBodyZone Zone : Zones)
+		{
+			const FZSBodyZoneWound Wound = Health->GetZoneWound(Zone);
+			UE_LOG(LogZombieShooter, Log, TEXT("  %s: WoundType=%s Bleeding=%d Clean=%d Splinted=%d CriticalBleed=%d InfectionSource=%d Amputated=%d WoundInfection=%s"),
+				*UEnum::GetValueAsString(Zone), *UEnum::GetValueAsString(Wound.WoundType), Wound.bBleeding, Wound.bClean,
+				Wound.bSplinted, Wound.bCriticalBleed, Wound.bIsInfectionSource, Wound.bAmputated, *UEnum::GetValueAsString(Wound.WoundInfectionState));
+		}
+	}));
+
 AZSPlayerCharacter::AZSPlayerCharacter()
 {
 	// Tick drives the third-person camera-distance interpolation.
