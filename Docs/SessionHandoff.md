@@ -12,7 +12,7 @@ Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per s
 
 ## Last completed (2026-07-29) — `[uncompiled]`
 
-With PIE/editor access unavailable to you this stretch, ran three rounds of code review across B0 instead of stalling, finding and fixing **seven real bugs**, all reusing existing functions (no new abstractions):
+With PIE/editor access unavailable to you this stretch, ran three rounds of code review across B0 instead of stalling, finding and fixing **eight real bugs**, all reusing existing functions (no new abstractions):
 
 1. `Server_EquipToSecondaryHand_Implementation` never seeded offhand-weapon durability from the carried instance — every re-equip silently reset to full durability.
 2. `Server_HandleDeathLootAndZombie` never wrote back weapon durability or destroyed `CurrentWeapon`/`SecondaryWeapon` before dropping loot — a permanent actor leak plus stale-durability loot on every death with a weapon equipped.
@@ -21,20 +21,21 @@ With PIE/editor access unavailable to you this stretch, ran three rounds of code
 5. `CanRackFirearm`/`Server_StartRackFirearm` were hard-coded to `CurrentWeapon` only — a jammed offhand weapon had no way to ever clear the jam.
 6. The bleed-flag logic in `Server_ApplyDamage` gated on the incoming hit's `WoundType`, not the zone's resolved one — a lower-severity hit onto an already-Fractured zone could set/leave `bBleeding=true` on a zone that never actually drains from it.
 7. `Server_StoreInBag` never guarded against storing a currently-equipped instance — **only partially fixed**: the `EquippedBack`/`EquippedHip` half is fixed (lives on the component itself, no new cross-component reach needed); the `HotbarSlots`/`SecondaryHandInstanceId` half lives on `AZSPlayerCharacter` and is a real design call, left open on purpose.
+8. **Dev-reported via your own PIE testing**: unequipping a rifle left its magazine prop floating in the world. `AZSMagazine` is a separate, unreplicated actor merely attached to `AZSWeapon`'s mesh — actor attachment doesn't cascade `Destroy()`, so every `CurrentWeapon->Destroy()` call site (unequip, death, weapon-break) orphaned it. Fixed with one `AZSWeapon::Destroyed()` override that explicitly destroys the magazine first, closing every call site at once.
 
-Added 8 new tests to protect these (one bug had two symptoms covered by the same durability-writeback test). Full detail: `B0_Stabilization.md`'s T9.1/T10.1/T10.4/T11.4/T4.10/T5.3/T2.9 rows, `B0_ChecklistAndDecisions_2026-07-26.md` §1.5.
+Added 9 new tests to protect these (one bug had two symptoms covered by the same durability-writeback test). Full detail: `B0_Stabilization.md`'s T2.7/T9.1/T10.1/T10.4/T11.4/T4.10/T5.3/T2.9 rows, `B0_ChecklistAndDecisions_2026-07-26.md`'s automated-coverage section.
 
-**Nothing has been compiled** — the editor was open the whole stretch, and per standing policy a rebuild is present-session/dev-triggered, not something to force through unprompted. Every function referenced was traced directly against the current source (not assumed), including a Plan-mode design pass that re-verified the highest-confidence findings before any code was touched — but none of that substitutes for a real compile.
+**Nothing has been compiled** — the editor was open the whole stretch, and per standing policy a rebuild is present-session/dev-triggered, not something to force through unprompted. Every function referenced was traced directly against the current source (not assumed), including a Plan-mode design pass that re-verified the highest-confidence findings before any code was touched — but none of that substitutes for a real compile. **One compile error was already reported and fixed** (a test called a protected `Server_` RPC directly instead of its public wrapper, same mistake pattern twice this session) — rebuild not yet confirmed since.
 
-Also reviewed and fixed stale cross-references across `B1_UI_UX.md` through `B12`'s docs plus `CLAUDE.md`/`GameDevPlan.md`, left over from the 2026-07-26 rescope (old rejected death rule, "vehicles cut" contradicting its own reversal, "infection ambiguous" contradicting its own reversal, stale 2-4-player references, a missing Lockpicking entry). See commits `69c5091` and `708bdff`.
+Also reviewed and fixed stale cross-references across `B1_UI_UX.md` through `B12`'s docs plus `CLAUDE.md`/`GameDevPlan.md`, left over from the 2026-07-26 rescope. See commits `69c5091` and `708bdff`. Rewrote `B0_ChecklistAndDecisions_2026-07-26.md` into a plain step-by-step walkthrough format per dev request, folding in the magazine bug fix and the two content gaps (`StressTestZombieClass` unset, `DA_Bag.bIsEquippable`) confirmed blocking by the dev's own console-command testing.
 
 ## Next step
 
-1. **Compile gate, first thing**: full `Build.bat` rebuild. This stretch touched `ZSPlayerCharacter.cpp` (4 fixes), `ZombieCharacter.cpp` (1 fix), `ZSHealthComponent.cpp` (1 fix), `ZSInventoryComponent.cpp` (1 fix), and added 8 test cases on top of the 2 from the previous stretch — a real batch of changes, worth a careful build/run pass, not a quick skim.
+1. **Compile gate, first thing**: full `Build.bat` rebuild. This stretch touched `ZSPlayerCharacter.cpp` (4 fixes), `ZombieCharacter.cpp` (1 fix), `ZSHealthComponent.cpp` (1 fix), `ZSInventoryComponent.cpp` (1 fix), `ZSWeapon.h`/`.cpp` (1 fix, the magazine-orphan bug), and added 9 test cases on top of the 2 from the previous stretch — a real batch of changes, worth a careful build/run pass, not a quick skim.
 2. Once compiled, run the full `ZS.*` automation filter, not just the newest tests — the death-path fixes touch `HandleDeath`, which no pre-existing test covers at all.
-3. `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §2.9 item 3 has the offhand-fire manual test steps — needs your hands (no PIE-input automation path exists — see tooling gotchas below). Worth re-testing durability persistence and death/loot specifically now that these fixes are in.
+3. **`Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` is now a walkthrough, start there** — its "Start here" section has 3 immediate items: rebuild (magazine fix), assign `StressTestZombieClass`, and check `DA_Bag.bIsEquippable` (the exact two gaps your own console testing just hit).
 4. **A real design decision is waiting on you**: bug 7's `HotbarSlots`/`SecondaryHandInstanceId` half (whether `UZSInventoryComponent` should gain a cross-component query into `AZSPlayerCharacter`'s loadout state, or the character should validate before calling `Server_StoreInBag`) — see `B0_Stabilization.md`'s T2.9 row.
-5. Everything else in B0 is either already PIE-confirmed or already awaiting your hands — see the checklist doc's §2 for the full remaining order.
+5. Everything else in B0 is either already PIE-confirmed or already awaiting your hands — see the checklist doc's walkthrough for the full remaining order.
 
 ## Known tooling gotchas (worth remembering)
 

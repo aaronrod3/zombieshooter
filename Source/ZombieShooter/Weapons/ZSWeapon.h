@@ -37,6 +37,9 @@ public:
 	/** Phase 3: server-authoritative state replicated to all clients - see CoreLoopPlan.md's Phase 3 state classification. */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	/** MainMagazine is a separate, unreplicated actor merely attached to BaseWeaponMesh (see AssembleCosmeticsFromConfig) - actor attachment alone does not cascade Destroy(), so without this override every CurrentWeapon->Destroy() call site (unequip, death, weapon-break) would leave the magazine prop orphaned in the world instead of disappearing with the weapon. Runs on every machine (server and clients), same as the rest of this class's cosmetic assembly. */
+	virtual void Destroyed() override;
+
 	/** Seeds ammo/fire-mode state and assembles cosmetics from the config. Call right after SpawnActor - not BeginPlay, since SpawnActor invokes BeginPlay synchronously once the world has already begun play (the common case for EquipWeapon), which left this config-dependent setup unreachable when it lived in BeginPlay. Server-only (Phase 3) - gated by HasAuthority(); clients assemble the same cosmetics from OnRep_CurrentConfig instead. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	void InitializeFromConfig(UZSWeaponConfig* Config);

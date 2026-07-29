@@ -26,6 +26,7 @@
 #include "ZSInventoryComponent.h"
 #include "ZSWeapon.h"
 #include "ZSWeaponConfig.h"
+#include "ZSMagazine.h"
 #include "ZSWorldItemActor.h"
 #include "ZSGameState.h"
 #include "ZSTestHarnessActor.h"
@@ -1221,7 +1222,7 @@ bool FZSSecondaryWeaponRackFirearmTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	Character->Server_StartRackFirearm();
+	Character->StartRackFirearm();
 	TestFalse(TEXT("SecondaryWeapon jam cleared after Rack Firearm"), Secondary->IsJammed());
 
 	return true;
@@ -1463,6 +1464,62 @@ bool FZSStoreInBagRejectsEquippedTest::RunTest(const FString& Parameters)
 	// succeed, silently orphaning EquippedHip's GUID reference.
 	TestFalse(TEXT("Storing the equipped clothing into the bag is rejected"), Inventory->Server_StoreInBag(BagId, ClothingId));
 	TestEqual(TEXT("Clothing still equipped to Hip, not orphaned"), Inventory->GetEquippedItem(EZSEquipSlot::Hip).InstanceId, ClothingId);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Weapons.DestroyingWeaponAlsoDestroysMagazine - dev-reported 2026-07-29: unequipping a rifle
+// left its magazine prop floating in the world. Root cause: AZSMagazine is a separate, unreplicated
+// actor merely attached to AZSWeapon's BaseWeaponMesh component - actor attachment doesn't cascade
+// Destroy(), so every CurrentWeapon->Destroy() call site (unequip, death, weapon-break) left it
+// orphaned. Fixed via AZSWeapon::Destroyed() explicitly destroying MainMagazine first.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSWeaponDestroyTakesMagazineTest, "ZS.Weapons.DestroyingWeaponAlsoDestroysMagazine", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSWeaponDestroyTakesMagazineTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/AssaultRifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), RifleConfig))
+	{
+		return false;
+	}
+
+	AZSWeapon* Weapon = TestWorld.World->SpawnActor<AZSWeapon>();
+	if (!TestNotNull(TEXT("Weapon spawned"), Weapon))
+	{
+		return false;
+	}
+	Weapon->InitializeFromConfig(RifleConfig);
+
+	int32 MagazineCountBefore = 0;
+	for (TActorIterator<AZSMagazine> It(TestWorld.World); It; ++It)
+	{
+		++MagazineCountBefore;
+	}
+	if (MagazineCountBefore == 0)
+	{
+		AddWarning(TEXT("AssaultRifle config has no magazine socket/mesh assigned - nothing spawned to test cleanup against."));
+		return true;
+	}
+
+	Weapon->Destroy();
+
+	int32 MagazineCountAfter = 0;
+	for (TActorIterator<AZSMagazine> It(TestWorld.World); It; ++It)
+	{
+		if (IsValid(*It))
+		{
+			++MagazineCountAfter;
+		}
+	}
+	TestEqual(TEXT("No magazine actors survive the weapon's destruction"), MagazineCountAfter, 0);
 
 	return true;
 }

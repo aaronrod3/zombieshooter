@@ -146,6 +146,17 @@ UStaticMeshComponent* AZSWeapon::AssignNewStaticMesh(const FName& SocketName, US
 	return NewComponent;
 }
 
+void AZSWeapon::Destroyed()
+{
+	if (MainMagazine)
+	{
+		MainMagazine->Destroy();
+		MainMagazine = nullptr;
+	}
+
+	Super::Destroyed();
+}
+
 AZSMagazine* AZSWeapon::SpawnMagazine(FName SocketName)
 {
 	if (!CurrentConfig || SocketName.IsNone() || !BaseWeaponMesh->DoesSocketExist(SocketName))
