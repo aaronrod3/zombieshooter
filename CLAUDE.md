@@ -18,7 +18,7 @@ Docs: `Docs/GameDevPlan.md` = design plan of record — pillars, scope contract,
 ## Commands
 - Build (Editor): Rider/VS → `ZombieShooterEditor Win64 Development`, or `Build.bat ZombieShooterEditor Win64 Development -project=...uproject -waitmutex`
 - Gen project files: `Build.bat -projectfiles -project=...uproject -game -engine`
-- Test: PIE only, no automated suite. Multiplayer: PIE Multiplayer Options (Players ≥2, listen-server).
+- Test: PIE for gameplay feel/visuals/multiplayer (Multiplayer Options, Players ≥2, listen-server) — still needs a human, no way around it. For pure server-logic/state/math, `Source/ZombieShooter/Tests/` (added 2026-07-28) holds headless Unreal Automation Tests — run via `UnrealEditor-Cmd.exe ...uproject -ExecCmds="Automation RunTests ZS.; Quit" -unattended -nopause -nullrhi`, results in `Saved/Logs/ZombieShooter.log`. Components spawned for a test need a real actor with them as constructor subobjects (`ZSTestHarnessActor.h`) — a component added to an already-spawned actor via `NewObject`+`RegisterComponent()` does **not** reliably get its own `BeginPlay()` called in a synthetic test world; that's what causes the seeded-state-looks-empty class of false negative.
 - Header change → regen project files if needed. Live Coding (Ctrl+Alt+F11) OK for .cpp-only.
 - Git + LFS, branch `main`. Commit after each sub-task. Never force-push main.
 

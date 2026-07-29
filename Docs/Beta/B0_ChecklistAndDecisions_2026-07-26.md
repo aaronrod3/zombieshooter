@@ -46,6 +46,33 @@ None of this blocks compiling or most testing, but several features degrade grac
 
 ---
 
+## 1.5 — Automated coverage (Unreal Automation Tests), added 2026-07-28
+
+`Source/ZombieShooter/Tests/ZSAutomationTests.cpp` + `ZSTestHarnessActor.h/.cpp` — a first batch of headless automation tests covering the pure state/math parts of the checklist below, so they don't need to be manually re-verified in PIE every time. Calls the same `Server_`-prefixed functions real gameplay uses (no simulated input, no viewport, no MCP - that path is confirmed unreliable, see `CLAUDE.md`). Run via:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Users\aaron\Documents\Unreal Projects\ZombieShooter\ZombieShooter.uproject" -ExecCmds="Automation RunTests ZS.; Quit" -unattended -nopause -nullrhi
+```
+
+Results land in `Saved/Logs/ZombieShooter.log` (search for `Test Completed`) - the process's own exit code is non-zero whenever any test fails, by design (that's the framework signaling failure, not a launch error).
+
+**Current status: 5/6 passing.**
+
+| Test | Covers | Result |
+|---|---|---|
+| `ZS.Needs.SeverityTierBoundaries` | T4.9 tier-threshold math | ✅ Pass |
+| `ZS.Inventory.ItemInstanceWeightRollup` | `FZSItemInstance::GetTotalWeight()` incl. nested `ContainedItems` - direct coverage of the 2026-07-27 UHT recursion fix actually computing right, not just compiling | ✅ Pass |
+| `ZS.Loot.ConditionQualityBands` | T2.10 - 200 rolls per rarity tier, all land inside the authored band | ✅ Pass |
+| `ZS.Weapons.DurabilityPersistence` | Checkpoint B's mechanism (seed from instance, consume hits, breaks at exactly 0) - not the full hotbar/equip UI flow, that still needs PIE | ✅ Pass |
+| `ZS.Health.WoundZonesAndInfection` | T5.1's bite-zone fix (hits land on the named zone, not always Torso) + T6's infection roll - calls `Server_ApplyDamage` directly, not the real capsule-trace bite path | ✅ Pass - **this is the same mechanism your 2026-07-27 zombie-bite test exercised**; it passing here confirms the zone/infection code itself is correct, which narrows your "zombie attack only once" finding toward range or the BT graph, not a hidden bug in `Server_ApplyDamage` |
+| `ZS.Inventory.BagStoreAndRetrieve` | Checkpoint C's mechanics (store/retrieve/GUID-preservation, plus the new reject-nested-loaded-bag guard) - not the 2-client replication half, that still needs PIE | ❌ **Fails on a real finding**: `DA_Bag.uasset`'s `bIsEquippable` is `false`. Not a test bug - Checkpoint C can't work at all (in PIE either) until this is set. Open `DA_Bag`, set `bIsEquippable = true` and a real `EquipSlot`, and this test should go green along with unblocking manual testing. |
+
+**Not yet covered, good candidates for a follow-up batch**: amputation/blackout state transitions (T7), downed-zombie entry/exit via knockback threshold (T10.4), SecondaryHand `TwoHanded` blocking (Checkpoint E), jam-chance interpolation bounds (T10.1). None of these need anything new from the harness - same pattern, just more tests.
+
+**Still fundamentally needs PIE, no way around it**: 2-client replication, camera/aim feel (PT2), combat feel (PT5), anything visual (flashlight placement, animations), the full player-character hotbar/equip integration (as opposed to the mechanism alone), and anything requiring the real `BT_Zombie` graph's actual branching behavior.
+
+---
+
 ## 2. Test checklist, in dependency order
 
 Work through in this order — later items build on earlier ones, so a failure early on may explain a failure downstream.
@@ -106,7 +133,7 @@ Because this project deliberately marks replicated gameplay state `VisibleAnywhe
 ### 2.2 — Wound model (T5)
 🔍 **In progress, 2026-07-27 — two open findings, not yet resolved:**
 - **"Body zones not set in editor."** Checked: `UZSHealthComponent::BeginPlay` *does* seed all 4 zones (Head/Torso/Arms/Legs) into `BodyZones`, gated on `HasAuthority()` — this only runs on an actual spawned instance, never on a Blueprint's Class Defaults/CDO (which never calls `BeginPlay`). If you were looking at `BP_ZS_PlayerCharacter`'s Class Defaults rather than your pawn selected live in the World Outliner *during* PIE, that'd explain seeing it empty — the array simply doesn't exist until an instance actually spawns and runs `BeginPlay`. Worth double-checking which one you had selected before assuming it's a bug.
-- **"Zombie attack only once."** Checked `AZombieCharacter::Server_MeleeAttack`: the cooldown (`Now - LastAttackTime < AttackInterval`, 1.5s default) is a per-attack gate, not a one-shot lock — nothing in the C++ prevents repeat attacks. Two likely explanations, need more detail to pin down which: (a) the zombie lost `MeleeRange` (150 units) after the first hit and never got back in range before you stopped testing, or (b) **if you hit it back at all**, this session's new downed-state system (`DownedKnockbackThreshold`, 150) pauses the zombie's *entire* behavior tree the instant it triggers — that would look exactly like "stopped attacking on its own" if you landed a knockback hit without realizing that's what it did. Can't diagnose further without the `BT_Zombie` graph itself (no editor/MCP access this session) — if you can say whether the zombie kept chasing/closing distance after the first bite, or just froze/wandered off, that'd narrow it down.
+- **"Zombie attack only once."** Checked `AZombieCharacter::Server_MeleeAttack`: the cooldown (`Now - LastAttackTime < AttackInterval`, 1.5s default) is a per-attack gate, not a one-shot lock — nothing in the C++ prevents repeat attacks. **2026-07-28 update**: added `ZS.Health.WoundZonesAndInfection` (§1.5) to directly exercise `Server_ApplyDamage` — it passes clean, confirming the damage/zone/infection pipeline itself has no hidden bug that would stop a second hit from registering. That narrows this down to two remaining explanations, need more detail to pin down which: (a) the zombie lost `MeleeRange` (150 units) after the first hit and never got back in range before you stopped testing, or (b) **if you hit it back at all**, this session's new downed-state system (`DownedKnockbackThreshold`, 150) pauses the zombie's *entire* behavior tree the instant it triggers — that would look exactly like "stopped attacking on its own" if you landed a knockback hit without realizing that's what it did. Can't diagnose further without the `BT_Zombie` graph itself (no editor/MCP access this session) — if you can say whether the zombie kept chasing/closing distance after the first bite, or just froze/wandered off, that'd narrow it down.
 
 1. **Zone variance.** Get bitten from a few different relative angles (front, side, while facing away). Watch `HealthComponent`'s `BodyZones` (Details, or `GetZoneWound(Zone)`) — the zone that takes the hit (`Head`/`Torso`/`Arms`/`Legs`) should vary across attempts, not always land on `Torso` (the bug T5.1 fixed).
 2. **Critical head bleed.** Take repeated Head-zone hits until a bleed starts there — `CriticalHeadBleedChance` is only 8% per fresh Head bleed, so expect several tries. Watch `bCriticalBleed` on the Head entry; once set, `CurrentHealth` should drain noticeably faster (4/s vs. the normal per-type rate). Bandage it (`Server_ApplyBandage`) — **pass** if both `bCriticalBleed` and `bBleeding` clear.
