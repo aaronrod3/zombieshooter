@@ -1336,4 +1336,135 @@ bool FZSDeathWritesBackDurabilityTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Fifth batch, added 2026-07-29 - the two lower-severity findings from the same code-review pass
+// that produced the fourth batch, picked up in a follow-up round rather than bundled with the
+// first four (finding 6 below is only a partial fix - see its own comment).
+// ---------------------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Health.FractureUpgradeClearsBleedFlag - Server_ApplyDamage gated the bleed-flag logic on the
+// incoming hit's WoundType parameter rather than the zone's resolved WoundType. A lower-severity
+// hit (e.g. Scratch, severity 1) landing on an already-Fractured zone (severity 3) doesn't upgrade
+// WoundType, but the incoming parameter still isn't Fracture - which used to set bBleeding=true on
+// a zone TickBleed never drains (no case for Fracture).
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSFractureClearsBleedTest, "ZS.Health.FractureUpgradeClearsBleedFlag", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSFractureClearsBleedTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	if (!Harness->HasActorBegunPlay())
+	{
+		Harness->DispatchBeginPlay();
+	}
+	UZSHealthComponent* Health = Harness->HealthComponent;
+
+	// Fracture first - establishes the zone's tracked WoundType as Fracture (severity 3).
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Torso, EZSWoundType::Fracture, nullptr, nullptr);
+	if (!TestEqual(TEXT("Torso tracked as Fracture"), Health->GetZoneWound(EZSBodyZone::Torso).WoundType, EZSWoundType::Fracture))
+	{
+		return false;
+	}
+	TestFalse(TEXT("Torso not bleeding immediately after a fresh Fracture"), Health->GetZoneWound(EZSBodyZone::Torso).bBleeding);
+
+	// A lower-severity Scratch hit (severity 1 < Fracture's 3) doesn't upgrade WoundType - the zone
+	// stays tracked as Fracture. This is the exact bug scenario: pre-fix, this used to set
+	// bBleeding=true anyway because the check only looked at this hit's own WoundType (Scratch),
+	// never the zone's actual resolved one.
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Torso, EZSWoundType::Scratch, nullptr, nullptr);
+	const FZSBodyZoneWound TorsoWound = Health->GetZoneWound(EZSBodyZone::Torso);
+	if (!TestEqual(TEXT("Torso still tracked as Fracture (Scratch didn't upgrade it)"), TorsoWound.WoundType, EZSWoundType::Fracture))
+	{
+		return false;
+	}
+	TestFalse(TEXT("Torso still not bleeding after the lower-severity Scratch hit"), TorsoWound.bBleeding);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.StoreInBagRejectsEquippedInstance - Server_StoreInBag never checked whether the
+// instance being stored was currently referenced by EquippedBack/Hip, silently orphaning the gear
+// slot's GUID (it'd resolve to an invalid instance from then on) instead of rejecting the move.
+// Partial fix only: doesn't cover HotbarSlots/SecondaryHandInstanceId, which live on
+// AZSPlayerCharacter, not this component - closing that half needs the character to validate
+// before calling this, or a new cross-component query, a real design call left open on purpose.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSStoreInBagRejectsEquippedTest, "ZS.Inventory.StoreInBagRejectsEquippedInstance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSStoreInBagRejectsEquippedTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	UZSInventoryComponent* Inventory = Harness->InventoryComponent;
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	UZSItemConfig* BagConfig = NewObject<UZSItemConfig>();
+	BagConfig->bIsEquippable = true;
+	BagConfig->EquipSlot = EZSEquipSlot::Back;
+	BagConfig->CarryCapacityBonus = 20.f;
+
+	UZSItemConfig* ClothingConfig = NewObject<UZSItemConfig>();
+	ClothingConfig->bIsEquippable = true;
+	ClothingConfig->EquipSlot = EZSEquipSlot::Hip;
+
+	if (!TestEqual(TEXT("Bag added to CarrySlots"), Inventory->Server_AddItem(BagConfig, 1), 1))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Clothing added to CarrySlots"), Inventory->Server_AddItem(ClothingConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* BagInstance = Slots.FindByPredicate([BagConfig](const FZSItemInstance& I) { return I.Config == BagConfig; });
+	const FZSItemInstance* ClothingInstance = Slots.FindByPredicate([ClothingConfig](const FZSItemInstance& I) { return I.Config == ClothingConfig; });
+	if (!TestNotNull(TEXT("Bag instance found"), BagInstance) || !TestNotNull(TEXT("Clothing instance found"), ClothingInstance))
+	{
+		return false;
+	}
+	const FGuid BagId = BagInstance->InstanceId;
+	const FGuid ClothingId = ClothingInstance->InstanceId;
+
+	if (!TestTrue(TEXT("Bag equips to Back"), Inventory->Server_EquipToSlot(EZSEquipSlot::Back, BagId)))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("Clothing equips to Hip"), Inventory->Server_EquipToSlot(EZSEquipSlot::Hip, ClothingId)))
+	{
+		return false;
+	}
+
+	// Real bug found and fixed 2026-07-29: storing a currently-equipped instance into a bag used to
+	// succeed, silently orphaning EquippedHip's GUID reference.
+	TestFalse(TEXT("Storing the equipped clothing into the bag is rejected"), Inventory->Server_StoreInBag(BagId, ClothingId));
+	TestEqual(TEXT("Clothing still equipped to Hip, not orphaned"), Inventory->GetEquippedItem(EZSEquipSlot::Hip).InstanceId, ClothingId);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

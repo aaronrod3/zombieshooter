@@ -178,7 +178,14 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 			ZoneWound->FractureRecoveryProgressGameHours = 0.f;
 		}
 
-		if (WoundType != EZSWoundType::Fracture)
+		// Gated on ZoneWound->WoundType (the zone's resolved wound type after the severity-upgrade
+		// check above), not the incoming hit's WoundType parameter - a lower-severity hit (e.g. a
+		// Scratch, severity 1) landing on an already-Fractured zone (severity 3) doesn't upgrade
+		// WoundType, but the incoming parameter still isn't Fracture, which used to set
+		// bBleeding=true on a zone the code otherwise treats as never-bleeding (TickBleed has no case
+		// for Fracture). Also explicitly clears any bleed flags inherited from a wound type this hit
+		// just upgraded past, rather than leaving them stale on a zone now tracked as Fracture.
+		if (ZoneWound->WoundType != EZSWoundType::Fracture)
 		{
 			ZoneWound->bBleeding = true;
 
@@ -187,6 +194,11 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 			{
 				ZoneWound->bCriticalBleed = true;
 			}
+		}
+		else
+		{
+			ZoneWound->bBleeding = false;
+			ZoneWound->bCriticalBleed = false;
 		}
 
 		OnRep_BodyZones();
