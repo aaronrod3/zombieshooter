@@ -1,21 +1,8 @@
-# B0 Autonomous Push — Test Checklist & Decisions Log (2026-07-26)
+# B0 Manual Steps — Test Checklist & Decisions Log
 
-> **What this is.** You stepped away and asked for as much of B0 as possible to get done without you, plus a list of tests to work through on your return and a list of decisions that need your call. This is that list. Full technical detail for every item here already lives in `Docs/Beta/B0_Stabilization.md` (every sub-task row was updated as it was built) — this doc is the curated, sequential "start here" companion, not a replacement.
+> **What this is — the single doc for everything that needs your hands.** Two kinds of items live here: (1) content authoring / manual PIE testing that no available tooling can do for you (`unreal-mcp` disconnected, no reliable PIE-input automation — see `CLAUDE.md`), and (2) judgment calls/decisions made in your absence that are worth a second look. Full technical detail for every item lives in `Docs/Beta/B0_Stabilization.md` (every sub-task row) — this doc is the curated, actionable companion, not a replacement. Compile/PIE-verification *status* lives in `Docs/SessionHandoff.md`, not here — don't update status in both places.
 >
-> **Update, 2026-07-27**: the module now compiles clean (`Build.bat ZombieShooterEditor Win64 Development` succeeded). One real error surfaced and was fixed along the way — `FZSItemInstance` had contained a `TArray<FZSItemInstance>` for bag contents (`ContainedItems`), which Unreal's header tool rejects (a USTRUCT can't hold an array of itself). Fixed by splitting the field's type into a non-recursive `FZSItemInstanceBase` — see the note at the top of §2.1's Checkpoint C below for the one behavior change this caused. **Nothing has been PIE-tested yet** — that's what the rest of this doc is for. Section 0 below is otherwise still accurate; items 1-2 are now done.
->
-> **Update, 2026-07-28 (away session)**: T11.2's offhand-weapon-firing content gap (§3.2 below used to list this as deliberately not built) is now implemented — `AZSPlayerCharacter::SecondaryWeapon` mirrors `CurrentWeapon`'s full lifecycle, ranged fire goes through a newly-extracted `FireWeapon(AZSWeapon*)` helper shared with the primary hand, melee reuses the already-generic `PerformMeleeSwing` unchanged. Also fixed a real cross-client bug this surfaced: `AZSWeapon::OnRep_CurrentConfig` used to call the character's primary-weapon attach functions unconditionally regardless of which weapon actor triggered it. **Not built or PIE-tested** — the dev's editor was open for this entire away session, and per the 2026-07-28 workflow policy, editor-closing for a build is present-session/dev-triggered only, so it wasn't attempted. See `Docs/Beta/B0_Stabilization.md` T11.4's row for full detail; this is the first thing to verify on return, before anything else in this doc.
-
----
-
-## 0. Before anything else: build
-
-1. **Close the editor if it's open, then run a full `Build.bat` rebuild** (not Live Coding — this stretch touched dozens of headers, and CLAUDE.md's own Live Coding lesson is explicit about header changes needing a real rebuild). Expect this to surface the first real compile errors this code has seen.
-2. **Regenerate IDE project files** (`Build.bat -projectfiles -project=...uproject -game -engine`) — new files this stretch: `Player/ZSCameraDirector.h/.cpp`, `Framework/ZSElevationSubsystem.h/.cpp`.
-3. Once it compiles, open the editor and run a **"Compile All Blueprints" pass** (Content Browser bulk action) before trusting any PIE result — standing B0-T0.1 policy, doubly important after this much C++ churn.
-4. Check the Output Log for `is not a child class of` / `invalid target type` — the Live Coding corruption pattern. Shouldn't apply (no Live Coding used), but costs nothing to check.
-
-**If it doesn't compile clean**, that's the actual next step, not the test list below — come back to this doc once it does.
+> **Status as of 2026-07-29**: the module compiles clean end-to-end, including T11.2's offhand-weapon-firing addition (`AZSPlayerCharacter::SecondaryWeapon`, closed 2026-07-28, see §2.9 item 3 and §3.2). **Nothing below has been PIE-tested yet** — that's what this whole doc is for.
 
 ---
 
@@ -58,26 +45,24 @@ None of this blocks compiling or most testing, but several features degrade grac
 
 Results land in the log named by `-log=` (default `Saved/Logs/ZombieShooter.log` if omitted, search for `Test Completed`) - the process's own exit code is non-zero whenever any test fails, by design (that's the framework signaling failure, not a launch error). **Always pass an explicit `-log=some_name.log`** - running against the default log path while the GUI editor is also open causes the run to silently fail before it even loads the project (confirmed 2026-07-28); an isolated log name sidesteps it cleanly and works whether or not the editor is open.
 
-**Current status: 9/10 passing.** Second batch added 2026-07-28.
+**Current status: 12 tests total.** 10 have actually been run (9 pass, 1 fails on a real content-gap finding). The 2 newest (latent/time-based) compile clean as of 2026-07-29 but have never been executed — say the word for a test-automation session (present-session, dev-triggered only, see `CLAUDE.md`) to get their first real run.
 
 | Test | Covers | Result |
 |---|---|---|
 | `ZS.Needs.SeverityTierBoundaries` | T4.9 tier-threshold math | ✅ Pass |
-| `ZS.Inventory.ItemInstanceWeightRollup` | `FZSItemInstance::GetTotalWeight()` incl. nested `ContainedItems` - direct coverage of the 2026-07-27 UHT recursion fix actually computing right, not just compiling | ✅ Pass |
+| `ZS.Inventory.ItemInstanceWeightRollup` | `FZSItemInstance::GetTotalWeight()` incl. nested `ContainedItems` | ✅ Pass |
 | `ZS.Loot.ConditionQualityBands` | T2.10 - 200 rolls per rarity tier, all land inside the authored band | ✅ Pass |
 | `ZS.Weapons.DurabilityPersistence` | Checkpoint B's mechanism (seed from instance, consume hits, breaks at exactly 0) - not the full hotbar/equip UI flow, that still needs PIE | ✅ Pass |
-| `ZS.Health.WoundZonesAndInfection` | T5.1's bite-zone fix (hits land on the named zone, not always Torso) + T6's infection roll - calls `Server_ApplyDamage` directly, not the real capsule-trace bite path | ✅ Pass - **this is the same mechanism your 2026-07-27 zombie-bite test exercised**; it passing here confirms the zone/infection code itself is correct, which narrows your "zombie attack only once" finding toward range or the BT graph, not a hidden bug in `Server_ApplyDamage` |
-| `ZS.Weapons.JamChanceBounds` | T10.1 - jam rate at pristine vs. worst condition, both direction and rough bound checked against `Lerp(MaxJamChance, BaseJamChance, ConditionQuality)` | ✅ Pass |
-| `ZS.Combat.DownedZombieState` | T10.4 - `Server_EnterDownedState`/`Server_ExitDownedState` entry/exit on a real spawned zombie. Not covered: the automatic recovery-after-`DownedRecoverySeconds` timer - needs a latent test or PIE | ✅ Pass |
-| `ZS.Health.AmputationStateTransition` | T7 - `Server_AmputateZone`'s state transition (zone marked amputated, wound cleared, bite infection cleared when the zone was the infection source, rejects re-amputating/Torso). Not covered: `AZSPlayerCharacter::Server_AmputateZone`'s outer timed choreography (`bIsBusy` → 3s wait → `EnterBlackout`) - a real RPC wrapper around this, needs a latent test or PIE | ✅ Pass (after a fix - see below) |
-| `ZS.Loadout.SecondaryHandBlocksTwoHanded` | Checkpoint E - a `TwoHanded` primary (equipped via the existing public `EquipWeapon()`, not the timed hotbar flow) blocks `Server_EquipToSecondaryHand` | ✅ Pass |
-| `ZS.Inventory.BagStoreAndRetrieve` | Checkpoint C's mechanics (store/retrieve/GUID-preservation, plus the new reject-nested-loaded-bag guard) - not the 2-client replication half, that still needs PIE | ❌ **Fails on a real finding**: `DA_Bag.uasset`'s `bIsEquippable` is `false`. Not a test bug - Checkpoint C can't work at all (in PIE either) until this is set. Open `DA_Bag`, set `bIsEquippable = true` and a real `EquipSlot`, and this test should go green along with unblocking manual testing. |
+| `ZS.Health.WoundZonesAndInfection` | T5.1's bite-zone fix + T6's infection roll, via direct `Server_ApplyDamage` calls | ✅ Pass - confirms the zone/infection code itself has no hidden bug behind the "zombie attack only once" finding (§2.2) |
+| `ZS.Weapons.JamChanceBounds` | T10.1 - jam rate at pristine vs. worst condition against `Lerp(MaxJamChance, BaseJamChance, ConditionQuality)` | ✅ Pass |
+| `ZS.Combat.DownedZombieState` | T10.4 - `Server_EnterDownedState`/`Server_ExitDownedState` entry/exit. Not covered: the automatic recovery timer, see the latent test below | ✅ Pass |
+| `ZS.Health.AmputationStateTransition` | T7 - `Server_AmputateZone`'s state transition (zone marked amputated, wound cleared, bite infection cleared, rejects re-amputating/Torso) | ✅ Pass |
+| `ZS.Loadout.SecondaryHandBlocksTwoHanded` | Checkpoint E - a `TwoHanded` primary blocks `Server_EquipToSecondaryHand` | ✅ Pass |
+| `ZS.Inventory.BagStoreAndRetrieve` | Checkpoint C's mechanics (store/retrieve/GUID-preservation, reject-nested-loaded-bag guard) | ❌ **Fails on a real finding**: `DA_Bag.uasset`'s `bIsEquippable` is `false`. Not a test bug - Checkpoint C can't work at all, in PIE either, until this is set (see §1 above). |
+| `ZS.Combat.DownedZombieAutoRecovery` | The recovery-after-`DownedRecoverySeconds` timer `DownedZombieState` doesn't cover | 🔧 Compiles clean, **never run** |
+| `ZS.Health.AmputationChoreographyEntersBlackout` | `AZSPlayerCharacter::Server_AmputateZone`'s outer timed choreography (`bIsBusy` → 3s wait → `EnterBlackout`) | 🔧 Compiles clean, **never run** — this test itself needed a fix (was calling a protected function directly) to even compile, see `SessionHandoff.md` |
 
-**Bug caught and fixed while building the second batch**: `AmputationStateTransition` initially failed 50/50 attempts to roll a 40%-chance bite infection - reproducible, not bad luck (~1-in-20-billion if truly random). Root cause: forgot the same `DispatchBeginPlay()` call `WoundZonesAndInfection` already needed - without it `BodyZones` never seeds, so the whole wound-application block (including the infection roll) silently never runs. Same class of bug as the first batch's, now present in both places it applies.
-
-**Not yet covered, candidates for a further batch**: everything time-based (blackout's 3s choreography, downed-zombie auto-recovery, fracture/infection duration completion) - all need a real "latent" automation test (waits across frames) or PIE, a different pattern than anything built so far. Also not attempted: offhand-weapon-fire (it's an intentional gap, nothing to test), Shove/Mount-Climb (undesigned).
-
-**Still fundamentally needs PIE, no way around it**: 2-client replication, camera/aim feel (PT2), combat feel (PT5), anything visual (flashlight placement, animations), the full player-character hotbar/equip integration (as opposed to the mechanism alone), and anything requiring the real `BT_Zombie` graph's actual branching behavior.
+**Still fundamentally needs PIE, no way around it**: 2-client replication, camera/aim feel (PT2), combat feel (PT5), anything visual (flashlight placement, animations), the full player-character hotbar/equip integration (as opposed to the mechanism alone), offhand-weapon-fire (§2.9 item 3), Shove/Mount-Climb (undesigned), and anything requiring the real `BT_Zombie` graph's actual branching behavior.
 
 ---
 
@@ -236,7 +221,3 @@ Consolidated from Section 1 above, for reference:
 - `AZSPlayerCharacter::DeathZombieClass` and `AZSGameMode::StressTestZombieClass` assignments
 - `Lvl_ZS_StressTest` map (T12.1's own deliverable, not built)
 - Delete orphaned `IA_ToggleView.uasset`
-
-### 3.4 — Everything committed and pushed this stretch
-
-Nine commits on `main`, each independently revertable if a regression needs bisecting: `B0-T4` (needs simulation), `B0-T3` (camera/aiming), `B0-T9` (death/loot), `B0-T10 remainder` (jamming/stamina/downed/finisher), `B0-T11` (SecondaryHand/flashlight), `B0-T12.1` (stress-test command) — plus, from the portion of this push before the context reset, `B0-T2 Steps B-E`, `B0-T5`, `B0-T6`, `B0-T7`. `git log --oneline` from `b0-baseline` forward shows the full sequence.
