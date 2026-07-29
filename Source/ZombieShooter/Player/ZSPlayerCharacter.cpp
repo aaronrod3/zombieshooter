@@ -186,6 +186,64 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugEquipFirstBagItem(
 			*GetNameSafe(BagOrClothing->Config), *BagOrClothing->InstanceId.ToString(), (int32)BagOrClothing->Config->EquipSlot);
 	}));
 
+// Temporary B0-T11 test hook - no bound input exists yet to equip anything into SecondaryHand (that's
+// UI work). Finds the first CarrySlots instance legal for SecondaryHand (a bIsToggleable item, or a
+// OneHanded weapon with bUsableInSecondaryHand) and equips it. Server_EquipToSecondaryHand is void and
+// silently no-ops on rejection (e.g. a TwoHanded primary is equipped, see its own comment), so this
+// logs SecondaryHandInstanceId before/after to make a rejection visible either way - that silent
+// reject-or-accept is exactly what B0's "Two-Handed blocks SecondaryHand" checkpoint tests. Host-only,
+// same authority reasoning as ZS.DebugDropFirstItem. Remove once real inventory UI/input lands.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugEquipFirstToSecondaryHand(
+	TEXT("ZS.DebugEquipFirstToSecondaryHand"),
+	TEXT("Tries to equip the first SecondaryHand-legal CarrySlots item (toggleable, or a OneHanded+bUsableInSecondaryHand weapon) into SecondaryHand - B0-T11/T2 Checkpoint E testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSInventoryComponent* Inventory = Character ? Character->GetInventoryComponent() : nullptr;
+		if (!Character || !Inventory)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugEquipFirstToSecondaryHand: no local pawn/inventory found"));
+			return;
+		}
+
+		const TArray<FZSItemInstance> Carried = Inventory->GetCarrySlots();
+		const FZSItemInstance* Candidate = Carried.FindByPredicate([](const FZSItemInstance& Instance)
+		{
+			if (!Instance.Config)
+			{
+				return false;
+			}
+			if (Instance.Config->bIsToggleable)
+			{
+				return true;
+			}
+			const UZSWeaponConfig* WeaponConfig = Cast<UZSWeaponConfig>(Instance.Config);
+			return WeaponConfig && WeaponConfig->Handedness == EZSWeaponHandedness::OneHanded && WeaponConfig->bUsableInSecondaryHand;
+		});
+		if (!Candidate)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugEquipFirstToSecondaryHand: no SecondaryHand-legal item carried (need a bIsToggleable item, e.g. a flashlight, or a OneHanded weapon with bUsableInSecondaryHand)"));
+			return;
+		}
+
+		const FGuid BeforeId = Character->GetSecondaryHandInstanceId();
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugEquipFirstToSecondaryHand: attempting %s (InstanceId %s), primary weapon is %s"),
+			*GetNameSafe(Candidate->Config), *Candidate->InstanceId.ToString(),
+			Character->GetCurrentWeapon() ? *GetNameSafe(Character->GetCurrentWeapon()->GetConfig()) : TEXT("none/bare fists"));
+		Character->Server_EquipToSecondaryHand(Candidate->InstanceId);
+
+		const FGuid AfterId = Character->GetSecondaryHandInstanceId();
+		if (AfterId == Candidate->InstanceId)
+		{
+			UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugEquipFirstToSecondaryHand: SUCCEEDED - SecondaryHandInstanceId now %s"), *AfterId.ToString());
+		}
+		else
+		{
+			UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugEquipFirstToSecondaryHand: REJECTED - SecondaryHandInstanceId unchanged (%s). Likely cause: primary weapon is TwoHanded."), *AfterId.ToString());
+		}
+	}));
+
 // Temporary B0-T2 Checkpoint C test hook - logs the local (host) player's full CarrySlots, including
 // nested ContainedItems, so bag contents are actually observable without an inventory UI. Remove
 // once real inventory UI lands.

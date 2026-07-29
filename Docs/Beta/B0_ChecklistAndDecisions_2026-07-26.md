@@ -54,6 +54,7 @@ You can **watch** these values but not **edit** them by typing into Details — 
 | `ZS.DebugDropFirstItem` | Drops 1 unit of the first item in `CarrySlots`. |
 | `ZS.DebugEquipFirstBagItem` | Equips the first bag/clothing-type item you're carrying into its own Back/Hip slot — this is how you get the bag's `CarryCapacityBonus` (extra slots) without any UI. **New, needs a rebuild.** |
 | `ZS.DebugStoreFirstItemInBag` | Moves the first non-bag item into the first bag-type item (must already be equipped via the command above). |
+| `ZS.DebugEquipFirstToSecondaryHand` | Tries to equip the first SecondaryHand-legal item (toggleable, or a `OneHanded`+`bUsableInSecondaryHand` weapon) into SecondaryHand, logs `SUCCEEDED`/`REJECTED`. **New, needs a rebuild.** |
 | `ZS.DebugListCarrySlots` | Logs your full `CarrySlots` to the Output Log, including nested bag contents and weight. |
 | `ZS.SpawnZombies <n>` | Spawns `<n>` (1-500) zombies around you. |
 
@@ -106,10 +107,15 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 2. **Still to test:** drop some ammo, have a second player pick it up, confirm they can reload the same weapon type from it.
 
 ### 4. Two-Handed blocks SecondaryHand
-1. Equip a `TwoHanded` weapon as primary. Try to equip anything into SecondaryHand (see section 9 below for the flow).
-   - **Pass:** rejected, SecondaryHand stays empty.
-2. Switch to `OneHanded` or bare fists, retry.
-   - **Pass:** SecondaryHand equip now succeeds.
+There's no bound input for equipping SecondaryHand at all yet (that's real UI/input work, section 12 below), so this needs the new debug command: `ZS.DebugEquipFirstToSecondaryHand` (needs a rebuild). It picks the first item in your `CarrySlots` legal for SecondaryHand — a toggleable item (the flashlight) or a `OneHanded` weapon flagged `bUsableInSecondaryHand` — and tries to equip it, then logs `SUCCEEDED` or `REJECTED`. You don't need to know which of your weapons is which `Handedness` up front; the command logs your current primary weapon's name each time so you can cross-check afterward.
+
+1. Get a flashlight into `CarrySlots` if you don't have one: `ZS.DebugGiveItem /Game/ZS/Items/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight` (a toggleable item is the simplest legal SecondaryHand candidate — it doesn't care about weapon `Handedness` at all, only a weapon does).
+2. Equip a weapon as your primary (hotbar 1-9). Most weapons default to `TwoHanded` unless a specific config was changed (see `CLAUDE.md`'s B0-T2.12 note) — if you're not sure which one you have equipped, the command's log line names it.
+3. Run `ZS.DebugEquipFirstToSecondaryHand`.
+   - **Pass:** logs `REJECTED`, and `Character->GetSecondaryHandInstanceId()` stays empty (confirm via Details on your pawn, or the log's `unchanged` value being all-zero).
+4. Switch primary to bare fists (unequip — hotbar to an empty slot, or however you currently drop to bare-handed) so `CurrentWeapon` is null. This sidesteps needing to know which specific weapon config is `OneHanded` — no equipped weapon at all can't be `TwoHanded`.
+5. Run `ZS.DebugEquipFirstToSecondaryHand` again.
+   - **Pass:** logs `SUCCEEDED`, `SecondaryHandInstanceId` now matches the flashlight's InstanceId from step 1.
 
 ### 5. Wound zones & bleeding
 🔍 **Two open findings from 2026-07-27, still unresolved — read before testing:**
@@ -190,11 +196,11 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 6. **Full pass:** loot → hotbar → equip → degrade near-broken → jam → clear jam → break entirely. Separately: melee to 0 Stamina. Separately: knock down and finish a zombie both bare-handed and weapon-equipped.
 
 ### 12. SecondaryHand & flashlight
-1. With a `TwoHanded` primary, try equipping anything into SecondaryHand.
+1. With a `TwoHanded` primary, run `ZS.DebugEquipFirstToSecondaryHand`.
    - **Pass:** rejected (same as section 4).
-2. Switch to `OneHanded`/bare fists. Equip a toggleable item (needs a flashlight content asset, backlog below) into SecondaryHand. Once `IA_SecondaryAction` exists: press `T`.
+2. Switch to `OneHanded`/bare fists. Make sure you have a flashlight (`ZS.DebugGiveItem /Game/ZS/Items/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight` if not), run `ZS.DebugEquipFirstToSecondaryHand` again. Once `IA_SecondaryAction` exists: press `T`.
    - **Pass:** a real spotlight visibly turns on/off (rough chest-height placement for now, not a real hand socket — don't be alarmed it's not final-looking).
-3. Equip a one-handed *weapon* into SecondaryHand instead (needs `bUsableInSecondaryHand` set on a config, e.g. an offhand pistol).
+3. Equip a one-handed *weapon* into SecondaryHand instead (needs `bUsableInSecondaryHand` set on a config, e.g. an offhand pistol — check whether any real weapon config has this flag set yet; if none do, this specific sub-step is still a content gap, not a bug).
    - **Pass:** the slot accepts it, and you can see it spawn/attach on your character. Press `T` on a ranged config: it should fire (ammo drops, jam/headshot rolls apply, same as primary). Press `T` on a melee config: it should swing and can break, clearing the slot on break.
    - **Two deliberate scope cuts, not bugs:** no auto-fire (each `T` press is one shot/swing), and primary + secondary share one attack cooldown (firing primary then immediately trying secondary should be gated the same as firing primary twice in a row).
    - **Known visual gap:** both weapons currently render at the same attachment socket — overlapping meshes are expected, not a bug, until a dedicated offhand socket is authored.
