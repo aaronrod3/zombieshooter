@@ -26,6 +26,9 @@
 #include "ZSWeaponConfig.h"
 #include "ZSGameState.h"
 #include "ZSTestHarnessActor.h"
+#include "ZSWeaponTypes.h"
+#include "ZSPlayerCharacter.h"
+#include "ZombieCharacter.h"
 
 namespace ZSTest
 {
@@ -443,6 +446,260 @@ bool FZSHealthWoundTest::RunTest(const FString& Parameters)
 		RetryHarness->Destroy();
 	}
 	TestTrue(TEXT("Bite infection rolled at least once in 50 attempts (40% chance each)"), bInfectionSeen);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Second batch, added 2026-07-28.
+// ---------------------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Weapons.JamChanceBounds - B0-T10.1. Statistical: roll many times at a few CurrentConditionQuality
+// values and confirm the observed jam rate moves in the right direction and lands in a generous
+// bound around Lerp(MaxJamChance, BaseJamChance, ConditionQuality) - not an exact-match test, this
+// is a Bernoulli process, exact-match would be flaky by construction.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSJamChanceBoundsTest, "ZS.Weapons.JamChanceBounds", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSJamChanceBoundsTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* Config = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/AssaultRifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), Config))
+	{
+		return false;
+	}
+	if (Config->bJamImmune)
+	{
+		AddWarning(TEXT("AssaultRifle is bJamImmune - nothing meaningful to test here against this config."));
+		return true;
+	}
+
+	AZSWeapon* Weapon = TestWorld.World->SpawnActor<AZSWeapon>();
+	if (!TestNotNull(TEXT("Weapon spawned"), Weapon))
+	{
+		return false;
+	}
+	Weapon->InitializeFromConfig(Config);
+
+	constexpr int32 NumRolls = 300;
+	auto RollJamCount = [&](float ConditionQuality) -> int32
+	{
+		Weapon->SeedDurabilityFromInstance(-1, ConditionQuality);
+		int32 JamCount = 0;
+		for (int32 i = 0; i < NumRolls; ++i)
+		{
+			if (Weapon->Server_RollForJam())
+			{
+				++JamCount;
+				Weapon->Server_ClearJam();
+			}
+		}
+		return JamCount;
+	};
+
+	const int32 PristineJams = RollJamCount(1.f);
+	const int32 WorstJams = RollJamCount(0.f);
+	const float PristineRate = static_cast<float>(PristineJams) / NumRolls;
+	const float WorstRate = static_cast<float>(WorstJams) / NumRolls;
+	AddInfo(FString::Printf(TEXT("Pristine (quality=1): %d/%d jams (%.1f%%), expected ~%.1f%%"), PristineJams, NumRolls, PristineRate * 100.f, Config->BaseJamChance * 100.f));
+	AddInfo(FString::Printf(TEXT("Worst (quality=0): %d/%d jams (%.1f%%), expected ~%.1f%%"), WorstJams, NumRolls, WorstRate * 100.f, Config->MaxJamChance * 100.f));
+
+	// Directional check first - robust regardless of exact tolerance, since MaxJamChance > BaseJamChance
+	// by construction (worse condition should never jam less often).
+	TestTrue(TEXT("Worst-condition jam rate is higher than pristine (interpolation direction correct)"), WorstRate >= PristineRate);
+
+	// Generous bound check on the actual rates - wide enough to avoid flakiness from sampling noise,
+	// tight enough to catch a genuinely broken interpolation (e.g. chance stuck at a fixed value).
+	const float PristineTolerance = 0.03f + Config->BaseJamChance;
+	TestTrue(TEXT("Pristine jam rate within a generous bound of BaseJamChance"), PristineRate <= PristineTolerance);
+	const float WorstLowerBound = FMath::Max(Config->MaxJamChance - 0.15f, 0.f);
+	const float WorstUpperBound = FMath::Min(Config->MaxJamChance + 0.15f, 1.f);
+	TestTrue(TEXT("Worst-condition jam rate within a generous bound of MaxJamChance"), WorstRate >= WorstLowerBound && WorstRate <= WorstUpperBound);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Combat.DownedZombieState - B0-T10.4. Entry/exit only - the automatic recovery-after-N-seconds
+// half needs a real timer wait (latent test or PIE), not covered here.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSDownedZombieTest, "ZS.Combat.DownedZombieState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSDownedZombieTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UClass* ZombieClass = StaticLoadClass(AZombieCharacter::StaticClass(), nullptr, TEXT("/Game/ZS/Enemy/Character/AZombieCharacter.AZombieCharacter_C"));
+	if (!TestNotNull(TEXT("Zombie Blueprint class loaded"), ZombieClass))
+	{
+		return false;
+	}
+
+	AZombieCharacter* Zombie = TestWorld.World->SpawnActor<AZombieCharacter>(ZombieClass);
+	if (!TestNotNull(TEXT("Zombie spawned"), Zombie))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("Not downed initially"), Zombie->IsDowned());
+	Zombie->Server_EnterDownedState();
+	TestTrue(TEXT("Downed after Server_EnterDownedState"), Zombie->IsDowned());
+	Zombie->Server_ExitDownedState();
+	TestFalse(TEXT("Not downed after Server_ExitDownedState"), Zombie->IsDowned());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Health.AmputationStateTransition - B0-T7's HealthComponent-level mechanism (bAmputated, wound
+// clearing, bite-infection clearing when the amputated zone was the infection source). Doesn't cover
+// AZSPlayerCharacter::Server_AmputateZone's outer choreography (bIsBusy timer -> EnterBlackout) -
+// that's a real timed RPC wrapper around this, needs a latent test or PIE, not attempted here.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSAmputationTest, "ZS.Health.AmputationStateTransition", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSAmputationTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSHealthConfig* HealthConfig = LoadObject<UZSHealthConfig>(nullptr, TEXT("/Game/ZS/Stats/Health/DA_ZS_HealthConfig_Default.DA_ZS_HealthConfig_Default"));
+	if (!TestNotNull(TEXT("DA_ZS_HealthConfig_Default loaded"), HealthConfig))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	// Same fix as ZS.Health.WoundZonesAndInfection - without this, BodyZones is never seeded, so
+	// Server_ApplyDamage's whole wound-application block (including the infection roll) silently
+	// never runs, which looks exactly like "the roll never lands" rather than what it actually is.
+	if (!Harness->HasActorBegunPlay())
+	{
+		Harness->DispatchBeginPlay();
+	}
+	UZSHealthComponent* Health = Harness->HealthComponent;
+	Health->HealthConfig = HealthConfig;
+
+	// Get bitten on Arms repeatedly until the infection roll lands, so this zone becomes the bite
+	// infection's source - exercises amputation's "clears an active bite infection" half, not just
+	// the zone-state half.
+	bool bInfectionSeen = false;
+	for (int32 Attempt = 0; Attempt < 50 && !bInfectionSeen; ++Attempt)
+	{
+		Health->Server_ApplyDamage(1.f, EZSBodyZone::Arms, EZSWoundType::Bite, nullptr, nullptr);
+		if (Health->GetInfectionStage() != EZSInfectionStage::None)
+		{
+			bInfectionSeen = true;
+		}
+	}
+	if (!TestTrue(TEXT("Bite infection rolled within 50 attempts"), bInfectionSeen))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("Arms not amputated yet"), Health->GetZoneWound(EZSBodyZone::Arms).bAmputated);
+
+	const bool bAmputated = Health->Server_AmputateZone(EZSBodyZone::Arms);
+	TestTrue(TEXT("Server_AmputateZone reports success"), bAmputated);
+
+	const FZSBodyZoneWound ArmsWound = Health->GetZoneWound(EZSBodyZone::Arms);
+	TestTrue(TEXT("Arms zone now marked amputated"), ArmsWound.bAmputated);
+	TestEqual(TEXT("WoundType cleared to None"), ArmsWound.WoundType, EZSWoundType::None);
+	TestEqual(TEXT("Bite infection cleared (Arms was the source zone)"), Health->GetInfectionStage(), EZSInfectionStage::None);
+
+	// Re-amputating an already-amputated zone must cleanly fail, not double-apply anything.
+	TestFalse(TEXT("Amputating an already-amputated zone fails"), Health->Server_AmputateZone(EZSBodyZone::Arms));
+
+	// Torso can never be amputated - only Arms/Legs are valid.
+	TestFalse(TEXT("Torso amputation rejected (only Arms/Legs valid)"), Health->Server_AmputateZone(EZSBodyZone::Torso));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Loadout.SecondaryHandBlocksTwoHanded - B0-T2 Checkpoint E. Uses AZSPlayerCharacter::EquipWeapon
+// (an existing public, immediate entry point) rather than the real timed hotbar-select flow -
+// Checkpoint E is about whether a TwoHanded primary blocks SecondaryHand, not about hotbar-switch
+// timing (which PT2/PT5's PIE passes already cover), so this is the right-sized mechanism to test.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSSecondaryHandTest, "ZS.Loadout.SecondaryHandBlocksTwoHanded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSSecondaryHandTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/AssaultRifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	UZSItemConfig* FlashlightConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight"));
+	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), RifleConfig) || !TestNotNull(TEXT("DA_ZS_ItemConfig_Flashlight loaded"), FlashlightConfig))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("AssaultRifle is TwoHanded (test's own assumption about this config)"), RifleConfig->Handedness, EZSWeaponHandedness::TwoHanded))
+	{
+		return true;
+	}
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("Flashlight added to CarrySlots"), Inventory->Server_AddItem(FlashlightConfig, 1), 1))
+	{
+		return false;
+	}
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* FlashlightInstance = Slots.FindByPredicate([FlashlightConfig](const FZSItemInstance& I) { return I.Config == FlashlightConfig; });
+	if (!TestNotNull(TEXT("Flashlight instance found in CarrySlots"), FlashlightInstance))
+	{
+		return false;
+	}
+	const FGuid FlashlightId = FlashlightInstance->InstanceId;
+
+	// No primary weapon yet - SecondaryHand should accept the flashlight freely.
+	Character->Server_EquipToSecondaryHand(FlashlightId);
+	TestEqual(TEXT("Flashlight equips to SecondaryHand with no primary weapon"), Character->GetSecondaryHandInstanceId(), FlashlightId);
+	Character->Server_UnequipSecondaryHand();
+	TestFalse(TEXT("SecondaryHand cleared after unequip"), Character->GetSecondaryHandInstanceId().IsValid());
+
+	// Now equip a TwoHanded rifle as primary (immediate, via EquipWeapon - see comment above) and retry.
+	Character->EquipWeapon(RifleConfig);
+	if (!TestNotNull(TEXT("Rifle actually equipped as CurrentWeapon"), Character->GetCurrentWeapon()))
+	{
+		return false;
+	}
+
+	Character->Server_EquipToSecondaryHand(FlashlightId);
+	TestFalse(TEXT("SecondaryHand rejects the flashlight while primary is TwoHanded"), Character->GetSecondaryHandInstanceId().IsValid());
 
 	return true;
 }

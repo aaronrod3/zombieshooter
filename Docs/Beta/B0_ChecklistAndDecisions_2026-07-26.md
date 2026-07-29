@@ -54,9 +54,9 @@ None of this blocks compiling or most testing, but several features degrade grac
 & "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Users\aaron\Documents\Unreal Projects\ZombieShooter\ZombieShooter.uproject" -ExecCmds="Automation RunTests ZS.; Quit" -unattended -nopause -nullrhi
 ```
 
-Results land in `Saved/Logs/ZombieShooter.log` (search for `Test Completed`) - the process's own exit code is non-zero whenever any test fails, by design (that's the framework signaling failure, not a launch error).
+Results land in the log named by `-log=` (default `Saved/Logs/ZombieShooter.log` if omitted, search for `Test Completed`) - the process's own exit code is non-zero whenever any test fails, by design (that's the framework signaling failure, not a launch error). **Always pass an explicit `-log=some_name.log`** - running against the default log path while the GUI editor is also open causes the run to silently fail before it even loads the project (confirmed 2026-07-28); an isolated log name sidesteps it cleanly and works whether or not the editor is open.
 
-**Current status: 5/6 passing.**
+**Current status: 9/10 passing.** Second batch added 2026-07-28.
 
 | Test | Covers | Result |
 |---|---|---|
@@ -65,9 +65,15 @@ Results land in `Saved/Logs/ZombieShooter.log` (search for `Test Completed`) - t
 | `ZS.Loot.ConditionQualityBands` | T2.10 - 200 rolls per rarity tier, all land inside the authored band | ✅ Pass |
 | `ZS.Weapons.DurabilityPersistence` | Checkpoint B's mechanism (seed from instance, consume hits, breaks at exactly 0) - not the full hotbar/equip UI flow, that still needs PIE | ✅ Pass |
 | `ZS.Health.WoundZonesAndInfection` | T5.1's bite-zone fix (hits land on the named zone, not always Torso) + T6's infection roll - calls `Server_ApplyDamage` directly, not the real capsule-trace bite path | ✅ Pass - **this is the same mechanism your 2026-07-27 zombie-bite test exercised**; it passing here confirms the zone/infection code itself is correct, which narrows your "zombie attack only once" finding toward range or the BT graph, not a hidden bug in `Server_ApplyDamage` |
+| `ZS.Weapons.JamChanceBounds` | T10.1 - jam rate at pristine vs. worst condition, both direction and rough bound checked against `Lerp(MaxJamChance, BaseJamChance, ConditionQuality)` | ✅ Pass |
+| `ZS.Combat.DownedZombieState` | T10.4 - `Server_EnterDownedState`/`Server_ExitDownedState` entry/exit on a real spawned zombie. Not covered: the automatic recovery-after-`DownedRecoverySeconds` timer - needs a latent test or PIE | ✅ Pass |
+| `ZS.Health.AmputationStateTransition` | T7 - `Server_AmputateZone`'s state transition (zone marked amputated, wound cleared, bite infection cleared when the zone was the infection source, rejects re-amputating/Torso). Not covered: `AZSPlayerCharacter::Server_AmputateZone`'s outer timed choreography (`bIsBusy` → 3s wait → `EnterBlackout`) - a real RPC wrapper around this, needs a latent test or PIE | ✅ Pass (after a fix - see below) |
+| `ZS.Loadout.SecondaryHandBlocksTwoHanded` | Checkpoint E - a `TwoHanded` primary (equipped via the existing public `EquipWeapon()`, not the timed hotbar flow) blocks `Server_EquipToSecondaryHand` | ✅ Pass |
 | `ZS.Inventory.BagStoreAndRetrieve` | Checkpoint C's mechanics (store/retrieve/GUID-preservation, plus the new reject-nested-loaded-bag guard) - not the 2-client replication half, that still needs PIE | ❌ **Fails on a real finding**: `DA_Bag.uasset`'s `bIsEquippable` is `false`. Not a test bug - Checkpoint C can't work at all (in PIE either) until this is set. Open `DA_Bag`, set `bIsEquippable = true` and a real `EquipSlot`, and this test should go green along with unblocking manual testing. |
 
-**Not yet covered, good candidates for a follow-up batch**: amputation/blackout state transitions (T7), downed-zombie entry/exit via knockback threshold (T10.4), SecondaryHand `TwoHanded` blocking (Checkpoint E), jam-chance interpolation bounds (T10.1). None of these need anything new from the harness - same pattern, just more tests.
+**Bug caught and fixed while building the second batch**: `AmputationStateTransition` initially failed 50/50 attempts to roll a 40%-chance bite infection - reproducible, not bad luck (~1-in-20-billion if truly random). Root cause: forgot the same `DispatchBeginPlay()` call `WoundZonesAndInfection` already needed - without it `BodyZones` never seeds, so the whole wound-application block (including the infection roll) silently never runs. Same class of bug as the first batch's, now present in both places it applies.
+
+**Not yet covered, candidates for a further batch**: everything time-based (blackout's 3s choreography, downed-zombie auto-recovery, fracture/infection duration completion) - all need a real "latent" automation test (waits across frames) or PIE, a different pattern than anything built so far. Also not attempted: offhand-weapon-fire (it's an intentional gap, nothing to test), Shove/Mount-Climb (undesigned).
 
 **Still fundamentally needs PIE, no way around it**: 2-client replication, camera/aim feel (PT2), combat feel (PT5), anything visual (flashlight placement, animations), the full player-character hotbar/equip integration (as opposed to the mechanism alone), and anything requiring the real `BT_Zombie` graph's actual branching behavior.
 
