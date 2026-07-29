@@ -24,7 +24,7 @@ None of this blocks compiling or most testing, but several features degrade grac
 **New Input Actions needed** (all follow the existing pattern — create the `.uasset`, wire it into `IMC_ZS_Default`, the C++ `ConstructorHelpers::FObjectFinder` picks it up automatically, no code change needed):
 - `IA_Zoom` — Axis1D, mouse wheel + `=`/`-` (T3.4)
 - `IA_Rack` — digital, `Alt+R` (T10.1, "Rack Firearm")
-- `IA_Finisher` — digital, `Space` (T10.6)
+- `IA_Finisher` — digital, `Space` (T10.6). ⚑ **Naming flagged for review, 2026-07-27**: `Space` is documented (`InputBindings.md`) as one bundled, context-aware action covering Finisher *and* the still-undesigned Shove/Mount-Climb — but `IA_Finisher`/`FinisherAction`/`HandleFinisher` are named narrowly, for just the finisher case, unlike this project's existing pattern for context-dispatching inputs (`IA_Attack`, `IA_SecondaryAction` — one generic action, one C++ handler that branches internally). Worth renaming to something generic (e.g. `IA_ContextAction`) before Shove/Mount-Climb get built expecting a narrowly-named input — see chat discussion 2026-07-27 and the dev's own `IA_ComboAction.uasset` (purpose TBD, may already be this).
 - `IA_SecondaryAction` — digital, `T` (T11.2)
 
 **Orphaned/dead content to clean up:**
@@ -37,12 +37,12 @@ None of this blocks compiling or most testing, but several features degrade grac
 - Clothing items with a real `InsulationValue` (T4.4) — optional, defaults to 0 (no warmth effect) without it
 - `DA_ZS_WeaponConfig_Pistol`'s own `HipFireSpreadDegrees`/`AimedSpreadDegrees` (8°→2° per OQ-B0-02) — currently inherits the rifle-shaped default (5°→1°) (T3.5)
 
-**Blueprint class references to assign** (both are `TSubclassOf` fields that are `nullptr` by default — the features they gate simply no-op with a log warning until assigned):
-- `AZSPlayerCharacter::DeathZombieClass` — which zombie BP a dead player becomes (T9.2)
-- `AZSGameMode::StressTestZombieClass` — which zombie BP `ZS.SpawnZombies` spawns (T12.1)
+**Blueprint class references to assign** (both are `TSubclassOf` fields that are `nullptr` by default — the features they gate simply no-op with a log warning until assigned). Both are `EditDefaultsOnly`, meaning they're **only** settable on a Blueprint's Class Defaults, never per-instance and never live in a running PIE session:
+- `AZSPlayerCharacter::DeathZombieClass` (Category `ZS|Health`) — open `BP_ZS_PlayerCharacter`, Class Defaults, assign whatever zombie Blueprint you're already using for normal spawns (needs a real `UZSZombieConfig` on its CDO — a bare `AZombieCharacter` has nothing to assemble mesh/AI from). `BP_ZS_PlayerCharacter` definitely exists (`AZSGameMode`'s constructor already finds it by path).
+- `AZSGameMode::StressTestZombieClass` (Category `ZS|StressTest`) — same idea, but check first whether a `BP_ZS_GameMode` Blueprint exists at all. `AZSGameMode`'s constructor doesn't reference one the way it does `BP_ZS_PlayerCharacter` — if the level/project is just running the raw native `AZSGameMode` class (no Blueprint subclass), there's nowhere to set an `EditDefaultsOnly` property at all yet. If no `BP_ZS_GameMode` exists: Content Browser → Blueprint Class → parent `ZSGameMode` → create it → assign `StressTestZombieClass` on its Class Defaults → set it as the level's GameMode Override (World Settings) or the project's default GameMode, then assign the zombie class.
 
 **Not built at all — a full `.umap`, out of scope for a code-only pass:**
-- `Lvl_ZS_StressTest` (T12.1) — the console command works in any existing level in the meantime.
+- `Lvl_ZS_StressTest` (T12.1) — **doesn't block testing the command itself.** `ZS.SpawnZombies <n>` works in whatever level you're already testing in once `StressTestZombieClass` is assigned above — building the dedicated graybox map is a separate, purely-cosmetic later task.
 
 ---
 
@@ -76,14 +76,14 @@ Because this project deliberately marks replicated gameplay state `VisibleAnywhe
 
 ### 2.1 — Item-instance system (T2, prior session — still unverified)
 
-**Checkpoint B — durability persistence (the headline test).** Prerequisite: a weapon config with `MaxDurabilityHits > 0` (check the `DA_ZS_WeaponConfig_*` asset — durability tracking is a no-op at the default 0/unbreakable).
+**Checkpoint B — durability persistence (the headline test).** ⏸ **Deferred by dev, 2026-07-27** — couldn't select the spawned weapon actor in the World Outliner to watch `CurrentDurability` (a live PIE session's Outliner gets crowded with spawned actors — zombies, projectiles, the weapon itself — and it doesn't have an obviously distinct name to search for). Revisit once real inventory UI exists, or try the better method below in the meantime. Prerequisite: a weapon config with `MaxDurabilityHits > 0` (check the `DA_ZS_WeaponConfig_*` asset — durability tracking is a no-op at the default 0/unbreakable).
 1. Loot the weapon (world pickup or container "loot all").
 2. Press its hotbar number (1-9), wait for `EquipTimeSeconds` to elapse, confirm it's now `CurrentWeapon`.
-3. Melee-swing it until you've landed roughly half of `MaxDurabilityHits`. Watch `AZSWeapon::GetCurrentDurability()` — select the spawned weapon actor itself in the World Outliner (a distinct actor attached to your character) and check `CurrentDurability` in Details.
+3. Melee-swing it until you've landed roughly half of `MaxDurabilityHits`. **Better method than hunting the Outliner**: either (a) click directly on the weapon mesh attached to your character in the viewport — this selects the actor and syncs Details to it, faster than scrolling/searching a crowded PIE Outliner list — or (b) add a temporary Blueprint "Print String" node calling `AZSWeapon::GetCurrentDurability()` on a spare debug key, which sidesteps actor-selection entirely.
 4. Switch to a different hotbar slot, then switch back. **Pass**: `CurrentDurability` still reads the same half-value — not reset to `MaxDurabilityHits`.
 5. Keep swinging until `CurrentDurability` hits 0. **Pass**: the weapon actor is destroyed, its instance is entirely gone from `CarrySlots` (`ZS.DebugListCarrySlots`), and the hotbar slot that held it is now empty.
 
-**Checkpoint C — bag capacity & nested contents.** Prerequisite: a bag-type item config (`bIsEquippable = true`, `EquipSlot = Back`/`Hip`, `CarryCapacityBonus > 0`) and one other plain item.
+**Checkpoint C — bag capacity & nested contents.** ⏸ **Not yet tested, dev's own call, 2026-07-27** — waiting for more inventory/UI setup before this one. Prerequisite: a bag-type item config (`bIsEquippable = true`, `EquipSlot = Back`/`Hip`, `CarryCapacityBonus > 0`) and one other plain item.
 > **Note from this session's compile fix**: `ContainedItems` had to change type to fix a real build error (a struct can't contain an array of itself) — this caps bag nesting at one level, matching the "Tier 2 nesting isn't scoped" note that was already in the code. `Server_StoreInBag` now explicitly rejects storing an item whose own `ContainedItems` is non-empty (returns `false`) rather than silently truncating it. Worth a quick check that this returns false cleanly, alongside the normal flow below.
 1. Note `GetMaxCarryWeight()` before equipping the bag.
 2. Loot the bag. There's no bound input for gear-slot (Back/Hip) equipping yet either (same gap as store/retrieve below) — call `Server_EquipToSlot` via a temporary Blueprint node. **Pass**: `GetMaxCarryWeight()` rises by the bag's `CarryCapacityBonus`.
@@ -93,17 +93,21 @@ Because this project deliberately marks replicated gameplay state `VisibleAnywhe
 6. **2-client check**: with a second player connected, inspect the bag from the **host's** Outliner after it replicates to them — confirm `ContainedItems` arrived correctly on the non-host side too.
 7. Loot the *same* rare-tier item twice. **Pass**: `InstanceState.ConditionQuality` differs between the two instances (rolled per-instance via `AZSGameState::ConditionQualityBands`).
 
-**Checkpoint D — ammo as a real item.** Blocked until `DA_ZS_ItemConfig_Ammo_<Caliber>` exists and is assigned to a weapon's `AmmoItemConfig` (Section 1) — until then `CanReload()` returns false for every weapon; don't debug a reload failure that's actually just missing content.
-1. Once assigned: get some of that ammo item into `CarrySlots`.
-2. Equip the matching weapon, fire it empty.
-3. Press Reload (`R`). **Pass**: the ammo stack's `StackCount` drops by the correct amount and the magazine refills.
-4. Drop some ammo, have a second player pick it up, confirm they can reload the same weapon type from it.
+**Checkpoint D — ammo as a real item.** ✅ **Solo pass confirmed, 2026-07-27** — pickup and reload both work. **2-player leg not yet tested** (deferred, dev's own call — "too much right now").
+1. ~~Once assigned: get some of that ammo item into `CarrySlots`.~~ Done — ammo items exist and are assigned.
+2. ~~Equip the matching weapon, fire it empty.~~ Done.
+3. ~~Press Reload (`R`). **Pass**: the ammo stack's `StackCount` drops by the correct amount and the magazine refills.~~ **Confirmed.**
+4. **Still open**: drop some ammo, have a second player pick it up, confirm they can reload the same weapon type from it.
 
 **Checkpoint E — TwoHanded blocks SecondaryHand.**
 1. Equip a `TwoHanded` weapon as primary. Try to equip anything into SecondaryHand (see 2.9 for the exact flow). **Pass**: rejected, `SecondaryHandInstanceId` stays empty.
 2. Switch to a `OneHanded` weapon or bare fists, retry. **Pass**: SecondaryHand equip now succeeds.
 
 ### 2.2 — Wound model (T5)
+🔍 **In progress, 2026-07-27 — two open findings, not yet resolved:**
+- **"Body zones not set in editor."** Checked: `UZSHealthComponent::BeginPlay` *does* seed all 4 zones (Head/Torso/Arms/Legs) into `BodyZones`, gated on `HasAuthority()` — this only runs on an actual spawned instance, never on a Blueprint's Class Defaults/CDO (which never calls `BeginPlay`). If you were looking at `BP_ZS_PlayerCharacter`'s Class Defaults rather than your pawn selected live in the World Outliner *during* PIE, that'd explain seeing it empty — the array simply doesn't exist until an instance actually spawns and runs `BeginPlay`. Worth double-checking which one you had selected before assuming it's a bug.
+- **"Zombie attack only once."** Checked `AZombieCharacter::Server_MeleeAttack`: the cooldown (`Now - LastAttackTime < AttackInterval`, 1.5s default) is a per-attack gate, not a one-shot lock — nothing in the C++ prevents repeat attacks. Two likely explanations, need more detail to pin down which: (a) the zombie lost `MeleeRange` (150 units) after the first hit and never got back in range before you stopped testing, or (b) **if you hit it back at all**, this session's new downed-state system (`DownedKnockbackThreshold`, 150) pauses the zombie's *entire* behavior tree the instant it triggers — that would look exactly like "stopped attacking on its own" if you landed a knockback hit without realizing that's what it did. Can't diagnose further without the `BT_Zombie` graph itself (no editor/MCP access this session) — if you can say whether the zombie kept chasing/closing distance after the first bite, or just froze/wandered off, that'd narrow it down.
+
 1. **Zone variance.** Get bitten from a few different relative angles (front, side, while facing away). Watch `HealthComponent`'s `BodyZones` (Details, or `GetZoneWound(Zone)`) — the zone that takes the hit (`Head`/`Torso`/`Arms`/`Legs`) should vary across attempts, not always land on `Torso` (the bug T5.1 fixed).
 2. **Critical head bleed.** Take repeated Head-zone hits until a bleed starts there — `CriticalHeadBleedChance` is only 8% per fresh Head bleed, so expect several tries. Watch `bCriticalBleed` on the Head entry; once set, `CurrentHealth` should drain noticeably faster (4/s vs. the normal per-type rate). Bandage it (`Server_ApplyBandage`) — **pass** if both `bCriticalBleed` and `bBleeding` clear.
 3. **Fracture recovery.** Take a hit causing a Legs Fracture. Watch `FractureRecoveryProgressGameHours` on that zone — per 2.0's time-compression note, verify the *rate* (~1/real-minute) rather than waiting out the full 240h. Splint it (`Server_Splint`) and confirm `bSplinted = true` (the shorter 96h total is inferred from the tunable, not worth waiting to observe directly). Take a fresh Fracture hit on the same zone mid-recovery — **pass** if progress resets to 0.
