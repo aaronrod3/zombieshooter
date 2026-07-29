@@ -117,6 +117,39 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugStoreFirstItemInBag(
 		Inventory->Server_StoreInBag(Bag->InstanceId, Item->InstanceId);
 	}));
 
+// Temporary B0-T2 Checkpoint C test hook - no bound input exists yet to equip a bag/clothing item
+// into Back/Hip (that's UI work). Finds the first bag/clothing-type instance (Config->bIsEquippable)
+// in the local (host) player's CarrySlots and equips it into its own Config->EquipSlot, granting
+// its CarryCapacityBonus. Host-only, same authority reasoning as ZS.DebugDropFirstItem. Remove once
+// real inventory UI lands.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugEquipFirstBagItem(
+	TEXT("ZS.DebugEquipFirstBagItem"),
+	TEXT("Equips the first bag/clothing-type CarrySlots item into its own EquipSlot (Back/Hip) - B0-T2 Checkpoint C testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSInventoryComponent* Inventory = Character ? Character->GetInventoryComponent() : nullptr;
+		if (!Inventory)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugEquipFirstBagItem: no local pawn/inventory found"));
+			return;
+		}
+
+		const TArray<FZSItemInstance> Carried = Inventory->GetCarrySlots();
+		const FZSItemInstance* BagOrClothing = Carried.FindByPredicate([](const FZSItemInstance& Instance) { return Instance.Config && Instance.Config->bIsEquippable; });
+		if (!BagOrClothing)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugEquipFirstBagItem: no bag/clothing-type item carried"));
+			return;
+		}
+
+		const bool bEquipped = Inventory->Server_EquipToSlot(BagOrClothing->Config->EquipSlot, BagOrClothing->InstanceId);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugEquipFirstBagItem: %s %s (InstanceId %s) to slot %d"),
+			bEquipped ? TEXT("equipped") : TEXT("FAILED to equip"),
+			*GetNameSafe(BagOrClothing->Config), *BagOrClothing->InstanceId.ToString(), (int32)BagOrClothing->Config->EquipSlot);
+	}));
+
 // Temporary B0-T2 Checkpoint C test hook - logs the local (host) player's full CarrySlots, including
 // nested ContainedItems, so bag contents are actually observable without an inventory UI. Remove
 // once real inventory UI lands.

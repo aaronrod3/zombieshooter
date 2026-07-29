@@ -50,7 +50,8 @@ You can **watch** these values but not **edit** them by typing into Details — 
 | Command | What it does |
 |---|---|
 | `ZS.DebugDropFirstItem` | Drops 1 unit of the first item in `CarrySlots`. |
-| `ZS.DebugStoreFirstItemInBag` | Moves the first non-bag item into the first bag-type item. |
+| `ZS.DebugEquipFirstBagItem` | Equips the first bag/clothing-type item you're carrying into its own Back/Hip slot — this is how you get the bag's `CarryCapacityBonus` (extra slots) without any UI. **New, needs a rebuild.** |
+| `ZS.DebugStoreFirstItemInBag` | Moves the first non-bag item into the first bag-type item (must already be equipped via the command above). |
 | `ZS.DebugListCarrySlots` | Logs your full `CarrySlots` to the Output Log, including nested bag contents and weight. |
 | `ZS.SpawnZombies <n>` | Spawns `<n>` (1-500) zombies around you. |
 
@@ -86,7 +87,7 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 > Bag nesting is capped at one level by design — a bag can't hold another bag. `Server_StoreInBag` returns `false` cleanly if you try; worth a quick check that it does.
 
 1. Note `GetMaxCarryWeight()` before equipping the bag.
-2. Loot the bag. There's no bound input for equipping to a gear slot yet — call `Server_EquipToSlot` via a temporary Blueprint node.
+2. Loot the bag, then run `ZS.DebugEquipFirstBagItem` (new, needs a rebuild — no bound input exists yet to equip a gear slot from the world, this is the stand-in until real inventory UI lands).
    - **Pass:** `GetMaxCarryWeight()` rises by the bag's `CarryCapacityBonus`.
 3. Loot a second, non-bag item.
 4. Run `ZS.DebugStoreFirstItemInBag`.
