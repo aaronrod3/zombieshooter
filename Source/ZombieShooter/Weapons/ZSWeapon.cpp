@@ -97,14 +97,24 @@ void AZSWeapon::OnRep_CurrentConfig()
 {
 	AssembleCosmeticsFromConfig();
 
-	// CurrentWeapon (on the character) and CurrentConfig (here) can replicate to a client in
-	// either order - call both client-side setup steps here too (redundant with
-	// AZSPlayerCharacter::OnRep_CurrentWeapon) so whichever replication event arrives second
-	// completes the setup, regardless of which one that is.
+	// CurrentWeapon/SecondaryWeapon (on the character) and CurrentConfig (here) can replicate to a
+	// client in either order - call the matching client-side attach step here too (redundant with
+	// AZSPlayerCharacter::OnRep_CurrentWeapon/OnRep_SecondaryWeapon) so whichever replication event
+	// arrives second completes the setup. 2026-07-28: this weapon actor could be either slot now
+	// (offhand weapons added), so which one it is has to be checked explicitly - calling the wrong
+	// character-side attach function would reassemble/reattach the *other* slot's weapon instead of
+	// this one.
 	if (AZSPlayerCharacter* Character = GetOwner<AZSPlayerCharacter>())
 	{
-		Character->RefreshBodyMeshFromWeapon();
-		Character->AttachWeaponToBodyMesh();
+		if (Character->GetCurrentWeapon() == this)
+		{
+			Character->RefreshBodyMeshFromWeapon();
+			Character->AttachWeaponToBodyMesh();
+		}
+		else if (Character->GetSecondaryWeapon() == this)
+		{
+			Character->AttachSecondaryWeaponToBodyMesh();
+		}
 	}
 
 	OnConfigChanged.Broadcast(CurrentConfig);

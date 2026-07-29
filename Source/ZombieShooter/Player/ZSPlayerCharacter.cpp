@@ -304,6 +304,7 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(AZSPlayerCharacter, bIsBlackedOut);
 	DOREPLIFETIME(AZSPlayerCharacter, SecondaryHandInstanceId);
 	DOREPLIFETIME(AZSPlayerCharacter, bSecondaryItemActive);
+	DOREPLIFETIME(AZSPlayerCharacter, SecondaryWeapon);
 }
 
 void AZSPlayerCharacter::BeginPlay()
@@ -593,6 +594,79 @@ void AZSPlayerCharacter::OnRep_CurrentWeapon()
 	RefreshBodyMeshFromWeapon();
 	AttachWeaponToBodyMesh();
 	OnWeaponChanged.Broadcast(CurrentWeapon);
+}
+
+void AZSPlayerCharacter::EquipSecondaryWeapon(UZSWeaponConfig* Config)
+{
+	if (!Config || !GetWorld() || !HasAuthority())
+	{
+		return;
+	}
+
+	UnequipSecondaryWeapon();
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+
+	TSubclassOf<AZSWeapon> ClassToSpawn = AZSWeapon::StaticClass();
+	if (Config->WeaponClass)
+	{
+		ClassToSpawn = Config->WeaponClass;
+	}
+
+	SecondaryWeapon = GetWorld()->SpawnActor<AZSWeapon>(ClassToSpawn, SpawnParams);
+	if (SecondaryWeapon)
+	{
+		SecondaryWeapon->InitializeFromConfig(Config);
+		AttachSecondaryWeaponToBodyMesh();
+	}
+}
+
+void AZSPlayerCharacter::UnequipSecondaryWeapon()
+{
+	if (!SecondaryWeapon)
+	{
+		return;
+	}
+
+	WriteBackSecondaryWeaponDurability();
+	SecondaryWeapon->Destroy();
+	SecondaryWeapon = nullptr;
+}
+
+void AZSPlayerCharacter::WriteBackSecondaryWeaponDurability()
+{
+	if (!SecondaryWeapon || !SecondaryHandInstanceId.IsValid())
+	{
+		return;
+	}
+
+	if (UZSInventoryComponent* Inventory = GetInventoryComponent())
+	{
+		// Preserve ConditionQuality, only the durability actually changed during use - same
+		// reasoning as WriteBackCurrentWeaponDurability.
+		FZSItemInstanceState NewState = Inventory->GetInstance(SecondaryHandInstanceId).InstanceState;
+		NewState.CurrentDurability = SecondaryWeapon->GetCurrentDurability();
+		Inventory->Server_UpdateInstanceState(SecondaryHandInstanceId, NewState);
+	}
+}
+
+void AZSPlayerCharacter::OnRep_SecondaryWeapon()
+{
+	AttachSecondaryWeaponToBodyMesh();
+}
+
+void AZSPlayerCharacter::AttachSecondaryWeaponToBodyMesh()
+{
+	if (!SecondaryWeapon || !SecondaryWeapon->GetConfig())
+	{
+		return;
+	}
+
+	// Content gap, same precedent as FlashlightComponent: no dedicated offhand-hand socket exists on
+	// the skeleton yet, so this reuses the primary weapon's own socket field - visual overlap if a
+	// player also has a primary at the same socket is a placement-polish issue, not a blocking one.
+	SecondaryWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, SecondaryWeapon->GetConfig()->SocketGunAttachment);
 }
 
 void AZSPlayerCharacter::RefreshBodyMeshFromWeapon()
@@ -1655,7 +1729,22 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 		return;
 	}
 
-	if (CurrentWeapon->Server_RollForJam())
+	FireWeapon(CurrentWeapon);
+}
+
+void AZSPlayerCharacter::FireWeapon(AZSWeapon* Weapon)
+{
+	// Extracted 2026-07-28 from what was the whole body of Server_Fire_Implementation, verbatim
+	// aside from CurrentWeapon -> Weapon, so SecondaryWeapon (offhand fire, B0-T11.2's content gap)
+	// can go through the exact same jam/spread/headshot/projectile logic instead of duplicating it.
+	// Caller is responsible for the CanFire()-equivalent gate - this assumes Weapon is valid and
+	// legally allowed to fire right now.
+	if (!Weapon)
+	{
+		return;
+	}
+
+	if (Weapon->Server_RollForJam())
 	{
 		// B0-T10.1/T10.2: jam replaces this shot outright - no ammo consumed, no shot resolved.
 		// CanFire() now excludes a jammed weapon, so the trigger just clicks until Rack Firearm
@@ -1665,9 +1754,9 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 		return;
 	}
 
-	CurrentWeapon->Server_ConsumeAmmoRound();
+	Weapon->Server_ConsumeAmmoRound();
 
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	if (const UZSWeaponConfig* Config = Weapon->GetConfig())
 	{
 		Multicast_PlayTPActionMontage(Config->TP_Fire);
 		UZSNoiseSystem::ReportNoise(this, GetActorLocation(), 1.f, this, Config->FireNoiseRadius);
@@ -1677,7 +1766,7 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 		// has already turned toward the mouse cursor while firing (IsCursorFacingActive() includes the
 		// CursorFacingActionWindow after a fire input, set in HandleFireStarted).
 		FVector TraceStart = GetActorLocation() + FVector(0.f, 0.f, BaseEyeHeight);
-		if (UStaticMeshComponent* BaseWeaponMesh = CurrentWeapon->GetBaseWeaponMesh())
+		if (UStaticMeshComponent* BaseWeaponMesh = Weapon->GetBaseWeaponMesh())
 		{
 			if (BaseWeaponMesh->DoesSocketExist(Config->SocketMuzzle))
 			{
@@ -1713,7 +1802,7 @@ void AZSPlayerCharacter::Server_Fire_Implementation()
 
 		FCollisionQueryParams QueryParams;
 		QueryParams.AddIgnoredActor(this);
-		QueryParams.AddIgnoredActor(CurrentWeapon);
+		QueryParams.AddIgnoredActor(Weapon);
 
 		FHitResult Hit;
 		const bool bHitActor = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, QueryParams) && Hit.GetActor();
@@ -2129,7 +2218,7 @@ void AZSPlayerCharacter::Server_EquipToSecondaryHand_Implementation(FGuid Instan
 		return;
 	}
 
-	const UZSWeaponConfig* SecondaryWeaponConfig = Cast<UZSWeaponConfig>(Instance.Config);
+	UZSWeaponConfig* SecondaryWeaponConfig = Cast<UZSWeaponConfig>(Instance.Config);
 	const bool bLegalWeapon = SecondaryWeaponConfig
 		&& SecondaryWeaponConfig->Handedness == EZSWeaponHandedness::OneHanded
 		&& SecondaryWeaponConfig->bUsableInSecondaryHand;
@@ -2140,8 +2229,18 @@ void AZSPlayerCharacter::Server_EquipToSecondaryHand_Implementation(FGuid Instan
 		return;
 	}
 
+	// Clean up (with a durability writeback) whatever was previously in the slot, against the OLD
+	// SecondaryHandInstanceId, before it's reassigned below - EquipSecondaryWeapon's own internal
+	// UnequipSecondaryWeapon() call would otherwise write back against the wrong (new) instance.
+	UnequipSecondaryWeapon();
+
 	SecondaryHandInstanceId = InstanceId;
 	OnRep_SecondaryHandInstanceId();
+
+	if (bLegalWeapon)
+	{
+		EquipSecondaryWeapon(SecondaryWeaponConfig);
+	}
 }
 
 void AZSPlayerCharacter::Server_UnequipSecondaryHand_Implementation()
@@ -2150,6 +2249,8 @@ void AZSPlayerCharacter::Server_UnequipSecondaryHand_Implementation()
 	{
 		return;
 	}
+
+	UnequipSecondaryWeapon();
 
 	SecondaryHandInstanceId = FGuid();
 	OnRep_SecondaryHandInstanceId();
@@ -2187,13 +2288,45 @@ void AZSPlayerCharacter::Server_HandleSecondaryAction_Implementation()
 		return;
 	}
 
-	// B0-T11.2 content gap: an offhand weapon (Cast<UZSWeaponConfig>(Instance.Config) would succeed
-	// here) doesn't actually fire/swing yet - that needs its own spawned AZSWeapon actor and ammo/
-	// equip choreography mirroring CurrentWeapon's, which
-	// Docs/Planning/InventoryLoadoutEquipping_Plan.md §6 itself flags as "genuinely new surface, not
-	// just wiring... scope it as its own small task, not a rider." The slot/validation mechanism
-	// (Server_EquipToSecondaryHand) is real and testable today; only the dispatch-to-attack half is
-	// stubbed here.
+	// B0-T11.2's weapon-attack half, added 2026-07-28 (away-session cluster). Deliberate scope cuts
+	// documented on the SecondaryWeapon member's own header comment (semi-auto only, shares
+	// LastAttackTime with the primary hand). CanAttack() already covers sprinting/busy/blackout -
+	// none of that is primary-weapon-specific, so it's reused as-is rather than duplicated.
+	const UZSWeaponConfig* SecondaryConfig = Cast<UZSWeaponConfig>(Instance.Config);
+	if (!SecondaryConfig || !SecondaryWeapon || !CanAttack())
+	{
+		return;
+	}
+
+	if (SecondaryConfig->AttackType == EZSAttackType::Melee)
+	{
+		if (NeedsComponent)
+		{
+			NeedsComponent->Server_ConsumeStamina(SecondaryConfig->MeleeStaminaCost);
+		}
+
+		const bool bHit = PerformMeleeSwing(SecondaryConfig->MeleeDamage, SecondaryConfig->MeleeRange, SecondaryConfig->MeleeAttackInterval, SecondaryConfig->MeleeDamageTypeClass, SecondaryConfig->MeleeMontage, SecondaryConfig->MeleeKnockbackStrength);
+
+		if (bHit && SecondaryWeapon->Server_ConsumeDurabilityHit())
+		{
+			// Broke on this swing - same "gone, not disabled" interpretation
+			// Server_WeaponMeleeAttack_Implementation uses for the primary hand (P5's chosen v1
+			// interpretation of "melee breaks").
+			if (UZSInventoryComponent* MutableInventory = GetInventoryComponent())
+			{
+				FZSItemInstance RemovedInstance;
+				MutableInventory->Server_RemoveInstanceById(SecondaryHandInstanceId, RemovedInstance);
+			}
+			SecondaryWeapon->Destroy();
+			SecondaryWeapon = nullptr;
+			SecondaryHandInstanceId = FGuid();
+			OnRep_SecondaryHandInstanceId();
+		}
+	}
+	else if (SecondaryWeapon->CanFire())
+	{
+		FireWeapon(SecondaryWeapon);
+	}
 }
 
 void AZSPlayerCharacter::OnRep_SecondaryHandInstanceId()

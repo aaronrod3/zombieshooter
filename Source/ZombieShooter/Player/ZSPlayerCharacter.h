@@ -336,7 +336,7 @@ public:
 
 protected:
 
-	/** B0-T11.2/T11.3: resolves SecondaryHandInstanceId's config - a toggleable item (bIsToggleable) flips bSecondaryItemActive; a weapon config is a currently-unimplemented gap (see the .cpp comment - it would need its own spawned AZSWeapon actor and ammo/equip choreography mirroring CurrentWeapon's, out of scope for this pass per the Planning doc's own "genuinely new surface, scope it as its own small task" note). No-op if SecondaryHandInstanceId is empty/invalid. */
+	/** B0-T11.2/T11.3, offhand-fire half added 2026-07-28 (away-session cluster, see Docs/Beta/B0_Stabilization.md T11.2's note): resolves SecondaryHandInstanceId's config - a toggleable item (bIsToggleable) flips bSecondaryItemActive; a weapon config dispatches to FireWeapon(SecondaryWeapon) (Ranged) or PerformMeleeSwing with the config's melee stats (Melee), mirroring HandleAttack's own AttackType dispatch. No-op if SecondaryHandInstanceId is empty/invalid. */
 	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
 	void Server_HandleSecondaryAction();
 
@@ -359,6 +359,48 @@ protected:
 	/** B0-T11.4: a real, always-present light source (not delegated to unauthored Blueprint content) - toggled on/off by OnSecondaryItemToggled's default implementation. Attached at a rough chest-height forward offset on GetMesh() (no confirmed left-hand socket exists on the skeleton to attach to instead) - positioning is a content-polish task, the light itself is functionally real today. Shadow casting off by default - a per-player dynamic shadow-casting spotlight is a real perf cost, not needed for B0's purposes. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USpotLightComponent> FlashlightComponent;
+
+	// =====================================================================
+	// Offhand weapon fire, added 2026-07-28 (away-session cluster - the T11.2 content gap: "an
+	// offhand weapon doesn't actually fire/swing yet... needs its own spawned AZSWeapon actor and
+	// ammo/equip choreography mirroring CurrentWeapon's"). SecondaryWeapon mirrors CurrentWeapon's
+	// own spawn/attach/destroy/durability-writeback lifecycle one-for-one, just keyed off
+	// SecondaryHandInstanceId instead of HotbarSlots/ActiveHotbarIndex. Deliberate scope cuts,
+	// documented rather than silently assumed: semi-auto only (no HandleFireStarted-style repeating
+	// auto-fire timer for the offhand yet - a single SecondaryAction press is one shot/swing);
+	// shares the same LastAttackTime cooldown as the primary hand (one shared attack rhythm, not
+	// independent dual-wielding spam) since PerformMeleeSwing already uses that single member and
+	// splitting it is a bigger change than this task needs; reuses SocketGunAttachment for
+	// attachment (no dedicated offhand socket authored - same "rough placement, real mechanism"
+	// precedent as FlashlightComponent above, not a blocking gap).
+	// =====================================================================
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_SecondaryWeapon, Category = "ZS|Loadout")
+	TObjectPtr<AZSWeapon> SecondaryWeapon;
+
+	UFUNCTION()
+	void OnRep_SecondaryWeapon();
+
+	/** Spawns and initializes SecondaryWeapon from Config, destroying any existing one first (with a durability writeback). Server-only. Mirrors EquipWeapon one-for-one, minus the body-mesh swap (only CurrentWeapon drives that). */
+	void EquipSecondaryWeapon(UZSWeaponConfig* Config);
+
+	/** Writes SecondaryWeapon's live durability back into its CarrySlots instance, then destroys the actor. Server-only. Called before SecondaryHandInstanceId changes away from a weapon (re-equip, unequip, or the weapon breaking). */
+	void UnequipSecondaryWeapon();
+
+	void WriteBackSecondaryWeaponDurability();
+
+	/** B0-T3.5/T3.6/T10.1's fire logic, extracted from Server_Fire_Implementation (2026-07-28) so both CurrentWeapon and SecondaryWeapon can fire through the same path rather than duplicating ~100 lines of jam/spread/headshot/projectile logic. Pure extraction - no behavior change to the primary path, which still calls this with CurrentWeapon exactly as before. Server-only, assumes the caller already gated on CanFire()-equivalent checks. */
+	void FireWeapon(AZSWeapon* Weapon);
+
+public:
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon", meta = (BlueprintThreadSafe))
+	AZSWeapon* GetSecondaryWeapon() const { return SecondaryWeapon; }
+
+	/** Attaches SecondaryWeapon to GetMesh() - client-side counterpart to EquipSecondaryWeapon's spawn. Public (cross-class), same reasoning as AttachWeaponToBodyMesh: AZSWeapon::OnRep_CurrentConfig calls this (via GetSecondaryWeapon() == this) or AttachWeaponToBodyMesh (via GetCurrentWeapon() == this) depending on which slot the replicating weapon actor actually belongs to - getting this wrong would attach/reassemble the wrong weapon's cosmetics on remote clients. */
+	void AttachSecondaryWeaponToBodyMesh();
+
+protected:
 
 	// =====================================================================
 	// B0-T3.9 - Camera (TopDown only - ThirdPerson/OverShoulder deleted 2026-07-26, dev-confirmed
