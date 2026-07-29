@@ -39,7 +39,7 @@
 
 **Deliberately different from PZ (our identity):**
 - **3D top-down camera with direct WASD + mouse-aim control, framed like *Door Kickers 2*** (dev reference, 2026-07-19) — steeper/closer top-down than a classic 45° isometric, zoomable in tight enough to read character/room detail, not PZ's menu-driven interaction. **Important distinction from DK2 itself: this is a visual/camera reference only, not a gameplay one** — the player has full real-time direct control and normal movement at all times, no squad-command/pause-and-plan layer. Combat feels like a twin-stick/tactical shooter; survival feels like PZ. (Also more console-friendly than isometric-plus-right-click-menus — a stick-aim top-down camera translates to a gamepad far more directly, which helps Notes §3's console want land for free later.)
-- **Co-op-first (2–4 players, listen server)** — every system built replicated from day one, which is already this codebase's DNA. Profession/background choice now also picks a **starting spawn location** (Notes §4.1) — see Decision 4.
+- **Co-op-first (4+ players, listen server — raised from the original 2–4 per OQ-X-03, 2026-07-26 rescope)** — every system built replicated from day one, which is already this codebase's DNA. Profession/background choice now also picks a **starting spawn location** (Notes §4.1) — see Decision 4.
 - **Dynamic events, radiant objectives, and a discoverable investigation arc** — helicopter-class events (PZ §17) as an expanded *system* (Notes §17: "create more meta events"), radio-driven objectives, and a questline built from notes/documents/items scattered through the world that lets players piece together the outbreak's origin and chase a cure (Notes §1/§22).
 - **Hostile human roamers** — always-hostile wandering human NPCs that fight zombies *and* players, never allies (Notes §19: "never friendly"). This is the "enemy variety Romero purism forbids" the reference doc's own §23 flags as a differentiation opportunity. **Confirmed as the first post-v1 addition, not part of the v1 slice** (Decision 5) — the dev chose to prove out the core survival loop first, even though it's cheap specifically because it reuses the zombie AI/perception/noise pipeline. Full NPC survivors/factions/dialogue/reputation systems are a different, much bigger system and stay deferred to their own planning pass, same as before.
 - **Simplified simulation** — every PZ system ships here at roughly **1/3 of PZ's depth**, chosen for readability. Depth can grow later; opacity is not a feature we inherit.
@@ -162,7 +162,7 @@ The pivot **keeps the repo, the project, and the C++ core.** What we've built is
 - **Sneak and Sprint are stats, not a dedicated skill tree** — consistent with the existing §7.3 disposition ("no lightfootedness skill web in v1").
 - **First Aid stands alone**, unchanged in spirit from the prior Medicine skill.
 - **Carpentry and Survival move to the deferred list** as Building and Foraging/Cooking respectively — dev's stated priority is proving out the core combat/survival loop first; these return in their own planning pass alongside Fishing and Mechanics.
-- **Level range 1–5** still applies where a visible level makes sense (per-weapon melee bars, Aiming, Reloading, Maintenance, First Aid) — matches the non-grind design goal (Notes §1).
+- **Level range 1–5** still applies where a visible level makes sense (per-weapon melee bars, Aiming, Reloading, Maintenance, First Aid, Lockpicking) — matches the non-grind design goal (Notes §1).
 
 **Expansion path (not built now):**
 - Deferred skills (Fishing, Building, Foraging, Cooking, Mechanics) get their own planning pass once the v1 combat/survival loop is proven.
@@ -263,7 +263,7 @@ The equip-slot/hotbar machinery is combat-facing (it decides what a single Attac
 - Character creation v1: backgrounds (§3) + spawn point (Decision 4) + appearance from the art kit's modular characters. No trait point-buy — build variety from background choice and emergent play-driven attribute/skill growth (§3.1).
 - Death → new character → same world flow polished.
 - First-hour experience pass: radio-guided first days, interaction hints, transparent stat/action previews everywhere.
-- **Skill/attribute XP hookup** (learn-by-doing across P2–P6 systems): Strength/Stamina/Sneak/Sprint attributes, per-weapon-class Melee bars, Maintenance, Aiming, Reloading, First Aid — all per §3.1's revised list, wired to their respective P2–P6 systems.
+- **Skill/attribute XP hookup** (learn-by-doing across P2–P6 systems): Strength/Stamina/Sneak/Sprint attributes, per-weapon-class Melee bars, Maintenance, Aiming, Reloading, First Aid, Lockpicking — all per §3.1's revised list, wired to their respective P2–P6 systems.
   **Exit:** a stranger survives their first 30 minutes without a wiki and dies to something they understand.
 
 ### P10 — Production hardening → public vertical slice

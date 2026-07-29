@@ -1,6 +1,6 @@
 # ZombieShooter
 
-UE5.8 co-op zombie survival game (working title). Solo dev, C++ core / Blueprint content. Pivoted 2026-07-18 from FP/TP shooter to Project Zomboid-style top-down survival: needs/moodles, noise-as-threat, permadeath+persistent world, cure arc, 2-4p listen-server co-op.
+UE5.8 co-op zombie survival game (working title). Solo dev, C++ core / Blueprint content. Pivoted 2026-07-18 from FP/TP shooter to Project Zomboid-style top-down survival: needs/moodles, noise-as-threat, permadeath+persistent world, cure arc, 4+p listen-server co-op (raised from 2-4p in the 2026-07-26 rescope, see `Docs/Beta/00_MasterPlan.md` OQ-X-03).
 
 **Read `Docs/SessionHandoff.md` first, every session — it is kept short on purpose and only covers the last completed task and the immediate next step. Full history lives in git commit log, not in this repo's docs.**
 
