@@ -248,6 +248,15 @@ void AZombieCharacter::Die()
 	bIsDead = true;
 	OnRep_IsDead();
 
+	// A zombie killed while downed (e.g. ranged fire, which has no downed-exclusion the way
+	// PerformMeleeSwing does) shouldn't leave bIsDowned stuck true on the corpse forever - same
+	// state-clear Server_ExitDownedState does, just as part of dying instead of recovering.
+	if (bIsDowned)
+	{
+		bIsDowned = false;
+		OnRep_IsDowned();
+	}
+
 	// A downed zombie finished off by the T10.6 finisher shouldn't still recover mid-corpse-linger.
 	GetWorldTimerManager().ClearTimer(DownedRecoveryTimerHandle);
 

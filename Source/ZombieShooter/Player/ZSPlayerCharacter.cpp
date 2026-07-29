@@ -1340,6 +1340,13 @@ void AZSPlayerCharacter::HandleDeath()
 
 	if (HasAuthority())
 	{
+		// A dead player's stale ready flag would otherwise keep counting in
+		// AZSGameState::UpdateSleepRequestState's aggregation until this corpse actor is destroyed.
+		if (bIsReadyToSleep)
+		{
+			CancelSleepReady();
+		}
+
 		Server_HandleDeathLootAndZombie();
 		GetWorldTimerManager().SetTimer(RespawnTimerHandle, this, &AZSPlayerCharacter::Server_RespawnAsNewCharacter, RespawnDelaySeconds, false);
 	}
@@ -1353,6 +1360,21 @@ void AZSPlayerCharacter::Server_HandleDeathLootAndZombie()
 	}
 
 	const FVector DeathLocation = GetActorLocation();
+
+	// Every other equip-transition path (CompleteHotbarSwitch, UnequipSecondaryWeapon) writes back
+	// live durability and destroys the outgoing weapon actor before losing the reference - death was
+	// skipping both, which dropped loot with stale (too-high) durability and permanently leaked the
+	// weapon actor (attachment alone doesn't cascade-destroy with the owning character). Must run
+	// before Server_DropAllItems below, which reads CarrySlots' InstanceState directly.
+	WriteBackCurrentWeaponDurability();
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->Destroy();
+		CurrentWeapon = nullptr;
+		RefreshBodyMeshFromWeapon();
+		AttachWeaponToBodyMesh();
+	}
+	UnequipSecondaryWeapon(); // Already writes back durability + destroys + nulls in one call.
 
 	// B0-T9.1: preserves every carried instance's InstanceId/InstanceState at the death location -
 	// already covers whatever was equipped/hotbarred too, since equipping never removes an instance
@@ -1509,6 +1531,12 @@ void AZSPlayerCharacter::EnterBlackout()
 
 	bIsBlackedOut = true;
 	OnRep_IsBlackedOut();
+
+	// Same reasoning as HandleDeath - an incapacitated player shouldn't keep counting as sleep-ready.
+	if (bIsReadyToSleep)
+	{
+		CancelSleepReady();
+	}
 
 	GetCharacterMovement()->DisableMovement();
 
@@ -2157,7 +2185,9 @@ AZombieCharacter* AZSPlayerCharacter::FindNearestDownedZombie(float Range) const
 
 bool AZSPlayerCharacter::CanRackFirearm() const
 {
-	return !bIsBusy && CurrentWeapon && CurrentWeapon->IsJammed();
+	// Covers both hands - an offhand weapon (SecondaryWeapon) can jam via the same FireWeapon() path
+	// the primary hand uses, but had no way to clear it until this check considered it too.
+	return !bIsBusy && ((CurrentWeapon && CurrentWeapon->IsJammed()) || (SecondaryWeapon && SecondaryWeapon->IsJammed()));
 }
 
 void AZSPlayerCharacter::StartRackFirearm_Implementation()
@@ -2177,9 +2207,17 @@ void AZSPlayerCharacter::Server_StartRackFirearm_Implementation()
 		return;
 	}
 
-	CurrentWeapon->Server_ClearJam();
+	// Primary takes priority if both hands are somehow jammed at once - one Alt+R input, one busy
+	// window, same shared-action precedent as LastAttackTime/FireWeapon between the two hands.
+	AZSWeapon* WeaponToClear = (CurrentWeapon && CurrentWeapon->IsJammed()) ? CurrentWeapon : SecondaryWeapon;
+	if (!WeaponToClear)
+	{
+		return;
+	}
 
-	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	WeaponToClear->Server_ClearJam();
+
+	if (const UZSWeaponConfig* Config = WeaponToClear->GetConfig())
 	{
 		Multicast_PlayTPActionMontage(Config->TP_ClearJam);
 		BeginBusyAction(Config->TP_ClearJam);

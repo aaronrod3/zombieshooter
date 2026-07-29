@@ -12,18 +12,26 @@ Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per s
 
 ## Last completed (2026-07-29) — `[uncompiled]`
 
-With PIE/editor access unavailable to you this stretch, did a code-review pass on T11.2's offhand-weapon-firing code (the newest, least-scrutinized part of B0) instead of stalling. Found and fixed a real bug: `Server_EquipToSecondaryHand_Implementation` never called `SeedDurabilityFromInstance` — unlike the primary hand's hotbar-equip path, which explicitly seeds durability/condition after equipping. Every offhand weapon was silently resetting to full durability on every equip instead of resuming where it left off — the exact bug class the item-instance refactor exists to prevent. Fixed in `ZSPlayerCharacter.cpp`, mirroring the primary hand's pattern exactly. Added two new tests to protect it: `ZS.Loadout.SecondaryWeaponEquipAndUnequip` and `ZS.Loadout.SecondaryWeaponDurabilityWriteback` (the latter would have caught this bug directly had it existed sooner). Full detail: `B0_Stabilization.md` T11.4's row, `B0_ChecklistAndDecisions_2026-07-26.md` §1.5.
+With PIE/editor access unavailable to you this stretch, ran two rounds of code review across B0 instead of stalling, finding and fixing **five real bugs**, all reusing existing functions (no new abstractions):
 
-**Nothing here has been compiled** — the editor was open the whole time, and per standing policy a rebuild is present-session/dev-triggered, not something to force through unprompted. Traced carefully against the actual current source (every field/function checked directly, not assumed), but that's not a substitute for a real compile.
+1. `Server_EquipToSecondaryHand_Implementation` never seeded offhand-weapon durability from the carried instance — every re-equip silently reset to full durability.
+2. `Server_HandleDeathLootAndZombie` never wrote back weapon durability or destroyed `CurrentWeapon`/`SecondaryWeapon` before dropping loot — a permanent actor leak plus stale-durability loot on every death with a weapon equipped.
+3. `AZombieCharacter::Die()` never reset `bIsDowned` — a zombie killed while downed stayed flagged downed on its corpse forever.
+4. Sleep-readiness aggregation never accounted for a dead/blacked-out player, and neither `HandleDeath()` nor `EnterBlackout()` cancelled it — a party's sleep/time-skip could succeed off an incapacitated teammate's stale ready flag.
+5. `CanRackFirearm`/`Server_StartRackFirearm` were hard-coded to `CurrentWeapon` only — a jammed offhand weapon had no way to ever clear the jam.
+
+Added 6 new tests to protect all five (one bug had two symptoms covered by the same durability-writeback test). Full detail: `B0_Stabilization.md`'s T9.1/T10.1/T10.4/T11.4/T4.10 rows, `B0_ChecklistAndDecisions_2026-07-26.md` §1.5.
+
+**Nothing has been compiled** — the editor was open the whole stretch, and per standing policy a rebuild is present-session/dev-triggered, not something to force through unprompted. Every function referenced was traced directly against the current source (not assumed), including a Plan-mode design pass that re-verified the highest-confidence findings before any code was touched — but none of that substitutes for a real compile.
 
 Also reviewed and fixed stale cross-references across `B1_UI_UX.md` through `B12`'s docs plus `CLAUDE.md`/`GameDevPlan.md`, left over from the 2026-07-26 rescope (old rejected death rule, "vehicles cut" contradicting its own reversal, "infection ambiguous" contradicting its own reversal, stale 2-4-player references, a missing Lockpicking entry). See commits `69c5091` and `708bdff`.
 
 ## Next step
 
-1. **Compile gate, first thing**: full `Build.bat` rebuild. Touches `ZSPlayerCharacter.cpp` again (the durability-seeding fix) plus two new test cases — expect the new tests specifically to be unverified until a real build/run.
-2. `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §2.9 item 3 has the offhand-fire manual test steps — needs your hands (no PIE-input automation path exists — see tooling gotchas below). Worth re-testing durability persistence specifically now that the seeding bug is fixed.
-3. Everything else in B0 is either already PIE-confirmed or already awaiting your hands — see the checklist doc's §2 for the full remaining order.
-4. 4 automation tests (2 latent, 2 new `SecondaryWeapon` ones) are written but have never been run — say the word for a test-automation session (present-session, dev-triggered only, see `CLAUDE.md`).
+1. **Compile gate, first thing**: full `Build.bat` rebuild. This stretch touched `ZSPlayerCharacter.cpp` (4 separate fixes), `ZombieCharacter.cpp` (1 fix), and added 6 test cases on top of the 2 from the previous stretch — a real batch of changes, worth a careful build/run pass, not a quick skim.
+2. Once compiled, run the full `ZS.*` automation filter, not just the newest tests — the death-path fixes touch `HandleDeath`, which no pre-existing test covers at all.
+3. `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §2.9 item 3 has the offhand-fire manual test steps — needs your hands (no PIE-input automation path exists — see tooling gotchas below). Worth re-testing durability persistence and death/loot specifically now that these fixes are in.
+4. Everything else in B0 is either already PIE-confirmed or already awaiting your hands — see the checklist doc's §2 for the full remaining order.
 
 ## Known tooling gotchas (worth remembering)
 

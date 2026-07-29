@@ -13,6 +13,8 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Engine/DamageEvents.h"
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 
 #include "ZSItemInstance.h"
@@ -24,6 +26,7 @@
 #include "ZSInventoryComponent.h"
 #include "ZSWeapon.h"
 #include "ZSWeaponConfig.h"
+#include "ZSWorldItemActor.h"
 #include "ZSGameState.h"
 #include "ZSTestHarnessActor.h"
 #include "ZSWeaponTypes.h"
@@ -1045,6 +1048,290 @@ bool FZSAmputationBlackoutTest::RunTest(const FString& Parameters)
 	State->DeadlineSeconds = FPlatformTime::Seconds() + 4.0; // AmputationDurationSeconds (3s default) + scheduling slack
 
 	ADD_LATENT_AUTOMATION_COMMAND(FZSCheckAmputationBlackoutCommand(State));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fourth batch, added 2026-07-29 - regression coverage for a round of bugs found via code review
+// (no PIE/editor access this stretch, so this was a read-the-source pass rather than a build-and-
+// test one). Each test below targets one specific bug found and fixed the same session.
+// ---------------------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Combat.ZombieDeathWhileDownedClearsDownedFlag - AZombieCharacter::Die() never reset bIsDowned,
+// so a zombie killed while downed (ranged fire has no downed-exclusion the way melee does) stayed
+// permanently flagged bIsDowned=true on its corpse.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSZombieDeathWhileDownedTest, "ZS.Combat.ZombieDeathWhileDownedClearsDownedFlag", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSZombieDeathWhileDownedTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UClass* ZombieClass = StaticLoadClass(AZombieCharacter::StaticClass(), nullptr, TEXT("/Game/ZS/Enemy/Character/AZombieCharacter.AZombieCharacter_C"));
+	if (!TestNotNull(TEXT("Zombie Blueprint class loaded"), ZombieClass))
+	{
+		return false;
+	}
+
+	AZombieCharacter* Zombie = TestWorld.World->SpawnActor<AZombieCharacter>(ZombieClass);
+	if (!TestNotNull(TEXT("Zombie spawned"), Zombie))
+	{
+		return false;
+	}
+
+	Zombie->Server_EnterDownedState();
+	if (!TestTrue(TEXT("Downed after Server_EnterDownedState"), Zombie->IsDowned()))
+	{
+		return false;
+	}
+
+	Zombie->TakeDamage(99999.f, FDamageEvent(), nullptr, nullptr);
+	if (!TestTrue(TEXT("Dead after lethal damage"), Zombie->IsDead()))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("No longer flagged as downed after dying"), Zombie->IsDowned());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Survival.SleepReadyClearedOnDeath - AZSPlayerCharacter::HandleDeath() never cancelled sleep-
+// readiness, so a dead player's stale bIsReadyToSleep=true kept counting in
+// AZSGameState::UpdateSleepRequestState's aggregation until the corpse actor was later destroyed.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSSleepReadyClearedOnDeathTest, "ZS.Survival.SleepReadyClearedOnDeath", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSSleepReadyClearedOnDeathTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+	// HandleDeath is bound to HealthComponent's OnDeath delegate in BeginPlay - same BeginPlay
+	// gotcha as every other test spawning a full AZSPlayerCharacter and expecting death to fire.
+	if (!Character->HasActorBegunPlay())
+	{
+		Character->DispatchBeginPlay();
+	}
+
+	Character->RequestSleep(8.f);
+	if (!TestTrue(TEXT("Ready to sleep after RequestSleep"), Character->IsReadyToSleep()))
+	{
+		return false;
+	}
+
+	UZSHealthComponent* Health = Character->GetHealthComponent();
+	if (!TestNotNull(TEXT("Health component exists"), Health))
+	{
+		return false;
+	}
+	Health->Server_ApplyDamage(9999.f, EZSBodyZone::Torso, EZSWoundType::Laceration, nullptr, nullptr);
+	if (!TestTrue(TEXT("Dead after lethal damage"), Health->IsDead()))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("No longer ready to sleep after dying"), Character->IsReadyToSleep());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Loadout.SecondaryWeaponRackFirearmClearsJam - CanRackFirearm()/Server_StartRackFirearm were
+// hard-coded to CurrentWeapon only, so an offhand ranged weapon that jammed (via the same
+// FireWeapon()/Server_RollForJam() path the primary hand uses) had no way to ever clear the jam.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSSecondaryWeaponRackFirearmTest, "ZS.Loadout.SecondaryWeaponRackFirearmClearsJam", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSSecondaryWeaponRackFirearmTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* PistolConfig = NewObject<UZSWeaponConfig>();
+	PistolConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	PistolConfig->bUsableInSecondaryHand = true;
+	PistolConfig->AttackType = EZSAttackType::Ranged;
+	PistolConfig->bJamImmune = false;
+	PistolConfig->BaseJamChance = 1.f; // Deterministic guaranteed jam - jamming itself isn't under test here.
+	PistolConfig->MaxJamChance = 1.f;
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Pistol added to CarrySlots"), Inventory->Server_AddItem(PistolConfig, 1), 1))
+	{
+		return false;
+	}
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* PistolInstance = Slots.FindByPredicate([PistolConfig](const FZSItemInstance& I) { return I.Config == PistolConfig; });
+	if (!TestNotNull(TEXT("Pistol instance found in CarrySlots"), PistolInstance))
+	{
+		return false;
+	}
+
+	Character->Server_EquipToSecondaryHand(PistolInstance->InstanceId);
+	AZSWeapon* Secondary = Character->GetSecondaryWeapon();
+	if (!TestNotNull(TEXT("SecondaryWeapon spawned"), Secondary))
+	{
+		return false;
+	}
+	if (!TestNull(TEXT("No primary weapon equipped - isolates this to the offhand-only case"), Character->GetCurrentWeapon()))
+	{
+		return false;
+	}
+
+	if (!TestTrue(TEXT("Guaranteed jam roll (BaseJamChance/MaxJamChance both 1.0)"), Secondary->Server_RollForJam()))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("SecondaryWeapon reports jammed"), Secondary->IsJammed()))
+	{
+		return false;
+	}
+
+	if (!TestTrue(TEXT("CanRackFirearm considers the jammed SecondaryWeapon, not just CurrentWeapon"), Character->CanRackFirearm()))
+	{
+		return false;
+	}
+
+	Character->Server_StartRackFirearm();
+	TestFalse(TEXT("SecondaryWeapon jam cleared after Rack Firearm"), Secondary->IsJammed());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Health.DeathWritesBackDurabilityAndDestroysWeapons - Server_HandleDeathLootAndZombie never
+// wrote back live weapon durability or destroyed the equipped weapon actors before dropping loot,
+// unlike every other equip-transition path in this file. Every death with a weapon equipped leaked
+// an orphaned, still-functional AZSWeapon actor and dropped loot with stale (too-high) durability.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSDeathWritesBackDurabilityTest, "ZS.Health.DeathWritesBackDurabilityAndDestroysWeapons", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSDeathWritesBackDurabilityTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	// OneHanded so equipping it doesn't block the SecondaryHand equip below.
+	UZSWeaponConfig* RifleConfig = NewObject<UZSWeaponConfig>();
+	RifleConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	RifleConfig->AttackType = EZSAttackType::Ranged;
+
+	UZSWeaponConfig* KnifeConfig = NewObject<UZSWeaponConfig>();
+	KnifeConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	KnifeConfig->bUsableInSecondaryHand = true;
+	KnifeConfig->AttackType = EZSAttackType::Melee;
+	KnifeConfig->MaxDurabilityHits = 10;
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+	if (!Character->HasActorBegunPlay())
+	{
+		Character->DispatchBeginPlay();
+	}
+
+	// Primary weapon via the existing public immediate-entry point (same precedent as
+	// ZS.Loadout.SecondaryHandBlocksTwoHanded) - not the timed hotbar flow, which needs a
+	// content-authored StartingHotbarLoadout this suite deliberately avoids depending on.
+	Character->EquipWeapon(RifleConfig);
+	if (!TestNotNull(TEXT("Rifle equipped as CurrentWeapon"), Character->GetCurrentWeapon()))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Knife added to CarrySlots"), Inventory->Server_AddItem(KnifeConfig, 1), 1))
+	{
+		return false;
+	}
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* KnifeInstance = Slots.FindByPredicate([KnifeConfig](const FZSItemInstance& I) { return I.Config == KnifeConfig; });
+	if (!TestNotNull(TEXT("Knife instance found in CarrySlots"), KnifeInstance))
+	{
+		return false;
+	}
+
+	Character->Server_EquipToSecondaryHand(KnifeInstance->InstanceId);
+	AZSWeapon* Secondary = Character->GetSecondaryWeapon();
+	if (!TestNotNull(TEXT("SecondaryWeapon (knife) spawned"), Secondary))
+	{
+		return false;
+	}
+
+	// Wear it down without breaking it, so there's a real non-full durability value to verify
+	// survives into the dropped loot rather than a value that happens to equal MaxDurabilityHits.
+	for (int32 i = 0; i < 4; ++i)
+	{
+		Secondary->Server_ConsumeDurabilityHit();
+	}
+	if (!TestEqual(TEXT("Knife worn to 6/10 before death"), Secondary->GetCurrentDurability(), 6))
+	{
+		return false;
+	}
+
+	UZSHealthComponent* Health = Character->GetHealthComponent();
+	if (!TestNotNull(TEXT("Health component exists"), Health))
+	{
+		return false;
+	}
+	Health->Server_ApplyDamage(9999.f, EZSBodyZone::Torso, EZSWoundType::Laceration, nullptr, nullptr);
+	if (!TestTrue(TEXT("Dead after lethal damage"), Health->IsDead()))
+	{
+		return false;
+	}
+
+	TestNull(TEXT("CurrentWeapon actor destroyed on death, not leaked"), Character->GetCurrentWeapon());
+	TestNull(TEXT("SecondaryWeapon actor destroyed on death, not leaked"), Character->GetSecondaryWeapon());
+
+	bool bFoundDroppedKnife = false;
+	for (TActorIterator<AZSWorldItemActor> It(TestWorld.World); It; ++It)
+	{
+		if (It->GetItemInstance().Config == KnifeConfig)
+		{
+			bFoundDroppedKnife = true;
+			TestEqual(TEXT("Dropped knife's durability matches its actual worn state, not reset to full"), It->GetItemInstance().InstanceState.CurrentDurability, 6);
+			break;
+		}
+	}
+	TestTrue(TEXT("Dropped knife instance found as a world item"), bFoundDroppedKnife);
 
 	return true;
 }
