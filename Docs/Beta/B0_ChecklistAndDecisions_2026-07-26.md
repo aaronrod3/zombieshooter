@@ -25,12 +25,13 @@ This is expected — nobody's assigned it yet. Both pieces you need already exis
 4. Re-run `ZS.SpawnZombies 25` — zombies should now actually appear.
 5. While you're in there: the same `AZombieCharacter` Blueprint also fixes `AZSPlayerCharacter::DeathZombieClass` on `BP_ZS_PlayerCharacter` — same content gap, same fix, worth doing both at once.
 
-### 3. Get an actual bag into your inventory, then set `DA_Bag`'s `bIsEquippable` to true
-Both `ZS.DebugEquipFirstBagItem` and `ZS.DebugStoreFirstItemInBag` logged the same warning — `no bag/clothing-type item carried`. This isn't the `bIsEquippable` flag rejecting it; it's that **you have no bag in `CarrySlots` at all** to test with yet. There's no placed world pickup or loot-table roll for `DA_Bag` guaranteed yet, so you had no way to actually loot one. Fixed with a new command that grants it directly:
-1. Run `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag` (needs a rebuild — new command). **Pass:** logs `granted 1/1 of DA_Bag`.
-2. Open `DA_Bag.uasset`, confirm `bIsEquippable` is `true` (this was found `false` by the automation suite — may already be fixed if you've touched it recently, worth a quick look either way). If it's still `false`, `ZS.DebugEquipFirstBagItem` in the next step will keep failing.
-3. Run `ZS.DebugEquipFirstBagItem` (the command from earlier). **Pass:** logs `equipped DA_Bag ...`, and `GetMaxCarryWeight()` rises by its `CarryCapacityBonus`.
-4. Now `ZS.DebugStoreFirstItemInBag` has something to find.
+### 3. ✅ Done — bag grant/equip/store confirmed working, 2026-07-29
+`ZS.DebugEquipFirstBagItem`/`ZS.DebugStoreFirstItemInBag` originally warned `no bag/clothing-type item carried` because there was no placed world pickup or guaranteed loot-table roll for `DA_Bag` — not a `bIsEquippable` problem. Fixed with `ZS.DebugGiveItem`, and the full chain is now confirmed in PIE:
+1. `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag` → granted.
+2. `ZS.DebugEquipFirstBagItem` → equipped to Back (slot 1) — confirms `DA_Bag.bIsEquippable` is already `true`, this content gap is resolved.
+3. `ZS.DebugStoreFirstItemInBag` → stored a carried rifle inside the bag successfully.
+
+**Still worth checking** (section 2 below, steps 1 and 5): that `GetMaxCarryWeight()` actually rose by the bag's `CarryCapacityBonus`, and that the nested rifle survives a drop/re-pickup cycle.
 
 `ZS.DebugGiveItem <object path> [count]` works for any `UZSItemConfig`-derived asset, not just the bag — useful any time you've authored a new item with no placed pickup yet.
 
@@ -84,7 +85,7 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 
 ### 2. Bag capacity & nested contents
 **Needs:** a bag item (`bIsEquippable = true`, `EquipSlot = Back` or `Hip`, `CarryCapacityBonus > 0` — see "Start here" #3 above) and one other plain item.
-**⏸ Not yet tested** (dev's own call, 2026-07-27 — waiting on more inventory/UI setup).
+**🔶 Partially confirmed, 2026-07-29** — steps 2 and 4 (grant/equip, store) verified working in PIE. Steps 1, 5-7 (weight-bonus confirmation, drop/re-pickup persistence, 2-client check, condition-quality variance) still open.
 > Bag nesting is capped at one level by design — a bag can't hold another bag. `Server_StoreInBag` returns `false` cleanly if you try; worth a quick check that it does.
 
 1. Note `GetMaxCarryWeight()` before equipping the bag.
