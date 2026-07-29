@@ -305,6 +305,291 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugListWounds(
 		}
 	}));
 
+// Temporary B0-T4 test hook - mirrors ZS.DebugListWounds for the Needs side (Hunger/Thirst/Fatigue/
+// Stamina/Temperature/Wet/Indoors), all VisibleAnywhere-only and prone to the same Details-panel
+// display quirk documented in CLAUDE.md. Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+// Remove once real moodle UI lands.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugListNeeds(
+	TEXT("ZS.DebugListNeeds"),
+	TEXT("Logs the local (host) player's Hunger/Thirst/Fatigue/Stamina/Temperature/Wet/Indoors, severity tiers, and performance/perception multipliers - B0-T4 testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSNeedsComponent* Needs = Character ? Character->GetNeedsComponent() : nullptr;
+		if (!Needs)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugListNeeds: no local pawn/needs component found"));
+			return;
+		}
+
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugListNeeds: Hunger=%.1f(tier%d) Thirst=%.1f(tier%d) Fatigue=%.1f(tier%d) Stamina=%.1f(tier%d) Temperature=%.1f(tier%d) Wet=%d PerformanceMult=%.2f PerceptionMult=%.2f"),
+			Needs->GetHunger(), Needs->GetHungerSeverityTier(), Needs->GetThirst(), Needs->GetThirstSeverityTier(),
+			Needs->GetFatigue(), Needs->GetFatigueSeverityTier(), Needs->GetStamina(), Needs->GetStaminaSeverityTier(),
+			Needs->GetTemperature(), Needs->GetTemperatureSeverityTier(), Needs->IsWet(),
+			Needs->GetPerformanceMultiplier(), Needs->GetPerceptionMultiplier());
+	}));
+
+// Temporary B0-T4 test hook - Server_SetWet/Server_SetIndoors are real functions with no bound input
+// or prior console wrapper (no weather/indoor-detection system exists yet to call them from - B4's
+// job). Usage: ZS.DebugSetWet 1 / ZS.DebugSetWet 0. Host-only, same authority reasoning as
+// ZS.DebugDropFirstItem. Remove once B4's weather system calls these for real.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugSetWet(
+	TEXT("ZS.DebugSetWet"),
+	TEXT("Sets the local (host) player's bIsWet. Usage: ZS.DebugSetWet <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSNeedsComponent* Needs = Character ? Character->GetNeedsComponent() : nullptr;
+		if (!Needs)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugSetWet: no local pawn/needs component found"));
+			return;
+		}
+
+		const bool bNewWet = Args.Num() > 0 && FCString::Atoi(*Args[0]) != 0;
+		Needs->Server_SetWet(bNewWet);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugSetWet: set to %d"), bNewWet);
+	}));
+
+// Same gap/pattern as ZS.DebugSetWet, for the indoor/outdoor input.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugSetIndoors(
+	TEXT("ZS.DebugSetIndoors"),
+	TEXT("Sets the local (host) player's indoor/outdoor Temperature input. Usage: ZS.DebugSetIndoors <0|1>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSNeedsComponent* Needs = Character ? Character->GetNeedsComponent() : nullptr;
+		if (!Needs)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugSetIndoors: no local pawn/needs component found"));
+			return;
+		}
+
+		const bool bNewIndoors = Args.Num() > 0 && FCString::Atoi(*Args[0]) != 0;
+		Needs->Server_SetIndoors(bNewIndoors);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugSetIndoors: set to %d"), bNewIndoors);
+	}));
+
+// Temporary B0 test hook - every time-gated test (Wet dry-out, Temperature drift, Hunger/Thirst/
+// Fatigue decay, wound-infection onset, fracture recovery, bite-infection stage progression) derives
+// its own "game hours elapsed" from real DeltaTime scaled by AZSGameState::RealSecondsPerGameDay -
+// NOT from the displayed clock (TimeOfDayHours/DayCount), so Server_AdvanceTimeByGameHours doesn't
+// speed any of them up. This is the actual lever: it overrides RealSecondsPerGameDay live, no rebuild
+// needed, same effect as B0_ChecklistAndDecisions_2026-07-26.md's old "edit the header, rebuild,
+// test, revert" workaround. Remember to set it back afterward (default 1440) if you want realistic
+// pacing again. Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugSetTimeCompression(
+	TEXT("ZS.DebugSetTimeCompression"),
+	TEXT("Sets RealSecondsPerGameDay live (lower = faster time-gated decay/progression). Usage: ZS.DebugSetTimeCompression <seconds, default 1440>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		AZSGameState* GameState = World ? World->GetGameState<AZSGameState>() : nullptr;
+		if (!GameState)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugSetTimeCompression: no authoritative AZSGameState found"));
+			return;
+		}
+		if (Args.Num() == 0)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugSetTimeCompression: usage - ZS.DebugSetTimeCompression <seconds>"));
+			return;
+		}
+
+		GameState->Server_SetRealSecondsPerGameDay(FCString::Atof(*Args[0]));
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugSetTimeCompression: RealSecondsPerGameDay now %.1f"), GameState->GetRealSecondsPerGameDay());
+	}));
+
+// Temporary B0-T6 test hook - UseItem doesn't check CarrySlots ownership at all (the real UI/hotbar
+// caller is trusted to already hold a valid config), so this just loads a UZSItemConfig by path and
+// applies it directly - no need to actually carry the item first. Usage:
+// ZS.DebugUseItem /Game/ZS/Items/DA_ZS_ItemConfig_Bandage.DA_ZS_ItemConfig_Bandage 1 (Zone: 0=Head
+// 1=Torso 2=Arms 3=Legs). Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugUseItem(
+	TEXT("ZS.DebugUseItem"),
+	TEXT("Applies a UZSItemConfig (bandage/disinfectant/splint/consumable) to the local (host) player. Usage: ZS.DebugUseItem <object path> <Zone 0=Head 1=Torso 2=Arms 3=Legs>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		if (!Character)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugUseItem: no local pawn found"));
+			return;
+		}
+		if (Args.Num() == 0)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugUseItem: usage - ZS.DebugUseItem <ItemConfig object path> [Zone 0-3, default 1/Torso]"));
+			return;
+		}
+
+		UZSItemConfig* Config = LoadObject<UZSItemConfig>(nullptr, *Args[0]);
+		if (!Config)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugUseItem: failed to load a UZSItemConfig at '%s'"), *Args[0]);
+			return;
+		}
+
+		const EZSBodyZone Zone = (Args.Num() > 1) ? static_cast<EZSBodyZone>(FMath::Clamp(FCString::Atoi(*Args[1]), 0, 3)) : EZSBodyZone::Torso;
+		Character->UseItem(Config, Zone);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugUseItem: applied %s (ItemUseType=%s) to %s"),
+			*GetNameSafe(Config), *UEnum::GetValueAsString(Config->ItemUseType), *UEnum::GetValueAsString(Zone));
+	}));
+
+// Temporary B0-T7 test hook - no dedicated amputation prompt exists yet. AmputateZone is public and
+// unconditional (any zone/any time, solo-capable per its own header comment - no infection gate),
+// only requiring Zone is Arms/Legs and not already amputated. Host-only, same authority reasoning as
+// ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugAmputateZone(
+	TEXT("ZS.DebugAmputateZone"),
+	TEXT("Amputates a zone on the local (host) player (Arms=2 or Legs=3 only). Usage: ZS.DebugAmputateZone <Zone 2=Arms 3=Legs>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		if (!Character)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugAmputateZone: no local pawn found"));
+			return;
+		}
+		if (Args.Num() == 0)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugAmputateZone: usage - ZS.DebugAmputateZone <Zone 2=Arms 3=Legs>"));
+			return;
+		}
+
+		const EZSBodyZone Zone = static_cast<EZSBodyZone>(FMath::Clamp(FCString::Atoi(*Args[0]), 0, 3));
+		Character->AmputateZone(Zone);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugAmputateZone: requested amputation of %s"), *UEnum::GetValueAsString(Zone));
+	}));
+
+// Temporary B0-T4/T2 test hook - a lethal hit takes real setup (multiple bites, or a long fight) to
+// reach naturally; this jumps straight there via the same Server_ApplyDamage entry point real damage
+// uses, with a Bite wound type so it also exercises the infection-roll/zombie-conversion path in one
+// shot. Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugKillSelf(
+	TEXT("ZS.DebugKillSelf"),
+	TEXT("Applies 9999 Bite damage to the local (host) player's Torso, killing them - B0-T9 death/zombie-conversion testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSHealthComponent* Health = Character ? Character->GetHealthComponent() : nullptr;
+		if (!Health)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugKillSelf: no local pawn/health component found"));
+			return;
+		}
+
+		Health->Server_ApplyDamage(9999.f, EZSBodyZone::Torso, EZSWoundType::Bite);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugKillSelf: applied lethal Bite damage"));
+	}));
+
+// Temporary B0-T10 test hook - a pristine weapon's ~1% base jam chance makes reliably reaching a
+// jammed state impractical to test Rack Firearm against. Calls the weapon's own Server_ForceJam
+// (added alongside this command) rather than looping Server_RollForJam waiting for a lucky roll.
+// Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugForceJam(
+	TEXT("ZS.DebugForceJam"),
+	TEXT("Forces the local (host) player's CurrentWeapon to jam - B0-T10.1 Rack Firearm testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		AZSWeapon* Weapon = Character ? Character->GetCurrentWeapon() : nullptr;
+		if (!Weapon)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugForceJam: no local pawn/CurrentWeapon found"));
+			return;
+		}
+
+		Weapon->Server_ForceJam();
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugForceJam: IsJammed now %d"), Weapon->IsJammed());
+	}));
+
+// Temporary B0-T10.1 test hook - IA_Rack doesn't exist yet (content gap, Section 1 of
+// B0_ChecklistAndDecisions_2026-07-26.md). Calls the same public entry point a real keypress would
+// (StartRackFirearm, not the protected Server_ RPC it wraps). Host-only, same authority reasoning as
+// ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugRackFirearm(
+	TEXT("ZS.DebugRackFirearm"),
+	TEXT("Racks the local (host) player's CurrentWeapon/SecondaryWeapon to clear a jam - B0-T10.1 testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		if (!Character)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugRackFirearm: no local pawn found"));
+			return;
+		}
+
+		Character->StartRackFirearm();
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugRackFirearm: requested"));
+	}));
+
+// Temporary B0-T10.6 test hook - IA_Finisher doesn't exist yet (content gap). Calls the same public
+// entry point a real Space press would (HandleFinisher, not the protected Server_PerformFinisher it
+// wraps) - real range/downed-target gating inside still applies, this doesn't bypass it. Host-only,
+// same authority reasoning as ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugPerformFinisher(
+	TEXT("ZS.DebugPerformFinisher"),
+	TEXT("Attempts a finisher on a nearby downed zombie (within FinisherRange) - B0-T10.6 testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		if (!Character)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugPerformFinisher: no local pawn found"));
+			return;
+		}
+
+		Character->HandleFinisher();
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugPerformFinisher: requested (no-op if no downed zombie is within FinisherRange)"));
+	}));
+
+// Temporary B0-T11 test hook - IA_SecondaryAction doesn't exist yet (content gap). Calls the same
+// public entry point a real T press would (HandleSecondaryAction). Host-only, same authority
+// reasoning as ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugTriggerSecondaryAction(
+	TEXT("ZS.DebugTriggerSecondaryAction"),
+	TEXT("Fires/toggles whatever's in the local (host) player's SecondaryHand - B0-T11.2/T11.3 testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		if (!Character)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugTriggerSecondaryAction: no local pawn found"));
+			return;
+		}
+
+		Character->HandleSecondaryAction();
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugTriggerSecondaryAction: requested"));
+	}));
+
+// Temporary B0-T4.10 test hook - IA_Sleep doesn't exist yet (content gap). Calls the same public
+// entry point a real keypress would (ToggleSleepReady).
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugToggleSleepReady(
+	TEXT("ZS.DebugToggleSleepReady"),
+	TEXT("Toggles the local (host) player's ready-to-sleep state - B0-T4.10 testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		if (!Character)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugToggleSleepReady: no local pawn found"));
+			return;
+		}
+
+		Character->ToggleSleepReady();
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugToggleSleepReady: requested"));
+	}));
+
 AZSPlayerCharacter::AZSPlayerCharacter()
 {
 	// Tick drives the third-person camera-distance interpolation.

@@ -80,6 +80,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	void Server_ClearJam();
 
+	/** Debug/testing-only: sets bIsJammed directly, bypassing Server_RollForJam's chance roll - a pristine weapon's ~1% base jam chance makes reliably reaching a jammed state to test Rack Firearm impractical without this. No-op if already jammed, bJamImmune, or off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	void Server_ForceJam();
+
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Weapon")
 	FZSOnJamStateChanged OnJamStateChanged;
 

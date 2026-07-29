@@ -69,6 +69,16 @@ void AZSGameState::Server_AdvanceTimeByGameHours(float GameHours)
 	ApplyGameHoursElapsed(GameHours);
 }
 
+void AZSGameState::Server_SetRealSecondsPerGameDay(float NewRealSecondsPerGameDay)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	RealSecondsPerGameDay = FMath::Max(NewRealSecondsPerGameDay, 1.f);
+}
+
 void AZSGameState::ApplyGameHoursElapsed(float GameHours)
 {
 	TimeOfDayHours += GameHours;

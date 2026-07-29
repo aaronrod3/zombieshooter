@@ -82,9 +82,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|WorldClock")
 	float GetRealSecondsPerGameDay() const { return RealSecondsPerGameDay; }
 
-	/** Jumps the clock forward by GameHours in one lump (not tied to DeltaTime) - the sleep/time-skip system's entry point. Server-only; no-ops off HasAuthority(). */
+	/** Jumps the clock forward by GameHours in one lump (not tied to DeltaTime) - the sleep/time-skip system's entry point. Server-only; no-ops off HasAuthority(). NOTE for testing: this only moves TimeOfDayHours/DayCount (the displayed clock) - UZSNeedsComponent/UZSHealthComponent both derive their own decay/progression from real DeltaTime scaled by RealSecondsPerGameDay independently (see GetRealSecondsPerGameDay's comment), so this does NOT speed up Wet/Temperature/Hunger/Thirst/Fatigue decay or wound-infection/fracture/bite-infection progress. Use Server_SetRealSecondsPerGameDay for that instead. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|WorldClock")
 	void Server_AdvanceTimeByGameHours(float GameHours);
+
+	/** Debug/testing-only: overrides RealSecondsPerGameDay live, no rebuild needed - every subsequent tick's real-to-game-hour conversion (UZSNeedsComponent/UZSHealthComponent) picks it up immediately, since both already read GetRealSecondsPerGameDay() fresh every frame rather than caching it. This is the runtime equivalent of B0_ChecklistAndDecisions_2026-07-26.md's "temporarily lower RealSecondsPerGameDay in ZSGameState.h, rebuild, test, revert" workaround. Clamped to the same ClampMin="1" the property itself enforces in the editor. Server-only; no-ops off HasAuthority(). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|WorldClock")
+	void Server_SetRealSecondsPerGameDay(float NewRealSecondsPerGameDay);
 
 	UPROPERTY(BlueprintAssignable, Category = "ZS|WorldClock")
 	FZSOnTimeOfDayChanged OnTimeOfDayChanged;

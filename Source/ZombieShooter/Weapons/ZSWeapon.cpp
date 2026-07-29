@@ -297,6 +297,17 @@ void AZSWeapon::Server_ClearJam()
 	OnRep_IsJammed();
 }
 
+void AZSWeapon::Server_ForceJam()
+{
+	if (!HasAuthority() || bIsJammed || (CurrentConfig && CurrentConfig->bJamImmune))
+	{
+		return;
+	}
+
+	bIsJammed = true;
+	OnRep_IsJammed();
+}
+
 void AZSWeapon::OnRep_IsJammed()
 {
 	OnJamStateChanged.Broadcast(bIsJammed);

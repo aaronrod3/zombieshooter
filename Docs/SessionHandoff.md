@@ -10,7 +10,18 @@
 
 Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per sub-task, current as of 2026-07-28) and `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` (the manual-steps/test-checklist/decisions companion — **start here**, current as of 2026-07-29).
 
-## Last completed (2026-07-29) — `[uncompiled]`
+## Last completed (2026-07-29, second stretch) — `[uncompiled]`
+
+Dev started actually PIE-testing this stretch (first real testing since the batch of bug fixes below landed). Results: **sections 1, 2 (core), 3 (solo), 4, and 5 (partial - Torso confirmed, other zones untested) of `B0_ChecklistAndDecisions_2026-07-26.md` all confirmed working.** Two real findings from that testing:
+
+1. **Magazine left behind on weapon unequip** - `AZSMagazine` is a separate, unreplicated actor merely attached to `AZSWeapon`'s mesh; destroying the weapon didn't cascade-destroy it. Fixed via `AZSWeapon::Destroyed()`. New test `ZS.Weapons.DestroyingWeaponAlsoDestroysMagazine`.
+2. **Scroll wheel zooms in regardless of direction, permanently** - diagnosed as a content/config issue in `IA_Zoom`'s key mapping (likely both wheel-direction keys mapped positive, missing a Negate modifier on one), not a C++ bug - the zoom math itself (`UZSCameraDirector::ApplyManualZoom`) is correct. Not fixable without editor access; full diagnosis and fix steps in the checklist doc's section 9.
+
+Also added a large batch of `ZS.Debug*` console commands to unblock sections 6-13 (jamming, amputation, needs, sleep-ready, forced death, finisher, secondary-hand trigger) that had no bound input and no prior console wrapper - full list in the checklist doc's command table. One genuine discovery while building these: **`AZSGameState::Server_AdvanceTimeByGameHours` does not speed up any time-gated test** - `UZSNeedsComponent`/`UZSHealthComponent` both derive decay/progression from real `DeltaTime` scaled by `RealSecondsPerGameDay`, independent of the displayed clock. Added `AZSGameState::Server_SetRealSecondsPerGameDay()` (+ `ZS.DebugSetTimeCompression`) as the actual live lever, no rebuild needed per use.
+
+None of this stretch has been compiled yet.
+
+## Last completed (2026-07-29, first stretch) — `[uncompiled]`
 
 With PIE/editor access unavailable to you this stretch, ran three rounds of code review across B0 instead of stalling, finding and fixing **eight real bugs**, all reusing existing functions (no new abstractions):
 
@@ -31,11 +42,12 @@ Also reviewed and fixed stale cross-references across `B1_UI_UX.md` through `B12
 
 ## Next step
 
-1. **Compile gate, first thing**: full `Build.bat` rebuild. This stretch touched `ZSPlayerCharacter.cpp` (4 fixes), `ZombieCharacter.cpp` (1 fix), `ZSHealthComponent.cpp` (1 fix), `ZSInventoryComponent.cpp` (1 fix), `ZSWeapon.h`/`.cpp` (1 fix, the magazine-orphan bug), and added 9 test cases on top of the 2 from the previous stretch — a real batch of changes, worth a careful build/run pass, not a quick skim.
-2. Once compiled, run the full `ZS.*` automation filter, not just the newest tests — the death-path fixes touch `HandleDeath`, which no pre-existing test covers at all.
-3. **`Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` is now a walkthrough, start there** — its "Start here" section has 3 immediate items: rebuild (magazine fix), assign `StressTestZombieClass`, and check `DA_Bag.bIsEquippable` (the exact two gaps your own console testing just hit).
-4. **A real design decision is waiting on you**: bug 7's `HotbarSlots`/`SecondaryHandInstanceId` half (whether `UZSInventoryComponent` should gain a cross-component query into `AZSPlayerCharacter`'s loadout state, or the character should validate before calling `Server_StoreInBag`) — see `B0_Stabilization.md`'s T2.9 row.
-5. Everything else in B0 is either already PIE-confirmed or already awaiting your hands — see the checklist doc's walkthrough for the full remaining order.
+1. **Compile gate, first thing**: full `Build.bat` rebuild. This second stretch added a large batch of `ZS.Debug*` console commands to `ZSPlayerCharacter.cpp`, plus two small new functions: `AZSWeapon::Server_ForceJam()` and `AZSGameState::Server_SetRealSecondsPerGameDay()`. Combined with the first stretch's changes (still uncompiled too), this is a big batch — worth a careful build/run pass.
+2. Once compiled, run the full `ZS.*` automation filter (still hasn't happened at all this session).
+3. **Resume PIE testing at section 6** of `B0_ChecklistAndDecisions_2026-07-26.md`'s walkthrough — sections 1-5 are confirmed working (5 partially), and sections 6-13 now each have `ZS.Debug*` command support so none of them should be blocked on missing input/UI anymore.
+4. **The scroll-wheel zoom bug (section 9) needs your hands in the editor** — likely a missing Negate modifier on one of `IA_Zoom`'s wheel-direction key mappings, full diagnosis in the checklist doc.
+5. **A real design decision is still waiting on you**: bug 7's `HotbarSlots`/`SecondaryHandInstanceId` half (whether `UZSInventoryComponent` should gain a cross-component query into `AZSPlayerCharacter`'s loadout state, or the character should validate before calling `Server_StoreInBag`) — see `B0_Stabilization.md`'s T2.9 row.
+6. **Also your own call, not urgent**: dev flagged wanting unequipped weapons to be holstered on the character instead of destroyed, eventually — noted in the checklist doc's decisions log, not scheduled yet.
 
 ## Known tooling gotchas (worth remembering)
 

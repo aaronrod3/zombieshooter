@@ -2,40 +2,29 @@
 
 > **What this is.** Everything in this doc needs your hands — either manual PIE testing (no automation path exists, see `CLAUDE.md`) or a real editor content-authoring step. Full technical detail per sub-task lives in `Docs/Beta/B0_Stabilization.md`; compile/PIE-verification *status* lives in `Docs/SessionHandoff.md`. This doc is the walkthrough: what to click, what you should see, what counts as a pass.
 >
-> **Status as of 2026-07-29**: module compiles clean (pending one just-fixed bug below — rebuild first). **Nothing below has been PIE-tested yet.**
+> **Status as of 2026-07-29**: sections 1, 2 (core), 3 (solo), 4, and 5 (partial) confirmed working in PIE. A batch of new `ZS.Debug*` console commands were added to unblock sections 6-13 (jamming, amputation, needs, sleep, time compression, finisher, secondary-hand trigger, forced death) — **all need a rebuild** before they'll work. One real bug found in section 9 (scroll-wheel zoom) still needs an editor-side content fix, not a rebuild.
 
 ---
 
-## Start here — do these 3 things before testing anything else
+## Start here — all 3 confirmed working, 2026-07-29
 
-Your own testing already hit two of these directly (see console output below), so knock these out first or you'll just hit the same walls again mid-checklist.
+Your own testing hit all three directly. All confirmed working now — nothing left to do here except retest #1 after the rebuild.
 
 ### 1. Rebuild — a real bug just got fixed
 You reported the magazine staying behind when unequipping a rifle. Root cause: the magazine is a separate actor just glued onto the weapon visually, and destroying the weapon didn't take the magazine with it. Fixed in `AZSWeapon::Destroyed()`. **Needs a rebuild before you'll see it fixed.** Retest: equip a rifle, unequip it (switch hotbar slots or go bare-fisted) — the magazine should vanish along with the rifle, not float in place.
 
-### 2. Assign `StressTestZombieClass`
-Your `ZS.SpawnZombies` run logged:
-```
-Warning: ZS.SpawnZombies: AZSGameMode::StressTestZombieClass is unset
-```
-This is expected — nobody's assigned it yet. Both pieces you need already exist, nothing to create from scratch:
-1. Open `Content/ZS/Framework/BP_ZS_GameMode.uasset` (already exists), go to Class Defaults, find `StressTestZombieClass` (category `ZS|StressTest`).
-2. Assign `Content/ZS/Enemy/Character/AZombieCharacter.uasset` — this is the existing, already-working zombie Blueprint (parent class `AZombieCharacter`, config `DA_ZS_ZombieConfig_Shambler`), just not named `BP_Zombie_*` like the usual convention. It's the one already verified wandering/investigating/chasing correctly in PIE, not a placeholder.
-3. Make sure it's actually the active GameMode: World Settings → GameMode Override (or Project Settings → Maps & Modes → Default GameMode if no override) → `BP_ZS_GameMode`.
-4. Re-run `ZS.SpawnZombies 25` — zombies should now actually appear.
-5. While you're in there: the same `AZombieCharacter` Blueprint also fixes `AZSPlayerCharacter::DeathZombieClass` on `BP_ZS_PlayerCharacter` — same content gap, same fix, worth doing both at once.
+### 2. ✅ Confirmed — `StressTestZombieClass` assigned, `ZS.SpawnZombies` works
+Both pieces already existed, nothing needed creating: `BP_ZS_GameMode`'s `StressTestZombieClass` now points at `Content/ZS/Enemy/Character/AZombieCharacter.uasset` (the existing, already-working zombie Blueprint, just not named `BP_Zombie_*` like the usual convention). `ZS.SpawnZombies 25` now spawns real zombies. Worth doing the same for `AZSPlayerCharacter::DeathZombieClass` on `BP_ZS_PlayerCharacter` if you haven't already — same asset, same fix, needed for section 10's zombie-conversion test.
 
-### 3. ✅ Done — bag grant/equip/store confirmed working, 2026-07-29
+### 3. ✅ Confirmed — bag grant/equip/store all working
 `ZS.DebugEquipFirstBagItem`/`ZS.DebugStoreFirstItemInBag` originally warned `no bag/clothing-type item carried` because there was no placed world pickup or guaranteed loot-table roll for `DA_Bag` — not a `bIsEquippable` problem. Fixed with `ZS.DebugGiveItem`, and the full chain is now confirmed in PIE:
 1. `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag` → granted.
 2. `ZS.DebugEquipFirstBagItem` → equipped to Back (slot 1) — confirms `DA_Bag.bIsEquippable` is already `true`, this content gap is resolved.
 3. `ZS.DebugStoreFirstItemInBag` → stored a carried rifle inside the bag successfully.
 
-**Still worth checking** (section 2 below, steps 1 and 5): that `GetMaxCarryWeight()` actually rose by the bag's `CarryCapacityBonus`, and that the nested rifle survives a drop/re-pickup cycle.
+**Deferred by you for later** (not urgent, not a bug): drop the bag (with the rifle nested inside) and pick it back up, confirming the nesting survives — section 2 below, step 5.
 
 `ZS.DebugGiveItem <object path> [count]` works for any `UZSItemConfig`-derived asset, not just the bag — useful any time you've authored a new item with no placed pickup yet.
-
-Once both check out, retry `ZS.DebugStoreFirstItemInBag` — you should get a `storing X in Y` log line instead of the warning.
 
 ---
 
@@ -47,21 +36,52 @@ You can **watch** these values but not **edit** them by typing into Details — 
 
 **2-player PIE.** Only the host's window has a real Outliner. To check a second client's pawn, select *their* pawn from the **host's** Outliner — the host sees every replicated actor in the session.
 
-**Console commands that exist today** (open console with `` ` ``, all host-only, all act on the local/host player only):
+**Console commands that exist today** (open console with `` ` ``, all host-only, all act on the local/host player only). All the ones below marked **New** need a rebuild before they'll work.
+
+*Inventory/loot:*
 | Command | What it does |
 |---|---|
-| `ZS.DebugGiveItem <object path> [count]` | Grants any `UZSItemConfig` item straight into `CarrySlots` — no placed pickup or loot roll needed. e.g. `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag`. **New, needs a rebuild.** |
+| `ZS.DebugGiveItem <object path> [count]` | Grants any `UZSItemConfig` item straight into `CarrySlots` — no placed pickup or loot roll needed. e.g. `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag`. |
 | `ZS.DebugDropFirstItem` | Drops 1 unit of the first item in `CarrySlots`. |
-| `ZS.DebugEquipFirstBagItem` | Equips the first bag/clothing-type item you're carrying into its own Back/Hip slot — this is how you get the bag's `CarryCapacityBonus` (extra slots) without any UI. **New, needs a rebuild.** |
+| `ZS.DebugEquipFirstBagItem` | Equips the first bag/clothing-type item you're carrying into its own Back/Hip slot — this is how you get the bag's `CarryCapacityBonus` (extra slots) without any UI. |
 | `ZS.DebugStoreFirstItemInBag` | Moves the first non-bag item into the first bag-type item (must already be equipped via the command above). |
-| `ZS.DebugEquipFirstToSecondaryHand` | Tries to equip the first SecondaryHand-legal item (toggleable, or a `OneHanded`+`bUsableInSecondaryHand` weapon) into SecondaryHand, logs `SUCCEEDED`/`REJECTED`. **New, needs a rebuild.** |
 | `ZS.DebugListCarrySlots` | Logs your full `CarrySlots` to the Output Log, including nested bag contents and weight. |
-| `ZS.DebugListWounds` | Logs `CurrentHealth`, bite `InfectionStage`, and every body zone's wound state (type, bleeding, clean, splinted, critical bleed, infection source, amputated, wound infection). **New, needs a rebuild.** |
+
+*Loadout/combat:*
+| Command | What it does |
+|---|---|
+| `ZS.DebugEquipFirstToSecondaryHand` | Tries to equip the first SecondaryHand-legal item (toggleable, or a `OneHanded`+`bUsableInSecondaryHand` weapon) into SecondaryHand, logs `SUCCEEDED`/`REJECTED`. |
+| `ZS.DebugTriggerSecondaryAction` | **New.** Fires/toggles whatever's in SecondaryHand — stand-in for the `T` key until `IA_SecondaryAction` exists. |
+| `ZS.DebugForceJam` | **New.** Forces `CurrentWeapon` to jam instantly, instead of grinding the ~1% per-shot chance. |
+| `ZS.DebugRackFirearm` | **New.** Racks `CurrentWeapon`/`SecondaryWeapon` to clear a jam — stand-in until `IA_Rack` exists. |
+| `ZS.DebugPerformFinisher` | **New.** Attempts a finisher on a nearby downed zombie (within `FinisherRange`) — stand-in until `IA_Finisher` exists. |
+
+*Health/wounds:*
+| Command | What it does |
+|---|---|
+| `ZS.DebugListWounds` | Logs `CurrentHealth`, bite `InfectionStage`, and every body zone's wound state (type, bleeding, clean, splinted, critical bleed, infection source, amputated, wound infection). |
+| `ZS.DebugUseItem <object path> [Zone 0-3]` | **New.** Applies a bandage/disinfectant/splint/consumable config to a zone (0=Head 1=Torso 2=Arms 3=Legs, default Torso) — doesn't require actually carrying the item first. e.g. `ZS.DebugUseItem /Game/ZS/Items/DA_ZS_ItemConfig_Bandage.DA_ZS_ItemConfig_Bandage 1`. |
+| `ZS.DebugAmputateZone <Zone 2 or 3>` | **New.** Amputates Arms(2)/Legs(3) directly — no infection-progress gate exists, so this works any time. |
+| `ZS.DebugKillSelf` | **New.** Applies 9999 Bite damage to Torso — instant death that also exercises the infection-roll/zombie-conversion path, for repeatable death-flow testing without a real fight. |
+
+*Needs/survival:*
+| Command | What it does |
+|---|---|
+| `ZS.DebugListNeeds` | **New.** Logs Hunger/Thirst/Fatigue/Stamina/Temperature/Wet, all 4 severity tiers, and performance/perception multipliers in one shot. |
+| `ZS.DebugSetWet <0\|1>` | **New.** Sets `bIsWet` directly. |
+| `ZS.DebugSetIndoors <0\|1>` | **New.** Sets the indoor/outdoor Temperature input directly. |
+| `ZS.DebugToggleSleepReady` | **New.** Toggles ready-to-sleep — stand-in until `IA_Sleep` exists. |
+| `ZS.DebugSetTimeCompression <seconds, default 1440>` | **New, important.** See "Time compression" below — this is the real lever for every time-gated test, not `Server_AdvanceTimeByGameHours`. |
+
+*World:*
+| Command | What it does |
+|---|---|
 | `ZS.SpawnZombies <n>` | Spawns `<n>` (1-500) zombies around you. |
 
-**No command exists yet for**: forcing wet/indoors, or forcing a specific wound onto a zone (you can now *observe* wound state via `ZS.DebugListWounds` above, just not force one directly — wounds still only come from a real hit). `Server_SetWet(bool)`/`Server_SetIndoors(bool)` are real functions, just no console wrapper — you'd need a temporary Blueprint debug key on `BP_ZS_PlayerCharacter` calling them. Say the word if you want `ZS.DebugSetWet`/`ZS.DebugSetIndoors` added — same pattern as the commands above, quick to add.
-
-**Time compression.** 1 game-hour = 1 real minute by default (`RealSecondsPerGameDay = 1440`). Some tests are directly waitable this way (Wet's 2h dry-out = 2 real minutes). Others aren't (an unsplinted Fracture's 240h recovery = 4 real hours) — for those, **check the rate over a short window** instead of waiting it out (e.g. confirm progress climbs ~10 units over 10 real minutes rather than waiting the full 240). If you really want to watch one finish, temporarily drop `RealSecondsPerGameDay` in `ZSGameState.h` (~line 139) to `60.f`, rebuild, test, then revert and rebuild again.
+**Time compression — read this before any wait-based test.** There are two different "time" systems in this game and they don't talk to each other:
+- **The displayed world clock** (`TimeOfDayHours`/`DayCount`, and anything the sleep system jumps forward) — this is what `AZSGameState::Server_AdvanceTimeByGameHours` moves. It does **not** speed up anything below.
+- **Everything that decays/progresses over real time** — Wet dry-out, Temperature drift, Hunger/Thirst/Fatigue decay, wound-infection onset, fracture recovery, bite-infection stage progression. All of these independently convert real `DeltaTime` into "game hours" using the same ratio (`RealSecondsPerGameDay`, default 1440 = 1 real minute per game hour). **`ZS.DebugSetTimeCompression <seconds>` is the actual way to speed these up** — it overrides that ratio live, no rebuild needed (e.g. `ZS.DebugSetTimeCompression 60` makes 1 game-hour = 1 real second). Set it back to `1440` afterward if you want realistic pacing again for other tests.
+- For anything not worth fully compressing, the older approach still works too: **check the rate over a short window** instead of waiting it out (e.g. confirm progress climbs ~10 units over 10 real minutes rather than waiting the full 240).
 
 **Multiplayer setup**: PIE → Advanced Settings → Multiplayer Options → Number of Players ≥ 2, Net Mode "Play As Listen Server."
 
@@ -74,8 +94,8 @@ You can **watch** these values but not **edit** them by typing into Details — 
 Work top to bottom — later sections build on earlier ones, so an early failure may explain a later one.
 
 ### 1. Item durability persists across equip/unequip
+**✅ Confirmed working, 2026-07-29.**
 **Needs:** a weapon config with `MaxDurabilityHits > 0` (check the `DA_ZS_WeaponConfig_*` asset — 0 means unbreakable, nothing to test).
-**⏸ Deferred once already** (2026-07-27) — couldn't find the spawned weapon actor in a crowded Outliner. Two easier ways below fix that.
 
 1. Loot the weapon (world pickup, or a container's "loot all").
 2. Press its hotbar number, wait for the equip delay, confirm it's now your active weapon.
@@ -87,7 +107,7 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 
 ### 2. Bag capacity & nested contents
 **Needs:** a bag item (`bIsEquippable = true`, `EquipSlot = Back` or `Hip`, `CarryCapacityBonus > 0` — see "Start here" #3 above) and one other plain item.
-**🔶 Partially confirmed, 2026-07-29** — steps 2 and 4 (grant/equip, store) verified working in PIE. Steps 1, 5-7 (weight-bonus confirmation, drop/re-pickup persistence, 2-client check, condition-quality variance) still open.
+**✅ Core mechanism confirmed working, 2026-07-29** — grant/equip/store (steps 2-4) all verified in PIE. Step 5 (drop/re-pickup persistence) deliberately deferred by you for later; steps 6-7 (2-client check, condition-quality variance) still open.
 > Bag nesting is capped at one level by design — a bag can't hold another bag. `Server_StoreInBag` returns `false` cleanly if you try; worth a quick check that it does.
 
 1. Note `GetMaxCarryWeight()` before equipping the bag.
@@ -108,6 +128,7 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 2. **Still to test:** drop some ammo, have a second player pick it up, confirm they can reload the same weapon type from it.
 
 ### 4. Two-Handed blocks SecondaryHand
+**✅ Confirmed working, 2026-07-29.**
 There's no bound input for equipping SecondaryHand at all yet (that's real UI/input work, section 12 below), so this needs the new debug command: `ZS.DebugEquipFirstToSecondaryHand` (needs a rebuild). It picks the first item in your `CarrySlots` legal for SecondaryHand — a toggleable item (the flashlight) or a `OneHanded` weapon flagged `bUsableInSecondaryHand` — and tries to equip it, then logs `SUCCEEDED` or `REJECTED`. You don't need to know which of your weapons is which `Handedness` up front; the command logs your current primary weapon's name each time so you can cross-check afterward.
 
 1. Get a flashlight into `CarrySlots` if you don't have one: `ZS.DebugGiveItem /Game/ZS/Items/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight` (a toggleable item is the simplest legal SecondaryHand candidate — it doesn't care about weapon `Handedness` at all, only a weapon does).
@@ -135,16 +156,19 @@ Run `ZS.DebugListWounds` (needs a rebuild) any time you want to check zone/wound
    - **Pass:** splinting sets `bSplinted = true`. A fresh Fracture hit on the same zone mid-recovery resets progress to 0.
 
 ### 6. Two-tier infection
-1. **Wound infection.** Leave a dirty wound (`bClean = false`, default for any fresh unbandaged wound) untreated past `WoundInfectionOnsetGameHours` (24h — use the rate-check approach above).
+Run `ZS.DebugSetTimeCompression 30` (or lower) first — at the default 1440, waiting out 24h of wound-infection onset or 48-96h of bite-infection stages for real is impractical. Set it back to `1440` when you're done with this section.
+
+1. **Wound infection.** Leave a dirty wound (`bClean = false`, default for any fresh unbandaged wound) untreated past `WoundInfectionOnsetGameHours` (24h), checking `ZS.DebugListWounds` periodically.
    - **Pass:** `WoundInfectionState` flips `None → Infected`, and bleed/fracture-recovery visibly worsens.
-2. **Clearing it.** `Server_Disinfect`, or a clean `Server_ApplyBandage`, on that zone.
-   - **Pass:** `WoundInfectionState` clears to `None` right away. The separate *bite* infection (`InfectionStage`) is untouched either way — they're independent systems.
-3. **Bite infection duration.** Get bitten, let the hidden 40% infection chance land (may take a few bites). Watch `InfectionStage` progress `Incubating → Queasy → Fever → Critical`.
-   - **Pass:** total time-to-death varies 48-96h across *multiple separate* infections — this is a statistical check across several playthroughs, not one pass/fail. A bandage/disinfectant with a nonzero incubation-delay stat should step `InfectionStageProgressGameHours` backward (no such item is authored yet — every existing one is 0/no-effect).
+2. **Clearing it.** Run `ZS.DebugUseItem /Game/ZS/Items/DA_ZS_ItemConfig_Bandage.DA_ZS_ItemConfig_Bandage <Zone>` (a clean bandage disinfects too) on that zone.
+   - **Pass:** `WoundInfectionState` clears to `None` right away (check via `ZS.DebugListWounds`). The separate *bite* infection (`InfectionStage`) is untouched either way — they're independent systems.
+3. **Bite infection duration.** Get bitten (non-lethally — `ZS.DebugKillSelf` in section 10 applies lethal damage, not useful here since you need to survive the hit to watch the infection play out) and let the hidden 40% infection chance land, may take a few bites. Watch `InfectionStage` progress `Incubating → Queasy → Fever → Critical` via `ZS.DebugListWounds`, with time compression still active from step 1.
+   - **Pass:** total time-to-death varies 48-96h across *multiple separate* infections — this is a statistical check across several playthroughs, not one pass/fail. A bandage/disinfectant with a nonzero incubation-delay stat should step `InfectionStageProgressGameHours` backward (no such item is authored yet — every existing one is 0/no-effect, so this specific sub-check can't be verified until one is).
 
 ### 7. Amputation & blackout
-1. Progress a bite infection to where amputation becomes available (no prompt exists yet — call `Server_AmputateZone` directly for now) on the infected zone.
-   - **Pass:** a busy/timed window occurs, then `InfectionStage` clears, `bAmputated` is set, and the zone's multiplier is permanently 0.25 regardless of any other wound.
+Turns out amputation has no infection-progress gate at all — `AmputateZone` works on Arms/Legs any time, infected or not (confirmed by reading the code, not assumed). Use `ZS.DebugAmputateZone <2=Arms|3=Legs>` directly — no need to progress an infection first unless you specifically want to confirm amputating the infection-source zone clears it (step 1 below).
+1. Get a bite infection going on an Arm or Leg (see section 6), then run `ZS.DebugAmputateZone` on that same zone.
+   - **Pass:** a busy/timed window occurs, then `InfectionStage` clears, `bAmputated` is set (`ZS.DebugListWounds`), and the zone's multiplier is permanently 0.25 regardless of any other wound.
 2. Immediately after:
    - **Pass:** `bIsBlackedOut` is true — movement disabled, can't attack/fire, but you're still damageable/targetable (not the death path).
 3. **Solo:** watch the world clock jump forward 12h the instant blackout begins (check the value right before and after — it's a discrete jump, not a wait). Then wait out 60 real seconds.
@@ -155,59 +179,68 @@ Run `ZS.DebugListWounds` (needs a rebuild) any time you want to check zone/wound
    - **Pass:** equipping a `TwoHanded` weapon afterward is rejected.
 
 ### 8. Needs simulation (hunger/thirst/fatigue/stamina/temperature/wet)
-1. Call `Server_SetWet(true)` via a temporary debug key.
-   - **Pass:** `bIsWet` replicates, auto-clears after 2 real minutes (`WetDryOutGameHours`).
+Use `ZS.DebugListNeeds` throughout instead of the Details panel — one log line for everything, and consistent with the Details-panel display quirk already found in section 5.
+
+1. Run `ZS.DebugSetWet 1`.
+   - **Pass:** `ZS.DebugListNeeds` shows `Wet=1`, auto-clears after 2 real minutes (`WetDryOutGameHours`) — or instantly if you've lowered time compression (section 6).
 2. While wet and walking (not sprinting — sprint reports noise separately), confirm a noise event fires every 0.6 real seconds. **This only matters with a zombie nearby** — it's a comparative test (does a zombie react to a wet player sooner than a dry one), not just "does the function run."
-3. Toggle wet/indoors, equip something with an `InsulationValue` (needs content — none exists yet), watch `Temperature` move toward the new target. Push past the hypothermia/hyperthermia thresholds (25/75) and confirm the performance multiplier drops below 1.0 near those edges.
+3. Run `ZS.DebugSetIndoors 1`/`0`, equip something with an `InsulationValue` (needs content — none exists yet), watch `Temperature` (via `ZS.DebugListNeeds`) move toward the new target. Push past the hypothermia/hyperthermia thresholds (25/75) and confirm the performance multiplier drops below 1.0 near those edges.
 4. With Hunger/Thirst/Fatigue/Temperature all at their best values simultaneously:
-   - **Pass:** `GetPerformanceMultiplier()` reads exactly 1.0, never higher.
-5. Load past 1.5x your max weight and sprint.
+   - **Pass:** `ZS.DebugListNeeds`' `PerformanceMult` reads exactly 1.00, never higher.
+5. Load past 1.5x your max weight (`ZS.DebugGiveItem` a bunch of something heavy) and sprint.
    - **Pass:** Stamina drains faster (up to 2x), but sprint is only blocked once Stamina hits 0 — never blocked by weight alone.
-6. Walk each need through all 4 severity tiers.
+6. Run `ZS.DebugSetTimeCompression 30` and walk each need through all 4 severity tiers, checking `ZS.DebugListNeeds`' `(tierN)` suffixes.
    - **Pass:** tier changes happen at 75/50/25 as expected.
-7. Get a zombie to notice you, immediately try to sleep.
+7. Get a zombie to notice you, immediately run `ZS.DebugToggleSleepReady` (stand-in until `IA_Sleep` exists).
    - **Pass:** blocked until the detection cooldown elapses. **Known, expected gap:** once that clears, sleep succeeds anywhere, indoors or not — the "real shelter" check doesn't exist until B4. Not a bug.
 
 ### 9. Camera & aiming
+🐛 **Bug reported 2026-07-29: scroll wheel, either direction, zooms in and stays zoomed in.** Diagnosed by reading the code, not yet fixable by me directly — this is almost certainly a content/configuration issue in the `IA_Zoom` Input Action or its mapping in `IMC_ZS_Default`, not a C++ bug:
+- The C++ math (`UZSCameraDirector::ApplyManualZoom`) is simple and correct: it trusts whatever signed float value Enhanced Input hands it (`Value.Get<float>()` from `HandleZoom`) and subtracts it from the target distance — a positive value zooms in, negative zooms out, both directions clamped between `MinCameraDistance`/`MaxCameraDistance`. There's no accumulation bug or missing clamp on the C++ side.
+- If scrolling **either direction** produces zoom-in, that means Enhanced Input is handing `HandleZoom` a **positive value regardless of scroll direction** — which happens if `IA_Zoom`'s key mapping uses the two separate discrete "Mouse Wheel Axis Up" / "Mouse Wheel Axis Down" keys (each fires an unsigned 1.0 pulse) without a **Negate** modifier on one of them, instead of the single combined "Mouse Wheel Axis" key (which is already correctly signed on its own, no modifiers needed).
+- **To check/fix**: open `IA_Zoom.uasset` in the editor, look at its key mappings (or `IMC_ZS_Default`'s row for `IA_Zoom`). If you see two separate wheel-direction keys, either delete one and use the single signed "Mouse Wheel Axis" key instead, or add a Negate modifier to whichever direction is missing one. "Permanently zoomed in" is consistent with this exact mistake — every scroll tick nudges `ManualTargetArmLength` down toward `MinCameraDistance` regardless of direction, and nothing ever pushes it back the other way.
+
 1. Confirm there's no way to leave TopDown view at all.
-2. Once `IA_Zoom` exists (content gap, see backlog below): scroll wheel and `=`/`-` zoom smoothly between 600-1400 units, not a snap.
+2. Fix the scroll-wheel issue above, then confirm: scroll wheel and `=`/`-` zoom smoothly between 600-1400 units, not a snap, and scrolling **down** actually zooms back out.
 3. Press `1`-`9` for hotbar. Confirm scroll wheel does nothing to the hotbar anymore — it's 100% reassigned to zoom.
 4. Pick one stationary **player** target (not a zombie — see why below) at a fixed distance. Fire 20-30 shots hip-fired, then the same aimed.
    - **Pass:** the aimed group is visibly tighter, and its headshot rate is noticeably higher (~25% aimed vs. ~5% hip-fired). You need real sample size — a handful of shots won't show a clean split. This only shows up against a player target because zombies have no hit-zone model yet.
 5. **Full pass:** 20+ real minutes — at least one interior space, 3+ zombie fights at range and melee, loot a container, check readability at both zoom extremes. Anything that feels off is a tuning note, not a bug — there's no fallback camera to revert to.
 
 ### 10. Death, loot & zombie conversion
-**Needs:** `AZSPlayerCharacter::DeathZombieClass` assigned (backlog below) — without it, death still works, you just won't see the zombie-conversion half.
+**Needs:** `AZSPlayerCharacter::DeathZombieClass` assigned (done in "Start here" #2, if you did the "while you're in there" step).
+`ZS.DebugKillSelf` (new) applies 9999 Bite damage to Torso, instantly killing you — repeatable death testing without a real fight every time. Use it for steps 2-3 below; it doesn't help step 4 (that one specifically needs infection to run its full course, not instant lethal damage).
+
 1. Load up: something hotbarred, something in Back/Hip, a bag with a nested item. Note the list (`ZS.DebugListCarrySlots`) before dying.
-2. Die to zombie damage.
+2. Run `ZS.DebugKillSelf` (or die to zombie damage normally).
    - **Pass:** every item — hotbarred, equipped, nested-in-bag, all of it — drops as its own world pickup at the death spot, preserving durability/condition. Check your half-durability weapon from section 1 specifically.
 3. **Pass:** a new zombie spawns at the same spot.
-4. Repeat via a bite-infection death instead of direct damage.
+4. Repeat via a bite-infection death instead of direct damage — get bitten, let it progress to Critical and run out (use `ZS.DebugSetTimeCompression`, section 6, to not wait 48-96h for real).
    - **Pass:** identical drop/zombie-spawn behavior.
 5. Respawn.
    - **Pass:** you get the default starting loadout, not the gear you just dropped — same in solo and co-op.
 
 ### 11. Combat revision (jamming, melee stamina, downed/finisher)
-1. Fire the same weapon repeatedly (empty, reload, repeat) until it jams. A pristine weapon only jams ~1%/shot, so this takes a while — a heavily-degraded one (your section 1 weapon) jams much sooner, up to 30%.
-   - **Pass:** once jammed, firing does nothing and consumes no ammo. Once `IA_Rack` exists (backlog): rack it, wait the clear-jam time, firing resumes.
+1. Run `ZS.DebugForceJam` on your equipped weapon (new — a pristine weapon's real ~1%/shot chance makes this impractical to hit naturally; a heavily-degraded one, like your section 1 weapon, jams up to 30%/shot if you'd rather test it the real way).
+   - **Pass:** once jammed, firing does nothing and consumes no ammo. Run `ZS.DebugRackFirearm` (new, stand-in until `IA_Rack` exists), wait the clear-jam time, firing resumes.
 2. Melee repeatedly, bare-fisted then weapon-equipped. Watch Stamina drop per swing whether it connects or not.
    - **Pass:** swings still execute at 0 Stamina — no hard block, that's intentional (see decisions log).
 3. Land a hit clearing the downed threshold (150 knockback) on a zombie.
    - **Pass:** it flips to downed, stops moving/attacking entirely (its whole behavior tree is paused as a stand-in, see decisions log), and recovers on its own after 6 seconds if left alone.
 4. While a zombie is downed, land a normal standing melee swing on it anyway.
    - **Pass:** it doesn't register at all — downed zombies are excluded from standing-melee targeting.
-5. Once `IA_Finisher` exists (backlog): within range of a downed zombie, press Space.
+5. Within range of a downed zombie, run `ZS.DebugPerformFinisher` (new, stand-in until `IA_Finisher` exists).
    - **Pass:** guaranteed kill either bare-handed or weapon-equipped. The finishing move itself is a no-op cosmetically (no montage authored yet) but the kill should land regardless.
 6. **Full pass:** loot → hotbar → equip → degrade near-broken → jam → clear jam → break entirely. Separately: melee to 0 Stamina. Separately: knock down and finish a zombie both bare-handed and weapon-equipped.
 
 ### 12. SecondaryHand & flashlight
 1. With a `TwoHanded` primary, run `ZS.DebugEquipFirstToSecondaryHand`.
    - **Pass:** rejected (same as section 4).
-2. Switch to `OneHanded`/bare fists. Make sure you have a flashlight (`ZS.DebugGiveItem /Game/ZS/Items/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight` if not), run `ZS.DebugEquipFirstToSecondaryHand` again. Once `IA_SecondaryAction` exists: press `T`.
+2. Switch to `OneHanded`/bare fists. Make sure you have a flashlight (`ZS.DebugGiveItem /Game/ZS/Items/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight` if not), run `ZS.DebugEquipFirstToSecondaryHand` again, then `ZS.DebugTriggerSecondaryAction` (new, stand-in until `IA_SecondaryAction` exists).
    - **Pass:** a real spotlight visibly turns on/off (rough chest-height placement for now, not a real hand socket — don't be alarmed it's not final-looking).
-3. Equip a one-handed *weapon* into SecondaryHand instead (needs `bUsableInSecondaryHand` set on a config, e.g. an offhand pistol — check whether any real weapon config has this flag set yet; if none do, this specific sub-step is still a content gap, not a bug).
-   - **Pass:** the slot accepts it, and you can see it spawn/attach on your character. Press `T` on a ranged config: it should fire (ammo drops, jam/headshot rolls apply, same as primary). Press `T` on a melee config: it should swing and can break, clearing the slot on break.
-   - **Two deliberate scope cuts, not bugs:** no auto-fire (each `T` press is one shot/swing), and primary + secondary share one attack cooldown (firing primary then immediately trying secondary should be gated the same as firing primary twice in a row).
+3. Equip a one-handed *weapon* into SecondaryHand instead (needs `bUsableInSecondaryHand` set on a config, e.g. an offhand pistol — check whether any real weapon config has this flag set yet; if none do, this specific sub-step is still a content gap, not a bug). Use `ZS.DebugTriggerSecondaryAction` to fire/swing it.
+   - **Pass:** the slot accepts it, and you can see it spawn/attach on your character. Triggering a ranged config: it should fire (ammo drops, jam/headshot rolls apply, same as primary). Triggering a melee config: it should swing and can break, clearing the slot on break.
+   - **Two deliberate scope cuts, not bugs:** no auto-fire (each trigger is one shot/swing), and primary + secondary share one attack cooldown (firing primary then immediately trying secondary should be gated the same as firing primary twice in a row).
    - **Known visual gap:** both weapons currently render at the same attachment socket — overlapping meshes are expected, not a bug, until a dedicated offhand socket is authored.
 
 ### 13. Stress-test spawning
@@ -255,11 +288,12 @@ Always pass an explicit `-log=` — the default log path silently fails while th
 
 Doesn't block compiling, but several features do-nothing without it. The two most urgent (bag, stress-test class) are called out at the top of this doc since your own testing already hit them.
 
-**Input Actions** (create the `.uasset`, wire into `IMC_ZS_Default`, C++ picks it up automatically):
-- `IA_Zoom` — Axis1D, mouse wheel + `=`/`-`
-- `IA_Rack` — digital, `Alt+R` ("Rack Firearm")
-- `IA_Finisher` — digital, `Space`. ⚑ Naming flagged for review — `Space` is meant to be one shared context-aware action (finisher today, Shove/Mount-Climb later), but it's currently named narrowly just for the finisher case, unlike this project's usual pattern for dispatching inputs (one generic action, C++ branches internally). Worth renaming before Shove/Mount-Climb get built expecting a narrow name — see the dev's own `IA_ComboAction.uasset` (purpose TBD, may already be this).
-- `IA_SecondaryAction` — digital, `T`
+**Input Actions** (create the `.uasset`, wire into `IMC_ZS_Default`, C++ picks it up automatically). None of these block testing anymore — each has a `ZS.Debug*` console stand-in (see the command table above) — but all are still real content gaps for actual play:
+- `IA_Zoom` — Axis1D, mouse wheel + `=`/`-`. **Already exists but misconfigured** — see section 9's scroll-wheel bug.
+- `IA_Rack` — digital, `Alt+R` ("Rack Firearm"). Stand-in: `ZS.DebugRackFirearm`.
+- `IA_Finisher` — digital, `Space`. Stand-in: `ZS.DebugPerformFinisher`. ⚑ Naming flagged for review — `Space` is meant to be one shared context-aware action (finisher today, Shove/Mount-Climb later), but it's currently named narrowly just for the finisher case, unlike this project's usual pattern for dispatching inputs (one generic action, C++ branches internally). Worth renaming before Shove/Mount-Climb get built expecting a narrow name — see the dev's own `IA_ComboAction.uasset` (purpose TBD, may already be this).
+- `IA_SecondaryAction` — digital, `T`. Stand-in: `ZS.DebugTriggerSecondaryAction`.
+- `IA_Sleep` — digital. Stand-in: `ZS.DebugToggleSleepReady`.
 
 **Dead content to delete:** `Content/ZS/Input/IA_ToggleView.uasset` — the C++ reference was deleted (TopDown-only now), it just sits unused.
 
@@ -296,3 +330,5 @@ Judgment calls made without you while PIE access was unavailable. None of these 
 - Real shelter check for sleep — only the aggro-cooldown half is real; "must be indoors/barricaded" is stubbed true until B4.
 - `BT_Zombie` branch for the downed state — see decisions table above.
 - `BT_Zombie`'s `ClearLastKnownLocation` wiring — pre-existing open item, ambiguous overlap with the investigation timer's own expiry, not touched.
+
+**Future design note, not needed for B0 (dev's own flag, 2026-07-29):** carried weapons currently just `Destroy()` when unequipped (writing back durability first) rather than staying visible on the character somewhere (e.g. holstered on the back). Dev wants this eventually — a real cosmetic attach/detach system rather than spawn-on-equip/destroy-on-unequip. Explicitly not urgent; noted here so it isn't lost, not scheduled against any B-phase yet.
