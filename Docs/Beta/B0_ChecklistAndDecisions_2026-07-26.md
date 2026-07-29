@@ -18,11 +18,12 @@ Your `ZS.SpawnZombies` run logged:
 ```
 Warning: ZS.SpawnZombies: AZSGameMode::StressTestZombieClass is unset
 ```
-This is expected — nobody's assigned it yet. Steps:
-1. Check if `BP_ZS_GameMode` exists in the Content Browser. If not: Content Browser → Add → Blueprint Class → parent `ZSGameMode` → name it `BP_ZS_GameMode`.
-2. Open it, go to Class Defaults, find `StressTestZombieClass` (category `ZS|StressTest`), assign whatever zombie Blueprint you already use for normal spawns.
-3. Make sure it's actually the active GameMode: World Settings → GameMode Override (or the project's default GameMode) → `BP_ZS_GameMode`.
+This is expected — nobody's assigned it yet. Both pieces you need already exist, nothing to create from scratch:
+1. Open `Content/ZS/Framework/BP_ZS_GameMode.uasset` (already exists), go to Class Defaults, find `StressTestZombieClass` (category `ZS|StressTest`).
+2. Assign `Content/ZS/Enemy/Character/AZombieCharacter.uasset` — this is the existing, already-working zombie Blueprint (parent class `AZombieCharacter`, config `DA_ZS_ZombieConfig_Shambler`), just not named `BP_Zombie_*` like the usual convention. It's the one already verified wandering/investigating/chasing correctly in PIE, not a placeholder.
+3. Make sure it's actually the active GameMode: World Settings → GameMode Override (or Project Settings → Maps & Modes → Default GameMode if no override) → `BP_ZS_GameMode`.
 4. Re-run `ZS.SpawnZombies 25` — zombies should now actually appear.
+5. While you're in there: the same `AZombieCharacter` Blueprint also fixes `AZSPlayerCharacter::DeathZombieClass` on `BP_ZS_PlayerCharacter` — same content gap, same fix, worth doing both at once.
 
 ### 3. Set `DA_Bag`'s `bIsEquippable` to true
 Your `ZS.DebugStoreFirstItemInBag` run logged:
