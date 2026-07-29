@@ -17,7 +17,7 @@
 
 ## Exit criteria
 
-- [ ] Target frame rate held at target zombie density on min-spec hardware, packaged Development build, 2–4 players.
+- [ ] Target frame rate held at target zombie density on min-spec hardware, packaged Development build, 4+ players.
 - [ ] Zombie count budget is a written, enforced number (**zombie count is the primary budget metric** — CONFIRMED).
 - [ ] No frame-time spike above a stated threshold during streaming, saving, or horde events.
 - [ ] Before/after numbers on the B0-T12 scenario are committed and show measured improvement.

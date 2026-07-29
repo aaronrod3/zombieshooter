@@ -45,7 +45,7 @@
 | Sub-task | Definition of done |
 |---|---|
 | T2.1 | **Cycle 1 — solo focus.** Isolates survival-loop and onboarding problems from multiplayer noise. |
-| T2.2 | **Cycle 2 — co-op focus**, 2–4 players. Session lifecycle, shared world, clue sharing, sleep aggregation. |
+| T2.2 | **Cycle 2 — co-op focus**, 4+ players (OQ-X-03, no longer 2–4). Session lifecycle, shared world, clue sharing, sleep aggregation. |
 | T2.3 | **Cycle 3 — long-session focus.** Multi-day worlds through the utilities shutoff, into B5's investigation arc. This is where late-game emptiness or save degradation shows up, and neither appears in a 1-hour test. |
 | T2.4 | Each cycle: build → play window → triage → fix → next build. Do not let cycles overlap; overlapping builds make feedback unattributable. |
 | T2.5 | Every cycle produces a written summary of what changed and why. |
@@ -153,7 +153,7 @@ Tune from telemetry (B10-T4.3), not from feel.
 | T5.2 | Launch-day runbook: what to monitor, what triggers a hotfix, how a hotfix ships. |
 | T5.3 | Rollback tested, not just documented (B10-T5.5). |
 | T5.4 | **Load expectations set** — for a listen-server game there is no server load, but *your* support load is real and is the constraint that actually bites a solo developer. |
-| T5.5 | Post-launch roadmap drafted from the POST-BETA backlog: hostile human roamers (Decision 5, the confirmed first addition), vehicles, deferred skills, sandbox sliders, dedicated servers, seasons. |
+| T5.5 | Post-launch roadmap drafted from the POST-BETA backlog: hostile human roamers (Decision 5, the confirmed first addition), deferred skills, sandbox sliders, seasons. **Vehicles and dedicated-server hosting are no longer POST-BETA** — vehicles are a scheduled Stage-2 phase (`BV`, CR-02) and dedicated servers are an optional paid path planned ready-before-beta (CR/OQ-B10-01 reversal, see `B10_Multiplayer_Release.md`'s Notes) — don't list either here. |
 
 ## Playtest checkpoints
 

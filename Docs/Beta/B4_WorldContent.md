@@ -56,7 +56,7 @@ The problem old P7 named and never solved. Must be settled before interiors are 
 | T2.2 | Implemented and tested against the reference room from B2-T4. |
 | T2.3 | **Co-op case handled** — two players in different rooms, or one inside and one outside, each need a correct view. This is where naive roof-hiding breaks: it is a per-player rendering concern on a shared world. |
 | T2.4 | Interacts correctly with B0-T3.2's auto-zoom `Interior` context — entering a building both changes visibility and triggers zoom. |
-| T2.5 | Performance cost measured. A per-player occlusion solution at 2–4 players is a real cost, not free. |
+| T2.5 | Performance cost measured. A per-player occlusion solution at 4+ players is a real cost, not free. |
 
 ### B4-T3 — Elevation & multi-level system · **L (6–8 sessions)** · *depends on T2* · **Stage 1 (systems), build/verify on the small test area before B4X ever needs it**
 
@@ -185,4 +185,4 @@ Pure execution against locked systems. **Do not start until B4's Stage-1 systems
 
 - **B4X (content) is the overrun risk, not B4 (systems).** With region scale now bigger (dev call) and delivered as a continuous track rather than one committed phase, the mitigation is structural: build **one district**, playtest it, time it, re-forecast before starting the next — the same discipline the old single-phase B4 already recommended, now load-bearing since scale went up. See `T_ContinuousTracks.md` T7.
 - **Farming/agriculture.** **Resolved (OQ-B4-06): foraging zones only for beta** — marked areas yield food on a timer, no growth simulation. Farming-lite stays post-beta with the deferred Foraging skill. Add a T-task for foraging zones (small, similar scope to a loot-container pass) when B4X-T10 content authoring reaches this.
-- **Vehicles stay CUT.** If PT1 says the map needs them, that is a scope decision to escalate, not to solve inline.
+- **Vehicles are no longer cut (CR-02, reversed 2026-07-26)** — they're a confirmed, scheduled phase (`BV`), part of *why* the region is bigger than the original proposal. If PT1 says the map needs them on foot, that's expected and fine (see PT1's pass condition above), not a red flag — `BV` is already planned to address it.

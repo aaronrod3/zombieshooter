@@ -53,7 +53,7 @@
 | T3.2 | **Gunshot audio radius matches `FireNoiseRadius`.** If the player hears it further than zombies do, the noise pillar is a lie. Verify against B0-PT4's measured radii. |
 | T3.3 | Melee: swing, hit by material, break, **stomp/finisher** (B0-T10.6). |
 | T3.4 | Footsteps by surface, movement mode, and **wet variant** (B0-T4.2). Wet must be audibly distinct — it is a CONFIRMED gameplay signal, not flavour. |
-| T3.5 | Body/health audio: breathing by stamina, pain, **critical head bleed** (B0-T5.3 — needs an unmistakable cue), infection onset kept **deliberately ambiguous** per CR-06. |
+| T3.5 | Body/health audio: breathing by stamina, pain, **critical head bleed** (B0-T5.3 — needs an unmistakable cue), infection onset given a **clear, legible cue** — CR-06 reversed the original ambiguity requirement 2026-07-26; a distinct audio tell per infection tier (wound vs. bite, B0-T6) is now correct, matching B1-T3.3's legible on-screen indicator. |
 | T3.6 | UI audio for B1's screens. |
 
 ### B7-T4 — Ambience & music · **M (3–4 sessions)** · *depends on T1, B4*

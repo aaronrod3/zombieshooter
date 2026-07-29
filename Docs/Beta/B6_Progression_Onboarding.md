@@ -41,7 +41,7 @@ Per `GameDevPlan.md` §3.1 (CR-01 resolved 2026-07-26). **Build this generically
 |---|---|---|
 | T1.1 | `UZSSkillComponent` on `AZSPlayerCharacter` (or state on `AZSPlayerState`) — replicated, following the standard convention. Persists via B3-T5.5. |
 | T1.2 | **Attributes** (passive pools, grow from broad play): Strength, Stamina, Sneak, Sprint. | §3.1 |
-| T1.3 | **Skills** (levels 1–5, learn-by-doing): per-weapon-class Melee bars, Maintenance, Aiming, Reloading, First Aid. | §3.1 |
+| T1.3 | **Skills** (levels 1–5, learn-by-doing): per-weapon-class Melee bars, Maintenance, Aiming, Reloading, First Aid, **Lockpicking** (added 2026-07-26, OQ-B4-08 — see B4X-T5.3; a quieter alternative to breaching, pure success-chance roll by level, failed attempts generate noise). | §3.1 |
 | T1.4 | `UZSSkillConfig` data asset per skill: XP curve, level thresholds, per-level effects. **N skills, zero C++ branches.** | — |
 | T1.5 | **No skill decay** (CONFIRMED). Skills stay at earned level permanently. Do not build a decay path "for later." | X-8 |
 | T1.6 | **Per-skill XP rate is an exposed tunable** (CONFIRMED), surfaced in B9's settings even though full sandbox sliders stay post-v1. | X-8 |
@@ -61,8 +61,9 @@ The cross-cutting task. Each hookup is small; there are many.
 | T2.7 | **Stamina** ← sprinting, swinging. Raises the pool and the economy. |
 | T2.8 | **Sneak** ← crouched movement. Reduces detection radius/noise, feeding `UZSNoiseSystem`. |
 | T2.9 | **Sprint** ← sprinting. Affects speed and endurance cost. |
-| T2.10 | XP curves authored per skill into `TuningReference.md` → OQ-B6-01. |
-| T2.11 | **Skill feedback UI** (B1's architecture): level-up notification, a character sheet, and hover-preview of what the next level actually gives — the transparent-stat-preview pillar. |
+| T2.10 | **Lockpicking** (added 2026-07-26, OQ-B4-08) ← lockpicking attempts on `AZSPlayerCharacter`/door interactions (B4X-T5.3). Higher level: faster attempts, less noise per failed try. |
+| T2.11 | XP curves authored per skill into `TuningReference.md` → OQ-B6-01. |
+| T2.12 | **Skill feedback UI** (B1's architecture): level-up notification, a character sheet, and hover-preview of what the next level actually gives — the transparent-stat-preview pillar. |
 
 ### B6-Content-T3 — Practice loops · **S (2–3 sessions)** · *depends on T2* · **Stage 2**
 
@@ -110,7 +111,7 @@ OPEN FOR EXPLORATION per Consolidated §9 → OQ-B6-02.
 
 ## Notes
 
-- **Deferred skills stay deferred**: Fishing, Building, Foraging, Cooking, Mechanics are POST-BETA (`GameDevPlan` §3.1). Mechanics arrives with vehicles, which are CUT.
+- **Deferred skills stay deferred**: Fishing, Building, Foraging, Cooking, Mechanics are POST-BETA (`GameDevPlan` §3.1). Mechanics arrives with vehicles — vehicles are **not** cut (CR-02, reversed 2026-07-26, own phase `BV`), but Mechanics itself is still a deferred skill; the two aren't the same decision.
 - **Perks/unlocks beyond passive stat improvements** → OQ-B6-03. Default assumption is no — passive improvements only, consistent with the non-grind goal.
 - **Skill cap is 1–5 for everyone.** Whether rare items/traits can exceed it → OQ-B6-03.
 - **PT4 is the highest-value playtest in the entire plan.** Schedule it with a real person, and resist explaining anything.

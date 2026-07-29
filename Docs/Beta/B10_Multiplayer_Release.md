@@ -34,7 +34,7 @@
 | T1.2 | **Disconnect handling** → OQ-B10-04. Does the character persist in the world (vulnerable, lootable) or vanish until reconnect? The permadeath framing makes this a real design decision, not a technical default. |
 | T1.3 | **Reconnect** restores the character with full state from B3's character-save layer. |
 | T1.4 | **Host migration**, or an explicit decision not to support it → OQ-B10-05. Listen-server means the host leaving ends the session; that must at minimum be communicated clearly and save cleanly before the session closes. |
-| T1.5 | **Party-wipe and solo-death world termination** implemented (deferred from B0-T9.4, decided in OQ-B3-01). Co-op continues on a fresh character unless everyone is dead; solo death ends the world outright. | CR-12 |
+| T1.5 | **No asymmetric death rule** (CR-07, merged with CR-12, resolved 2026-07-26) — already built as `Server_RespawnAsNewCharacter`'s behavior (B0-T9.4): death, solo or co-op, always respawns a fresh character into the same persistent world. There is no party-wipe/solo-death world-termination case to implement here; the old backlog note proposing one was considered and explicitly rejected as unnecessary asymmetry. This task is verification only — confirm the behavior holds under B10's real multiplayer conditions (late-join, disconnect, host migration), not new design work. | CR-07 |
 | T1.6 | Player-count changes mid-session handled by every aggregating system — notably `AZSGameState::UpdateSleepRequestState`, which aggregates readiness across `PlayerArray` and will deadlock if a disconnected player is still counted as not-ready. |
 
 ### B10-T2 — Network stress & correctness · **M (4–5 sessions)** · *depends on T1*
@@ -94,5 +94,5 @@
 
 - **Dedicated servers are no longer POST-BETA-only** — OQ-B10-01 was overturned 2026-07-26 (dev-confirmed): an optional **paid** dedicated-server hosting path is now planned, ready before beta. Listen-server/direct-IP remains the default, free, primary mode — `GameDevPlan.md` §3 has been updated accordingly. Scope the dedicated-server path as genuinely optional/additive, not a replacement for listen-server.
 - **Steam/EOS integration** (OQ-B10-02) is the biggest swing item here. Direct-IP only is much simpler and is what the project has assumed throughout; Steam networking removes port-forwarding pain for testers, which materially affects B11's participation rate. It is a real trade, not a formality.
-- **Voice chat** (OQ-B10-09): recommend relying on Discord. Building voice chat for a 2–4 player co-op game whose players are almost certainly already in a call is poor value.
+- **Voice chat** (OQ-B10-09): recommend relying on Discord. Building voice chat for a 4+ player co-op game whose players are almost certainly already in a call is poor value.
 - **Cross-platform is POST-BETA.** PC only.
