@@ -125,8 +125,10 @@ There's no bound input for equipping SecondaryHand at all yet (that's real UI/in
 
 Run `ZS.DebugListWounds` (needs a rebuild) any time you want to check zone/wound state — it logs `CurrentHealth`, bite `InfectionStage`, and every zone's `WoundType`/`Bleeding`/`Clean`/`Splinted`/`CriticalBleed`/`InfectionSource`/`Amputated`/`WoundInfection` in one shot, so you don't need to alt-tab to a live Details panel mid-fight. A `bite infection roll HIT - infection now Incubating...` log line by itself (with no zone info in it) is expected and unrelated — that's just `Server_RollForInfection`'s own log, not a report of which zone got hit. Run `ZS.DebugListWounds` right after to see the actual zone breakdown.
 
-1. **Zone variance.** Get bitten from a few different angles (front, side, while facing away), running `ZS.DebugListWounds` after each.
-   - **Pass:** the zone showing a non-`None` `WoundType` (Head/Torso/Arms/Legs) varies across attempts, not always Torso.
+**✅ Confirmed working, 2026-07-29**: `ZS.DebugListWounds` mid-fight showed `Torso: WoundType=Bite Bleeding=1 InfectionSource=1`, exactly matching a fresh bite — the damage/zone/infection pipeline is genuinely working correctly. (Separately: the live Details panel showed `BodyZones` as empty at the same moment — a display quirk, not real data loss, see `CLAUDE.md`'s MCP/Editor Tooling lessons. Trust `ZS.DebugListWounds` over the panel.)
+
+1. **Zone variance.** Get bitten from a few different angles (front, side, while facing away), running `ZS.DebugListWounds` after each. One Torso hit already confirmed working — still need a different zone (Head/Arms/Legs) to show up to confirm variance, not just correctness.
+   - **Pass:** the zone showing a non-`None` `WoundType` varies across attempts, not always Torso.
 2. **Critical head bleed.** Take repeated Head hits until a bleed starts there (only 8% chance per fresh Head bleed, expect several tries).
    - **Pass:** once `bCriticalBleed` is set, health drains noticeably faster (4/s vs. normal). Bandage it — both `bCriticalBleed` and `bBleeding` should clear.
 3. **Fracture recovery.** Take a Legs Fracture hit. Watch `FractureRecoveryProgressGameHours` — check the *rate* (~1/real-minute) rather than waiting the full 240h.
