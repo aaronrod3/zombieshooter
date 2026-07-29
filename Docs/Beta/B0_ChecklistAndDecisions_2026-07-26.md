@@ -219,7 +219,7 @@ Everything below is either a judgment call made without you (documented, reversi
 
 ### 3.2 — Deliberately not built (documented gaps, not oversights)
 
-- ~~**Offhand weapon firing (T11.2)**~~ **Closed 2026-07-28** (away session) — see §2.9 item 3 above and `Docs/Beta/B0_Stabilization.md` T11.4's row. Built, not yet compiled or PIE-tested.
+- ~~**Offhand weapon firing (T11.2)**~~ **Closed 2026-07-28** (away session), **compiles clean 2026-07-29** — see §2.9 item 3 above and `Docs/Beta/B0_Stabilization.md` T11.4's row. Not yet PIE-tested.
 - **Shove and Mount/Climb (T10.6)** — bundled onto the same `Space` input as the finisher per `Docs/InputBindings.md`, but genuinely undesigned anywhere in the plan. Only the finisher (stomp/weapon-strike over a downed zombie) is implemented.
 - **Racking beyond jam-clearing (T10.1)** — `Docs/InputBindings.md`'s name ("Rack Firearm") implies a manual-chamber action that might also matter after certain reloads, not just a jam-clear button. Only the confirmed jam-clear case is built; whether racking needs a role elsewhere is still open.
 - **Real shelter check for sleep (T4.10)** — the aggro-cooldown half of `IsSafeToSleep()` is real; the "must be in a barricaded room/behind a locked door/in a vehicle" half is stubbed `true` since no indoor-detection system exists (B4's job).

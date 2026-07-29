@@ -20,7 +20,7 @@ Closed T11.2's offhand-weapon-firing content gap (implemented 2026-07-28 away se
 
 ## Next step
 
-1. `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §2.9 item 3 has the offhand-fire manual test steps (updated 2026-07-28) — this is the one genuinely new, unverified mechanic from the last stretch, do this first.
+1. `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §2.9 item 3 has the offhand-fire manual test steps (updated 2026-07-28) — this is the one genuinely new, unverified mechanic from the last stretch. **Blocked on your hands, confirmed 2026-07-29**: asked to run this myself and re-confirmed there's no path — `unreal-mcp` is still disconnected and `computer-use`'s `request_access` still can't find/control the Unreal Editor window at all (not just "input doesn't land," it can't see the app). Same as every other PIE check this project has ever needed. Do this whenever you're next at the PC.
 2. Everything else in B0 is either already PIE-confirmed or was already awaiting your hands before this stretch — see the checklist doc's own §2 for the full remaining order.
 3. The 3 latent automation tests (`ZS.Combat.DownedZombieAutoRecovery`, `ZS.Health.AmputationChoreographyEntersBlackout`, and whichever else is in that batch) are now known to compile but have never actually been *run* — say the word when you want a test-automation session and they'll get their first real run, per the testing-capability policy below.
 
