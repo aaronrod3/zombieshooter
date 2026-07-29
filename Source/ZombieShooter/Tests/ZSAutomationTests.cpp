@@ -64,6 +64,33 @@ namespace ZSTest
 
 		bool IsValid() const { return World != nullptr; }
 	};
+
+	// Non-RAII equivalent for latent tests: RunTest() returns immediately after queuing a latent
+	// command, so a stack-scoped FScopedTestWorld would tear the world down before the command ever
+	// runs. Caller owns the pointer and must call DestroyLatentTestWorld once done, from inside the
+	// latent command itself.
+	inline UWorld* CreateLatentTestWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+		if (!World)
+		{
+			return nullptr;
+		}
+		FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+		WorldContext.SetCurrentWorld(World);
+		World->InitializeActorsForPlay(FURL());
+		World->BeginPlay();
+		return World;
+	}
+
+	inline void DestroyLatentTestWorld(UWorld* World)
+	{
+		if (World)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(false);
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -700,6 +727,176 @@ bool FZSSecondaryHandTest::RunTest(const FString& Parameters)
 
 	Character->Server_EquipToSecondaryHand(FlashlightId);
 	TestFalse(TEXT("SecondaryHand rejects the flashlight while primary is TwoHanded"), Character->GetSecondaryHandInstanceId().IsValid());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Third batch, added 2026-07-28 - latent (time-based) tests. RunTest() only sets up state and
+// queues a latent command; the actual check runs later, after real time has passed, driven by the
+// engine's own per-frame Tick (which also drives FTimerManager for the manually-created test world,
+// since it's a properly registered world context - confirmed empirically, not assumed). Uses
+// ZSTest::CreateLatentTestWorld/DestroyLatentTestWorld (non-RAII) rather than FScopedTestWorld,
+// since the world must outlive RunTest()'s own return.
+// ---------------------------------------------------------------------------------------------
+
+namespace ZSTest
+{
+	struct FDownedRecoveryLatentState
+	{
+		FAutomationTestBase* Test = nullptr;
+		UWorld* World = nullptr;
+		TWeakObjectPtr<AZombieCharacter> Zombie;
+		double DeadlineSeconds = 0.0;
+	};
+
+	struct FAmputationBlackoutLatentState
+	{
+		FAutomationTestBase* Test = nullptr;
+		UWorld* World = nullptr;
+		TWeakObjectPtr<AZSPlayerCharacter> Character;
+		double DeadlineSeconds = 0.0;
+	};
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FZSCheckDownedRecoveryCommand, TSharedRef<ZSTest::FDownedRecoveryLatentState>, State);
+bool FZSCheckDownedRecoveryCommand::Update()
+{
+	if (FPlatformTime::Seconds() < State->DeadlineSeconds)
+	{
+		return false;
+	}
+
+	if (AZombieCharacter* Zombie = State->Zombie.Get())
+	{
+		State->Test->TestFalse(TEXT("Zombie auto-recovered (IsDowned false) once DownedRecoverySeconds elapsed"), Zombie->IsDowned());
+	}
+	else
+	{
+		State->Test->AddError(TEXT("Zombie was garbage-collected mid-wait - can't verify auto-recovery"));
+	}
+
+	ZSTest::DestroyLatentTestWorld(State->World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Combat.DownedZombieAutoRecovery - B0-T10.4's timer half that ZS.Combat.DownedZombieState
+// (entry/exit only) doesn't cover. Waits real seconds for DownedRecoverySeconds (6s default) to
+// elapse, then confirms the zombie got back up on its own.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSDownedZombieAutoRecoveryTest, "ZS.Combat.DownedZombieAutoRecovery", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSDownedZombieAutoRecoveryTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = ZSTest::CreateLatentTestWorld();
+	if (!TestNotNull(TEXT("Test world created"), World))
+	{
+		return false;
+	}
+
+	UClass* ZombieClass = StaticLoadClass(AZombieCharacter::StaticClass(), nullptr, TEXT("/Game/ZS/Enemy/Character/AZombieCharacter.AZombieCharacter_C"));
+	if (!TestNotNull(TEXT("Zombie Blueprint class loaded"), ZombieClass))
+	{
+		ZSTest::DestroyLatentTestWorld(World);
+		return false;
+	}
+
+	AZombieCharacter* Zombie = World->SpawnActor<AZombieCharacter>(ZombieClass);
+	if (!TestNotNull(TEXT("Zombie spawned"), Zombie))
+	{
+		ZSTest::DestroyLatentTestWorld(World);
+		return false;
+	}
+
+	Zombie->Server_EnterDownedState();
+	if (!TestTrue(TEXT("Downed immediately after Server_EnterDownedState"), Zombie->IsDowned()))
+	{
+		ZSTest::DestroyLatentTestWorld(World);
+		return false;
+	}
+
+	TSharedRef<ZSTest::FDownedRecoveryLatentState> State = MakeShared<ZSTest::FDownedRecoveryLatentState>();
+	State->Test = this;
+	State->World = World;
+	State->Zombie = Zombie;
+	State->DeadlineSeconds = FPlatformTime::Seconds() + 7.0; // DownedRecoverySeconds (6s default) + scheduling slack
+
+	ADD_LATENT_AUTOMATION_COMMAND(FZSCheckDownedRecoveryCommand(State));
+
+	return true;
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FZSCheckAmputationBlackoutCommand, TSharedRef<ZSTest::FAmputationBlackoutLatentState>, State);
+bool FZSCheckAmputationBlackoutCommand::Update()
+{
+	if (FPlatformTime::Seconds() < State->DeadlineSeconds)
+	{
+		return false;
+	}
+
+	if (AZSPlayerCharacter* Character = State->Character.Get())
+	{
+		State->Test->TestTrue(TEXT("bIsBlackedOut true once AmputationDurationSeconds' choreography completes"), Character->IsBlackedOut());
+	}
+	else
+	{
+		State->Test->AddError(TEXT("Character was garbage-collected mid-wait - can't verify blackout"));
+	}
+
+	ZSTest::DestroyLatentTestWorld(State->World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Health.AmputationChoreographyEntersBlackout - B0-T7's outer AZSPlayerCharacter::Server_AmputateZone
+// choreography that ZS.Health.AmputationStateTransition (the HealthComponent-level mechanism only)
+// doesn't cover: the bIsBusy timer -> actual HealthComponent mutation -> EnterBlackout() sequence.
+// Doesn't need a pre-existing infection - amputation has no such precondition (see the game code's
+// own "any zone, solo-capable, no tool-item gate" note) - this exercises the choreography with
+// nothing to clear, on purpose, to isolate it from AmputationStateTransition's infection-clearing
+// coverage.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSAmputationBlackoutTest, "ZS.Health.AmputationChoreographyEntersBlackout", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSAmputationBlackoutTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = ZSTest::CreateLatentTestWorld();
+	if (!TestNotNull(TEXT("Test world created"), World))
+	{
+		return false;
+	}
+
+	AZSPlayerCharacter* Character = World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		ZSTest::DestroyLatentTestWorld(World);
+		return false;
+	}
+	// Same BeginPlay gotcha as AZSTestHarnessActor (CLAUDE.md) - constructor subobjects on a
+	// SpawnActor'd actor still need this explicitly in this synthetic test world.
+	if (!Character->HasActorBegunPlay())
+	{
+		Character->DispatchBeginPlay();
+	}
+
+	if (!TestFalse(TEXT("Not blacked out yet"), Character->IsBlackedOut()))
+	{
+		ZSTest::DestroyLatentTestWorld(World);
+		return false;
+	}
+
+	Character->Server_AmputateZone(EZSBodyZone::Arms);
+	// Should not be instant - bIsBusy-gated over AmputationDurationSeconds (3s default).
+	TestFalse(TEXT("Not blacked out immediately - choreography is timed, not instant"), Character->IsBlackedOut());
+
+	TSharedRef<ZSTest::FAmputationBlackoutLatentState> State = MakeShared<ZSTest::FAmputationBlackoutLatentState>();
+	State->Test = this;
+	State->World = World;
+	State->Character = Character;
+	State->DeadlineSeconds = FPlatformTime::Seconds() + 4.0; // AmputationDurationSeconds (3s default) + scheduling slack
+
+	ADD_LATENT_AUTOMATION_COMMAND(FZSCheckAmputationBlackoutCommand(State));
 
 	return true;
 }

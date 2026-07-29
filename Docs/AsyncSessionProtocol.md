@@ -37,6 +37,7 @@ Drop into this only when Mode A's compile loop stalls (step 3) or is clearly cos
 - Content/Blueprint/Data-Asset authoring is out of reach — needs a live editor + `unreal-mcp`, unavailable while you're away. Log it as a content gap; don't attempt a workaround.
 - A genuine design-shaping fork gets asked in-chat, terse (one question, short options), no push notification — keep working other unblocked items while waiting rather than stalling.
 - Implementation-detail judgment calls: pick a sensible default, log it in the decisions doc, keep going.
+- **The `Source/ZombieShooter/Tests/` Unreal Automation Test suite is explicitly out of scope for an away session — never build, run, or extend it unsupervised, in either mode.** Decided 2026-07-28: that work (writing new tests, rebuilding, running `Automation RunTests ZS.`) only happens in a present session, when the dev explicitly asks for it — see `Docs/CommandReference.md`'s "Editor close/rebuild for automation test runs" section for why (it requires closing the dev's editor, which the dev wants to stay in control of the timing of). Normal cluster work (Mode A/B above) is unaffected by this — it's specifically the automation-test activity that's gated.
 
 ## End of session
 

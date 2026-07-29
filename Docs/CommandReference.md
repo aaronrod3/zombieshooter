@@ -68,6 +68,39 @@ git push
 4. `git status` / `git diff --stat` — confirm what actually changed before staging anything.
 5. `git add` the specific files, `git commit`, `git push`.
 
+## Editor close/rebuild for automation test runs (present-session only, dev-triggered)
+
+**Decided 2026-07-28**: this whole flow only runs when the dev is present and explicitly says to run/build the automation tests — never during an away session (see `Docs/AsyncSessionProtocol.md`). The dev stays in control of *when* their editor gets closed.
+
+Graceful close attempt — same signal as clicking the window's X, not a force-kill. If there are unsaved changes, Unreal's own "save changes?" dialog blocks the close; there's no safe way to click through that from here (no reliable GUI-automation access to the editor window - confirmed 2026-07-28), so this waits, then stops rather than guessing or forcing:
+
+```powershell
+$proc = Get-Process -Name UnrealEditor -ErrorAction SilentlyContinue
+if ($proc) {
+    $proc.CloseMainWindow() | Out-Null
+    $closed = $proc.WaitForExit(20000)
+    if ($closed) { Write-Output "CLOSED" } else { Write-Output "STILL_RUNNING - likely a blocking dialog, e.g. unsaved changes - stop here, hand back to the dev" }
+} else {
+    Write-Output "NOT_RUNNING"
+}
+```
+
+If `CLOSED`: proceed with the normal build (above), then run the automation suite:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Users\aaron\Documents\Unreal Projects\ZombieShooter\ZombieShooter.uproject" -ExecCmds="Automation RunTests ZS.; Quit" -unattended -nopause -nullrhi -log="some_name.log"
+```
+
+Then relaunch the editor (non-blocking):
+
+```powershell
+Start-Process -FilePath "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" -ArgumentList '"C:\Users\aaron\Documents\Unreal Projects\ZombieShooter\ZombieShooter.uproject"'
+```
+
+If `STILL_RUNNING`: stop. Don't retry, don't escalate to `Stop-Process`/force-kill, don't attempt to click through the dialog blind. Tell the dev directly.
+
+Note: if the editor is *not* open, none of the close/reopen steps apply — just build and run the tests directly with an isolated `-log=`, same as any other run (see the `Test:` line in `CLAUDE.md` for why an isolated log matters even then).
+
 ## If something doesn't compile
 
 Read the actual error, fix it, rebuild with the same command above — don't reach for Live Coding to patch a header change, and don't force past a failure (`--no-verify`, `-c commit.gpgsign=false`, force-push). See `CLAUDE.md`'s Workflow Efficiency section for the Live Coding corruption pattern if a rebuild "fixes" something that then behaves strangely in the editor afterward.
