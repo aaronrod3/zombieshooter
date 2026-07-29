@@ -25,14 +25,14 @@ This is expected — nobody's assigned it yet. Both pieces you need already exis
 4. Re-run `ZS.SpawnZombies 25` — zombies should now actually appear.
 5. While you're in there: the same `AZombieCharacter` Blueprint also fixes `AZSPlayerCharacter::DeathZombieClass` on `BP_ZS_PlayerCharacter` — same content gap, same fix, worth doing both at once.
 
-### 3. Set `DA_Bag`'s `bIsEquippable` to true
-Your `ZS.DebugStoreFirstItemInBag` run logged:
-```
-Warning: ZS.DebugStoreFirstItemInBag: no bag-type item carried
-```
-`ZS.DebugListCarrySlots` confirmed why — you were only carrying a Pistol and a Crowbar, no bag. This command specifically looks for any carried item whose `Config->bIsEquippable == true`. Two things to check:
-1. Open `DA_Bag.uasset`, confirm `bIsEquippable` is `true` (this was found `false` by the automation suite — may already be fixed if you've touched it recently, worth a quick look either way).
-2. Make sure you've actually looted a bag into `CarrySlots` before running the command — it only searches what you're currently carrying.
+### 3. Get an actual bag into your inventory, then set `DA_Bag`'s `bIsEquippable` to true
+Both `ZS.DebugEquipFirstBagItem` and `ZS.DebugStoreFirstItemInBag` logged the same warning — `no bag/clothing-type item carried`. This isn't the `bIsEquippable` flag rejecting it; it's that **you have no bag in `CarrySlots` at all** to test with yet. There's no placed world pickup or loot-table roll for `DA_Bag` guaranteed yet, so you had no way to actually loot one. Fixed with a new command that grants it directly:
+1. Run `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag` (needs a rebuild — new command). **Pass:** logs `granted 1/1 of DA_Bag`.
+2. Open `DA_Bag.uasset`, confirm `bIsEquippable` is `true` (this was found `false` by the automation suite — may already be fixed if you've touched it recently, worth a quick look either way). If it's still `false`, `ZS.DebugEquipFirstBagItem` in the next step will keep failing.
+3. Run `ZS.DebugEquipFirstBagItem` (the command from earlier). **Pass:** logs `equipped DA_Bag ...`, and `GetMaxCarryWeight()` rises by its `CarryCapacityBonus`.
+4. Now `ZS.DebugStoreFirstItemInBag` has something to find.
+
+`ZS.DebugGiveItem <object path> [count]` works for any `UZSItemConfig`-derived asset, not just the bag — useful any time you've authored a new item with no placed pickup yet.
 
 Once both check out, retry `ZS.DebugStoreFirstItemInBag` — you should get a `storing X in Y` log line instead of the warning.
 
@@ -49,6 +49,7 @@ You can **watch** these values but not **edit** them by typing into Details — 
 **Console commands that exist today** (open console with `` ` ``, all host-only, all act on the local/host player only):
 | Command | What it does |
 |---|---|
+| `ZS.DebugGiveItem <object path> [count]` | Grants any `UZSItemConfig` item straight into `CarrySlots` — no placed pickup or loot roll needed. e.g. `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag`. **New, needs a rebuild.** |
 | `ZS.DebugDropFirstItem` | Drops 1 unit of the first item in `CarrySlots`. |
 | `ZS.DebugEquipFirstBagItem` | Equips the first bag/clothing-type item you're carrying into its own Back/Hip slot — this is how you get the bag's `CarryCapacityBonus` (extra slots) without any UI. **New, needs a rebuild.** |
 | `ZS.DebugStoreFirstItemInBag` | Moves the first non-bag item into the first bag-type item (must already be equipped via the command above). |
@@ -87,9 +88,9 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 > Bag nesting is capped at one level by design — a bag can't hold another bag. `Server_StoreInBag` returns `false` cleanly if you try; worth a quick check that it does.
 
 1. Note `GetMaxCarryWeight()` before equipping the bag.
-2. Loot the bag, then run `ZS.DebugEquipFirstBagItem` (new, needs a rebuild — no bound input exists yet to equip a gear slot from the world, this is the stand-in until real inventory UI lands).
+2. Get a bag into `CarrySlots` — either loot one from the world/a container if one's placed, or run `ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag` if not (see "Start here" #3). Then run `ZS.DebugEquipFirstBagItem` (no bound input exists yet to equip a gear slot from the world, this is the stand-in until real inventory UI lands).
    - **Pass:** `GetMaxCarryWeight()` rises by the bag's `CarryCapacityBonus`.
-3. Loot a second, non-bag item.
+3. Loot a second, non-bag item (or `ZS.DebugGiveItem` one, e.g. the pistol/crowbar configs you're already carrying by default).
 4. Run `ZS.DebugStoreFirstItemInBag`.
    - **Pass:** `ZS.DebugListCarrySlots` shows the item indented under the bag, no longer as its own top-level line.
 5. Drop the bag, walk up to it, pick it back up.

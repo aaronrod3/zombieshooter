@@ -46,6 +46,42 @@
 #include "Engine/Engine.h"
 #include "HAL/IConsoleManager.h"
 
+// Temporary B0-T2 test hook - no world pickup/loot-table route exists yet for every content asset
+// worth testing (e.g. a freshly-authored DA_ZS_ItemConfig_* with no placed AZSWorldItemActor and no
+// loot-table entry rolling it), so this grants a named item config directly into the local (host)
+// player's CarrySlots. Usage: ZS.DebugGiveItem <ItemConfig object path> [Count]. Host-only, same
+// authority reasoning as ZS.DebugDropFirstItem. Remove once real inventory UI/placement exists.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugGiveItem(
+	TEXT("ZS.DebugGiveItem"),
+	TEXT("Grants Count (default 1) of the UZSItemConfig at the given object path into the local (host) player's CarrySlots. Usage: ZS.DebugGiveItem /Game/ZS/Items/DA_Bag.DA_Bag"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSInventoryComponent* Inventory = Character ? Character->GetInventoryComponent() : nullptr;
+		if (!Inventory)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugGiveItem: no local pawn/inventory found"));
+			return;
+		}
+		if (Args.Num() == 0)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugGiveItem: usage - ZS.DebugGiveItem <ItemConfig object path> [Count]"));
+			return;
+		}
+
+		UZSItemConfig* Config = LoadObject<UZSItemConfig>(nullptr, *Args[0]);
+		if (!Config)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugGiveItem: failed to load a UZSItemConfig at '%s'"), *Args[0]);
+			return;
+		}
+
+		const int32 Count = (Args.Num() > 1) ? FMath::Max(FCString::Atoi(*Args[1]), 1) : 1;
+		const int32 Granted = Inventory->Server_AddItem(Config, Count);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugGiveItem: granted %d/%d of %s"), Granted, Count, *GetNameSafe(Config));
+	}));
+
 // Temporary B0-T2 Checkpoint A test hook - there's no real drop-item input bound yet (a known,
 // intentionally-deferred gap, see CLAUDE.md's Inventory/ note), so this exposes Server_DropItem via
 // the PIE console for testing InstanceId persistence through a drop/re-pickup cycle. Only works from
