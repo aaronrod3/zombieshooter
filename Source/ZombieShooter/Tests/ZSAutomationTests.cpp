@@ -732,6 +732,154 @@ bool FZSSecondaryHandTest::RunTest(const FString& Parameters)
 }
 
 // ---------------------------------------------------------------------------------------------
+// ZS.Loadout.SecondaryWeaponEquipAndUnequip - B0-T11.2 (offhand weapon firing, closed 2026-07-28,
+// compiled 2026-07-29). Verifies AZSPlayerCharacter::SecondaryWeapon's spawn/attach/destroy
+// lifecycle in isolation. Constructs a UZSWeaponConfig in-memory (NewObject) rather than depending
+// on a specific named content asset having Handedness/bUsableInSecondaryHand authored correctly -
+// no such asset is known to exist yet, and this is exactly the failure mode that made
+// ZS.Inventory.BagStoreAndRetrieve fail on a content gap rather than a code bug. Testing the
+// mechanism this way isolates it from that concern entirely.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSSecondaryWeaponLifecycleTest, "ZS.Loadout.SecondaryWeaponEquipAndUnequip", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSSecondaryWeaponLifecycleTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* PistolConfig = NewObject<UZSWeaponConfig>();
+	PistolConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	PistolConfig->bUsableInSecondaryHand = true;
+	PistolConfig->AttackType = EZSAttackType::Ranged;
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("Pistol added to CarrySlots"), Inventory->Server_AddItem(PistolConfig, 1), 1))
+	{
+		return false;
+	}
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* PistolInstance = Slots.FindByPredicate([PistolConfig](const FZSItemInstance& I) { return I.Config == PistolConfig; });
+	if (!TestNotNull(TEXT("Pistol instance found in CarrySlots"), PistolInstance))
+	{
+		return false;
+	}
+	const FGuid PistolId = PistolInstance->InstanceId;
+
+	TestNull(TEXT("No SecondaryWeapon before equipping"), Character->GetSecondaryWeapon());
+
+	Character->Server_EquipToSecondaryHand(PistolId);
+	if (!TestNotNull(TEXT("SecondaryWeapon actor spawned on equip"), Character->GetSecondaryWeapon()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("SecondaryWeapon's config matches the equipped instance"), Character->GetSecondaryWeapon()->GetConfig(), PistolConfig);
+
+	Character->Server_UnequipSecondaryHand();
+	TestNull(TEXT("SecondaryWeapon actor destroyed on unequip"), Character->GetSecondaryWeapon());
+	TestFalse(TEXT("SecondaryHandInstanceId cleared on unequip"), Character->GetSecondaryHandInstanceId().IsValid());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Loadout.SecondaryWeaponDurabilityWriteback - B0-T11.2. Directly protects a real bug found and
+// fixed 2026-07-29 while writing this test: Server_EquipToSecondaryHand_Implementation was calling
+// EquipSecondaryWeapon(Config) without ever seeding durability/condition from the carried instance
+// (unlike the primary hand's Server_SelectHotbarSlot completion handler, which explicitly calls
+// CurrentWeapon->SeedDurabilityFromInstance(...) after equipping) - every offhand weapon silently
+// reset to full durability on every equip instead of resuming where it left off. This is the exact
+// bug class Checkpoint B (ZS.Weapons.DurabilityPersistence) exists to catch, just on the secondary-
+// hand path specifically, which had no coverage at all until now.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSSecondaryWeaponDurabilityWritebackTest, "ZS.Loadout.SecondaryWeaponDurabilityWriteback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSSecondaryWeaponDurabilityWritebackTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* KnifeConfig = NewObject<UZSWeaponConfig>();
+	KnifeConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	KnifeConfig->bUsableInSecondaryHand = true;
+	KnifeConfig->AttackType = EZSAttackType::Melee;
+	KnifeConfig->MaxDurabilityHits = 10;
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("Knife added to CarrySlots"), Inventory->Server_AddItem(KnifeConfig, 1), 1))
+	{
+		return false;
+	}
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* KnifeInstance = Slots.FindByPredicate([KnifeConfig](const FZSItemInstance& I) { return I.Config == KnifeConfig; });
+	if (!TestNotNull(TEXT("Knife instance found in CarrySlots"), KnifeInstance))
+	{
+		return false;
+	}
+	const FGuid KnifeId = KnifeInstance->InstanceId;
+
+	Character->Server_EquipToSecondaryHand(KnifeId);
+	if (!TestNotNull(TEXT("SecondaryWeapon spawned"), Character->GetSecondaryWeapon()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Freshly equipped weapon starts at full durability"), Character->GetSecondaryWeapon()->GetCurrentDurability(), 10);
+
+	// Consume 4 hits directly (bypassing melee-swing hit-detection, which isn't what this test is
+	// verifying) to simulate real wear, then unequip - this is what should trigger the writeback.
+	for (int32 i = 0; i < 4; ++i)
+	{
+		Character->GetSecondaryWeapon()->Server_ConsumeDurabilityHit();
+	}
+	TestEqual(TEXT("Durability down to 6 after 4 hits"), Character->GetSecondaryWeapon()->GetCurrentDurability(), 6);
+
+	Character->Server_UnequipSecondaryHand();
+	const FZSItemInstance WrittenBack = Inventory->GetInstance(KnifeId);
+	if (!TestTrue(TEXT("Instance still exists after unequip"), WrittenBack.IsValid()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Durability written back to the carried instance on unequip"), WrittenBack.InstanceState.CurrentDurability, 6);
+
+	// Re-equip and confirm the weapon resumes at the written-back value, not reset to Max.
+	Character->Server_EquipToSecondaryHand(KnifeId);
+	if (!TestNotNull(TEXT("SecondaryWeapon re-spawned on re-equip"), Character->GetSecondaryWeapon()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Re-equipped weapon resumes at the written-back durability, not full"), Character->GetSecondaryWeapon()->GetCurrentDurability(), 6);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Third batch, added 2026-07-28 - latent (time-based) tests. RunTest() only sets up state and
 // queues a latent command; the actual check runs later, after real time has passed, driven by the
 // engine's own per-frame Tick (which also drives FTimerManager for the manually-created test world,

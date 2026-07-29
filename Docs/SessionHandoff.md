@@ -10,17 +10,20 @@
 
 Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per sub-task, current as of 2026-07-28) and `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` (the manual-steps/test-checklist/decisions companion — **start here**, current as of 2026-07-29).
 
-## Last completed (2026-07-29) — `[compiled]`
+## Last completed (2026-07-29) — `[uncompiled]`
 
-Closed T11.2's offhand-weapon-firing content gap (implemented 2026-07-28 away session, compiled clean 2026-07-29): `AZSPlayerCharacter::SecondaryWeapon` mirrors `CurrentWeapon`'s full lifecycle; fire reuses a newly-extracted `FireWeapon(AZSWeapon*)` helper shared with the primary hand. Also fixed a real cross-client bug it surfaced in `AZSWeapon::OnRep_CurrentConfig` (was mis-attaching the offhand weapon's cosmetics on remote clients). Commit `3003f07` (feature) + `c974bdf` (compile fix — one test file called a protected function directly; production code had zero errors).
+With PIE/editor access unavailable to you this stretch, did a code-review pass on T11.2's offhand-weapon-firing code (the newest, least-scrutinized part of B0) instead of stalling. Found and fixed a real bug: `Server_EquipToSecondaryHand_Implementation` never called `SeedDurabilityFromInstance` — unlike the primary hand's hotbar-equip path, which explicitly seeds durability/condition after equipping. Every offhand weapon was silently resetting to full durability on every equip instead of resuming where it left off — the exact bug class the item-instance refactor exists to prevent. Fixed in `ZSPlayerCharacter.cpp`, mirroring the primary hand's pattern exactly. Added two new tests to protect it: `ZS.Loadout.SecondaryWeaponEquipAndUnequip` and `ZS.Loadout.SecondaryWeaponDurabilityWriteback` (the latter would have caught this bug directly had it existed sooner). Full detail: `B0_Stabilization.md` T11.4's row, `B0_ChecklistAndDecisions_2026-07-26.md` §1.5.
 
-**Still not PIE-tested** — compiling only proves it builds, not that it behaves correctly at runtime.
+**Nothing here has been compiled** — the editor was open the whole time, and per standing policy a rebuild is present-session/dev-triggered, not something to force through unprompted. Traced carefully against the actual current source (every field/function checked directly, not assumed), but that's not a substitute for a real compile.
+
+Also reviewed and fixed stale cross-references across `B1_UI_UX.md` through `B12`'s docs plus `CLAUDE.md`/`GameDevPlan.md`, left over from the 2026-07-26 rescope (old rejected death rule, "vehicles cut" contradicting its own reversal, "infection ambiguous" contradicting its own reversal, stale 2-4-player references, a missing Lockpicking entry). See commits `69c5091` and `708bdff`.
 
 ## Next step
 
-1. `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §2.9 item 3 has the offhand-fire manual test steps — the one genuinely new, unverified mechanic from the last stretch. Needs your hands (no PIE-input automation path exists — see tooling gotchas below).
-2. Everything else in B0 is either already PIE-confirmed or already awaiting your hands — see the checklist doc's §2 for the full remaining order.
-3. 2 latent automation tests (`ZS.Combat.DownedZombieAutoRecovery`, `ZS.Health.AmputationChoreographyEntersBlackout`) compile but have never been run — say the word for a test-automation session (present-session, dev-triggered only, see `CLAUDE.md`).
+1. **Compile gate, first thing**: full `Build.bat` rebuild. Touches `ZSPlayerCharacter.cpp` again (the durability-seeding fix) plus two new test cases — expect the new tests specifically to be unverified until a real build/run.
+2. `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` §2.9 item 3 has the offhand-fire manual test steps — needs your hands (no PIE-input automation path exists — see tooling gotchas below). Worth re-testing durability persistence specifically now that the seeding bug is fixed.
+3. Everything else in B0 is either already PIE-confirmed or already awaiting your hands — see the checklist doc's §2 for the full remaining order.
+4. 4 automation tests (2 latent, 2 new `SecondaryWeapon` ones) are written but have never been run — say the word for a test-automation session (present-session, dev-triggered only, see `CLAUDE.md`).
 
 ## Known tooling gotchas (worth remembering)
 

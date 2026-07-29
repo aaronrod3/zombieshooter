@@ -2240,6 +2240,14 @@ void AZSPlayerCharacter::Server_EquipToSecondaryHand_Implementation(FGuid Instan
 	if (bLegalWeapon)
 	{
 		EquipSecondaryWeapon(SecondaryWeaponConfig);
+		if (SecondaryWeapon)
+		{
+			// Same seeding step Server_SelectHotbarSlot's completion handler does for CurrentWeapon
+			// (see its own SeedDurabilityFromInstance call) - without this, a re-equipped offhand
+			// weapon would silently reset to full durability/condition instead of resuming where it
+			// left off, which is the exact bug the item-instance refactor exists to prevent.
+			SecondaryWeapon->SeedDurabilityFromInstance(Instance.InstanceState.CurrentDurability, Instance.InstanceState.ConditionQuality);
+		}
 	}
 }
 
