@@ -886,7 +886,7 @@ bool FZSAmputationBlackoutTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	Character->Server_AmputateZone(EZSBodyZone::Arms);
+	Character->AmputateZone(EZSBodyZone::Arms);
 	// Should not be instant - bIsBusy-gated over AmputationDurationSeconds (3s default).
 	TestFalse(TEXT("Not blacked out immediately - choreography is timed, not instant"), Character->IsBlackedOut());
 
