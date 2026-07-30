@@ -74,7 +74,7 @@ Always-on, non-modal, never eats input.
 | T4.2 | Multiple nearby interactables disambiguate clearly (nearest wins, per `UpdateNearestInteractable`). |
 | T4.3 | Prompt text is data-driven from `UZSInteractableComponent`, not hardcoded — doors, containers, world items, and future barricades all reuse it. |
 
-### B1-T5 — Inventory screen · **M (4–5 sessions)** · *depends on T1, T2*
+### B1-T5 — Inventory screen · **M–L (6–8 sessions, grew from M 4–5 2026-07-30 — see T5.0)** · *depends on T1, T2, T5.0*
 
 The first modal screen; the real test of T1.
 
@@ -82,7 +82,8 @@ The first modal screen; the real test of T1.
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T5.1 | Grid/list of `CarrySlots`, **grouped by `EZSCarryLocation`** — on-person vs. bag are visually distinct sections, since B0-T2.9 made location mechanically meaningful. | CR-09 |
+| T5.0 | **New, added 2026-07-30 — data-model prerequisite, land before any T5 widget work starts.** Extends B0-T2's item-instance model rather than reopening it: (1) `EZSCarryLocation` split so Backpack and Duffle are distinct carry compartments instead of one shared `Bag` value; (2) new `EZSItemSize {Small, Medium, Large}` field on `UZSItemConfig`, gating which compartment accepts an item (Pockets: Small only; Backpack: Small+Medium; Duffle: all); (3) new dedicated weapon-mount equip slots (2 long-gun + 1 sidearm) on `AZSPlayerCharacter`/`UZSInventoryComponent`, same `FGuid`-reference pattern already proven for Back/Hip/SecondaryHand — **these mounts are the actual weapon-carry capacity, not cosmetic**: a weapon must occupy a mount slot to be carried at all, and `HotbarSlots` becomes a quick-select pointer into a mounted weapon (or other item) for the active loadout rather than its own capacity check for weapons specifically; (4) Duffle equip slot gated by the same `bIsBusy` mechanism already used for reload/amputation — opening its panel blocks movement/combat until closed. Reuses proven patterns throughout, not new architecture. **Content gap this creates**: every existing item/weapon config needs an `EZSItemSize` value authored — folds into `T_ContinuousTracks.md` T4's content-authoring track. Full design reasoning in `Docs/Planning/B1_UIDesignSession_2026-07-30.md`. | — |
+| T5.1 | Grid/list of `CarrySlots`, **grouped by compartment** (Pockets/Backpack/Duffle per T5.0's size-tier gating) — each visually distinct, since B0-T2.9 made location mechanically meaningful. Weapons do not appear in this grid at all — they live in T5.0's mount slots. | CR-09 |
 | T5.2 | Weight/encumbrance bar with the threshold where the stamina penalty begins clearly marked. | P2-R5 |
 | T5.3 | Drag-and-drop between locations, plus a keyboard/gamepad path for every drag operation. |
 | T5.4 | Equip to `Back`/`Hip`; assign to a hotbar slot; drop to world. All operate on `FGuid`, so state (durability, condition) visibly follows the item. | P6-R3 |

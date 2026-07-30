@@ -70,8 +70,9 @@ The project's data-asset-driven architecture means most content is authoring wor
 
 | Content | From | Blocked by |
 |---|---|---|
-| **Weapon configs** — 4–6 melee archetypes (one per feel-category) + firearm roster | B0-T1 (minimum), then continuous | OQ-B0-11 (melee display), OQ-B0-12 (roster) |
-| **Item configs** — consumables, medical tiers, materials, clothing with insulation | B0-T1 minimum, then continuous | OQ-B0-15 (weight numbers) |
+| **Weapon configs** — 4–6 melee archetypes (one per feel-category) + firearm roster | B0-T1 (minimum), then continuous | OQ-B0-12 (firearm roster still open; melee roster/display resolved 2026-07-26) |
+| **Item configs** — consumables, medical tiers, materials, clothing with insulation, **`EZSItemSize` (Small/Medium/Large, B1-T5.0)** | B0-T1 minimum, then continuous | OQ-B0-15 (weight numbers) |
+| **Item/UI icons** — added 2026-07-30. Placeholder (generic shape/text) from B1-T5 onward is expected and correct, not a gap to close early — B2 exists precisely so art decisions aren't made against a moving gameplay target. Real per-item icon art tracked here, not assumed to happen automatically. | B1-T5 (placeholder), B2 (real art) | B2 style/readability-palette lock (B2-T1.2) |
 | **Loot tables** per zone quality tier | B4-T7.4 | Zone system (B4-T1.5) |
 | **Zombie configs** | B0 | Roster decision (OQ-B7-03) |
 | **Needs config** — severity thresholds, decay curves | B0-T4.9 | — |
@@ -79,7 +80,7 @@ The project's data-asset-driven architecture means most content is authoring wor
 | **Background configs** | B6-T4.2 | OQ-B6-04/05 |
 | **Event configs** | B5-T2 | OQ-B5-04 |
 | **Clue configs + narrative content** | B5-T4 | OQ-B5-01 (the plot) |
-| **Basement layouts** | B4-T6.2 | — |
+| ~~Basement layouts~~ | — | **Cut 2026-07-26** — procedural layout pool removed (`B4_WorldContent.md` B4X-T6); a hand-authored basement is ordinary room content, already covered by B4X-T10's dressing pass, not a separate authoring line. |
 
 **Standing rule:** every new tunable goes into `TuningReference.md` in the same session it is introduced. `CLAUDE.md` already requires this; it degrades fastest during content-heavy phases.
 
