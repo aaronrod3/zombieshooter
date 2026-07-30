@@ -186,6 +186,29 @@ void AZombieCharacter::Server_MeleeAttack(AActor* Target)
 		}
 	}
 
+	// B0-T5.1 follow-up, 2026-07-30: the trace above always samples the same fixed Z-height (see its
+	// own comment), so it was never going to produce real zone variance by approach angle. Overrides
+	// BoneName with a weighted random zone roll instead, mirroring Server_Fire_Implementation's own
+	// headshot-weighting precedent (a chance-roll override of Hit.BoneName, not real geometry) - the
+	// trace above is still useful for HitResult's ImpactPoint/ImpactNormal (VFX), just not for zone.
+	const float ZoneRoll = FMath::FRand();
+	if (ZoneRoll < ZombieConfig->HeadBiteChance)
+	{
+		HitResult.BoneName = TEXT("head");
+	}
+	else if (ZoneRoll < ZombieConfig->HeadBiteChance + ZombieConfig->ArmsBiteChance)
+	{
+		HitResult.BoneName = TEXT("arm");
+	}
+	else if (ZoneRoll < ZombieConfig->HeadBiteChance + ZombieConfig->ArmsBiteChance + ZombieConfig->LegsBiteChance)
+	{
+		HitResult.BoneName = TEXT("leg");
+	}
+	else
+	{
+		HitResult.BoneName = TEXT("spine");
+	}
+
 	UGameplayStatics::ApplyPointDamage(Target, ZombieConfig->MeleeDamage, HitDirection, HitResult, GetController(), this, DamageTypeClass);
 }
 

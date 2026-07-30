@@ -360,8 +360,9 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 	// only resolve top-level CarrySlots, so nesting it here would silently orphan EquippedBack/Hip's
 	// GUID reference (it'd resolve to an invalid instance from then on) instead of clearing it.
 	// Note: this doesn't cover HotbarSlots/SecondaryHandInstanceId, which live on the owning
-	// AZSPlayerCharacter, not here - closing that half needs the character to validate before
-	// calling this, or a new cross-component query, which is a real design call, not a one-line fix.
+	// AZSPlayerCharacter, not here. Closed 2026-07-30 via AZSPlayerCharacter::Server_StoreInBagChecked,
+	// which validates against that character-side state before calling this function - callers should
+	// go through that wrapper, not this function directly, wherever a character is available.
 	if (ItemInstanceId == EquippedBack || ItemInstanceId == EquippedHip)
 	{
 		return false;

@@ -33,6 +33,7 @@
 #include "ZSWeaponTypes.h"
 #include "ZSPlayerCharacter.h"
 #include "ZombieCharacter.h"
+#include "ZSZombieConfig.h"
 
 namespace ZSTest
 {
@@ -1464,6 +1465,152 @@ bool FZSStoreInBagRejectsEquippedTest::RunTest(const FString& Parameters)
 	// succeed, silently orphaning EquippedHip's GUID reference.
 	TestFalse(TEXT("Storing the equipped clothing into the bag is rejected"), Inventory->Server_StoreInBag(BagId, ClothingId));
 	TestEqual(TEXT("Clothing still equipped to Hip, not orphaned"), Inventory->GetEquippedItem(EZSEquipSlot::Hip).InstanceId, ClothingId);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.StoreInBagRejectsSecondaryHandInstance - closes the other half of
+// Server_StoreInBag's equipped-instance guard (see ZS.Inventory.StoreInBagRejectsEquippedInstance
+// above): HotbarSlots/SecondaryHandInstanceId live on AZSPlayerCharacter, not UZSInventoryComponent,
+// so the character validates against them before calling in - AZSPlayerCharacter::Server_StoreInBagChecked,
+// added 2026-07-30. Tests the SecondaryHand case; HotbarSlots shares the exact same
+// HotbarSlots.Contains() check and isn't separately exercised here.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSStoreInBagRejectsSecondaryHandTest, "ZS.Inventory.StoreInBagRejectsSecondaryHandInstance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSStoreInBagRejectsSecondaryHandTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSItemConfig* BagConfig = NewObject<UZSItemConfig>();
+	BagConfig->bIsEquippable = true;
+	BagConfig->EquipSlot = EZSEquipSlot::Back;
+	BagConfig->CarryCapacityBonus = 20.f;
+
+	UZSItemConfig* FlashlightConfig = NewObject<UZSItemConfig>();
+	FlashlightConfig->bIsToggleable = true;
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("Bag added to CarrySlots"), Inventory->Server_AddItem(BagConfig, 1), 1))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Flashlight added to CarrySlots"), Inventory->Server_AddItem(FlashlightConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* BagInstance = Slots.FindByPredicate([BagConfig](const FZSItemInstance& I) { return I.Config == BagConfig; });
+	const FZSItemInstance* FlashlightInstance = Slots.FindByPredicate([FlashlightConfig](const FZSItemInstance& I) { return I.Config == FlashlightConfig; });
+	if (!TestNotNull(TEXT("Bag instance found"), BagInstance) || !TestNotNull(TEXT("Flashlight instance found"), FlashlightInstance))
+	{
+		return false;
+	}
+	const FGuid BagId = BagInstance->InstanceId;
+	const FGuid FlashlightId = FlashlightInstance->InstanceId;
+
+	Character->Server_EquipToSecondaryHand(FlashlightId);
+	if (!TestEqual(TEXT("Flashlight equipped to SecondaryHand"), Character->GetSecondaryHandInstanceId(), FlashlightId))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("Storing the SecondaryHand-equipped flashlight into the bag is rejected"), Character->Server_StoreInBagChecked(BagId, FlashlightId));
+	TestEqual(TEXT("Flashlight still in SecondaryHand, not orphaned"), Character->GetSecondaryHandInstanceId(), FlashlightId);
+
+	// A plain, unequipped item still stores normally through the same checked entry point - the
+	// guard only blocks hotbarred/SecondaryHand instances, not the common case.
+	UZSItemConfig* PlainItemConfig = NewObject<UZSItemConfig>();
+	if (!TestEqual(TEXT("Plain item added to CarrySlots"), Inventory->Server_AddItem(PlainItemConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* PlainInstance = Inventory->GetCarrySlots().FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
+	if (!TestNotNull(TEXT("Plain item instance found"), PlainInstance))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Storing an unequipped item succeeds through the checked wrapper"), Character->Server_StoreInBagChecked(BagId, PlainInstance->InstanceId));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Combat.ZombieBiteZoneWeightedRoll - B0-T5.1 follow-up, 2026-07-30. Server_MeleeAttack's
+// hit-zone trace always sampled a fixed Z-height, so bites always landed on Torso regardless of
+// approach angle - replaced with a weighted random zone roll mirroring the player's own
+// headshot-weighting precedent. Forces HeadBiteChance to a guaranteed roll rather than testing the
+// real default odds statistically - deterministic and fast, and the roll itself is a simple
+// threshold comparison that doesn't need many samples to prove correct.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSZombieBiteZoneWeightedRollTest, "ZS.Combat.ZombieBiteZoneWeightedRoll", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSZombieBiteZoneWeightedRollTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSHealthConfig* HealthConfig = LoadObject<UZSHealthConfig>(nullptr, TEXT("/Game/ZS/Stats/Health/DA_ZS_HealthConfig_Default.DA_ZS_HealthConfig_Default"));
+	if (!TestNotNull(TEXT("DA_ZS_HealthConfig_Default loaded"), HealthConfig))
+	{
+		return false;
+	}
+
+	AZSPlayerCharacter* Player = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player spawned"), Player))
+	{
+		return false;
+	}
+	// Same BeginPlay gotcha as ZS.Health.AmputationStateTransition - without this, BodyZones is
+	// never seeded and Server_ApplyDamage's whole wound-application block silently never runs.
+	if (!Player->HasActorBegunPlay())
+	{
+		Player->DispatchBeginPlay();
+	}
+	Player->GetHealthComponent()->HealthConfig = HealthConfig;
+
+	UZSZombieConfig* ZombieConfig = NewObject<UZSZombieConfig>();
+	ZombieConfig->MeleeDamage = 10.f;
+	ZombieConfig->MeleeRange = 500.f;
+	ZombieConfig->AttackInterval = 0.f;
+	ZombieConfig->HeadBiteChance = 1.f;
+	ZombieConfig->ArmsBiteChance = 0.f;
+	ZombieConfig->LegsBiteChance = 0.f;
+
+	AZombieCharacter* Zombie = TestWorld.World->SpawnActor<AZombieCharacter>();
+	if (!TestNotNull(TEXT("Zombie spawned"), Zombie))
+	{
+		return false;
+	}
+	Zombie->ZombieConfig = ZombieConfig;
+	Zombie->SetActorLocation(Player->GetActorLocation());
+
+	Zombie->Server_MeleeAttack(Player);
+
+	const FZSBodyZoneWound HeadWound = Player->GetHealthComponent()->GetZoneWound(EZSBodyZone::Head);
+	const FZSBodyZoneWound TorsoWound = Player->GetHealthComponent()->GetZoneWound(EZSBodyZone::Torso);
+	TestTrue(TEXT("Head zone shows a wound with HeadBiteChance forced to 1.0"), HeadWound.WoundType != EZSWoundType::None);
+	TestTrue(TEXT("Torso zone was not hit - roll went to Head, not the fixed-height-trace's old Torso default"), TorsoWound.WoundType == EZSWoundType::None);
 
 	return true;
 }

@@ -172,7 +172,9 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugStoreFirstItemInBag(
 
 		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugStoreFirstItemInBag: storing %s (InstanceId %s) in %s (InstanceId %s)"),
 			*GetNameSafe(Item->Config), *Item->InstanceId.ToString(), *GetNameSafe(Bag->Config), *Bag->InstanceId.ToString());
-		Inventory->Server_StoreInBag(Bag->InstanceId, Item->InstanceId);
+		// Routes through the checked wrapper (not Inventory->Server_StoreInBag directly) so this
+		// debug command actually exercises the hotbar/SecondaryHand guard added 2026-07-30.
+		Character->Server_StoreInBagChecked(Bag->InstanceId, Item->InstanceId);
 	}));
 
 // Temporary B0-T2 Checkpoint C test hook - no bound input exists yet to equip a bag/clothing item
@@ -1280,6 +1282,21 @@ void AZSPlayerCharacter::WriteBackCurrentWeaponDurability()
 		NewState.CurrentDurability = CurrentWeapon->GetCurrentDurability();
 		Inventory->Server_UpdateInstanceState(InstanceId, NewState);
 	}
+}
+
+bool AZSPlayerCharacter::Server_StoreInBagChecked(FGuid BagInstanceId, FGuid ItemInstanceId)
+{
+	if (!HasAuthority() || !GetInventoryComponent())
+	{
+		return false;
+	}
+
+	if (SecondaryHandInstanceId == ItemInstanceId || HotbarSlots.Contains(ItemInstanceId))
+	{
+		return false;
+	}
+
+	return GetInventoryComponent()->Server_StoreInBag(BagInstanceId, ItemInstanceId);
 }
 
 void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)

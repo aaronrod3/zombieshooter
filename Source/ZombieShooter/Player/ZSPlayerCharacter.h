@@ -733,6 +733,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	UZSInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
+	/** B0-T2.9 follow-up, 2026-07-30: closes the half of UZSInventoryComponent::Server_StoreInBag's
+	 * equipped-instance guard that couldn't live on the component itself, since HotbarSlots and
+	 * SecondaryHandInstanceId live here on the character - mirrors Server_SelectHotbarSlot_Implementation's
+	 * existing pattern of the character validating against a sibling system's state before calling
+	 * into it, rather than giving UZSInventoryComponent an upward dependency on this class. Rejects
+	 * (returns false, no-op) if ItemInstanceId is currently on the hotbar or in SecondaryHand;
+	 * otherwise delegates to UZSInventoryComponent::Server_StoreInBag for the checks it already owns. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	bool Server_StoreInBagChecked(FGuid BagInstanceId, FGuid ItemInstanceId);
+
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

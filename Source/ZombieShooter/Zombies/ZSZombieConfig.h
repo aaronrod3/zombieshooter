@@ -52,6 +52,16 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat", meta = (ClampMin = "0"))
 	float DownedRecoverySeconds = 6.f;
 
+	/** B0-T5.1 follow-up, 2026-07-30: Server_MeleeAttack's hit-zone trace always samples a fixed Z-height, so it can never produce zone variance by approach angle alone - mirrors the player's own headshot-weighting precedent (Server_Fire_Implementation's HeadshotChance) with a weighted random zone roll instead. Torso has no explicit field - it's the implicit remainder after Head/Arms/Legs are rolled against (defaults sum to 45%, leaving ~55% Torso). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat", meta = (ClampMin = "0", ClampMax = "1"))
+	float HeadBiteChance = 0.10f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat", meta = (ClampMin = "0", ClampMax = "1"))
+	float ArmsBiteChance = 0.20f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat", meta = (ClampMin = "0", ClampMax = "1"))
+	float LegsBiteChance = 0.15f;
+
 	// ---- Movement ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement", meta = (ClampMin = "0"))

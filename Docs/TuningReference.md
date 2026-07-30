@@ -177,6 +177,7 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `BehaviorTree` | unset | Assign `BT_Zombie` (`/Game/ZS/Enemy/AI/`) to activate - `RunBehaviorTree` no-ops until then |
 | `InvestigationDurationSeconds` | 10 | How long `AZombieAIController::StartInvestigationTimer` investigates a lost target's last known location before giving up |
 | `IdleDwellDurationSeconds` | 3 | How long `StartIdleDwell` pauses between wander moves |
+| `HeadBiteChance`/`ArmsBiteChance`/`LegsBiteChance` | 0.10 / 0.20 / 0.15 | B0-T5.1 follow-up, 2026-07-30: `Server_MeleeAttack`'s weighted random zone roll, mirroring the player's own `HipFireHeadshotChance`/`AimedHeadshotChance` precedent (a `Hit.BoneName` override, not real geometry) — replaces the old fixed-height trace that could only ever land on Torso. Torso has no explicit field; it's the implicit remainder (~55% at defaults) |
 
 ### Stress-test spawning (`AZSGameMode::StressTestZombieClass`) — B0-T12.1, 2026-07-26
 `ZS.SpawnZombies <n>` (`Zombies/ZombieCharacter.cpp`, host-only) spawns `<n>` (clamped 1-500, default 10) instances of `StressTestZombieClass` in a 2000-unit ring around the local player's pawn. Unset `StressTestZombieClass` = the command warns and no-ops. **Content gaps**: no `BP_Zombie_*` assigned yet, and `Lvl_ZS_StressTest` (the dedicated graybox map T12.1 actually calls for) doesn't exist - the command works in any level in the meantime.
