@@ -12,7 +12,7 @@
 
 ## Entry criteria
 
-- [ ] B0 complete — `FZSItemInstance` exists (widgets need a stable identity to bind to and a drag/drop target that survives a move).
+- [ ] B0 complete (**solo** exit criteria — 2-client PIE verification is deliberately carried forward into this phase's own exit sweep, see below) — `FZSItemInstance` exists (widgets need a stable identity to bind to and a drag/drop target that survives a move).
 - [ ] B0-T4.9 done — need severity thresholds authored, or moodles have no tiers to render.
 - [ ] `Docs/Planning/UI_Plan.md` read and its §7 open questions resolved (folded into `90_OpenQuestions.md` as OQ-B1-*).
 - [x] **OQ-B1-01 resolved 2026-07-26 (dev-confirmed)** — functional-grey now, restyle after B2. No colour literals outside the style asset.
@@ -25,6 +25,8 @@
 - [ ] Two clients each drive their own UI without cross-talk; no widget reads a replicated value by polling.
 - [ ] **No screen hardcodes a mouse-only interaction** — every drag/click action also has a keyboard-driven path. (Gamepad *verification* is deferred to B9 per OQ-B9-01, but this structural requirement stays: it is an accessibility requirement regardless, and it is what makes B9 cheap instead of a rewrite.)
 - [ ] No modal screen pauses the game — real-time is non-negotiable per Decision 1.
+
+> **Carried forward from B0 (dev decision, 2026-07-30):** B0's 2-client PIE verification was deferred here rather than dropped — debug-console-only feedback made judging what a second client sees impractical, and it's far more legible once this phase's HUD/menus exist. Fold these into this phase's exit sweep alongside the UI-specific 2-client bullet above: PT1 (2-client baseline: fire/reload/aim/sprint/crouch/hotbar/melee/loot/drop from both clients), PT6 (full stage sweep A–G under 2 clients + a 30-minute unscripted co-op session), bag-nesting replication, cross-player ammo pickup/reload, respawn-loadout co-op parity, and PT4 scenario (e) (simultaneous-fire noise events). Source detail: `B0_Stabilization.md` Exit criteria and `B0_ChecklistAndDecisions_2026-07-26.md`'s ⏸-marked items.
 
 ---
 

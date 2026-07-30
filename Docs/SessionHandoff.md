@@ -28,14 +28,16 @@ Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per s
 
 **`BT_Zombie` "stops attacking after one hit" fixed and PIE-confirmed**: `AZombieAIController::Tick` was leaving `bIsInMeleeRange` stale-true when `TargetActor` went null (a momentary perception loss at point-blank range), so the Selector kept re-picking the Attacking branch forever while `TriggerMeleeAttack` silently no-op'd on the null target. Now clears the bool on the same early-return. Commit `1693884`. Fought a zombie through multiple hits in PIE — no longer freezes. Detail: `B0_Stabilization.md` T8.6.
 
+**Scope decision: 2-client PIE verification is deferred out of B0 entirely, into B1's own exit sweep** (dev call, 2026-07-30) — debug-console-only feedback makes judging a second client's state impractical right now, and it'll be far more legible once B1's HUD/menus exist to observe it against. B0's exit criteria, Playtest Checkpoints (PT1, PT4 scenario e, PT6), and every scattered "2-client check" in the checklist doc are all updated to reflect this — B0 no longer formally blocks on any of it. Full detail: `B0_Stabilization.md` Exit criteria (carried-forward note) and `B1_UI_UX.md` Exit criteria (matching note on the receiving end).
+
 ## Next step
 
-1. **2-client PIE is now the real remaining B0 exit blocker** — PT1 baseline, bag-nesting/ammo/T10.9-rotation retest, PT4 noise stress test. Needs the dev directly, not more code.
-2. **Performance baseline** — decide dedicated `Lvl_ZS_StressTest` map vs. reusing `Lvl_ThirdPerson`, then packaged-build profiling at 25/50/100/150/250 zombies, committed to `Docs/Testing/PerfBaseline_B0.md`.
-3. Sections 6–7 (two-tier infection, amputation/blackout) — still deferred by dev choice, no dependency on anything above.
-4. **Parked, your call when ready**: 5 automation-test failures from the 2026-07-30 run (1 new-fix bug + 3 pre-existing + 1 known content gap) — rebuild for commit `ced011a` (the diagnostic addition) first, before touching the `ZombieBiteZoneWeightedRoll` one specifically.
+1. **Performance baseline is now the main remaining B0 item** — decide dedicated `Lvl_ZS_StressTest` map vs. reusing `Lvl_ThirdPerson`, then packaged-build profiling at 25/50/100/150/250 zombies, committed to `Docs/Testing/PerfBaseline_B0.md`.
+2. Sections 6–7 (two-tier infection, amputation/blackout) — still deferred by dev choice, no dependency on anything above.
+3. **Parked, your call when ready**: 5 automation-test failures from the 2026-07-30 run (1 new-fix bug + 3 pre-existing + 1 known content gap) — rebuild for commit `ced011a` (the diagnostic addition) first, before touching the `ZombieBiteZoneWeightedRoll` one specifically.
+4. Once 1–3 are clear, B0's remaining (solo) exit criteria are essentially done — worth a final read of `B0_Stabilization.md` Exit criteria before declaring B0 exited and starting B1 implementation.
 
-Full sequenced runbook for steps 1–2 (with exact commands) is in this conversation's history — re-derive from `B0_ChecklistAndDecisions_2026-07-26.md` if picked up cold in a future session.
+Full sequenced runbook for step 1 (with exact commands) is in this conversation's history — re-derive from `B0_ChecklistAndDecisions_2026-07-26.md` if picked up cold in a future session.
 
 ## Known tooling gotchas (worth remembering)
 

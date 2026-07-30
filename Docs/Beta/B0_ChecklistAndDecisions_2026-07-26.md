@@ -2,7 +2,9 @@
 
 > **What this is.** Everything in this doc needs your hands — either manual PIE testing (no automation path exists, see `CLAUDE.md`) or a real editor content-authoring step. Full technical detail per sub-task lives in `Docs/Beta/B0_Stabilization.md`; compile/PIE-verification *status* lives in `Docs/SessionHandoff.md`. This doc is the walkthrough: what to click, what you should see, what counts as a pass.
 >
-> **Status as of 2026-07-30**: sections 1, 2 (core), 3 (solo), 4, 5 (pipeline itself), 8 (needs), and 9 (camera/aim) confirmed working in PIE. Sections 6-7 deferred by you to a dedicated future pass. Both real gameplay findings from 2026-07-29 are now fixed and PIE-confirmed: zombie bites always landing on Torso (replaced the fixed-height trace's zone determination with a weighted random roll, see §5 below), and zombies stopping attacking after one hit (stale `bIsInMeleeRange` Blackboard bool — `AZombieAIController::Tick` now clears it when `TargetActor` goes null instead of leaving it stuck true; see `B0_Stabilization.md` T8.6). The scroll-wheel zoom bug is also fixed and PIE-confirmed. A few debug-command bugs of my own were found and fixed too (zone-name parsing, sleep-ready feedback) — **everything below marked "needs a rebuild" does.**
+> **Status as of 2026-07-30**: sections 1, 2 (core), 3 (solo), 4, 5 (pipeline itself), 8 (needs), and 9 (camera/aim) confirmed working in PIE, solo. Sections 6-7 deferred by you to a dedicated future pass. Both real gameplay findings from 2026-07-29 are now fixed and PIE-confirmed: zombie bites always landing on Torso (replaced the fixed-height trace's zone determination with a weighted random roll, see §5 below), and zombies stopping attacking after one hit (stale `bIsInMeleeRange` Blackboard bool — `AZombieAIController::Tick` now clears it when `TargetActor` goes null instead of leaving it stuck true; see `B0_Stabilization.md` T8.6). The scroll-wheel zoom bug is also fixed and PIE-confirmed. A few debug-command bugs of my own were found and fixed too (zone-name parsing, sleep-ready feedback) — **everything below marked "needs a rebuild" does.**
+>
+> **2026-07-30 decision: every 2-client check in this doc is deferred to B1's own exit sweep**, not dropped — right now most state is only observable via debug console commands, which makes judging what a *second* client actually sees impractical. It'll be far more legible once B1's HUD/menus exist. Individual 2-client steps below are marked ⏸ inline; B0 itself is no longer blocked on them (see `B0_Stabilization.md` Exit criteria).
 
 ---
 
@@ -107,7 +109,7 @@ Work top to bottom — later sections build on earlier ones, so an early failure
 
 ### 2. Bag capacity & nested contents
 **Needs:** a bag item (`bIsEquippable = true`, `EquipSlot = Back` or `Hip`, `CarryCapacityBonus > 0` — see "Start here" #3 above) and one other plain item.
-**✅ Core mechanism confirmed working, 2026-07-29** — grant/equip/store (steps 2-4) all verified in PIE. Step 5 (drop/re-pickup persistence) deliberately deferred by you for later; steps 6-7 (2-client check, condition-quality variance) still open.
+**✅ Core mechanism confirmed working, 2026-07-29** — grant/equip/store (steps 2-4) all verified in PIE. Step 5 (drop/re-pickup persistence) deliberately deferred by you for later; step 6 (2-client check) ⏸ deferred to B1's exit sweep (2026-07-30 decision, see `B0_Stabilization.md` Exit criteria); step 7 (condition-quality variance) still open, solo-testable.
 > Bag nesting is capped at one level by design — a bag can't hold another bag. `Server_StoreInBag` returns `false` cleanly if you try; worth a quick check that it does.
 
 1. Note `GetMaxCarryWeight()` before equipping the bag.
@@ -118,14 +120,14 @@ Work top to bottom — later sections build on earlier ones, so an early failure
    - **Pass:** `ZS.DebugListCarrySlots` shows the item indented under the bag, no longer as its own top-level line.
 5. Drop the bag, walk up to it, pick it back up.
    - **Pass:** the item is still nested inside.
-6. **2-client check:** with a second player connected, inspect the bag from the **host's** Outliner after it replicates — confirm the nested contents arrived on their side too.
+6. ⏸ **Deferred to B1's exit sweep, 2026-07-30.** 2-client check: with a second player connected, inspect the bag from the **host's** Outliner after it replicates — confirm the nested contents arrived on their side too.
 7. Loot the *same* rare-tier item twice.
    - **Pass:** `ConditionQuality` differs between the two instances (it's rolled per-instance).
 
 ### 3. Ammo as a real carried item
-**✅ Solo pass already confirmed** (2026-07-27) — pickup and reload both work. Only the 2-player leg below is still open.
+**✅ Solo pass already confirmed** (2026-07-27) — pickup and reload both work. The 2-player leg below ⏸ deferred to B1's exit sweep, 2026-07-30.
 1. ~~Get ammo into `CarrySlots`, equip the matching weapon, fire it empty, press Reload.~~ **Done, confirmed.**
-2. **Still to test:** drop some ammo, have a second player pick it up, confirm they can reload the same weapon type from it.
+2. **Deferred:** drop some ammo, have a second player pick it up, confirm they can reload the same weapon type from it.
 
 ### 4. Two-Handed blocks SecondaryHand
 **✅ Confirmed working, 2026-07-29.**
@@ -226,7 +228,7 @@ Use `ZS.DebugListNeeds` throughout instead of the Details panel — one log line
 4. Repeat via a bite-infection death instead of direct damage — get bitten, let it progress to Critical and run out (use `ZS.DebugSetTimeCompression`, section 6, to not wait 48-96h for real).
    - **Pass:** identical drop/zombie-spawn behavior.
 5. Respawn.
-   - **Pass:** you get the default starting loadout, not the gear you just dropped — same in solo and co-op.
+   - **Pass (solo):** you get the default starting loadout, not the gear you just dropped. Co-op parity check ⏸ deferred to B1's exit sweep, 2026-07-30.
 
 ### 11. Combat revision (jamming, melee stamina, downed/finisher)
 1. Run `ZS.DebugForceJam` on your equipped weapon (new — a pristine weapon's real ~1%/shot chance makes this impractical to hit naturally; a heavily-degraded one, like your section 1 weapon, jams up to 30%/shot if you'd rather test it the real way).
@@ -288,7 +290,7 @@ Always pass an explicit `-log=` — the default log path silently fails while th
 - `ZS.Inventory.BagStoreAndRetrieve` **fails on a real finding**, not a test bug: `DA_Bag.bIsEquippable` was `false` — see "Start here" #3.
 - Everything written 2026-07-29 (the offhand-weapon and bug-fix regression tests, 11 of the 21) has never actually been compiled or run yet — say the word for a test session (present-session, dev-triggered only).
 
-**Still fundamentally needs PIE, no way around it:** 2-client replication, camera/aim feel, combat feel, anything visual (flashlight placement, animations), the full hotbar/equip integration (as opposed to the underlying mechanism), offhand-weapon-fire, Shove/Mount-Climb (undesigned), and real `BT_Zombie` branching behavior.
+**Still fundamentally needs PIE, no way around it:** camera/aim feel ✅ done, combat feel, anything visual (flashlight placement, animations), the full hotbar/equip integration (as opposed to the underlying mechanism), offhand-weapon-fire, Shove/Mount-Climb (undesigned), and real `BT_Zombie` branching behavior ✅ done. **2-client replication** specifically ⏸ deferred to B1's exit sweep, 2026-07-30 — see the decision note at the top of this doc.
 
 ---
 

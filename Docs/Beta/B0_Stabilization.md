@@ -1,6 +1,6 @@
 # B0 — Stabilization & Reconciliation
 
-**Size: L (14–18 dev-sessions)** · **Gate contribution: prerequisite for everything** · **Blocks: B1, B3, B4, and therefore all of Stage 1**
+**Size: L (14–18 dev-sessions)** · **Gate contribution: prerequisite for everything** · **Blocks: B1, B3, B4, and therefore all of Stage 1** *(2026-07-30: 2-client PIE verification specifically no longer blocks B1 — carried forward to B1's own exit sweep, see Exit criteria below)*
 
 > **Why this phase exists.** Roughly four sessions of C++ shipped between 2026-07-21 and 2026-07-22 with a single PIE confirmation covering two features. Underneath it sits a data model the project's own planning doc says is wrong (`Docs/Planning/InventoryLoadoutEquipping_Plan.md` §3–§5). On top of it, the consolidated changes revise five shipped behaviours and add three subsystems. **Every one of those facts gets more expensive the longer it waits.** B0 is the cheapest this work will ever be.
 >
@@ -19,13 +19,15 @@
 
 ## Exit criteria
 
-- [ ] All of `Docs/Testing/P5_P6_CharacterSetupVerification.md` Stages A–G pass in PIE, 2-client.
+- [ ] All of `Docs/Testing/P5_P6_CharacterSetupVerification.md` Stages A–G pass in PIE, **solo**.
 - [ ] Every revision-register item marked for B0 is implemented **and PIE-verified**, not merely compiled.
 - [ ] `FZSItemInstance` is the only way an item exists in the game. `grep` for `UZSWeaponConfig\*` in slot/container contexts returns nothing.
 - [ ] A weapon looted from a container can be placed in the hotbar, equipped, used until it breaks, dropped at partial durability, picked back up, and still shows the same durability.
 - [ ] A performance baseline exists on the fixed stress-test map, captured from a **packaged Development build**, and is committed to `Docs/Testing/`.
 - [ ] `SessionHandoff.md` shows zero items in "built but unverified."
 - [ ] `TuningReference.md` contains every new tunable introduced in this phase.
+
+> **Carried forward, not blocking (dev decision, 2026-07-30):** 2-client PIE verification (Stages A–G under 2 clients, PT1, PT6) is deliberately deferred past B0 — right now most state is only observable via debug console commands/logs, which makes judging what a *second* client actually sees impractical. It folds into B1's own exit sweep instead, once real HUD/menu feedback exists to observe it against. B0 is otherwise considered exited without it; see `B1_UI_UX.md` for where it lands.
 
 ---
 
@@ -63,7 +65,7 @@ Work through `Docs/Testing/P5_P6_CharacterSetupVerification.md` Stages B–G. Tw
 | T1.6 | **Stage E** — switching between the two authored weapon configs works; each shows its own meshes. |
 | T1.7 | **Stage F** — `IA_Attack` dispatches to melee for a `Melee`-typed config; per-weapon melee stats apply; durability decrements; breaking unequips and clears the slot. |
 | T1.8 | **Stage G** — container "loot all" transfers into `CarrySlots`; world item pickup works; drop spawns a world item; encumbrance affects movement speed. |
-| T1.9 | **2-client re-baseline (PT1)** — see Playtest Checkpoints below. |
+| T1.9 | **2-client re-baseline (PT1)** — ⏸ **Deferred to B1's exit sweep, 2026-07-30** (see Exit criteria's carried-forward note above). Do the solo pass now; the 2-client leg moves with it. |
 | T1.10 | Every failure found is filed as a discrete bug task, **not fixed inline**, unless it blocks the rest of the sweep. A verification pass that turns into a debugging pass never finishes. |
 
 > **Expect failures.** This is 4+ sessions of unrun code. Budget the higher end of the session estimate and treat a clean sweep as the surprise, not the default.
@@ -153,7 +155,7 @@ struct FZSItemInstance
 | T2.7 | 🔧 **Code complete 2026-07-26, not yet PIE-verified.** **Unequip flow** (new `AZSPlayerCharacter::WriteBackCurrentWeaponDurability()`) writes `CurrentDurability` back to the instance *before* `CurrentWeapon->Destroy()` - called from both the equip-a-different-weapon and unequip-to-bare-fist paths. ⚑ **Bug found via dev's own PIE testing, fixed 2026-07-29**: unequipping a rifle left its magazine prop floating in the world. Root cause: `AZSMagazine` is a separate, unreplicated actor merely attached to `AZSWeapon`'s mesh component (`SpawnMagazine`) - actor attachment doesn't cascade `Destroy()`, so this call site (and every other `CurrentWeapon->Destroy()` site - death, weapon-break) left it orphaned. Fixed with a single `AZSWeapon::Destroyed()` override that explicitly destroys `MainMagazine` first, closing all call sites at once rather than patching each. New test: `ZS.Weapons.DestroyingWeaponAlsoDestroysMagazine`. **Not yet compiled or re-tested in PIE.** | P5-R5 |
 | T2.8 | 🔧 **Code complete 2026-07-26, not yet PIE-verified.** **Breaking a weapon** removes the instance from `CarrySlots` entirely (`Server_RemoveInstanceById`) and clears the hotbar GUID — the item is genuinely gone, not orphaned. | Planning §5 |
 
-> **✋ Checkpoint B (the headline acceptance test).** Loot a weapon from a container or the world, put it on the hotbar, equip it, take it to half durability, unequip, re-equip — **durability must still show half**, not reset to full. Break a weapon and confirm it's actually gone from the inventory, not just the hotbar. 2-client PIE. This is the specific bug the whole refactor exists to fix — don't move on until it's genuinely verified, not just "looks right."
+> **✋ Checkpoint B (the headline acceptance test).** Loot a weapon from a container or the world, put it on the hotbar, equip it, take it to half durability, unequip, re-equip — **durability must still show half**, not reset to full. Break a weapon and confirm it's actually gone from the inventory, not just the hotbar. Solo PIE (2-client leg deferred to B1's exit sweep, 2026-07-30 — see Exit criteria). This is the specific bug the whole refactor exists to fix — don't move on until it's genuinely verified, not just "looks right."
 
 **Step C — carry locations & loot condition (T2.9–T2.10).** Separable; can slip a session without blocking anything else.
 
@@ -184,7 +186,7 @@ struct FZSItemInstance
 
 | Sub-task | Definition of done |
 |---|---|
-| T2.13 | Full 2-client PIE pass on the loot→hotbar→equip→break→drop→repick cycle, all steps above together. |
+| T2.13 | ⏸ **Deferred to B1's exit sweep, 2026-07-30.** Full 2-client PIE pass on the loot→hotbar→equip→break→drop→repick cycle, all steps above together. Solo version already covered by Checkpoint B above. |
 
 **Deliberately not in B0:** stat-affecting weapon attachments (scopes/silencers with real gameplay effects). The dev confirmed he wants these eventually — reversing the design doc's own recommendation against building them — but they're scoped as their own later weapon-depth pass (Stage 2), once this foundation is solid, per `Docs/Planning/InventoryLoadoutEquipping_Plan.md` §8's own step 7.
 
@@ -337,12 +339,12 @@ CONFIRMED requirement (Consolidated §12): a **single, reusable** stress-test sc
 
 | ID | When | What is specifically being tested | Pass condition |
 |---|---|---|---|
-| **PT1** | End of B0-T1 | **2-client baseline re-established.** Fire, reload, aim, sprint, crouch, hotbar switch, melee, loot, drop — from *both* clients, with each observing the other. | The last verified 2-client state (P0's exit) is matched or exceeded. Every divergence between what a client sees locally and what the other client sees is logged. |
+| **PT1** | End of B0-T1 | ⏸ **Deferred to B1's exit sweep, 2026-07-30** — see Exit criteria's carried-forward note. **2-client baseline re-established.** Fire, reload, aim, sprint, crouch, hotbar switch, melee, loot, drop — from *both* clients, with each observing the other. | The last verified 2-client state (P0's exit) is matched or exceeded. Every divergence between what a client sees locally and what the other client sees is logged. |
 | **PT2** | B0-T3 | **⚑ CAMERA FEEL/TUNING CHECKPOINT** (reframed 2026-07-26 — no longer gates the perspective-code deletion, which already happened per the dev's confirmed direction). Play 20+ minutes: navigate an interior, fight 3+ zombies at range and in melee, loot a container, read your own character's state at both zoom extremes. | Aim-cone, zoom range, and headshot weighting feel right at the dev's own stated bar (PZ-like feel, DK2 framing). **If this fails, re-tune the numbers** — cone width, zoom presets, headshot split — within top-down. There's no fallback camera to revert to, so failure here means another tuning pass, not a design reopening. |
 | **PT3** | End of B0-T4 | **Survival needs.** Run a compressed-clock session through hunger/thirst/fatigue decay into severe tiers. Get wet in the debug rain, get cold, stack them. Sprint while encumbered to exhaustion. | Needs degrade performance without killing outright (the pillar). Wet+cold compounds. Encumbrance never hard-blocks sprint. All 8 needs reach and leave every severity tier. |
-| **PT4** | End of B0-T8 | **Noise stress test (CONFIRMED requirement).** Specific scenarios, not general pass/fail: (a) unsuppressed gunshot at a known distance — verify exactly the zombies inside `FireNoiseRadius` respond and those outside do not; (b) melee swing at close range vs. a sleeping/wandering group; (c) sprint-start noise; (d) **wet vs. dry footsteps at the same distance produce measurably different response radii**; (e) two clients firing simultaneously — verify noise events do not double-count or drop; (f) a noise event fired at the edge of a streaming boundary. | Each scenario's actual response radius matches its configured radius within tolerance, **measured**, from both clients. |
+| **PT4** | End of B0-T8 | **Noise stress test (CONFIRMED requirement).** Specific scenarios, not general pass/fail: (a) unsuppressed gunshot at a known distance — verify exactly the zombies inside `FireNoiseRadius` respond and those outside do not; (b) melee swing at close range vs. a sleeping/wandering group; (c) sprint-start noise; (d) **wet vs. dry footsteps at the same distance produce measurably different response radii**; (e) ⏸ *deferred to B1's exit sweep, 2026-07-30* — two clients firing simultaneously, verify noise events do not double-count or drop; (f) a noise event fired at the edge of a streaming boundary. | Scenarios (a)-(d), (f): actual response radius matches configured radius within tolerance, measured, solo. Scenario (e) measured once 2-client verification resumes at B1. |
 | **PT5** | End of B0-T10 | **Full combat loop.** Loot a weapon → hotbar it → equip → fight → weapon degrades → jams → clear the jam → weapon breaks. Melee to exhaustion. Knock a zombie down and finish it — bare-handed (stomp) and with a melee weapon equipped (swing-down) both. | Durability persists across an unequip/re-equip cycle (the refactor's headline fix). Jams are legible. A standing swing never hits a downed zombie. |
-| **PT6** | B0 exit | **Full stage sweep A–G, 2-client, plus a 30-minute unscripted co-op session.** | All exit criteria met. `SessionHandoff.md` has zero "built but unverified" items. |
+| **PT6** | B0 exit | **Full stage sweep A–G, solo.** (2-client leg + the 30-minute unscripted co-op session ⏸ deferred to B1's exit sweep, 2026-07-30 — see Exit criteria's carried-forward note.) | All *solo* exit criteria met. `SessionHandoff.md` has zero "built but unverified" items. |
 
 ---
 
