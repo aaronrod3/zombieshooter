@@ -2,7 +2,7 @@
 
 > **What this is.** Everything in this doc needs your hands — either manual PIE testing (no automation path exists, see `CLAUDE.md`) or a real editor content-authoring step. Full technical detail per sub-task lives in `Docs/Beta/B0_Stabilization.md`; compile/PIE-verification *status* lives in `Docs/SessionHandoff.md`. This doc is the walkthrough: what to click, what you should see, what counts as a pass.
 >
-> **Status as of 2026-07-29**: sections 1, 2 (core), 3 (solo), 4, and 5 (partial) confirmed working in PIE. A batch of new `ZS.Debug*` console commands were added to unblock sections 6-13 (jamming, amputation, needs, sleep, time compression, finisher, secondary-hand trigger, forced death) — **all need a rebuild** before they'll work. One real bug found in section 9 (scroll-wheel zoom) still needs an editor-side content fix, not a rebuild.
+> **Status as of 2026-07-29**: sections 1, 2 (core), 3 (solo), 4, 5 (pipeline itself), and 8 (needs) confirmed working in PIE. Sections 6-7 deferred by you to a dedicated future pass. Two real gameplay findings still open: zombie bites always land on Torso regardless of angle (root cause found — the hit-zone trace samples a fixed height, not angle-dependent; needs a design call on a fix), and zombies stop attacking after one hit (traced C++, looks clean — likely a `BT_Zombie` graph issue needing editor eyes). Section 9's scroll-wheel zoom bug also still needs an editor-side content fix. A few debug-command bugs of my own were found and fixed too (zone-name parsing, sleep-ready feedback) — **everything below marked "needs a rebuild" does.**
 
 ---
 
@@ -140,15 +140,14 @@ There's no bound input for equipping SecondaryHand at all yet (that's real UI/in
    - **Pass:** logs `SUCCEEDED`, `SecondaryHandInstanceId` now matches the flashlight's InstanceId from step 1.
 
 ### 5. Wound zones & bleeding
-🔍 **Two open findings from 2026-07-27, still unresolved — read before testing:**
-- **"Body zones not set in editor"**: zones only populate on a spawned instance during PIE (`BeginPlay`), never on a Blueprint's Class Defaults. If you were looking at Class Defaults rather than your live pawn in the Outliner, that's why it looked empty — not a bug. Double check which one you had selected.
-- **"Zombie only attacks once"**: the attack cooldown is a per-attack gate (1.5s), not a one-shot lock — nothing stops repeat attacks in the code, and a direct test (`ZS.Health.WoundZonesAndInfection`) confirms the damage pipeline itself has no hidden bug. Two remaining explanations if you see this again: (a) the zombie lost range after the first hit and never closed distance again, or (b) **if you hit it back**, a hit clearing `DownedKnockbackThreshold` (150) pauses its entire behavior tree — that looks exactly like "stopped attacking" if you didn't realize you'd knocked it down. Next time this happens, note whether the zombie kept chasing after the first bite, or just froze/wandered — that'll pin down which.
+**✅ Damage/infection pipeline itself confirmed working** — `ZS.DebugListWounds` mid-fight showed `Torso: WoundType=Bite Bleeding=1 InfectionSource=1`, exactly matching a fresh bite. The live Details panel showing `BodyZones` empty at the same moment was a display quirk, not real data loss (see `CLAUDE.md`'s MCP/Editor Tooling lessons) — trust `ZS.DebugListWounds` over the panel.
 
-Run `ZS.DebugListWounds` (needs a rebuild) any time you want to check zone/wound state — it logs `CurrentHealth`, bite `InfectionStage`, and every zone's `WoundType`/`Bleeding`/`Clean`/`Splinted`/`CriticalBleed`/`InfectionSource`/`Amputated`/`WoundInfection` in one shot, so you don't need to alt-tab to a live Details panel mid-fight. A `bite infection roll HIT - infection now Incubating...` log line by itself (with no zone info in it) is expected and unrelated — that's just `Server_RollForInfection`'s own log, not a report of which zone got hit. Run `ZS.DebugListWounds` right after to see the actual zone breakdown.
+🐛 **Two real findings from 2026-07-29 testing, both root-caused by reading the code — read before retesting:**
 
-**✅ Confirmed working, 2026-07-29**: `ZS.DebugListWounds` mid-fight showed `Torso: WoundType=Bite Bleeding=1 InfectionSource=1`, exactly matching a fresh bite — the damage/zone/infection pipeline is genuinely working correctly. (Separately: the live Details panel showed `BodyZones` as empty at the same moment — a display quirk, not real data loss, see `CLAUDE.md`'s MCP/Editor Tooling lessons. Trust `ZS.DebugListWounds` over the panel.)
+- **"Always Torso, no matter which angle I approach from" — root cause found, this is a real gap, not a testing mistake.** `AZombieCharacter::Server_MeleeAttack` (`ZombieCharacter.cpp`) determines the hit zone with a straight horizontal line-trace from the zombie's center to the target's center, both offset by a **fixed** `+40` on Z. That height doesn't change no matter which direction the zombie approaches from — front, side, or behind, the trace always samples the same vertical band on your character, which lands on Torso-region bones essentially every time. Approach angle was never going to produce zone variance, because the code doesn't vary trace *height* at all, only trace *direction* (which doesn't matter for a straight through-the-middle line). **This needs a real fix to ever produce Head/Arms/Legs hits** — the cleanest approach, mirroring the existing headshot-weighting precedent for player weapons (`Server_Fire_Implementation`'s chance-roll override of `Hit.BoneName`), would be a weighted random zone roll on each zombie bite (e.g. mostly Torso, occasionally Head/Arms/Legs) instead of relying on trace geometry. **This is a real design call** (what should the actual odds be per zone?) so I haven't implemented it — say the word and I will, with a proposed default weighting to review.
+- **"Zombie only attacks once, can't get a second hit in" — traced the C++, it's clean; the actual cause is very likely in `BT_Zombie`'s graph, which needs your eyes in the editor, not something fixable from code.** `Server_MeleeAttack`'s cooldown (1.5s) is a per-call gate only — nothing in C++ prevents repeat calls, and `BTTask_MeleeAttack` (the leaf node that calls it) is stateless, just triggers the attack and returns `Succeeded` every time it's ticked. The Blackboard key it depends on (`bIsInMeleeRange`) does keep updating every 0.2s (confirmed `AZombieAIController::Tick` really runs). That means the zombie *not* re-attacking while still adjacent is almost certainly the `BT_Zombie` graph itself not re-entering the melee-attack branch after the first `Succeeded` — e.g. missing a Loop/Repeat wrapper around it, or a decorator with "observer aborts" that doesn't re-trigger. Worth opening `BT_Zombie` and checking whether the Melee Attack task sits inside something that re-ticks it while `bIsInMeleeRange` stays true, or whether the tree just falls through to a different branch (Chase/Wander) and never comes back. I can't inspect or fix the graph itself without editor/MCP access.
 
-1. **Zone variance.** Get bitten from a few different angles (front, side, while facing away), running `ZS.DebugListWounds` after each. One Torso hit already confirmed working — still need a different zone (Head/Arms/Legs) to show up to confirm variance, not just correctness.
+1. **Zone variance.** Blocked for now by the fixed-height-trace issue above — no angle will produce a different zone until that's fixed. Hold off on this specific check.
    - **Pass:** the zone showing a non-`None` `WoundType` varies across attempts, not always Torso.
 2. **Critical head bleed.** Take repeated Head hits until a bleed starts there (only 8% chance per fresh Head bleed, expect several tries).
    - **Pass:** once `bCriticalBleed` is set, health drains noticeably faster (4/s vs. normal). Bandage it — both `bCriticalBleed` and `bBleeding` should clear.
@@ -156,16 +155,22 @@ Run `ZS.DebugListWounds` (needs a rebuild) any time you want to check zone/wound
    - **Pass:** splinting sets `bSplinted = true`. A fresh Fracture hit on the same zone mid-recovery resets progress to 0.
 
 ### 6. Two-tier infection
+**⏸ Deferred by you to a dedicated future testing pass, 2026-07-29** — noted, not treated as failing.
+
+🐛 **Bug found and fixed while you were testing this**: `ZS.DebugUseItem .../DA_ZS_ItemConfig_Bandage <Zone>` accepted `torso` as the `<Zone>` argument, but the command only parsed raw numbers (0-3) — `FCString::Atoi("torso")` silently returns `0` for any non-numeric text, so it applied the bandage to **Head** instead of Torso with no error at all ("It looks like the bandage only applies to Head" was this bug, not a `Server_ApplyBandage` bug). Fixed: `ZS.DebugUseItem`/`ZS.DebugAmputateZone` now both accept the zone by name (`head`/`torso`/`arms`/`legs`, case-insensitive) or by number, and warn instead of silently defaulting if given something unrecognized. **Needs a rebuild.**
+
 Run `ZS.DebugSetTimeCompression 30` (or lower) first — at the default 1440, waiting out 24h of wound-infection onset or 48-96h of bite-infection stages for real is impractical. Set it back to `1440` when you're done with this section.
 
 1. **Wound infection.** Leave a dirty wound (`bClean = false`, default for any fresh unbandaged wound) untreated past `WoundInfectionOnsetGameHours` (24h), checking `ZS.DebugListWounds` periodically.
    - **Pass:** `WoundInfectionState` flips `None → Infected`, and bleed/fracture-recovery visibly worsens.
-2. **Clearing it.** Run `ZS.DebugUseItem /Game/ZS/Items/DA_ZS_ItemConfig_Bandage.DA_ZS_ItemConfig_Bandage <Zone>` (a clean bandage disinfects too) on that zone.
+2. **Clearing it.** Run `ZS.DebugUseItem /Game/ZS/Items/DA_ZS_ItemConfig_Bandage.DA_ZS_ItemConfig_Bandage torso` (name or number both work now) — a clean bandage disinfects too.
    - **Pass:** `WoundInfectionState` clears to `None` right away (check via `ZS.DebugListWounds`). The separate *bite* infection (`InfectionStage`) is untouched either way — they're independent systems.
 3. **Bite infection duration.** Get bitten (non-lethally — `ZS.DebugKillSelf` in section 10 applies lethal damage, not useful here since you need to survive the hit to watch the infection play out) and let the hidden 40% infection chance land, may take a few bites. Watch `InfectionStage` progress `Incubating → Queasy → Fever → Critical` via `ZS.DebugListWounds`, with time compression still active from step 1.
    - **Pass:** total time-to-death varies 48-96h across *multiple separate* infections — this is a statistical check across several playthroughs, not one pass/fail. A bandage/disinfectant with a nonzero incubation-delay stat should step `InfectionStageProgressGameHours` backward (no such item is authored yet — every existing one is 0/no-effect, so this specific sub-check can't be verified until one is).
 
 ### 7. Amputation & blackout
+**⏸ Deferred by you to a dedicated future testing pass, 2026-07-29** — noted, not treated as failing.
+
 Turns out amputation has no infection-progress gate at all — `AmputateZone` works on Arms/Legs any time, infected or not (confirmed by reading the code, not assumed). Use `ZS.DebugAmputateZone <2=Arms|3=Legs>` directly — no need to progress an infection first unless you specifically want to confirm amputating the infection-source zone clears it (step 1 below).
 1. Get a bite infection going on an Arm or Leg (see section 6), then run `ZS.DebugAmputateZone` on that same zone.
    - **Pass:** a busy/timed window occurs, then `InfectionStage` clears, `bAmputated` is set (`ZS.DebugListWounds`), and the zone's multiplier is permanently 0.25 regardless of any other wound.
@@ -179,20 +184,23 @@ Turns out amputation has no infection-progress gate at all — `AmputateZone` wo
    - **Pass:** equipping a `TwoHanded` weapon afterward is rejected.
 
 ### 8. Needs simulation (hunger/thirst/fatigue/stamina/temperature/wet)
+**✅ Confirmed working, 2026-07-29** — items 1, 3, 4, 5, 6 below all verified in PIE. Item 2 deferred (no audio yet, see below). Item 7's command has been improved (see below), worth a quick retest after rebuild but not expected to reveal anything new.
+
 Use `ZS.DebugListNeeds` throughout instead of the Details panel — one log line for everything, and consistent with the Details-panel display quirk already found in section 5.
 
 1. Run `ZS.DebugSetWet 1`.
-   - **Pass:** `ZS.DebugListNeeds` shows `Wet=1`, auto-clears after 2 real minutes (`WetDryOutGameHours`) — or instantly if you've lowered time compression (section 6).
-2. While wet and walking (not sprinting — sprint reports noise separately), confirm a noise event fires every 0.6 real seconds. **This only matters with a zombie nearby** — it's a comparative test (does a zombie react to a wet player sooner than a dry one), not just "does the function run."
-3. Run `ZS.DebugSetIndoors 1`/`0`, equip something with an `InsulationValue` (needs content — none exists yet), watch `Temperature` (via `ZS.DebugListNeeds`) move toward the new target. Push past the hypothermia/hyperthermia thresholds (25/75) and confirm the performance multiplier drops below 1.0 near those edges.
+   - **Pass:** `ZS.DebugListNeeds` shows `Wet=1`, auto-clears after 2 real minutes (`WetDryOutGameHours`) — or instantly if you've lowered time compression (section 6). **Confirmed.**
+2. While wet and walking (not sprinting — sprint reports noise separately), confirm a noise event fires every 0.6 real seconds. **This only matters with a zombie nearby** — it's a comparative test (does a zombie react to a wet player sooner than a dry one), not just "does the function run." **Deferred by you** — no audio cue exists yet to notice a zombie reacting, makes this hard to judge by feel; address in a future pass once there's something audible/visible to confirm against.
+3. Run `ZS.DebugSetIndoors 1`/`0`, equip something with an `InsulationValue` (needs content — none exists yet), watch `Temperature` (via `ZS.DebugListNeeds`) move toward the new target. Push past the hypothermia/hyperthermia thresholds (25/75) and confirm the performance multiplier drops below 1.0 near those edges. **Confirmed** — Temperature correctly rises back toward neutral when going indoors.
 4. With Hunger/Thirst/Fatigue/Temperature all at their best values simultaneously:
-   - **Pass:** `ZS.DebugListNeeds`' `PerformanceMult` reads exactly 1.00, never higher.
+   - **Pass:** `ZS.DebugListNeeds`' `PerformanceMult` reads exactly 1.00, never higher. **Confirmed.**
 5. Load past 1.5x your max weight (`ZS.DebugGiveItem` a bunch of something heavy) and sprint.
-   - **Pass:** Stamina drains faster (up to 2x), but sprint is only blocked once Stamina hits 0 — never blocked by weight alone.
+   - **Pass:** Stamina drains faster (up to 2x), but sprint is only blocked once Stamina hits 0 — never blocked by weight alone. **Confirmed.**
 6. Run `ZS.DebugSetTimeCompression 30` and walk each need through all 4 severity tiers, checking `ZS.DebugListNeeds`' `(tierN)` suffixes.
-   - **Pass:** tier changes happen at 75/50/25 as expected.
+   - **Pass:** tier changes happen at 75/50/25 as expected. **Confirmed.**
 7. Get a zombie to notice you, immediately run `ZS.DebugToggleSleepReady` (stand-in until `IA_Sleep` exists).
    - **Pass:** blocked until the detection cooldown elapses. **Known, expected gap:** once that clears, sleep succeeds anywhere, indoors or not — the "real shelter" check doesn't exist until B4. Not a bug.
+   - 🔧 **Command feedback bug found and fixed**: the log only ever said `requested`, giving no way to tell whether the toggle actually succeeded or was silently blocked by `IsSafeToSleep()`. Fixed — it now logs the before/after ready state and `IsSafeToSleep()`'s value directly. **Needs a rebuild** to see the improved log; worth a quick retest but the underlying gate itself was never in doubt.
 
 ### 9. Camera & aiming
 🐛 **Bug reported 2026-07-29: scroll wheel, either direction, zooms in and stays zoomed in.** Diagnosed by reading the code, not yet fixable by me directly — this is almost certainly a content/configuration issue in the `IA_Zoom` Input Action or its mapping in `IMC_ZS_Default`, not a C++ bug:

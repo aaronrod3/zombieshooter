@@ -46,6 +46,28 @@
 #include "Engine/Engine.h"
 #include "HAL/IConsoleManager.h"
 
+// Shared by every ZS.Debug* command taking an EZSBodyZone argument - accepts either the friendly
+// name (head/torso/arms/legs, case-insensitive) or a raw 0-3 index. Real bug found 2026-07-29:
+// ZS.DebugUseItem's original numeric-only parsing silently accepted "torso" as a valid FCString::Atoi
+// input (returns 0 for any non-numeric string), applying a bandage to Head instead of Torso with no
+// error - looked like the game was broken when it was actually just a bad command argument. Returns
+// false (leaving OutZone untouched) for anything unrecognized, so callers can warn instead of
+// silently defaulting.
+static bool ParseZSBodyZoneArg(const FString& Arg, EZSBodyZone& OutZone)
+{
+	const FString Trimmed = Arg.TrimStartAndEnd();
+	if (Trimmed.Equals(TEXT("head"), ESearchCase::IgnoreCase)) { OutZone = EZSBodyZone::Head; return true; }
+	if (Trimmed.Equals(TEXT("torso"), ESearchCase::IgnoreCase)) { OutZone = EZSBodyZone::Torso; return true; }
+	if (Trimmed.Equals(TEXT("arms"), ESearchCase::IgnoreCase)) { OutZone = EZSBodyZone::Arms; return true; }
+	if (Trimmed.Equals(TEXT("legs"), ESearchCase::IgnoreCase)) { OutZone = EZSBodyZone::Legs; return true; }
+	if (Trimmed.IsNumeric())
+	{
+		OutZone = static_cast<EZSBodyZone>(FMath::Clamp(FCString::Atoi(*Trimmed), 0, 3));
+		return true;
+	}
+	return false;
+}
+
 // Temporary B0-T2 test hook - no world pickup/loot-table route exists yet for every content asset
 // worth testing (e.g. a freshly-authored DA_ZS_ItemConfig_* with no placed AZSWorldItemActor and no
 // loot-table entry rolling it), so this grants a named item config directly into the local (host)
@@ -432,7 +454,11 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugUseItem(
 			return;
 		}
 
-		const EZSBodyZone Zone = (Args.Num() > 1) ? static_cast<EZSBodyZone>(FMath::Clamp(FCString::Atoi(*Args[1]), 0, 3)) : EZSBodyZone::Torso;
+		EZSBodyZone Zone = EZSBodyZone::Torso;
+		if (Args.Num() > 1 && !ParseZSBodyZoneArg(Args[1], Zone))
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugUseItem: '%s' isn't a valid Zone - use Head/Torso/Arms/Legs or 0-3. Defaulting to Torso this time."), *Args[1]);
+		}
 		Character->UseItem(Config, Zone);
 		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugUseItem: applied %s (ItemUseType=%s) to %s"),
 			*GetNameSafe(Config), *UEnum::GetValueAsString(Config->ItemUseType), *UEnum::GetValueAsString(Zone));
@@ -456,11 +482,16 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugAmputateZone(
 		}
 		if (Args.Num() == 0)
 		{
-			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugAmputateZone: usage - ZS.DebugAmputateZone <Zone 2=Arms 3=Legs>"));
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugAmputateZone: usage - ZS.DebugAmputateZone <Arms|Legs|2|3>"));
 			return;
 		}
 
-		const EZSBodyZone Zone = static_cast<EZSBodyZone>(FMath::Clamp(FCString::Atoi(*Args[0]), 0, 3));
+		EZSBodyZone Zone;
+		if (!ParseZSBodyZoneArg(Args[0], Zone))
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugAmputateZone: '%s' isn't a valid Zone - use Arms/Legs or 2/3"), *Args[0]);
+			return;
+		}
 		Character->AmputateZone(Zone);
 		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugAmputateZone: requested amputation of %s"), *UEnum::GetValueAsString(Zone));
 	}));
@@ -586,8 +617,21 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugToggleSleepReady(
 			return;
 		}
 
+		// Logged before/after rather than just "requested" - dev feedback 2026-07-29: the old log gave
+		// no way to tell whether the toggle actually succeeded or was silently blocked by
+		// IsSafeToSleep()'s aggro-cooldown gate (RequestSleep no-ops entirely if !IsSafeToSleep()).
+		const bool bWasReadyBefore = Character->IsReadyToSleep();
 		Character->ToggleSleepReady();
-		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugToggleSleepReady: requested"));
+		const bool bReadyAfter = Character->IsReadyToSleep();
+		if (bReadyAfter == bWasReadyBefore)
+		{
+			UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugToggleSleepReady: no change (still %s) - IsSafeToSleep() is %s, likely blocked by the hostile-detection cooldown if false"),
+				bReadyAfter ? TEXT("ready") : TEXT("not ready"), Character->IsSafeToSleep() ? TEXT("true") : TEXT("false"));
+		}
+		else
+		{
+			UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugToggleSleepReady: now %s"), bReadyAfter ? TEXT("ready to sleep") : TEXT("not ready (cancelled)"));
+		}
 	}));
 
 AZSPlayerCharacter::AZSPlayerCharacter()
