@@ -22,18 +22,20 @@ Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per s
 - `ZS.Combat.ZombieBiteZoneWeightedRoll` — ❌ **new fix's own test fails**: no wound landed anywhere (not even wrong-zone), meaning damage never arrived rather than the zone math being wrong. Every *other* zone/wound test in the suite calls `Server_ApplyDamage` directly; this is the first to go through the real `ApplyPointDamage → TakeDamage` chain. Added a health-before/after diagnostic (commit `ced011a`, not yet rebuilt/retested) to pinpoint where it breaks next run.
 - `ZS.Combat.DownedZombieAutoRecovery`, `ZS.Combat.ZombieDeathWhileDownedClearsDownedFlag`, `ZS.Health.AmputationChoreographyEntersBlackout` — pre-existing tests, never run before today, now found failing. Not caused by this session's changes. **Dev decision 2026-07-30: parked for later, not investigated this session.**
 
+## Last completed, continued (2026-07-30)
+
+**Scroll-wheel zoom bug fixed** (editor-side `IA_Zoom` mapping, dev's own fix) and **PT2 camera checkpoint passed** — zoom smooth 600-1400 both directions, hotbar untouched by scroll, hip-fire vs. aimed spread/headshot-rate split confirmed, 20+ min full pass already covered in earlier testing.
+
+**`BT_Zombie` "stops attacking after one hit" fixed and PIE-confirmed**: `AZombieAIController::Tick` was leaving `bIsInMeleeRange` stale-true when `TargetActor` went null (a momentary perception loss at point-blank range), so the Selector kept re-picking the Attacking branch forever while `TriggerMeleeAttack` silently no-op'd on the null target. Now clears the bool on the same early-return. Commit `1693884`. Fought a zombie through multiple hits in PIE — no longer freezes. Detail: `B0_Stabilization.md` T8.6.
+
 ## Next step
 
-1. **Rebuild** for commit `ced011a` (the diagnostic addition) before touching the parked test investigation again.
-2. **Parked, your call when ready**: the 5 test failures above (1 new-fix bug + 3 pre-existing + 1 known content gap).
-3. **Fix the scroll-wheel `IA_Zoom` mapping** in the editor (likely a missing Negate modifier on one wheel-direction key) — blocks PT2's camera pass. Full detail in `B0_ChecklistAndDecisions_2026-07-26.md` §9.
-4. **PT2 camera checkpoint** once the zoom bug is fixed.
-5. **`BT_Zombie` graph investigation** — "zombie stops attacking after one hit," C++ traces clean, needs your eyes in the editor (check whether the Melee Attack task re-enters after one `Succeeded`, or the tree falls through to Chase/Wander and never returns).
-6. **2-client PIE is the real remaining B0 exit blocker** — PT1 baseline, bag-nesting/ammo/T10.9-rotation retest, PT4 noise stress test. Needs the dev directly, not more code.
-7. **Performance baseline** — decide dedicated `Lvl_ZS_StressTest` map vs. reusing `Lvl_ThirdPerson`, then packaged-build profiling at 25/50/100/150/250 zombies, committed to `Docs/Testing/PerfBaseline_B0.md`.
-8. Sections 6–7 (two-tier infection, amputation/blackout) — still deferred by dev choice, no dependency on anything above.
+1. **2-client PIE is now the real remaining B0 exit blocker** — PT1 baseline, bag-nesting/ammo/T10.9-rotation retest, PT4 noise stress test. Needs the dev directly, not more code.
+2. **Performance baseline** — decide dedicated `Lvl_ZS_StressTest` map vs. reusing `Lvl_ThirdPerson`, then packaged-build profiling at 25/50/100/150/250 zombies, committed to `Docs/Testing/PerfBaseline_B0.md`.
+3. Sections 6–7 (two-tier infection, amputation/blackout) — still deferred by dev choice, no dependency on anything above.
+4. **Parked, your call when ready**: 5 automation-test failures from the 2026-07-30 run (1 new-fix bug + 3 pre-existing + 1 known content gap) — rebuild for commit `ced011a` (the diagnostic addition) first, before touching the `ZombieBiteZoneWeightedRoll` one specifically.
 
-Full sequenced runbook for steps 3–7 (with exact commands) is in this conversation's history — re-derive from `B0_ChecklistAndDecisions_2026-07-26.md` if picked up cold in a future session.
+Full sequenced runbook for steps 1–2 (with exact commands) is in this conversation's history — re-derive from `B0_ChecklistAndDecisions_2026-07-26.md` if picked up cold in a future session.
 
 ## Known tooling gotchas (worth remembering)
 
