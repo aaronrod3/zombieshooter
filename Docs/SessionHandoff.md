@@ -8,53 +8,54 @@
 
 ## Current phase: B0 — Stabilization & Reconciliation
 
-Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per sub-task, current as of 2026-07-28) and `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` (the manual-steps/test-checklist/decisions companion — **start here**, current as of 2026-07-29).
+Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per sub-task) and `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` (the manual-steps/test-checklist/decisions companion — **start here**, current as of 2026-07-29).
 
-## Last completed (2026-07-29, second stretch) — `[uncompiled]`
+## Last completed (2026-07-29)
 
-Dev started actually PIE-testing this stretch (first real testing since the batch of bug fixes below landed). Results: **sections 1, 2 (core), 3 (solo), 4, and 5 (partial - Torso confirmed, other zones untested) of `B0_ChecklistAndDecisions_2026-07-26.md` all confirmed working.** Two real findings from that testing:
+Long session, real PIE testing finally happened (first since the last big bug-fix batch landed). Net result: **B0 is not yet exit-ready, but the remaining gap is now well understood and small.**
 
-1. **Magazine left behind on weapon unequip** - `AZSMagazine` is a separate, unreplicated actor merely attached to `AZSWeapon`'s mesh; destroying the weapon didn't cascade-destroy it. Fixed via `AZSWeapon::Destroyed()`. New test `ZS.Weapons.DestroyingWeaponAlsoDestroysMagazine`.
-2. **Scroll wheel zooms in regardless of direction, permanently** - diagnosed as a content/config issue in `IA_Zoom`'s key mapping (likely both wheel-direction keys mapped positive, missing a Negate modifier on one), not a C++ bug - the zoom math itself (`UZSCameraDirector::ApplyManualZoom`) is correct. Not fixable without editor access; full diagnosis and fix steps in the checklist doc's section 9.
+**Confirmed working in PIE** (checklist doc sections 1-4, 5's pipeline, 8): item durability persistence, bag grant/equip/store, ammo (solo), TwoHanded blocking SecondaryHand, the wound/infection/zone data pipeline itself, and the full Needs simulation (wet, indoor/outdoor temperature, performance multiplier, encumbrance, severity tiers).
 
-Also added a large batch of `ZS.Debug*` console commands to unblock sections 6-13 (jamming, amputation, needs, sleep-ready, forced death, finisher, secondary-hand trigger) that had no bound input and no prior console wrapper - full list in the checklist doc's command table. One genuine discovery while building these: **`AZSGameState::Server_AdvanceTimeByGameHours` does not speed up any time-gated test** - `UZSNeedsComponent`/`UZSHealthComponent` both derive decay/progression from real `DeltaTime` scaled by `RealSecondsPerGameDay`, independent of the displayed clock. Added `AZSGameState::Server_SetRealSecondsPerGameDay()` (+ `ZS.DebugSetTimeCompression`) as the actual live lever, no rebuild needed per use.
+**Real bugs found and fixed this session** (8 gameplay bugs + 1 content-adjacent + assorted debug-tooling bugs — full list in `B0_Stabilization.md`'s per-task rows): offhand-weapon durability reset on equip, death not writing back durability/destroying weapon actors, a zombie killed while downed staying flagged downed, sleep-readiness not accounting for a dead/blacked-out player, jammed offhand weapons having no way to clear, a lower-severity hit incorrectly setting bleed on an already-Fractured zone, `Server_StoreInBag` not rejecting equipped instances (partially — a real design call left open, see below), and a magazine actor surviving weapon `Destroy()`. Also fixed two bugs in my own new debug console commands (a zone argument silently misparsing "torso" as Head, and `ZS.DebugToggleSleepReady`'s log not showing whether the toggle actually took effect).
 
-None of this stretch has been compiled yet.
+**Two real gameplay findings, diagnosed but deliberately not fixed** (dev's own call — "leave the zombie alone for now"): zombie bites always land on Torso regardless of approach angle (root cause: `Server_MeleeAttack`'s hit-zone trace samples a fixed Z-height, so angle was never going to produce variance — needs a design call on a proposed fix, a weighted random zone roll mirroring the existing headshot-weighting precedent), and zombies stop attacking after one hit (C++ traced clean — almost certainly a `BT_Zombie` graph issue, needs editor eyes, not fixable from code).
 
-## Last completed (2026-07-29, first stretch) — `[uncompiled]`
+**One real bug found in editor content, not yet fixed**: scroll wheel zooms in regardless of direction and stays there — almost certainly `IA_Zoom`'s wheel-direction key mapping missing a Negate modifier on one side. Needs your hands in the editor, not a rebuild.
 
-With PIE/editor access unavailable to you this stretch, ran three rounds of code review across B0 instead of stalling, finding and fixing **eight real bugs**, all reusing existing functions (no new abstractions):
+Added a large batch of `ZS.Debug*` console commands (full list in the checklist doc) so every remaining B0 checklist section has a way to trigger the relevant state without needing real input bindings yet. One genuine architectural discovery while building these: `AZSGameState::Server_AdvanceTimeByGameHours` only moves the *displayed* clock — Needs/Health both derive decay/progression from real `DeltaTime` scaled by `RealSecondsPerGameDay` independently. Added `Server_SetRealSecondsPerGameDay()` + `ZS.DebugSetTimeCompression` as the actual live time-skip lever.
 
-1. `Server_EquipToSecondaryHand_Implementation` never seeded offhand-weapon durability from the carried instance — every re-equip silently reset to full durability.
-2. `Server_HandleDeathLootAndZombie` never wrote back weapon durability or destroyed `CurrentWeapon`/`SecondaryWeapon` before dropping loot — a permanent actor leak plus stale-durability loot on every death with a weapon equipped.
-3. `AZombieCharacter::Die()` never reset `bIsDowned` — a zombie killed while downed stayed flagged downed on its corpse forever.
-4. Sleep-readiness aggregation never accounted for a dead/blacked-out player, and neither `HandleDeath()` nor `EnterBlackout()` cancelled it — a party's sleep/time-skip could succeed off an incapacitated teammate's stale ready flag.
-5. `CanRackFirearm`/`Server_StartRackFirearm` were hard-coded to `CurrentWeapon` only — a jammed offhand weapon had no way to ever clear the jam.
-6. The bleed-flag logic in `Server_ApplyDamage` gated on the incoming hit's `WoundType`, not the zone's resolved one — a lower-severity hit onto an already-Fractured zone could set/leave `bBleeding=true` on a zone that never actually drains from it.
-7. `Server_StoreInBag` never guarded against storing a currently-equipped instance — **only partially fixed**: the `EquippedBack`/`EquippedHip` half is fixed (lives on the component itself, no new cross-component reach needed); the `HotbarSlots`/`SecondaryHandInstanceId` half lives on `AZSPlayerCharacter` and is a real design call, left open on purpose.
-8. **Dev-reported via your own PIE testing**: unequipping a rifle left its magazine prop floating in the world. `AZSMagazine` is a separate, unreplicated actor merely attached to `AZSWeapon`'s mesh — actor attachment doesn't cascade `Destroy()`, so every `CurrentWeapon->Destroy()` call site (unequip, death, weapon-break) orphaned it. Fixed with one `AZSWeapon::Destroyed()` override that explicitly destroys the magazine first, closing every call site at once.
+**Deferred by the dev, not failures**: sections 6 (two-tier infection) and 7 (amputation/blackout) — dev wants a dedicated future testing pass rather than continuing today. Section 8 item 2 (wet noise reaction) — no audio exists yet to judge it by.
 
-Added 9 new tests to protect these (one bug had two symptoms covered by the same durability-writeback test). Full detail: `B0_Stabilization.md`'s T2.7/T9.1/T10.1/T10.4/T11.4/T4.10/T5.3/T2.9 rows, `B0_ChecklistAndDecisions_2026-07-26.md`'s automated-coverage section.
+**Compile status**: two batches this session remain uncompiled as of writing — the big `ZS.Debug*` command batch (commit `9b8e43c`) **was rebuilt and confirmed working** (that's what produced today's PIE results above). A second, smaller batch on top of it (commit `5ff878c` — the zone-name-parsing fix and sleep-ready log improvement) has **not** been rebuilt/retested yet.
 
-**Nothing has been compiled** — the editor was open the whole stretch, and per standing policy a rebuild is present-session/dev-triggered, not something to force through unprompted. Every function referenced was traced directly against the current source (not assumed), including a Plan-mode design pass that re-verified the highest-confidence findings before any code was touched — but none of that substitutes for a real compile. **One compile error was already reported and fixed** (a test called a protected `Server_` RPC directly instead of its public wrapper, same mistake pattern twice this session) — rebuild not yet confirmed since.
+### What's actually blocking B0's exit (analyzed today against `B0_Stabilization.md`'s own written exit criteria)
 
-Also reviewed and fixed stale cross-references across `B1_UI_UX.md` through `B12`'s docs plus `CLAUDE.md`/`GameDevPlan.md`, left over from the 2026-07-26 rescope. See commits `69c5091` and `708bdff`. Rewrote `B0_ChecklistAndDecisions_2026-07-26.md` into a plain step-by-step walkthrough format per dev request, folding in the magazine bug fix and the two content gaps (`StressTestZombieClass` unset, `DA_Bag.bIsEquippable`) confirmed blocking by the dev's own console-command testing.
+Not content gaps or more debug tooling — two things that need the dev's hands directly:
+1. **2-client testing hasn't happened at all this session.** B0's own checkpoints (`PT1` baseline, `PT4` noise stress test, `PT6` final sweep) explicitly require it, and everything tested so far has been solo.
+2. **No performance baseline from a packaged Development build exists.** Real exit-criteria line item, nothing started — needs `Lvl_ZS_StressTest` (doesn't exist, `ZS.SpawnZombies` works in any level meanwhile) and an actual packaged-build run with results committed to `Docs/Testing/`.
+3. **PT2's camera feel/tuning pass** can't happen until the scroll-wheel zoom bug above is fixed, and hasn't happened regardless.
+
+Soft/non-blocking: `SessionHandoff.md`'s "zero unverified" gate is just a symptom of the above; the exit criteria literally point at `Docs/Testing/P5_P6_CharacterSetupVerification.md`, which predates the item-instance refactor and should be formally retired in favor of the newer checklist doc rather than chased stage-by-stage.
+
+**Decision, 2026-07-29**: dev is ending the day here, staying focused on B0 (not starting B1 yet) — a future session may pick up B1 separately.
 
 ## Next step
 
-1. **Compile gate, first thing**: full `Build.bat` rebuild. This second stretch added a large batch of `ZS.Debug*` console commands to `ZSPlayerCharacter.cpp`, plus two small new functions: `AZSWeapon::Server_ForceJam()` and `AZSGameState::Server_SetRealSecondsPerGameDay()`. Combined with the first stretch's changes (still uncompiled too), this is a big batch — worth a careful build/run pass.
-2. Once compiled, run the full `ZS.*` automation filter (still hasn't happened at all this session).
-3. **Resume PIE testing at section 6** of `B0_ChecklistAndDecisions_2026-07-26.md`'s walkthrough — sections 1-5 are confirmed working (5 partially), and sections 6-13 now each have `ZS.Debug*` command support so none of them should be blocked on missing input/UI anymore.
-4. **The scroll-wheel zoom bug (section 9) needs your hands in the editor** — likely a missing Negate modifier on one of `IA_Zoom`'s wheel-direction key mappings, full diagnosis in the checklist doc.
-5. **A real design decision is still waiting on you**: bug 7's `HotbarSlots`/`SecondaryHandInstanceId` half (whether `UZSInventoryComponent` should gain a cross-component query into `AZSPlayerCharacter`'s loadout state, or the character should validate before calling `Server_StoreInBag`) — see `B0_Stabilization.md`'s T2.9 row.
-6. **Also your own call, not urgent**: dev flagged wanting unequipped weapons to be holstered on the character instead of destroyed, eventually — noted in the checklist doc's decisions log, not scheduled yet.
+1. **Rebuild** for commit `5ff878c` (zone-name parsing, sleep-ready log improvement) — not yet compiled or retested.
+2. Run the full `ZS.*` automation filter — still hasn't happened at all this session, despite a lot of new/changed test coverage.
+3. **The 2-client session and packaged-build perf baseline are the real remaining blockers for B0's exit** — both need the dev directly, not more code. Everything else in the checklist doc is either done, deferred by choice, or quick content authoring.
+4. **Fix the scroll-wheel `IA_Zoom` mapping** in the editor (likely a missing Negate modifier on one wheel-direction key) — blocks PT2's camera pass.
+5. **A real design decision is still waiting on you**: `Server_StoreInBag`'s partial fix — whether `UZSInventoryComponent` should gain a cross-component query into `AZSPlayerCharacter`'s loadout state, or the character should validate before calling in. See `B0_Stabilization.md`'s T2.9 row.
+6. **Your own call, not urgent**: wanting unequipped weapons holstered on the character instead of destroyed, eventually — noted in the checklist doc's decisions log, not scheduled.
+7. **Deliberately deferred, your call**: sections 6-7 of the checklist (infection/amputation) need a dedicated future pass; the zombie zone/attack-loop bugs are parked until you want to pick them back up.
 
 ## Known tooling gotchas (worth remembering)
 
-- No PIE-input automation path exists — `unreal-mcp` disconnected, and `computer-use` can't find/control the Unreal Editor window at all. Every manual test in `B0_ChecklistAndDecisions_2026-07-26.md` genuinely needs your hands.
+- No PIE-input automation path exists — `unreal-mcp` disconnected, and `computer-use` can't find/control the Unreal Editor window at all. Every manual test in `B0_ChecklistAndDecisions_2026-07-26.md` genuinely needs your hands — including the `ZS.Debug*` console commands, since they still require a live PIE session to type into.
+- A live PIE Details panel can show a replicated `TArray`-of-struct component property (e.g. `BodyZones`) as empty/greyed even when the real data is correct — confirmed 2026-07-29, cross-check with a `ZS.DebugList*` console command instead of trusting the panel.
 - Live Coding does **not** reliably pick up changes under `Source/ZombieShooter/Tests/` — confirmed twice. Full rebuild for anything there.
 - A component added to an actor post-spawn via `NewObject`+`RegisterComponent()` does **not** reliably get `BeginPlay()` called in a synthetic (non-PIE) world — needs to be a real constructor subobject instead, or `DispatchBeginPlay()` called explicitly.
 
 ## Other still-open items (lower priority)
 
-Crouch pose bug untouched. Temporary debug instrumentation (`ZS.Debug*` console commands, muzzle-trace debug draw, on-screen hit confirmations) still needs removing once real UI exists — don't remove yet, actively used for testing. `DA_Bag.bIsEquippable` is `false` (a real content gap found by the automation suite) — blocks Checkpoint C in both PIE and the `ZS.Inventory.BagStoreAndRetrieve` test until set.
+Crouch pose bug untouched. Temporary debug instrumentation (`ZS.Debug*` console commands, muzzle-trace debug draw, on-screen hit confirmations) still needs removing once real UI exists — don't remove yet, actively used for testing.
