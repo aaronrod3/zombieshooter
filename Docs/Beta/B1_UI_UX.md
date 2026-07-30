@@ -78,7 +78,7 @@ Always-on, non-modal, never eats input.
 
 The first modal screen; the real test of T1.
 
-> **Dev UI preference, noted 2026-07-26, not yet a final layout decision** (dev's own words: "I will design this later"): "I like the idea of separate containers for inventory, and equipment slots that the player drags items into to assign." This leans toward distinct equipment-slot drag targets (hotbar/`Back`/`Hip`/future clothing, each a visible icon slot) alongside a general carry-container list, rather than `UI_Plan.md`'s single-flat-scrollable-list recommendation being the only structure. Treat T5.1 below as provisional until the dev actually sits down to design this screen — raise it as a check-in before committing to final widget layout.
+> **Layout decided 2026-07-30** — see `Docs/Planning/B1_UIDesignSession_2026-07-30.md` for the full design session. Confirmed structure: a `Tab`-opened Loadout/Stats/Skills menu; Loadout shows Player + Gear (Backpack/Hip/Flashlight) + dedicated weapon-mount slots (2 long-gun + 1 sidearm) + Needs, alongside three inventory compartments (Pockets/Backpack/Duffle, gated by a Small/Medium/Large size-tier rule) — not a flat list, and a full spatial/Tetris grid was explicitly considered and rejected (see that doc for the effort estimate and reasoning). T5's sub-tasks below still need a pass to reflect this once B1 implementation actually starts.
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
