@@ -1605,7 +1605,18 @@ bool FZSZombieBiteZoneWeightedRollTest::RunTest(const FString& Parameters)
 	Zombie->ZombieConfig = ZombieConfig;
 	Zombie->SetActorLocation(Player->GetActorLocation());
 
+	// Diagnostic, 2026-07-31: every other zone/wound test in this suite calls Server_ApplyDamage
+	// directly, bypassing ApplyPointDamage/TakeDamage entirely - this is the first to go through the
+	// full chain. If this fails, the health check below tells us whether damage never arrived at all
+	// (break is in ApplyPointDamage/TakeDamage, before AZSPlayerCharacter::TakeDamage's own logic
+	// even runs) or arrived but zone-tracking silently didn't (break is at/after Server_ApplyDamage).
+	const float HealthBefore = Player->GetHealthComponent()->GetCurrentHealth();
+
 	Zombie->Server_MeleeAttack(Player);
+
+	const float HealthAfter = Player->GetHealthComponent()->GetCurrentHealth();
+	AddInfo(FString::Printf(TEXT("Health before: %.1f, after: %.1f"), HealthBefore, HealthAfter));
+	TestNotEqual(TEXT("Health actually dropped - damage reached Server_ApplyDamage"), HealthBefore, HealthAfter);
 
 	const FZSBodyZoneWound HeadWound = Player->GetHealthComponent()->GetZoneWound(EZSBodyZone::Head);
 	const FZSBodyZoneWound TorsoWound = Player->GetHealthComponent()->GetZoneWound(EZSBodyZone::Torso);
