@@ -92,6 +92,11 @@ void AZombieAIController::Tick(float DeltaTime)
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(ZSZombieBlackboardKeys::TargetActor));
 	if (!Target)
 	{
+		// Perception can clear TargetActor (HandleTargetPerceptionUpdated) without this Tick ever
+		// running again with a null Target - leaving bIsInMeleeRange stale-true would keep the
+		// Selector locked on the Attacking branch (its decorator) while TriggerMeleeAttack silently
+		// no-ops on a null target, freezing the zombie instead of falling back to Chasing/Investigate.
+		BB->SetValueAsBool(ZSZombieBlackboardKeys::bIsInMeleeRange, false);
 		return;
 	}
 
