@@ -46,6 +46,24 @@ enum class EZSEquipSlot : uint8
 };
 
 /**
+ *  B1-T5.0 (Docs/Beta/B1_UI_UX.md, Docs/Planning/B1_UIDesignSession_2026-07-30.md): gates which of
+ *  T5's three inventory compartments (Pockets/Backpack/Duffle) can hold this item - Pockets: Small
+ *  only, Backpack: Small+Medium, Duffle: everything. The gating check itself isn't implemented yet
+ *  (that needs T5.0's other half, the EZSCarryLocation Backpack/Duffle split, still open - see the
+ *  Manual setup steps' open-question note) - this is just the per-item data half, added now so
+ *  content authoring (T_ContinuousTracks.md T4) isn't blocked waiting on the rest. Meaningless for
+ *  a UZSWeaponConfig instance - weapons are excluded from all three compartments entirely and use
+ *  dedicated weapon-mount slots instead (also still open, same reason).
+ */
+UENUM(BlueprintType)
+enum class EZSItemSize : uint8
+{
+	Small,
+	Medium,
+	Large
+};
+
+/**
  *  P6: rarity tier consumed by the finite-world-count loot pool (AZSGameState::RarityPoolEntries,
  *  UZSLootTableConfig::RollLoot) - GameDevPlan.md §7 P6, resolved 2026-07-21 as a single global
  *  per-server-session counter per tier (not per-zone - no zone system exists to key off yet).
@@ -131,6 +149,10 @@ public:
 	/** Consulted by UZSLootTableConfig::RollLoot / AZSGameState::Server_TryConsumeRarityPoolSlot for Rare/VeryRare items - see EZSItemRarity's comment for the resolved finite-pool model. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	EZSItemRarity Rarity = EZSItemRarity::Common;
+
+	/** B1-T5.0: see EZSItemSize's own comment - defaults to Small (the most permissive/conservative value, fits every compartment) since no content has been authored with a real value yet. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
+	EZSItemSize ItemSize = EZSItemSize::Small;
 
 	/** B0-T4.4, 2026-07-26: only meaningful for an equippable item worn as clothing - sums into UZSNeedsComponent's Temperature model while equipped. Proxy scope note: this project has no dedicated clothing equip-slot system yet (only the two general Back/Hip gear slots exist) - whatever's equipped in those two slots is what's summed for now, a real wardrobe system is bigger scope than this pass. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (EditCondition = "bIsEquippable"))
