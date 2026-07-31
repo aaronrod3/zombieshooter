@@ -10,11 +10,16 @@
 
 **B0 → B1 transition confirmed by dev, 2026-07-30.** Two companion docs for B1: `Docs/Beta/B1_UI_UX.md` (task breakdown, entry/exit criteria) and `Docs/Planning/B1_UIDesignSession_2026-07-30.md` (the actual UI design — HUD philosophy, Tab-menu structure, inventory compartments — decided ahead of implementation, read this before touching any layout work).
 
-## B1-T1 (Input-mode switching) — code written 2026-07-30, blocked on dev for the rest
+## B1 progress — 2026-07-30, NONE of this session's C++ has been compiled yet
 
-**What's done (commit `aee5eb1`):** `UZSUIManager` (`ULocalPlayerSubsystem`, `Source/ZombieShooter/UI/`) implements the modal stack from `B1_UI_UX.md` T1.2, hard-gated into `AZSPlayerCharacter::HandleAttack()`/`IsCursorFacingActive()` (T1.3/T1.4). `IA_UISelect`/`IA_UICancel`/`IA_UINavigate` already exist in-editor with correct Value Types, but their key mappings are sitting in the wrong context (`IMC_ZS_Default` instead of a not-yet-created `IMC_ZS_UI`) — confirmed via `unreal-mcp` inspection 2026-07-30.
+Two stretches this session: a present, interactive pass (T1), then an away-session-style pass (T2/T3-T7-audit/T5.0-partial) while the dev worked T1's manual editor steps in parallel. **Every commit from the second stretch is tagged `[uncompiled]`** — the editor was closed (likely mid-rebuild) or busy with the dev's own hands-on work the whole time, so none of it could be build-gated or PIE-tested. Treat it as "implemented against established patterns, not yet verified," not "done."
 
-**Not done — needs the dev.** Full click-by-click steps (fix the mapping-context mistake, create `IMC_ZS_UI`, rebuild, run the new `ZS.UI.ModalStackOrdering` automation test, PT1 in PIE) are in **`B1_UI_UX.md`'s new "Manual setup steps" section** — that's now the one place this level of detail lives (see `Docs/Beta/README.md`'s convention note for why). Once PT1 passes there, T1 is done and T2 (widget architecture/design tokens) is next.
+- **T1 (Input-mode switching)** — `UZSUIManager` modal stack + hard-gated `HandleAttack`/`IsCursorFacingActive` (commit `aee5eb1`). `IA_UISelect`/`IA_UICancel`/`IA_UINavigate`/`IMC_ZS_UI` all now exist on disk (dev's own editor work, in progress).
+- **T2.1/T2.4** — `UZSUIStyleConfig` + `UZSUserWidgetBase` (focus nav via `NativeOnKeyDown`), commit `fca75fc`. New API usage was checked against the actual UE 5.8 engine source, not memory, since no compiler was available.
+- **T3/T7 delegate audit** — closed 3 real "no OnRep needed, no UI yet" gaps now that UI is coming (sleep-request state, weapon durability, ammo not broadcasting on host), commit `89f466e`.
+- **T5.0 partial** — `EZSItemSize` field only, commit `9c77d44`. The rest (EZSCarryLocation Backpack/Duffle split, weapon-mount slots, HotbarSlots rewiring) was deliberately **not** attempted — found a genuine open design question (what happens to `EZSEquipSlot::Hip` under the new compartment model) and the risk of blind-editing B0's already-verified hotbar/equip flow with no way to compile-check it was too high. Full detail + the specific question: `B1_UI_UX.md`'s Manual setup steps, T5.0 entry.
+
+**Full click-by-click steps for all of the above** (T1's remaining PIE verification, T2's `DA_ZS_UIStyle_Default` creation, the rebuild everything needs) are in **`B1_UI_UX.md`'s "Manual setup steps" section** — that's the one place this level of detail lives now (see `Docs/Beta/README.md`'s convention note). **First thing next session: a real compile.** Everything from `fca75fc` onward is unverified.
 
 ## B0 exit summary (closed 2026-07-30, practically not 100% formally)
 
@@ -33,7 +38,7 @@ Full detail on all of the above: `Docs/Beta/B0_Stabilization.md` and `Docs/Beta/
 
 ## Next step
 
-**Finish B1-T1** per `B1_UI_UX.md`'s "Manual setup steps" section, then move to **B1-T2 — Widget architecture & design tokens**. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold — it has the actual HUD/Tab-menu/inventory design decisions T1 and later tasks need to build against.
+**Compile first.** A full `Build.bat` rebuild covers everything from this session in one pass — T1's `IMC_ZS_UI`/content fixes plus all the new C++ (`Source/ZombieShooter/UI/`, `ZSGameState`/`ZSWeapon` delegate additions, `ZSItemConfig`'s new enum). Fix whatever doesn't compile before trusting any of it. Then work `B1_UI_UX.md`'s "Manual setup steps" section top to bottom (T1's PT1 PIE pass, T2's `DA_ZS_UIStyle_Default`), and raise T5.0's open Hip/Duffle question when convenient — it blocks the rest of T5.0 but not T2/T3 work. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold.
 
 ## Known tooling gotchas (worth remembering)
 
