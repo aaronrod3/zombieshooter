@@ -138,3 +138,45 @@ The first modal screen; the real test of T1.
 - **Radial quick-use is deferred to B9.** It appears in both source docs but is never detailed, and `UI_Plan.md` ranks it lowest priority. The hotbar already covers instant re-equip.
 - **Map screen is B4's**, not B1's — there is no map to draw yet.
 - **UI art is B2's decision, layout is B1's.** If OQ-B1-01 says UI ships functional-grey, then T2.1's style asset is the single restyle surface later. Do not scatter colour literals.
+
+---
+
+## Manual setup steps
+
+Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). Update in place as they're completed.
+
+### B1-T1 — Input-mode switching
+
+**Status as of 2026-07-30**: C++ side is done (`UZSUIManager`, commit `aee5eb1`). `IA_UISelect`/`IA_UICancel`/`IA_UINavigate` already exist as `.uasset`s with the correct Value Types (Boolean/Boolean/Axis2D, confirmed via `unreal-mcp`) — **but their key mappings are currently sitting inside `IMC_ZS_Default`** (confirmed via `ObjectTools.get_properties` on its `defaultKeyMappings`) instead of a dedicated `IMC_ZS_UI`, which doesn't exist yet. Left as-is, this defeats the whole point: `IA_UISelect`→LMB and `IA_Attack`→LMB would sit in the *same* context at the *same* priority, so both fire on every click regardless of whether a modal is open — there's no priority difference to consume one over the other within a single context. `IA_UINavigate`'s row also has no key assigned yet (`key: "None"`).
+
+1. **Remove the 3 misplaced rows from `IMC_ZS_Default`.** Open `/Game/ZS/Input/IMC_ZS_Default` in the Content Browser (double-click). In the Input Mapping Context editor, find the rows `IA_UISelect` → `LeftMouseButton`, `IA_UICancel` → `Escape`, and `IA_UINavigate` → `None`. Click the small trash-can/✕ icon at the right edge of each row to delete it. `Ctrl+S` to save. (Leave every other row alone — `IA_Attack`'s own `LeftMouseButton` mapping stays exactly where it is.)
+
+2. **Create `IMC_ZS_UI`.** In the Content Browser, navigate to `/Game/ZS/Input/`. Right-click empty space → **Input → Input Mapping Context**. Name it `IMC_ZS_UI`. Double-click to open it.
+
+3. **Add the mappings**, using **Add** / the **+** next to Mappings for each row:
+   - `IA_UISelect` → Key `Left Mouse Button`. No triggers, no modifiers (same as `IA_Attack`'s own binding in `IMC_ZS_Default`).
+   - `IA_UICancel` → Key `Escape`. No triggers, no modifiers.
+   - `IA_UINavigate` (Axis2D) → **4 separate rows**, one per arrow key. Mirror `IA_Move`'s existing W/A/S/D setup exactly (verified via `unreal-mcp` inspection of the live asset) — same modifier classes, same order:
+
+     | Key | Modifiers (in order) |
+     |---|---|
+     | Up Arrow | `Swizzle Input Axis Values` |
+     | Down Arrow | `Swizzle Input Axis Values`, then `Negate` |
+     | Left Arrow | `Negate` |
+     | Right Arrow | *(none)* |
+
+     This is exactly `IA_Move`'s W (Swizzle only) / S (Swizzle then Negate) / A (Negate only) / D (no modifiers) pattern — Right/Up map to the raw digital-key default (X+/after-swizzle Y+), Left/Down flip the sign. To add a modifier to a row: click the **+** under that row's **Modifiers** list, pick the class from the dropdown. Order matters (top-to-bottom = evaluation order) — Swizzle before Negate on Down Arrow, matching S.
+   - `Ctrl+S` to save.
+
+4. **Regen project files + full rebuild** — this adds a brand-new `UCLASS` (`Source/ZombieShooter/UI/`), not a Live Coding patch. Exact commands in `Docs/CommandReference.md` (close the editor first — check nothing's holding the build open, then `Build.bat -projectfiles`, then the normal `Build.bat ZombieShooterEditor Win64 Development`).
+
+5. **Run the automation suite once** to confirm `ZS.UI.ModalStackOrdering` actually passes (new test, pure state logic, no PIE needed) — command in `Docs/CommandReference.md`'s "Editor close/rebuild for automation test runs" section.
+
+6. **PT1 in PIE** (hands-only, no automation path exists for this):
+   - `ZS.UI.PushTestModal Test` while mid-attack (e.g. holding the trigger on an auto weapon) — attack should stop dead, no leaked shots.
+   - `ZS.UI.PopTestModal Test` at the exact moment of a click — that click should not fire an attack.
+   - Spam `PushTestModal`/`PopTestModal` rapidly (different tags each time) — no stuck cursor, no stuck input mode, no error spam.
+   - Nested modal: `ZS.UI.PushTestModal A` then `ZS.UI.PushTestModal B`, then `ZS.UI.PopTestModal B` — should land back on `A` (each command logs `IsAnyModalActive` and the tag to the output log; watch there since there's no on-screen readout yet).
+   - Try popping a tag that isn't on top (e.g. push `A` then `B`, then `PopTestModal A`) — should log a mismatch warning but still pop the real top (`B`), not corrupt the stack.
+   - 2-client: disconnect one client with a modal open — the other client's UI state should be unaffected (this is per-local-player state, not replicated).
+   - Confirm T1.5 throughout every step above: zombies keep moving, needs keep decaying, the player remains attackable while a test modal is "open." Nothing should visibly pause.

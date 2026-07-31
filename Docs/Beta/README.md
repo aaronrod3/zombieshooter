@@ -18,6 +18,10 @@
 
 **Before starting any phase:** that phase's entry criteria, then its BLOCKING questions in `90_OpenQuestions.md` §Summary. Batch a phase's blocking set into one design session rather than hitting them one at a time mid-implementation.
 
+## Manual setup steps convention
+
+Any `B<N>_*.md` task that needs a dev-only, non-scriptable step (content asset creation, editor-only actions — no MCP/automation path exists for Enhanced Input assets or most other asset types, see `CLAUDE.md`'s MCP/Editor Tooling notes) gets a `## Manual setup steps` section at the bottom of that phase file, with exact click-by-click instructions grounded in the actual project state (not generic engine advice) — kept there so it doesn't live only in chat scrollback. Update it in place as steps complete; remove/checkbox an item once done rather than leaving it stale. `B1_UI_UX.md` has the first one.
+
 ## Files
 
 | File | Contents |

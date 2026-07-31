@@ -12,15 +12,9 @@
 
 ## B1-T1 (Input-mode switching) — code written 2026-07-30, blocked on dev for the rest
 
-**What's done (commit `aee5eb1`):** `UZSUIManager` (`ULocalPlayerSubsystem`, `Source/ZombieShooter/UI/`) implements the modal stack from `B1_UI_UX.md` T1.2 — `PushModal`/`PopModal(FName ModalTag)`, `IsAnyModalActive()`, `GetTopModalTag()`, nested-modal-safe (verified by a new headless automation test, `ZS.UI.ModalStackOrdering`, not yet run — see below). `AZSPlayerCharacter::HandleAttack()` and `IsCursorFacingActive()` (T1.3/T1.4) both hard-guard on `IsAnyModalActive()` directly, not just on the `IMC_ZS_UI` priority mechanism. `ZS.UI.PushTestModal`/`PopTestModal` console commands stand in for real screens so PT1 can be tested before T2+ exists.
+**What's done (commit `aee5eb1`):** `UZSUIManager` (`ULocalPlayerSubsystem`, `Source/ZombieShooter/UI/`) implements the modal stack from `B1_UI_UX.md` T1.2, hard-gated into `AZSPlayerCharacter::HandleAttack()`/`IsCursorFacingActive()` (T1.3/T1.4). `IA_UISelect`/`IA_UICancel`/`IA_UINavigate` already exist in-editor with correct Value Types, but their key mappings are sitting in the wrong context (`IMC_ZS_Default` instead of a not-yet-created `IMC_ZS_UI`) — confirmed via `unreal-mcp` inspection 2026-07-30.
 
-**Not done — needs the dev, in order:**
-1. **Create content assets in-editor** (none of this is scriptable, same as every prior Enhanced Input asset in this project — see `Docs/InputBindings.md`'s UI section for the exact fields): `IA_UISelect` (Digital bool, LMB), `IA_UICancel` (Digital bool, Escape), `IA_UINavigate` (Axis2D, Arrow Keys — deliberately not WASD, movement must keep working with a menu open), then `IMC_ZS_UI` mapping all three. Until these exist, `UZSUIManager`'s `ConstructorHelpers::FObjectFinder` silently no-ops (same graceful-if-missing pattern as `RackAction`/`FinisherAction`/`ZoomAction` before they were authored) — the modal stack bookkeeping still works, but nothing actually changes the active Enhanced Input context yet.
-2. **Regen project files + full `Build.bat` rebuild** (not Live Coding — a brand-new `UCLASS`, `Source/ZombieShooter/UI/` is a new module folder). Editor was open all session, so this was never attempted — see `Docs/CommandReference.md`.
-3. **Run `ZS.Combat.*`/etc. automation suite once** to confirm `ZS.UI.ModalStackOrdering` (new test, pure state logic, no PIE needed) actually passes — written but never executed against a real build.
-4. **PT1 in PIE** (hands-only, no automation path): `ZS.UI.PushTestModal`/`PopTestModal` mid-attack, spam open/close, nested push (`PushTestModal A` then `PushTestModal B`, confirm `PopTestModal B` lands back on `A`), disconnect with a modal open. Confirm zero input leakage either direction, and explicitly confirm T1.5 (zombies/needs/attackability keep going while a test modal is "open" — nothing pauses).
-
-Once PT1 passes, T1 is done and T2 (widget architecture/design tokens) is next.
+**Not done — needs the dev.** Full click-by-click steps (fix the mapping-context mistake, create `IMC_ZS_UI`, rebuild, run the new `ZS.UI.ModalStackOrdering` automation test, PT1 in PIE) are in **`B1_UI_UX.md`'s new "Manual setup steps" section** — that's now the one place this level of detail lives (see `Docs/Beta/README.md`'s convention note for why). Once PT1 passes there, T1 is done and T2 (widget architecture/design tokens) is next.
 
 ## B0 exit summary (closed 2026-07-30, practically not 100% formally)
 
@@ -39,7 +33,7 @@ Full detail on all of the above: `Docs/Beta/B0_Stabilization.md` and `Docs/Beta/
 
 ## Next step
 
-**Finish B1-T1** per the four dev-blocking steps above (content assets → rebuild → automation test → PT1 in PIE), then move to **B1-T2 — Widget architecture & design tokens**. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold — it has the actual HUD/Tab-menu/inventory design decisions T1 and later tasks need to build against.
+**Finish B1-T1** per `B1_UI_UX.md`'s "Manual setup steps" section, then move to **B1-T2 — Widget architecture & design tokens**. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold — it has the actual HUD/Tab-menu/inventory design decisions T1 and later tasks need to build against.
 
 ## Known tooling gotchas (worth remembering)
 
