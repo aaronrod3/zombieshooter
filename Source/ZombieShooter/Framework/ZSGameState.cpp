@@ -114,6 +114,11 @@ void AZSGameState::OnRep_UtilitiesShutoffTriggered()
 	}
 }
 
+void AZSGameState::OnRep_SleepRequestPending()
+{
+	OnSleepRequestStateChanged.Broadcast(bSleepRequestPending, PendingSleepHours);
+}
+
 void AZSGameState::Server_RequestSleep(AZSPlayerCharacter* Requester, float RequestedSleepHours)
 {
 	if (!HasAuthority() || !Requester)
@@ -125,6 +130,10 @@ void AZSGameState::Server_RequestSleep(AZSPlayerCharacter* Requester, float Requ
 	{
 		bSleepRequestPending = true;
 		PendingSleepHours = FMath::Max(RequestedSleepHours, 0.f);
+
+		// OnRep_X never fires on the machine that has authority - call it manually, same pattern
+		// AZSPlayerCharacter::SetBusy uses for OnRep_IsBusy.
+		OnRep_SleepRequestPending();
 	}
 
 	UpdateSleepRequestState();
@@ -162,6 +171,7 @@ void AZSGameState::UpdateSleepRequestState()
 	{
 		bSleepRequestPending = false;
 		PendingSleepHours = 0.f;
+		OnRep_SleepRequestPending();
 		return;
 	}
 
@@ -190,6 +200,7 @@ void AZSGameState::UpdateSleepRequestState()
 
 	bSleepRequestPending = false;
 	PendingSleepHours = 0.f;
+	OnRep_SleepRequestPending();
 }
 
 bool AZSGameState::Server_TryConsumeRarityPoolSlot(UZSItemConfig* Item)

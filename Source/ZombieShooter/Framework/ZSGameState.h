@@ -12,6 +12,8 @@ class AZSPlayerCharacter;
 /** Broadcast on every OnRep_ below - lets Blueprint/UI/moodle widgets bind to state changes instead of polling, per CLAUDE.md's replication convention. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnTimeOfDayChanged, float, NewTimeOfDayHours, int32, NewDayCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnUtilitiesShutoff);
+/** B1-T7.4 audit gap, closed 2026-07-30: bSleepRequestPending/PendingSleepHours were plain Replicated with no change notification - a sleep-prompt widget would have had to poll. RequestedSleepHours carries PendingSleepHours's current value alongside the bool so a single bind covers both ("is a request pending" and "for how long"), same bundling FZSOnTimeOfDayChanged already does for its two related values. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnSleepRequestStateChanged, bool, bRequestPending, float, RequestedSleepHours);
 
 /**
  *  P6: authored per-session budget for one Rare/VeryRare UZSItemConfig - GameDevPlan.md §7 P6,
@@ -115,6 +117,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|WorldClock")
 	bool IsSleepRequestPending() const { return bSleepRequestPending; }
 
+	/** T7.4: the one delegate a future sleep-prompt widget binds to instead of polling IsSleepRequestPending() every tick - see OnRep_SleepRequestPending. */
+	UPROPERTY(BlueprintAssignable, Category = "ZS|WorldClock")
+	FZSOnSleepRequestStateChanged OnSleepRequestStateChanged;
+
 	// ---- P6: finite-world-count loot rarity pool (Docs/Phases/P6_InventoryLoot.md,
 	// GameDevPlan.md §7 P6) - lives here rather than on UZSLootTableConfig itself since it needs
 	// to be shared/consumed across every container in the session, and AZSGameState is the one
@@ -174,12 +180,15 @@ protected:
 	/** Shared by Tick and Server_AdvanceTimeByGameHours: applies GameHours to TimeOfDayHours/DayCount, wrapping at 24, then checks the utilities-shutoff threshold. Server-only. */
 	void ApplyGameHoursElapsed(float GameHours);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "ZS|WorldClock")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_SleepRequestPending, Category = "ZS|WorldClock")
 	bool bSleepRequestPending = false;
 
-	/** Set once by whichever player first requests sleep while no request is already pending - "the duration the initiating player sets". */
+	/** Set once by whichever player first requests sleep while no request is already pending - "the duration the initiating player sets". Not itself ReplicatedUsing - it's always set before bSleepRequestPending in the same function, so OnRep_SleepRequestPending firing (on the real OnRep_ path or the manual server-side call below) always sees its current value already in place. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "ZS|WorldClock")
 	float PendingSleepHours = 0.f;
+
+	UFUNCTION()
+	void OnRep_SleepRequestPending();
 
 	/** Scans PlayerArray: if nobody's ready anymore, clears the pending request; if everyone connected is ready, advances the clock by PendingSleepHours, applies sleep recovery to each player's UZSNeedsComponent, and resets everyone's ready flag. */
 	void UpdateSleepRequestState();

@@ -64,6 +64,7 @@ void AZSWeapon::InitializeFromConfig(UZSWeaponConfig* Config)
 	// to be called directly here too, not just from OnRep_CurrentConfig, so the host/server's
 	// own local view of this weapon looks right as well as every remote client's.
 	AssembleCosmeticsFromConfig();
+	OnRep_Durability();
 }
 
 void AZSWeapon::AssembleCosmeticsFromConfig()
@@ -130,6 +131,11 @@ void AZSWeapon::OnRep_CurrentMagazineAmmo()
 	OnMagazineAmmoChanged.Broadcast(CurrentMagazineAmmo);
 }
 
+void AZSWeapon::OnRep_Durability()
+{
+	OnDurabilityChanged.Broadcast(CurrentDurability, CurrentConditionQuality);
+}
+
 UStaticMeshComponent* AZSWeapon::AssignNewStaticMesh(const FName& SocketName, UStaticMesh* Mesh, const FName& ComponentName)
 {
 	if (!Mesh || SocketName.IsNone() || !BaseWeaponMesh->DoesSocketExist(SocketName))
@@ -190,6 +196,14 @@ bool AZSWeapon::Server_ConsumeAmmoRound()
 	}
 
 	--CurrentMagazineAmmo;
+
+	// OnRep_X never fires on the machine that has authority - call it manually so the host's own
+	// game reacts to its own authoritative write the same way every client does on replication.
+	// (Pre-existing gap found during the B1-T3.5 audit, 2026-07-30 - fixed here since it's directly
+	// relevant to T3.5's ammo counter; CycleFireMode_Implementation has the same gap for
+	// CurrentFireMode but no B1 HUD task reads fire mode yet, so that one's left alone for now.)
+	OnRep_CurrentMagazineAmmo();
+
 	return true;
 }
 
@@ -241,6 +255,7 @@ void AZSWeapon::PerformReload_Implementation()
 	}
 
 	CurrentMagazineAmmo += AmmoAvailable;
+	OnRep_CurrentMagazineAmmo();
 }
 
 void AZSWeapon::SeedDurabilityFromInstance(int32 InstanceDurability, float ConditionQuality)
@@ -258,12 +273,15 @@ void AZSWeapon::SeedDurabilityFromInstance(int32 InstanceDurability, float Condi
 	{
 		// Unbreakable weapon - CurrentDurability stays whatever InitializeFromConfig set (0), same
 		// "never reaches/goes below 0" contract Server_ConsumeDurabilityHit already documents.
+		// CurrentConditionQuality still changed above though, so still worth a broadcast.
+		OnRep_Durability();
 		return;
 	}
 
 	CurrentDurability = (InstanceDurability >= 0)
 		? InstanceDurability
 		: FMath::RoundToInt(CurrentConfig->MaxDurabilityHits * CurrentConditionQuality);
+	OnRep_Durability();
 }
 
 bool AZSWeapon::Server_RollForJam()
@@ -323,6 +341,7 @@ bool AZSWeapon::Server_ConsumeDurabilityHit()
 	}
 
 	CurrentDurability = FMath::Max(CurrentDurability - 1, 0);
+	OnRep_Durability();
 	return CurrentDurability <= 0;
 }
 

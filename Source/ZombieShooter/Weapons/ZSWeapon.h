@@ -18,6 +18,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnFireModeChanged, EZSFireMode, N
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnAmmoChanged, int32, NewAmmo);
 /** B0-T10.2: lets a future HUD indicator (B1) bind to jam state instead of polling IsJammed() - the "HUD indicator hook" half of T10.2's definition of done. The audio-cue half is a content task, no audio system exists yet. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnJamStateChanged, bool, bNewIsJammed);
+/** B1-T3.4 audit gap, closed 2026-07-30: CurrentDurability/CurrentConditionQuality were both plain Replicated with "no OnRep needed, no UI yet" - now that a hotbar durability indicator is coming, that precondition no longer holds. Bundles both into one delegate (they change together in every mutation site) rather than two separate ones. This only covers the currently-equipped weapon's live state - an unequipped hotbar slot's condition lives on its FZSItemInstance in UZSInventoryComponent::CarrySlots instead, a separate (and still open) data-flow question for whoever builds T3.4's actual widget. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnDurabilityChanged, int32, NewDurability, float, NewConditionQuality);
 
 /**
  *  The equipped weapon actor. One replicated instance per equipped weapon, permanently
@@ -64,6 +66,13 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
 	int32 GetCurrentDurability() const { return CurrentDurability; }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	float GetCurrentConditionQuality() const { return CurrentConditionQuality; }
+
+	/** T3.4: the currently-equipped weapon's durability/condition indicator binds here instead of polling GetCurrentDurability()/GetCurrentConditionQuality() every tick. */
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Weapon")
+	FZSOnDurabilityChanged OnDurabilityChanged;
 
 	/** B0-T2 Step B: overrides the fresh-spawn durability InitializeFromConfig just set, with the value carried over from the FZSItemInstance this weapon was equipped from - this is the actual "durability persists through equip/unequip" fix. InstanceDurability == -1 means "never touched yet" (a freshly-looted weapon's first equip) - falls back to Config->MaxDurabilityHits x ConditionQuality in that case, same seeding CurrentConfig would otherwise have used, just scaled by loot condition (B0-T2.10). Call right after InitializeFromConfig; no-op off a non-authoritative machine. Also stores ConditionQuality into CurrentConditionQuality regardless of MaxDurabilityHits (B0-T10.1's jam-chance roll needs it even for an otherwise-unbreakable gun). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
@@ -126,13 +135,16 @@ protected:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentMagazineAmmo, Category = "ZS|Weapon")
 	int32 CurrentMagazineAmmo = 0;
 
-	/** P5: seeded from CurrentConfig->MaxDurabilityHits in InitializeFromConfig. Stays at 0 (and Server_ConsumeDurabilityHit stays a no-op) for an unbreakable weapon. No OnRep needed - nothing client-side reacts to durability yet (no UI), same "plain replicated state" reasoning as AZSGameState::UtilitiesShutoffDay. */
-	UPROPERTY(BlueprintReadOnly, Replicated, Category = "ZS|Weapon")
+	/** P5: seeded from CurrentConfig->MaxDurabilityHits in InitializeFromConfig. Stays at 0 (and Server_ConsumeDurabilityHit stays a no-op) for an unbreakable weapon. ReplicatedUsing added B1-T3.4 audit (2026-07-30) - a hotbar durability indicator is coming, the old "no UI yet" reasoning no longer holds. */
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Durability, Category = "ZS|Weapon")
 	int32 CurrentDurability = 0;
 
-	/** B0-T10.1: stored by SeedDurabilityFromInstance regardless of MaxDurabilityHits - jam-chance rolls need it even for guns (which opt out of the melee-durability system via MaxDurabilityHits == 0). No OnRep needed, same reasoning as CurrentDurability. */
+	/** B0-T10.1: stored by SeedDurabilityFromInstance regardless of MaxDurabilityHits - jam-chance rolls need it even for guns (which opt out of the melee-durability system via MaxDurabilityHits == 0). Not itself ReplicatedUsing - always set alongside CurrentDurability in the same function, and Unreal applies all of an update's replicated values before any of that update's RepNotifies run, so OnRep_Durability always sees this at its current value regardless of which of the two fields' replication triggered it. */
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "ZS|Weapon")
 	float CurrentConditionQuality = 1.f;
+
+	UFUNCTION()
+	void OnRep_Durability();
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_IsJammed, Category = "ZS|Weapon")
 	bool bIsJammed = false;
