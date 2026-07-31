@@ -20,7 +20,9 @@
 
 ## Manual setup steps convention
 
-Any `B<N>_*.md` task that needs a dev-only, non-scriptable step (content asset creation, editor-only actions — no MCP/automation path exists for Enhanced Input assets or most other asset types, see `CLAUDE.md`'s MCP/Editor Tooling notes) gets a `## Manual setup steps` section at the bottom of that phase file, with exact click-by-click instructions grounded in the actual project state (not generic engine advice) — kept there so it doesn't live only in chat scrollback. Update it in place as steps complete; remove/checkbox an item once done rather than leaving it stale. `B1_UI_UX.md` has the first one.
+Any `B<N>_*.md` task that needs a dev-only, non-scriptable step (content asset creation, editor-only actions — no MCP/automation path exists for Enhanced Input assets or most other asset types, see `CLAUDE.md`'s MCP/Editor Tooling notes) gets a `## Manual setup steps` section at the bottom of that phase file, with exact click-by-click instructions grounded in the actual project state (not generic engine advice) — kept there so it doesn't live only in chat scrollback.
+
+**Format (set 2026-07-30, dev-specified):** each task entry under that section is a running **Completed** list — brief, one line per item — followed by **Next steps** with the full click-by-click detail. When a next step finishes, its detail comes out of Next steps and a one-line summary gets appended to Completed above it. Don't let either list go stale.
 
 ## Files
 
