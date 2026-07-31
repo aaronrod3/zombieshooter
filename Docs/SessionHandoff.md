@@ -10,6 +10,18 @@
 
 **B0 → B1 transition confirmed by dev, 2026-07-30.** Two companion docs for B1: `Docs/Beta/B1_UI_UX.md` (task breakdown, entry/exit criteria) and `Docs/Planning/B1_UIDesignSession_2026-07-30.md` (the actual UI design — HUD philosophy, Tab-menu structure, inventory compartments — decided ahead of implementation, read this before touching any layout work).
 
+## B1-T1 (Input-mode switching) — code written 2026-07-30, blocked on dev for the rest
+
+**What's done (commit `aee5eb1`):** `UZSUIManager` (`ULocalPlayerSubsystem`, `Source/ZombieShooter/UI/`) implements the modal stack from `B1_UI_UX.md` T1.2 — `PushModal`/`PopModal(FName ModalTag)`, `IsAnyModalActive()`, `GetTopModalTag()`, nested-modal-safe (verified by a new headless automation test, `ZS.UI.ModalStackOrdering`, not yet run — see below). `AZSPlayerCharacter::HandleAttack()` and `IsCursorFacingActive()` (T1.3/T1.4) both hard-guard on `IsAnyModalActive()` directly, not just on the `IMC_ZS_UI` priority mechanism. `ZS.UI.PushTestModal`/`PopTestModal` console commands stand in for real screens so PT1 can be tested before T2+ exists.
+
+**Not done — needs the dev, in order:**
+1. **Create content assets in-editor** (none of this is scriptable, same as every prior Enhanced Input asset in this project — see `Docs/InputBindings.md`'s UI section for the exact fields): `IA_UISelect` (Digital bool, LMB), `IA_UICancel` (Digital bool, Escape), `IA_UINavigate` (Axis2D, Arrow Keys — deliberately not WASD, movement must keep working with a menu open), then `IMC_ZS_UI` mapping all three. Until these exist, `UZSUIManager`'s `ConstructorHelpers::FObjectFinder` silently no-ops (same graceful-if-missing pattern as `RackAction`/`FinisherAction`/`ZoomAction` before they were authored) — the modal stack bookkeeping still works, but nothing actually changes the active Enhanced Input context yet.
+2. **Regen project files + full `Build.bat` rebuild** (not Live Coding — a brand-new `UCLASS`, `Source/ZombieShooter/UI/` is a new module folder). Editor was open all session, so this was never attempted — see `Docs/CommandReference.md`.
+3. **Run `ZS.Combat.*`/etc. automation suite once** to confirm `ZS.UI.ModalStackOrdering` (new test, pure state logic, no PIE needed) actually passes — written but never executed against a real build.
+4. **PT1 in PIE** (hands-only, no automation path): `ZS.UI.PushTestModal`/`PopTestModal` mid-attack, spam open/close, nested push (`PushTestModal A` then `PushTestModal B`, confirm `PopTestModal B` lands back on `A`), disconnect with a modal open. Confirm zero input leakage either direction, and explicitly confirm T1.5 (zombies/needs/attackability keep going while a test modal is "open" — nothing pauses).
+
+Once PT1 passes, T1 is done and T2 (widget architecture/design tokens) is next.
+
 ## B0 exit summary (closed 2026-07-30, practically not 100% formally)
 
 Everything B1 builds UI against is solo-PIE-confirmed: item instances (`FZSItemInstance` refactor), weapon/combat mechanics, camera/aim, `BT_Zombie`, needs simulation. Two real bugs found and fixed this session: zombie bite zone weighting (was always Torso, now a weighted random roll) and `BT_Zombie` freezing after one melee hit (stale `bIsInMeleeRange` Blackboard bool, `AZombieAIController::Tick`, commit `1693884`).
@@ -27,7 +39,7 @@ Full detail on all of the above: `Docs/Beta/B0_Stabilization.md` and `Docs/Beta/
 
 ## Next step
 
-**Start B1-T1 — Input-mode switching** (`B1_UI_UX.md`), the foundational piece every other B1 task depends on: `IMC_ZS_UI` mapping context, `UZSUIManager` (a `ULocalPlayerSubsystem`) owning a modal input stack. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold — it has the actual HUD/Tab-menu/inventory design decisions T1 and later tasks need to build against.
+**Finish B1-T1** per the four dev-blocking steps above (content assets → rebuild → automation test → PT1 in PIE), then move to **B1-T2 — Widget architecture & design tokens**. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold — it has the actual HUD/Tab-menu/inventory design decisions T1 and later tasks need to build against.
 
 ## Known tooling gotchas (worth remembering)
 
