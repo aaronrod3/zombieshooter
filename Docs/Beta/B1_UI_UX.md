@@ -190,3 +190,40 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
    - Try popping a tag that isn't on top (e.g. push `A` then `B`, then `PopTestModal A`) — should log a mismatch warning but still pop the real top (`B`), not corrupt the stack.
    - 2-client: disconnect one client with a modal open — the other client's UI state should be unaffected (this is per-local-player state, not replicated).
    - Confirm T1.5 throughout every step above: zombies keep moving, needs keep decaying, the player remains attackable while a test modal is "open." Nothing should visibly pause.
+
+### B1-T2 — Widget architecture & design tokens
+
+**Completed:**
+- `UZSUIStyleConfig` (`UPrimaryDataAsset`) C++ implemented — colour/type-scale/spacing fields, functional-grey code defaults per OQ-B1-01 (commit `fca75fc`).
+- `UZSUserWidgetBase` (`UUserWidget`) C++ implemented — `Style` reference every `WBP_ZS_*` child will point at, plus T2.4's generic arrow-key focus navigation (`NativeOnKeyDown` → `FReply::SetNavigation`). All new API usage verified directly against the UE 5.8 engine source (not from memory) since no compiler was available this pass — see the commit message for exactly what was checked.
+
+**Next steps:**
+
+1. **Create `DA_ZS_UIStyle_Default`** once the rebuild below lands: right-click in `/Game/ZS/UI/` (create the folder if it doesn't exist) → Miscellaneous → Data Asset → pick `ZSUIStyleConfig` as the class → name it `DA_ZS_UIStyle_Default`. The C++ defaults are already functional-grey-appropriate; no field edits needed yet (OQ-B1-01: real restyle is B2's job).
+2. **`WBP_ZS_Base` Widget Blueprint is deliberately not created yet** — no real screen exists to use it until T3 builds the first HUD element. Create it (right-click → User Interface → Widget Blueprint, reparent to `UZSUserWidgetBase`) when that work actually starts, not speculatively now.
+3. T2.2 (every widget binds a delegate, never polls) and T2.3 (widget pooling for list-heavy screens) have no code to write yet either — T2.2 is a convention to hold future widgets to (this pass's delegate audit below is the groundwork for it), T2.3 has nothing to pool until T5's grid exists. Neither is a content gap, just not-yet-applicable.
+
+### B1-T3 / B1-T7 — Delegate audit (groundwork for HUD + sleep prompt)
+
+**Completed:**
+- Audited every T3/T7 HUD/screen requirement against existing replicated-state delegates (commit `89f466e`). Found and fixed 3 real gaps that would have blocked a future widget from following T2.2's "bind, never poll" rule:
+  - `AZSGameState`: `bSleepRequestPending`/`PendingSleepHours` now broadcast `OnSleepRequestStateChanged` (T7.4's sleep prompt).
+  - `AZSWeapon`: `CurrentDurability`/`CurrentConditionQuality` now broadcast `OnDurabilityChanged` (T3.4's hotbar durability indicator).
+  - `AZSWeapon`: `CurrentMagazineAmmo`'s existing `OnMagazineAmmoChanged` now actually fires on the host/listen-server, not just remote clients (T3.5's ammo counter).
+- Confirmed already-correct, no change needed: T3.6 (interaction prompt — `UZSInteractableComponent::InteractionVerb` + `AZSPlayerCharacter::OnNearestInteractableChanged` already cover it), T3.3 (infection legibility — wound-infection-state changes already route through `OnBodyZonesChanged`).
+
+**Next steps:** none content/editor-related — this was pure C++, folded into the same rebuild as T1/T2. A background task was spawned separately for one same-class bug found but left alone (`CycleFireMode_Implementation` not re-broadcasting on host) since no B1 HUD task reads fire mode yet.
+
+### B1-T5.0 — Inventory/loadout data-model prerequisite
+
+**Completed:**
+- `EZSItemSize {Small, Medium, Large}` field added to `UZSItemConfig` (commit `9c77d44`) — the fully-unambiguous quarter of T5.0. Defaults to `Small` (most permissive) until content gets real values authored (`T_ContinuousTracks.md` T4's job).
+
+**Next steps — blocked on a design checkpoint, not an editor step:**
+
+The other three quarters of T5.0 were deliberately **not** built this pass — implementing them blind risked a real regression in B0's already-PIE-verified hotbar/equip flow, with no way to compile-check or PIE-test the result before handing it back. Concretely, here's the gap that needs a decision:
+
+- **`EZSEquipSlot::Back` and `::Hip`** (`ZSItemConfig.h`) currently both grant a generic `CarryCapacityBonus` and funnel stored contents into the same `EZSCarryLocation::Bag` tag (`Server_StoreInBag`). T5.0 asks for `Bag` to split into distinct `Backpack`/`Duffle` compartments, and the design session doc frames `Backpack`/`Hip`/`Flashlight` as three separate Gear slots — but **neither doc says what `Hip` becomes**: does its content fold into the new `Backpack` compartment, become its own thing, or stop granting a storage compartment at all? And where does the new `Duffle` equip slot sit relative to `Back`/`Hip` — a third named `EZSEquipSlot` value, or something else entirely?
+- This also gates the weapon-mount slots (2 long-gun + 1 sidearm) and the `HotbarSlots` semantics change ("becomes a quick-select pointer into a mounted weapon... rather than its own capacity check") — the riskiest single piece of remaining B1 work, since it touches live, working combat/equip code.
+
+**Raise this with the dev before building further** — once resolved, the actual C++ (new equip slots, `EZSCarryLocation` split, `HotbarSlots` rewiring) follows the same `FGuid`-reference pattern already proven for `EquippedBack`/`EquippedHip`/`SecondaryHandInstanceId`, so it's mechanical once the design question has an answer.
