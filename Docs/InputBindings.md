@@ -44,6 +44,7 @@
 | UI Select | Left Mouse Button |
 | UI Cancel | Escape |
 | UI Navigate (focus movement within a menu) | Arrow Keys |
+| Show Scoreboard / Player List | `P` (proposed default, added 2026-07-30 — `OQ-B1-07`, dev-adjustable) |
 
 🔧 **B1-T1 implemented 2026-07-30**: `UZSUIManager` (`ULocalPlayerSubsystem`, `Source/ZombieShooter/UI/`) owns the modal stack that adds/removes `IMC_ZS_UI` at a higher Enhanced Input priority than `IMC_ZS_Default`. **Content gap**: `IMC_ZS_UI` and its three actions (`IA_UISelect`, `IA_UICancel`, `IA_UINavigate`) don't exist as `.uasset`s yet — same graceful-if-missing pattern as every other input asset in this project, needs manual creation in-editor:
 - `IA_UISelect` (Digital bool) — Left Mouse Button, Pressed.
@@ -77,6 +78,7 @@
 |---|---|
 | Toggle Chat | Enter |
 | Push-to-Talk | V |
+| Ping Wheel | Middle Mouse Button, hold (proposed default, added 2026-07-30 — `OQ-B10-11`, dev-adjustable) |
 
 ---
 
@@ -98,3 +100,5 @@ This list resolves a couple of already-open questions and surfaces a few genuine
 - **Text chat (Enter) and in-game Push-to-Talk voice (V)** — neither exists in the plan. **This directly contradicts OQ-B10-09's standing recommendation** ("no voice chat, rely on Discord") — that question was never dev-confirmed, just a recommendation, so this isn't a reversal of a decision, but it does mean OQ-B10-09 needs a real answer now rather than defaulting to the old rec. Text chat as a system is new scope for B10 either way.
 
 Added these as open items to `Docs/Beta/90_OpenQuestions.md` (new OQ-X-09 through OQ-X-11) rather than leaving them only in this note, so they surface in the normal open-questions sweep.
+
+**Update 2026-07-30:** `OQ-X-11` is now resolved — text chat (Enter) is being built, voice (Push-to-Talk, V) stays unimplemented pending its own separate answer under `OQ-B10-09`. Also added this session: a Scoreboard/Player List key (UI table) and a Ping Wheel key (this table) — see `OQ-B1-07` and `OQ-B10-11`.

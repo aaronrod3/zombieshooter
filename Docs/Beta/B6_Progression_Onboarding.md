@@ -55,7 +55,7 @@ The cross-cutting task. Each hookup is small; there are many.
 | T2.1 | **Melee class bars** ← landing hits with that weapon class (`PerformMeleeSwing`). Higher level: faster attack speed, more damage, higher crit chance. |
 | T2.2 | **Aiming** ← shots fired/hits landed. Affects the B0-T3.5 aim cone, time-to-aim, and effective range. **This is now the primary skill-expression fork in ranged combat**, because CR-11 made the aim cone the sole source of combat pressure. |
 | T2.3 | **Reloading** ← reloads performed. Affects reload speed and per-round loading. |
-| T2.4 | **Maintenance** ← maintenance actions. Reduces wear rate; raises effective durability; also reduces B0-T10.1's jam chance, which is the natural pairing. |
+| T2.4 | **Maintenance** ← maintenance actions. Reduces wear rate; raises effective durability; also reduces B0-T10.1's jam chance, which is the natural pairing. **New, added 2026-07-30 (`OQ-B6-10`):** also gates an *active* repair mechanic — consume a repair item/perform a maintenance action to restore durability, effectiveness scaled by skill level — routed through the existing `Server_UseItem`/`EZSItemUseType` dispatch pattern. Without this, broken weapons just vanished; the passive wear-rate reduction alone wasn't a repair loop. |
 | T2.5 | **First Aid** ← treatment actions. More effective items, faster application. |
 | T2.6 | **Strength** ← melee kills, carrying heavy loads. Raises melee damage and carry capacity. |
 | T2.7 | **Stamina** ← sprinting, swinging. Raises the pool and the economy. |

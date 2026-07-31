@@ -114,6 +114,7 @@ Tune from telemetry (B10-T4.3), not from feel.
 | T1.2 | **One-sentence pitch/logline** (Open Questions §1). §1 of `GameDevPlan` has a good long-form version; it needs a one-line form that survives a store page. |
 | T1.3 | Key art / capsule art direction. |
 | T1.4 | Trademark/name availability checked before anything is printed on a store page. |
+| T1.5 | **New, added 2026-07-30.** Legal & compliance: EULA/ToS/privacy policy (`OQ-B12-06`, needed for the Steam listing and to disclose the opt-in telemetry from `OQ-B10-07`), and an age rating via Steam's IARC questionnaire (`OQ-B12-07`, must land before T2's store page finishes). |
 
 ### B12-T2 — Store presence · **M (3–4 sessions)** · *depends on T1*
 

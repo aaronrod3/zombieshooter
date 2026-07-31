@@ -4,6 +4,8 @@
 
 > **Rescoped 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): the infection-legibility requirement below (T3.3) is **reversed** from the original design — show it plainly, don't hide it. The dev also expressed a concrete UI preference for the inventory screen (T5): separate equipment-slot drag targets alongside a general carry container, not necessarily a single flat scrollable list — see T5 below. Per the dev's process answers, treat every remaining "your call" item in this file as a checkpoint to raise before building, not something to guess past.
 
+> **Gap-review pass 2026-07-30** (`Docs/Beta/90_OpenQuestions.md`): gamepad support for beta is now **cut** (`OQ-B9-01` overturned) — `T2.4`'s generic focus-navigation deliverable is unchanged, but its rationale is keyboard-accessibility only now, not gamepad-prep, and the exit-criteria bullet below is reworded accordingly. Four new HUD/menu items landed from the same pass: `T3.9` (scoreboard/player-list), `T3.10` (notifications/toast), `T3.11` (save/autosave indicator), and `T8` gained a Steam friends-invite line plus a new loading-screen task. **T1 itself is untouched by this pass** — none of the above changes anything about the in-progress input-mode-switching work.
+
 > **Why this is a phase and not a polish item.** Six systems are built and invisible: P2's needs (`OnHungerChanged` has no consumer), P3's wounds and infection, P5's hotbar and jam state, P6's entire inventory (containers do "loot all" on interact *specifically because* no UI exists), P3's death flow, and P2's sleep readiness. Their phase exit criteria — "hunger/thirst **visibly** degrades performance," "full scavenge loop in graybox" — are unreachable without UI. **This phase is the instrument panel for everything already built.**
 >
 > Builds on `Docs/Planning/UI_Plan.md` (draft, dev read-through still pending per `SessionHandoff.md`). That doc's §2 correctly identifies input-mode switching as blocking everything else.
@@ -23,7 +25,7 @@
 - [ ] Left-click means "select" over a menu and "attack" otherwise, with no input leaking through in either direction.
 - [ ] Full loot loop is playable through UI: open container → inspect items → take individual items → manage weight → close.
 - [ ] Two clients each drive their own UI without cross-talk; no widget reads a replicated value by polling.
-- [ ] **No screen hardcodes a mouse-only interaction** — every drag/click action also has a keyboard-driven path. (Gamepad *verification* is deferred to B9 per OQ-B9-01, but this structural requirement stays: it is an accessibility requirement regardless, and it is what makes B9 cheap instead of a rewrite.)
+- [ ] **No screen hardcodes a mouse-only interaction** — every drag/click action also has a keyboard-driven path. This is a standing keyboard-accessibility requirement independent of gamepad support, which is cut for v1 (`OQ-B9-01`, overturned 2026-07-30).
 - [ ] No modal screen pauses the game — real-time is non-negotiable per Decision 1.
 
 > **Carried forward from B0 (dev decision, 2026-07-30):** B0's 2-client PIE verification was deferred here rather than dropped — debug-console-only feedback made judging what a second client sees impractical, and it's far more legible once this phase's HUD/menus exist. Fold these into this phase's exit sweep alongside the UI-specific 2-client bullet above: PT1 (2-client baseline: fire/reload/aim/sprint/crouch/hotbar/melee/loot/drop from both clients), PT6 (full stage sweep A–G under 2 clients + a 30-minute unscripted co-op session), bag-nesting replication, cross-player ammo pickup/reload, respawn-loadout co-op parity, and PT4 scenario (e) (simultaneous-fire noise events). Source detail: `B0_Stabilization.md` Exit criteria and `B0_ChecklistAndDecisions_2026-07-26.md`'s ⏸-marked items.
@@ -51,7 +53,7 @@ The foundational piece. `GameDevPlan.md` §7 cross-cutting Q6 already specified 
 | T2.1 | `WBP_ZS_*` base classes established; a common style asset (colours, type scale, spacing) so restyling in B2/B7 is one file, not fifty. |
 | T2.2 | **Every widget binds to an `OnXChanged` delegate. No widget polls replicated state** — this is the project's replication convention applied to UI, and violating it is the most likely source of co-op UI desync. |
 | T2.3 | A widget-pooling policy for list-heavy screens (inventory grids), so opening a container doesn't allocate per-open. |
-| T2.4 | **Focus navigation implemented generically at the base-class level, not per-screen.** Build the mechanism; do **not** verify it on a gamepad (deferred to B9, OQ-B9-01). This is the one piece of gamepad architecture kept deliberately — one base-class implementation now costs hours, retrofitting it across every screen in B9 costs a week. Verify it with keyboard arrows/tab, which also satisfies the accessibility requirement. |
+| T2.4 | **Focus navigation implemented generically at the base-class level, not per-screen.** Build the mechanism and verify it with keyboard arrows/tab. **Gamepad support is cut for v1** (`OQ-B9-01`, overturned 2026-07-30) — this is now a pure keyboard-accessibility requirement, not gamepad-prep architecture; build it because every screen needs a non-mouse path regardless. |
 
 ### B1-T3 — HUD · **M (4–5 sessions)** · *depends on T2*
 
@@ -67,6 +69,9 @@ Always-on, non-modal, never eats input.
 | T3.6 | **Interaction prompt** — the world-space "E — Open" widget P1 specified and never shipped. Consumes `OnNearestInteractableChanged`. | P1-R7 |
 | T3.7 | **Transparent stat preview** (Notes §21 pillar) — hovering an item shows its actual mechanical effect, not hidden numbers. Establish the pattern here; every later screen inherits it. | — |
 | T3.8 | HUD is legible at both zoom extremes from B0-T3.1. Test at min and max, not just default. | — |
+| T3.9 | **New, added 2026-07-30.** Scoreboard/player-list screen — shows connected players. Doubles as the target-selection UI for the host admin/moderation tools (`OQ-B10-12`). | OQ-B1-07 |
+| T3.10 | **New, added 2026-07-30.** Lightweight, queued toast/notification system — pickup confirmation, horde-approaching alert, player joined/left, and future needs share one widget rather than a bespoke UI per event type. | OQ-B1-04 |
+| T3.11 | **New, added 2026-07-30.** Save/autosave indicator — small HUD icon flashes on B3-T2.1's ~10s character-save cadence. | OQ-B1-06 |
 
 ### B1-T4 — Interaction & world-space prompts · **S (1–2 sessions)** · *depends on T3*
 
@@ -115,9 +120,10 @@ The first modal screen; the real test of T1.
 
 | Sub-task | Definition of done |
 |---|---|
-| T8.1 | Main menu: new game, continue/load (stub until B3), host, join by IP, quit. |
+| T8.1 | Main menu: new game, continue/load (stub until B3), host, join by IP, **Steam friends-list invite** (added 2026-07-30 — `OQ-B10-02` already promised this via Steam networking, wasn't reflected in this task list until now), quit. |
 | T8.2 | In-game menu. **In co-op it does not pause** — this needs explicit UX treatment so players understand the world keeps running. Solo pause behaviour is OQ-B1-03. |
 | T8.3 | Settings entry point present but stubbed — B9 fills it in. |
+| T8.4 | **New, added 2026-07-30.** Simple loading/level-transition screen — tip/lore text, functional-grey placeholder now, real art after B2 (`OQ-B1-05`). |
 
 ---
 

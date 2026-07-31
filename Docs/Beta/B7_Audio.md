@@ -32,7 +32,7 @@
 |---|---|
 | T1.1 | Middleware decision implemented per OQ-B7-02. **Default recommendation: UE built-in + MetaSounds** — no licensing, no extra build complexity, and the project's needs are not exotic. |
 | T1.2 | Attenuation and occlusion policy. **Occlusion matters mechanically here**, not just aesthetically: a zombie behind a wall should sound like it. Ties to B4-T3.5's per-floor noise rules and B4-T5.4's doors. |
-| T1.3 | Sound-class/mix hierarchy so B9's volume sliders have real buses to control. |
+| T1.3 | Sound-class/mix hierarchy so B9's volume sliders have real buses to control. **Ducking rules, added 2026-07-30 (`OQ-B7-05`):** combat ducks ambience; critical-alert cues (critical head bleed, jam, low-health) duck both radio and ambience; radio ducks ambience but yields to critical alerts. |
 | T1.4 | Concurrency limits — 150+ zombies each with vocalizations will exceed voice count. Set caps, virtualization, and distance culling **now**, before authoring. |
 | T1.5 | **Surface types authored on collision** (B2-T3.4's rider) so footsteps vary by material. Retrofitting this across a finished region is miserable. |
 

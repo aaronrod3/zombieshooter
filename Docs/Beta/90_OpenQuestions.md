@@ -55,9 +55,8 @@ The keybind list includes a weapon-safety toggle scoped explicitly to PvP — bu
 
 **No rec yet — needs a scoping conversation, not an assumption either way.**
 
-### OQ-X-11 — In-game text chat and push-to-talk voice 🟡 *(new 2026-07-26, from `Docs/InputBindings.md`)*
-The keybind list includes Toggle Chat (Enter) and Push-to-Talk (V), neither of which exists in the plan. **This isn't a reversal of OQ-B10-09** ("no voice chat, rely on Discord") — that was only ever a recommendation, never dev-confirmed — but it does mean OQ-B10-09 needs a real answer now instead of defaulting to the old rec.
-**No rec yet.** If confirmed, text chat is new B10 scope (a chat widget, replicated messages) and in-game voice is a bigger scope item than "rely on Discord" — needs its own sizing before committing.
+### OQ-X-11 — In-game text chat and push-to-talk voice ✅ RESOLVED 2026-07-30 (text half only)
+**Build basic text chat.** New B10 scope: a chat widget + replicated messages, bound to the existing Enter/"Toggle Chat" key. **Voice stays unresolved as its own question** — see `OQ-B10-09`, which keeps its "rely on Discord" recommendation unchanged; this decision doesn't touch it. Push-to-Talk (V) stays unimplemented until/unless OQ-B10-09 is separately confirmed.
 
 ---
 
@@ -108,6 +107,15 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 ### OQ-B0-15 — Weight budget and rarity tier numbers 🟡
 **Rec (provisional, B11-T4.3's tuning targets):** ~8kg on-person capacity, `Hip` +5kg, `Back` +20kg, encumbrance penalty scaling to a hard stamina-drain multiplier at 150%. Rarity pool sizes: Rare ~30/session, VeryRare ~8/session.
 
+### OQ-B0-16 — Base-building/barricading sequencing ✅ RESOLVED 2026-07-30
+**Build minimal barricading first** — board up doors/windows via `UZSInteractableComponent`, no full construction — as the first slice of `GameDevPlan.md` §3's already-confirmed SIMPLIFY scope (barricades, reinforcement, crates, rain collector). This isn't a re-scoping down; reinforcement/crates/rain-collector stay in scope for later within the same SIMPLIFY line, just sequenced after the minimal version. Directly feeds `OQ-B0-06`'s "real shelter" half of `IsSafeToSleep()`, currently stubbed `true`. Home for the actual task: `B4X` (world interactable content), once that track reaches door/window dressing.
+
+### OQ-B0-17 — Multi-hit melee ✅ RESOLVED 2026-07-30 (direction), implementation deferred
+**Blunt/bladed weapon categories get multi-hit** — an arc sweep that can land on 2-3 zombies per swing; improvised-fragile and heavy-two-handed categories keep the current single-nearest-target resolution. New field on `UZSWeaponConfig` (multi-config rule applies), plus a melee-damage rebalance pass. **Not blocking anything now** — implement whenever the melee weapon roster/animations get their real content pass (B2/content authoring), not before.
+
+### OQ-B0-18 — Player-side crouch stealth ✅ RESOLVED 2026-07-30
+**Add a crouch noise-reduction multiplier**, symmetric with the zombie-side `SightRadius`/`HearingRange` model already in `UZSZombieConfig`. Feeds `UZSNoiseSystem` — crouched movement should measurably shrink the effective noise radius zombies react to, not just look different. Makes crouching tactically meaningful, not only visual.
+
 ---
 
 ## B1 — UI/UX
@@ -120,6 +128,18 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 
 ### OQ-B1-03 — Solo pause 🟢
 **Rec: no pause in solo either** — one code path, one set of assumptions, same tension pillar in both modes.
+
+### OQ-B1-04 — Notifications/toast system ✅ RESOLVED 2026-07-30
+**Build a lightweight, queued toast system** — pickup confirmation, horde-approaching alert, player joined/left, and future needs, all through one reusable widget rather than a bespoke UI per event type. New sub-task: `B1-T3.10`.
+
+### OQ-B1-05 — Loading screens / level-transition UX ✅ RESOLVED 2026-07-30
+**Simple placeholder now, real art later.** A tip/lore-text loading screen ships as soon as it's built, styled functional-grey like the rest of B1 per `OQ-B1-01`'s precedent — swap in real art once B2 locks direction, don't wait to build the mechanism itself. New line: `B1-T8`.
+
+### OQ-B1-06 — Save/autosave indicator ✅ RESOLVED 2026-07-30
+**Add a small HUD icon that flashes on autosave**, reading off B3-T2.1's ~10s character-save cadence. Reassures players nothing is lost, especially given B3's hard-kill/corruption hardening work is a standing concern. New sub-task: `B1-T3.11`.
+
+### OQ-B1-07 — Scoreboard/player-list key ✅ RESOLVED 2026-07-30
+**Add a dedicated key and HUD screen** showing connected players — absent from `InputBindings.md` until now. Doubles as the target-selection UI for the new host admin tools (`OQ-B10-12`). New sub-task: `B1-T3.9`.
 
 ---
 
@@ -236,6 +256,12 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 ### OQ-B6-09 — New-game setup flow 🟡
 **Rec:** world name → seed (optional) → difficulty (OQ-B9-02) → background (implies spawn) → scatter-spawns toggle for co-op → appearance, one screen where possible.
 
+### OQ-B6-10 — Weapon repair mechanic ✅ RESOLVED 2026-07-30
+**Ties to the existing Maintenance skill, not a new skill.** `B6-Content-T2.4` already has Maintenance reducing wear rate and jam chance passively; this adds an *active* repair action — consume a repair item/perform a maintenance action to restore durability, effectiveness scaled by Maintenance level — routed through the existing `Server_UseItem`/`EZSItemUseType` dispatch pattern. Without this, broken weapons just vanish; attrition alone was never the intended design, just an accidental byproduct of the gap.
+
+### OQ-B6-11 — Skill books/magazines (PZ-style XP multiplier items) ✅ RESOLVED 2026-07-30 — considered and rejected
+**Cut. Practice-driven XP only**, per the existing `B6-Content-T3` practice-loop design — no readable item grants a mechanical XP bonus. Recorded explicitly (rather than left silent) so this doesn't get re-raised as an unexamined gap; it was looked at against the PZ reference and turned down, not overlooked.
+
 ---
 
 ## B7 — Audio & Horde AI
@@ -252,6 +278,9 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 ### OQ-B7-04 — Music direction ✅ RESOLVED 2026-07-26
 **Sparse and event-driven, not continuous.** A persistent score would mask the noise pillar's audio cues.
 
+### OQ-B7-05 — Audio ducking rules ✅ RESOLVED 2026-07-30
+**Define explicit priority rules in `B7-T1.3`'s mix hierarchy**: combat ducks ambience; critical-alert cues (critical head bleed, jam, low-health) duck both radio and ambience; radio ducks ambience but yields to critical alerts. Avoids leaving ducking behavior to implementation-time guesswork against a mix hierarchy that was otherwise silent on it.
+
 ---
 
 ## B8 — Performance
@@ -262,15 +291,23 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 ### OQ-B8-02 — Minimum hardware target 🔴
 **Rec:** i5-8400 / Ryzen 2600, GTX 1060 6GB / RX 580, 16GB RAM. The listen-server host is the real min-spec case — it pays both server and client cost.
 
+### OQ-B8-03 — VFX/particle budget ✅ RESOLVED 2026-07-30
+**Add a VFX/particle budget to `B8-T1`, parallel to B7's audio concurrency budget** — draw-call and particle-count limits per effect type (blood, muzzle flash, horde-scale death/impact effects), especially load-bearing at 100+ zombie density (`CR-08`). B8 had rendering/gameplay/network sub-budgets but nothing for particles specifically; this closes that gap.
+
 ---
 
 ## B9 — Accessibility & Settings
 
-### OQ-B9-01 — Gamepad support for beta ✅ RESOLVED 2026-07-23
-**All gamepad work and testing deferred to B9** — not cut, just unverified/unpolished until then (a verification cost, not a design cost). **Keep now (cheap):** generic focus navigation on B1's widget base class, gamepad-mappable input actions, no mouse-only-only interactions. **Defer to B9 (real cost, no rework risk):** per-screen navigation verification, gamepad-specific bindings/tuning, input glyph switching.
+### OQ-B9-01 — Gamepad support for beta ⚑ OVERTURNED 2026-07-30 — was ✅ RESOLVED 2026-07-23
+**Gamepad support is cut for v1**, reversing the 2026-07-23 decision below. Dev call, made during a full plan gap-review pass: reduce scope rather than carry gamepad through B9. **What survives:** `B1-T2.4`'s generic focus-navigation base class stays — it's still required for keyboard-only accessibility (B1's own exit criteria: no screen may hardcode a mouse-only interaction), independent of gamepad. **What's cut:** `B9-T3.3`/`T3.4`'s gamepad-specific verification/binding work, PT2's gamepad-only playtest, and the "gamepad included" clause of B9's remap exit criterion. B9's size estimate likely shrinks as a result (not recomputed here). Console stays a possible later platform per `OQ-X-01`, unaffected by this — that's a distinct question from gamepad-on-PC support now.
+
+*Original 2026-07-23 resolution, superseded above:* All gamepad work and testing deferred to B9 — not cut, just unverified/unpolished until then. Keep now (cheap): generic focus navigation on B1's widget base class, gamepad-mappable input actions, no mouse-only interactions. Defer to B9: per-screen navigation verification, gamepad-specific bindings/tuning, input glyph switching.
 
 ### OQ-B9-02 — Difficulty options 🟡
 **Rec: three presets** (zombie density, loot scarcity, infection chance) plus the per-skill XP rate tunable, set at world creation and **locked for that world's lifetime.**
+
+### OQ-B9-03 — Photo mode ✅ RESOLVED 2026-07-30
+**Add a simple photo mode** (free camera + UI-hide toggle) as `B9-T5.6`, filler work per B9's own "best blocked-on-something-else filler" note. Cheap, and useful for `T_ContinuousTracks.md` T3's devlog/marketing track.
 
 ---
 
@@ -307,6 +344,21 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 ### OQ-B10-09 — Voice chat 🟢
 **Rec: none — rely on Discord.**
 
+### OQ-B10-10 — Trading/economy ✅ RESOLVED 2026-07-30
+**Drop the `B10-T2.4` dupe-test reference to "trading."** No dedicated trade UI/mechanism exists or is being built — the reference was an inconsistency (something to test that was never actually scoped). Players trade informally by dropping items on the ground; existing drop/pickup already covers it.
+
+### OQ-B10-11 — Non-verbal comms (ping wheel) ✅ RESOLVED 2026-07-30
+**Add a simple ping wheel** — map/world-space ping with a few canned callouts ("here", "help", "zombie") — given voice isn't guaranteed for 4+ player co-op even with text chat (`OQ-X-11`) now in scope. New B10 sub-task, minimal HUD investment.
+
+### OQ-B10-12 — Admin/moderation tools ✅ RESOLVED 2026-07-30 — broader than originally scoped
+**Build host-level kick/ban/whitelist now**, via host-gated console commands (same pattern as `ZS.SpawnZombies`), for **any** listen-server host — not just the paid dedicated-server path. Rationale (dev-stated): a listen-server host inviting strangers into their world needs the same moderation capability a dedicated-server admin would. New `B10-T1` sub-task; uses the scoreboard/player-list UI (`OQ-B1-07`) as its target-selection surface.
+
+### OQ-B10-13 — Anti-cheat posture ✅ RESOLVED 2026-07-30
+**Rely on the existing server-authoritative architecture; no dedicated anti-cheat system.** All damage/inventory mutation already routes through `Server_` RPCs gated on `HasAuthority()` — treated as sufficient given the project's scale and co-op-not-competitive design. `B10-T2.3`'s authority audit is the relevant verification step, not a new system.
+
+### OQ-B10-14 — Achievements ✅ RESOLVED 2026-07-30
+**Add Steam achievements**, now that Steam is the confirmed launch platform (`OQ-B10-02`) — straightforward Steamworks API integration, real store-page value. New B10 sub-task alongside the Steam networking work.
+
 ---
 
 ## B11 / B12 — Beta Program
@@ -331,6 +383,15 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 
 ### OQ-B12-05 — Public bug pipeline 🟡
 **Rec: GitHub Issues** (repo already public, labels/Projects board set up) + a Discord channel for the reports that never make it to a tracker.
+
+### OQ-B12-06 — EULA / ToS / privacy policy ✅ RESOLVED 2026-07-30
+**Add before any public release** (B12). Needed for the Steam store listing and to disclose the opt-in telemetry (`OQ-B10-07`). New `B12-T1` sub-task.
+
+### OQ-B12-07 — Age rating ✅ RESOLVED 2026-07-30
+**Plan for it pre-release.** Steam requires at minimum an IARC questionnaire before the store page can go live. New `B12-T1` sub-task, quick but must land before `B12-T2`'s store-page work finishes.
+
+### OQ-B12-08 — Credits screen 🟢
+**Not urgent — address if necessary later.** Most current assets are placeholders for testing; a real attribution/credits pass only matters once real licensed/third-party content is locked. No task added yet, just this reminder so it isn't forgotten when that happens.
 
 ---
 
@@ -409,3 +470,5 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 **🟡 SEQUENCEABLE (~31)** — decide in parallel with early implementation on that phase. Includes three new items from `Docs/InputBindings.md` (OQ-X-09 Run/Sprint tiers, OQ-X-10 Toggle Safety/PvP, OQ-X-11 chat/voice).
 
 **🟢 LATE (11)** — OQ-X-05, OQ-X-08, OQ-B1-03, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B10-05, OQ-B10-09, OQ-B12-03, OQ-B12-04, OQ-B12-05.
+
+**2026-07-30 gap-review pass** — a full sweep of the plan against what a shipped game needs turned up 28 items, each given a real decision that session (see the individual entries above, not re-tabulated here to avoid drift): `OQ-B0-16/17/18`, `OQ-B1-04/05/06/07`, `OQ-B6-10/11`, `OQ-B7-05`, `OQ-B8-03`, `OQ-B9-03`, `OQ-B10-10/11/12/13/14`, `OQ-B12-06/07/08`. One reversal: `OQ-B9-01` (gamepad, cut). One partial resolution: `OQ-X-11` (text chat built, voice half stays open under `OQ-B10-09`).

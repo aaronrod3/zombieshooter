@@ -35,6 +35,7 @@
 | T1.3 | **Zombie count budget** — the primary metric, ratified from B7-T5.7's proposal against `GameDevPlan` §7 P4 Q1's ~150 question. | X-14 |
 | T1.4 | Sub-budgets: draw calls, triangles, AI ms/frame, animation ms/frame, physics ms/frame, network bandwidth per client, memory ceiling. |
 | T1.5 | Budgets committed to `Docs/Testing/PerfBudget.md` and referenced from `TuningReference.md`. |
+| T1.6 | **New, added 2026-07-30** → `OQ-B8-03`. VFX/particle budget, parallel to B7's audio concurrency budget — draw-call and particle-count limits per effect type (blood, muzzle flash, horde-scale death/impact effects), especially load-bearing at 100+ zombie density (CR-08). |
 
 ### B8-T2 — Measurement pass · **S (2–3 sessions)** · *depends on T1*
 
@@ -57,6 +58,7 @@
 | T3.4 | Shadow and light cost, especially interiors and B4-T4's dynamic light sources. Player-carried lights at 4 players is a real cost. |
 | T3.5 | Culling: distance, occlusion, and the interaction with B4-T2's interior visibility solution. |
 | T3.6 | Texture streaming and memory pool sizing. |
+| T3.7 | VFX/particle cost measured and optimized against T1.6's budget (pooling, LOD'd emitters, distance culling for blood/muzzle-flash/horde-scale effects). |
 
 ### B8-T4 — Gameplay & AI optimization · **M (3–4 sessions)** · *depends on T2*
 

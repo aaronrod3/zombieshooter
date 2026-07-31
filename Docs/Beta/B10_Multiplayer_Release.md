@@ -36,6 +36,8 @@
 | T1.4 | **Host migration**, or an explicit decision not to support it → OQ-B10-05. Listen-server means the host leaving ends the session; that must at minimum be communicated clearly and save cleanly before the session closes. |
 | T1.5 | **No asymmetric death rule** (CR-07, merged with CR-12, resolved 2026-07-26) — already built as `Server_RespawnAsNewCharacter`'s behavior (B0-T9.4): death, solo or co-op, always respawns a fresh character into the same persistent world. There is no party-wipe/solo-death world-termination case to implement here; the old backlog note proposing one was considered and explicitly rejected as unnecessary asymmetry. This task is verification only — confirm the behavior holds under B10's real multiplayer conditions (late-join, disconnect, host migration), not new design work. | CR-07 |
 | T1.6 | Player-count changes mid-session handled by every aggregating system — notably `AZSGameState::UpdateSleepRequestState`, which aggregates readiness across `PlayerArray` and will deadlock if a disconnected player is still counted as not-ready. |
+| T1.7 | **New, added 2026-07-30** → `OQ-B10-12`. Host-level admin/moderation tools — kick/ban/whitelist via host-gated console commands, same pattern as `ZS.SpawnZombies`. Applies to **any** listen-server host, not just the paid dedicated-server path — a host inviting strangers needs the same moderation capability a dedicated-server admin would. Target-selection UI is `B1-T3.9`'s scoreboard/player-list screen. |
+| T1.8 | **New, added 2026-07-30.** Basic text chat (`OQ-X-11` — resolves the standing chat/voice question, text half only) — a chat widget + replicated messages, bound to the existing Enter/"Toggle Chat" key. Plus a lightweight non-verbal ping wheel (`OQ-B10-11`) — map/world-space ping with a few canned callouts, useful since voice still isn't guaranteed for every group. Voice itself (`OQ-B10-09`) stays unresolved and unbuilt. |
 
 ### B10-T2 — Network stress & correctness · **M (4–5 sessions)** · *depends on T1*
 
@@ -44,7 +46,7 @@
 | T2.1 | **Simulated adverse conditions** (`Net PktLag`, `PktLoss`, `PktOrder`): 100/200/500ms latency, 1–5% loss. Every core action tested under each. |
 | T2.2 | **Client-side prediction/correction audit** for movement, especially with encumbrance and needs modifying speed on the server. Speed changes are a classic prediction-mismatch source. |
 | T2.3 | **Authority audit** — walk every `Server_` function and confirm `HasAuthority()` gating. The project's convention is strong; this verifies it held across ~7 phases of additions. |
-| T2.4 | **Dupe-bug hunt** on every item-transfer path: container looting (B1-T6.3), trading, drop/pickup races, dying while a container is open. `FZSItemInstance`'s GUIDs make dupes detectable — add a debug validator that asserts GUID uniqueness across the world. |
+| T2.4 | **Dupe-bug hunt** on every item-transfer path: container looting (B1-T6.3), drop/pickup races, dying while a container is open. `FZSItemInstance`'s GUIDs make dupes detectable — add a debug validator that asserts GUID uniqueness across the world. (Trading dropped from this list 2026-07-30 — `OQ-B10-10`: no dedicated trade system exists or is planned, the reference was stale.) |
 | T2.5 | Relevancy correctness — a player must not receive updates for zombies they cannot perceive (bandwidth), but must not have zombies pop in either. |
 | T2.6 | **4-player session** over real internet, not LAN. |
 
@@ -58,6 +60,7 @@
 | T3.4 | Content cooking validated — no missing references, no editor-only assets in the build. The gitignored Infima content is a specific risk: verify it cooks correctly. |
 | T3.5 | Build artifacts distributable to testers (OQ-B10-06: itch.io, Steam playtest, direct download). |
 | T3.6 | Build time recorded and kept tolerable — a 2-hour package on a part-time schedule is a real productivity tax. |
+| T3.7 | **New, added 2026-07-30** → `OQ-B10-14`. Steam achievements (Steamworks API integration), now that Steam is the confirmed launch platform (`OQ-B10-02`). |
 
 ### B10-T4 — Crash reporting & telemetry · **S (2–3 sessions)** · *depends on T3*
 
@@ -94,5 +97,7 @@
 
 - **Dedicated servers are no longer POST-BETA-only** — OQ-B10-01 was overturned 2026-07-26 (dev-confirmed): an optional **paid** dedicated-server hosting path is now planned, ready before beta. Listen-server/direct-IP remains the default, free, primary mode — `GameDevPlan.md` §3 has been updated accordingly. Scope the dedicated-server path as genuinely optional/additive, not a replacement for listen-server.
 - **Steam/EOS integration** (OQ-B10-02) is the biggest swing item here. Direct-IP only is much simpler and is what the project has assumed throughout; Steam networking removes port-forwarding pain for testers, which materially affects B11's participation rate. It is a real trade, not a formality.
-- **Voice chat** (OQ-B10-09): recommend relying on Discord. Building voice chat for a 4+ player co-op game whose players are almost certainly already in a call is poor value.
+- **Voice chat** (OQ-B10-09): recommend relying on Discord. Building voice chat for a 4+ player co-op game whose players are almost certainly already in a call is poor value. Text chat (`OQ-X-11`) is now in scope regardless — see T1.8 — but that's a separate decision from voice.
 - **Cross-platform is POST-BETA.** PC only.
+- **Anti-cheat posture** (`OQ-B10-13`, decided 2026-07-30): rely on the existing server-authoritative architecture — every `Server_` RPC already gates on `HasAuthority()` — rather than building a dedicated anti-cheat system. T2.3's authority audit is the relevant verification step.
+- **Steam friends-invite** (already promised by `OQ-B10-02`'s "friends-list invites" line) is now reflected in `B1-T8.1`'s main-menu task list, added 2026-07-30 — it existed as a decision before but wasn't carried into the actual UI task breakdown until this pass caught the gap.
