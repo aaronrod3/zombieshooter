@@ -1,6 +1,6 @@
 # B0 — Stabilization & Reconciliation
 
-**Size: L (14–18 dev-sessions)** · **Gate contribution: prerequisite for everything** · **Blocks: B1, B3, B4, and therefore all of Stage 1** *(2026-07-30: 2-client PIE verification specifically no longer blocks B1 — carried forward to B1's own exit sweep, see Exit criteria below)*
+**Size: L (14–18 dev-sessions)** · **Gate contribution: prerequisite for everything** · **Blocks: B1, B3, B4, and therefore all of Stage 1** *(2026-07-30: 2-client PIE verification specifically no longer blocks B1 — carried forward to B1's own exit sweep, see Exit criteria below. Same date: the T12 performance baseline is deferred out of B0 entirely, to B8 — see T12 and Exit criteria below.)*
 
 > **Why this phase exists.** Roughly four sessions of C++ shipped between 2026-07-21 and 2026-07-22 with a single PIE confirmation covering two features. Underneath it sits a data model the project's own planning doc says is wrong (`Docs/Planning/InventoryLoadoutEquipping_Plan.md` §3–§5). On top of it, the consolidated changes revise five shipped behaviours and add three subsystems. **Every one of those facts gets more expensive the longer it waits.** B0 is the cheapest this work will ever be.
 >
@@ -23,11 +23,13 @@
 - [ ] Every revision-register item marked for B0 is implemented **and PIE-verified**, not merely compiled.
 - [ ] `FZSItemInstance` is the only way an item exists in the game. `grep` for `UZSWeaponConfig\*` in slot/container contexts returns nothing.
 - [ ] A weapon looted from a container can be placed in the hotbar, equipped, used until it breaks, dropped at partial durability, picked back up, and still shows the same durability.
-- [ ] A performance baseline exists on the fixed stress-test map, captured from a **packaged Development build**, and is committed to `Docs/Testing/`.
+- [ ] ~~A performance baseline exists on the fixed stress-test map, captured from a **packaged Development build**, and is committed to `Docs/Testing/`.~~ **Removed 2026-07-30 — see carried-forward note below.**
 - [ ] `SessionHandoff.md` shows zero items in "built but unverified."
 - [ ] `TuningReference.md` contains every new tunable introduced in this phase.
 
 > **Carried forward, not blocking (dev decision, 2026-07-30):** 2-client PIE verification (Stages A–G under 2 clients, PT1, PT6) is deliberately deferred past B0 — right now most state is only observable via debug console commands/logs, which makes judging what a *second* client actually sees impractical. It folds into B1's own exit sweep instead, once real HUD/menu feedback exists to observe it against. B0 is otherwise considered exited without it; see `B1_UI_UX.md` for where it lands.
+>
+> **Performance baseline dropped from B0 entirely, not carried forward as a checkpoint (dev decision, 2026-07-30):** not a current concern. This **reverses a CONFIRMED plan requirement** (Consolidated §12's "profile early, don't retrofit efficiency later") — the explicit reason B0-T12 existed was to capture an early, un-optimized reference number before UI/art/world-content phases add rendering and simulation cost on top of it. B8's "before/after" comparison will instead measure from whatever state exists when B8 actually starts, not from B0's un-optimized baseline. See `B8_Performance.md` entry criteria for the corresponding update. If performance becomes a concern before B8, this decision is cheap to revisit — nothing about it is destructive, it's just a number that never got captured early.
 
 ---
 
@@ -323,7 +325,9 @@ Scheduled in B0 rather than later because **B4's darkness mechanic is CONFIRMED*
 
 ### B0-T12 — Profiling baseline & stress-test map · **S (2 sessions)** · *depends on T8*
 
-CONFIRMED requirement (Consolidated §12): a **single, reusable** stress-test scenario used for all before/after comparison project-wide. Build it early so every later measurement shares a baseline.
+⏸ **Entire sub-phase deferred out of B0, to B8, 2026-07-30 (dev decision)** — not a current concern. This reverses the CONFIRMED requirement below (early baseline capture); see the Exit criteria carried-forward note above for the reasoning and `B8_Performance.md` for where it now lands. Left in place below as the historical record of what was originally planned here.
+
+~~CONFIRMED requirement (Consolidated §12): a **single, reusable** stress-test scenario used for all before/after comparison project-wide. Build it early so every later measurement shares a baseline.~~
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|

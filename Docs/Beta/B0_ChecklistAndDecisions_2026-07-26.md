@@ -254,10 +254,11 @@ Use `ZS.DebugListNeeds` throughout instead of the Details panel — one log line
    - **Known visual gap:** both weapons currently render at the same attachment socket — overlapping meshes are expected, not a bug, until a dedicated offhand socket is authored.
 
 ### 13. Stress-test spawning
+⏸ **The profiling run itself deferred out of B0 entirely, to B8, 2026-07-30 (dev decision, not a current concern)** — see `B0_Stabilization.md` T12/Exit criteria. `ZS.SpawnZombies` itself is real, working code, not affected by the deferral — only the "run it and record numbers" step moved to B8.
 **Needs:** `StressTestZombieClass` assigned (see "Start here" #2 above).
-1. In any existing level, run `ZS.SpawnZombies 25`.
-   - **Pass:** exactly 25 zombies appear scattered around you.
-2. Repeat at 50, 100, 150, 250, checking `stat fps`/`stat unit`/`stat ai` after each batch settles (give the AI a few seconds to start ticking first). Record the numbers somewhere — this run *is* the profiling work, there's no separate step after it.
+1. ~~In any existing level, run `ZS.SpawnZombies 25`.~~
+   - Pass condition unchanged for whenever this resumes: exactly 25 zombies appear scattered around you.
+2. ~~Repeat at 50, 100, 150, 250, checking `stat fps`/`stat unit`/`stat ai` after each batch settles (give the AI a few seconds to start ticking first). Record the numbers somewhere — this run *is* the profiling work, there's no separate step after it.~~
 
 ---
 
@@ -318,7 +319,7 @@ Doesn't block compiling, but several features do-nothing without it. The two mos
 - `AZSPlayerCharacter::DeathZombieClass` on `BP_ZS_PlayerCharacter`
 - `AZSGameMode::StressTestZombieClass` — see "Start here" #2 above
 
-**Not built at all:** `Lvl_ZS_StressTest` graybox map — doesn't block the stress-test command itself, just the dedicated map for it.
+**Not built at all:** `Lvl_ZS_StressTest` graybox map — doesn't block the stress-test command itself, just the dedicated map for it. **No longer urgent** — the profiling pass this map was for is deferred to B8 (2026-07-30), so this can wait until then too.
 
 ---
 

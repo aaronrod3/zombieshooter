@@ -4,7 +4,7 @@
 
 > **Re-baselined 2026-07-26** (`Docs/Planning/RescopeQuestionnaire.md`): the original 2–4 player / ~1×1 km / ~150-zombie assumptions this phase's budget was sized against are all now bigger — **4+ players** (OQ-X-03), a **larger map** (OQ-B4-01), and a **confirmed-important large horde**, not a stretch goal (CR-08). Measure and budget against these raised targets, not the originals. Dev also confirmed wanting to "keep the game light" — performance-conscious, so the raised ambition and the light-footprint goal both apply; don't read one as cancelling the other.
 
-> **Profiling starts at B0, not here.** CONFIRMED guidance is "profile early, don't retrofit efficiency later," and B0-T12 builds the fixed stress-test scenario for exactly that reason. This phase is the **dedicated optimization pass against final content** — the point where budgets stop being observations and become commitments.
+> **Profiling was meant to start at B0, not here** — CONFIRMED guidance was "profile early, don't retrofit efficiency later," with B0-T12 building the fixed stress-test scenario for exactly that reason. **Reversed 2026-07-30 (dev decision, not a current concern at B0)**: B0-T12 is deferred out of B0 entirely, so the stress-test map/harness and the first baseline capture both happen here instead, at B8 entry, not before. This phase is still the **dedicated optimization pass against final content** — it now also owns capturing the "before" number it compares against, which is a real methodology change from the original plan (the "before" reference is post-content instead of pre-content).
 >
 > **Methodology is CONFIRMED and non-negotiable** (Consolidated §12): standard UE triage — `stat unit` / `stat fps` first for Game/Draw/RHI/GPU-bound triage, then `stat ai` / `stat anim` / `stat physics` for gameplay cost, then `stat gpu` / `stat drawcount` for rendering cost. **Profile on packaged Development/Test builds only. Never Debug, never raw PIE numbers.**
 
@@ -12,15 +12,15 @@
 
 - [ ] B4 complete — optimizing against placeholder content measures the wrong thing.
 - [ ] B7-T5 complete — the horde approach is chosen and implemented.
-- [ ] B0-T12 baseline available for before/after comparison on the same fixed scenario.
-- [ ] **OQ-B8-01 and OQ-B8-02 answered** — performance budget numbers and minimum hardware target. Both DEFERRED since Consolidated §12; both are now decidable because the measurements exist.
+- [ ] ~~B0-T12 baseline available for before/after comparison on the same fixed scenario.~~ **B0-T12 never happened (deferred 2026-07-30) — this phase now builds the stress-test map/harness and captures its own "before" baseline as its first task, instead of importing one from B0.**
+- [ ] **OQ-B8-01 and OQ-B8-02 answered** — performance budget numbers and minimum hardware target. Both DEFERRED since Consolidated §12; both are now decidable once this phase's own baseline exists.
 
 ## Exit criteria
 
 - [ ] Target frame rate held at target zombie density on min-spec hardware, packaged Development build, 4+ players.
 - [ ] Zombie count budget is a written, enforced number (**zombie count is the primary budget metric** — CONFIRMED).
 - [ ] No frame-time spike above a stated threshold during streaming, saving, or horde events.
-- [ ] Before/after numbers on the B0-T12 scenario are committed and show measured improvement.
+- [ ] Before/after numbers on this phase's own stress-test scenario (formerly B0-T12, built here instead — see Entry criteria) are committed and show measured improvement.
 
 ---
 
@@ -42,7 +42,7 @@
 |---|---|
 | T2.1 | Packaged Development build of the full game on the real map. |
 | T2.2 | Triage sequence run per CONFIRMED methodology and recorded: bound-type first, then gameplay costs, then rendering costs. |
-| T2.3 | Measurements at 25 / 50 / 100 / 150 / 250 zombies on production content, matching B0-T12's tiers so the comparison is apples-to-apples. |
+| T2.3 | Measurements at 25 / 50 / 100 / 150 / 250 zombies on production content — the tiers B0-T12 would have used, kept here since B0-T12 itself was deferred (2026-07-30) and never ran. `ZS.SpawnZombies <n>` (the spawning mechanism, already built and working in any level) is reused for this; only the baseline *capture* moved, not the tooling. |
 | T2.4 | Scenarios covered: quiet exploration, horde event, multi-level interior combat, streaming traversal, save-in-progress, 4-player co-op. |
 | T2.5 | Min-spec hardware measured, or a documented proxy (frequency/core limiting) if no such machine is available. |
 | T2.6 | A ranked list of the top 10 costs. **Optimize in measured order, never in guessed order** — this is the discipline the whole phase rests on. |

@@ -30,12 +30,22 @@ Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per s
 
 **Scope decision: 2-client PIE verification is deferred out of B0 entirely, into B1's own exit sweep** (dev call, 2026-07-30) — debug-console-only feedback makes judging a second client's state impractical right now, and it'll be far more legible once B1's HUD/menus exist to observe it against. B0's exit criteria, Playtest Checkpoints (PT1, PT4 scenario e, PT6), and every scattered "2-client check" in the checklist doc are all updated to reflect this — B0 no longer formally blocks on any of it. Full detail: `B0_Stabilization.md` Exit criteria (carried-forward note) and `B1_UI_UX.md` Exit criteria (matching note on the receiving end).
 
+**Scope decision: the B0-T12 performance baseline is dropped from B0 entirely, not carried forward — moved to B8, its actual home phase** (dev call, 2026-07-30, "not a concern right now"). This reverses a CONFIRMED plan requirement (profile early, before content adds noise) — B8 will now capture its own "before" number at B8 entry instead of importing an early B0 baseline. `ZS.SpawnZombies` itself (the spawn mechanism) is unaffected, still real working code — only the profiling run and the dedicated `Lvl_ZS_StressTest` map are deferred. Full detail: `B0_Stabilization.md` T12/Exit criteria and `B8_Performance.md` Entry/Exit criteria.
+
+## B0 readiness for B1 — assessed 2026-07-30
+
+**Practically ready.** Everything B1 actually builds UI against — item instances, weapon/combat mechanics, camera, `BT_Zombie`, needs simulation — is solo-PIE-confirmed. Nothing above blocks B1 mechanically.
+
+**Not formally 100% clean against B0's own exit criteria**, three carried items:
+1. Sections 6–7 (two-tier infection, amputation/blackout) — code complete, still PIE-unverified, deferred by dev choice since 2026-07-29.
+2. 5 parked automation-test failures (1 new-fix bug + 3 pre-existing + 1 known content gap) — see above.
+3. PT6's single full-stage-sweep-A–G checkpoint has never been run as one explicit pass, even though its individual pieces are separately confirmed.
+
+None of these three depend on anything B1 needs, and — same logic as the 2-client deferral — sections 6-7 specifically may end up easier to verify *after* B1 gives them real visual feedback instead of `ZS.DebugListWounds` log dumps. Recommend treating B0 as practically exited and starting B1, carrying these 3 items forward rather than blocking on them further.
+
 ## Next step
 
-1. **Performance baseline is now the main remaining B0 item** — decide dedicated `Lvl_ZS_StressTest` map vs. reusing `Lvl_ThirdPerson`, then packaged-build profiling at 25/50/100/150/250 zombies, committed to `Docs/Testing/PerfBaseline_B0.md`.
-2. Sections 6–7 (two-tier infection, amputation/blackout) — still deferred by dev choice, no dependency on anything above.
-3. **Parked, your call when ready**: 5 automation-test failures from the 2026-07-30 run (1 new-fix bug + 3 pre-existing + 1 known content gap) — rebuild for commit `ced011a` (the diagnostic addition) first, before touching the `ZombieBiteZoneWeightedRoll` one specifically.
-4. Once 1–3 are clear, B0's remaining (solo) exit criteria are essentially done — worth a final read of `B0_Stabilization.md` Exit criteria before declaring B0 exited and starting B1 implementation.
+Pending dev confirmation on the readiness assessment above — if confirmed, next step is starting B1 implementation (`B1_UI_UX.md` task breakdown, starting at B1-T1 input-mode switching).
 
 Full sequenced runbook for step 1 (with exact commands) is in this conversation's history — re-derive from `B0_ChecklistAndDecisions_2026-07-26.md` if picked up cold in a future session.
 
