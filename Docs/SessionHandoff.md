@@ -6,48 +6,28 @@
 >
 > **Away session?** Read `Docs/AsyncSessionProtocol.md` once now and follow it for the rest of the session without re-reading it.
 
-## Current phase: B0 — Stabilization & Reconciliation
+## Current phase: B1 — UI/UX Foundation, HUD & Input Modes
 
-Two companion docs: `Docs/Beta/B0_Stabilization.md` (full technical detail per sub-task) and `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` (the manual-steps/test-checklist/decisions companion — current as of 2026-07-30).
+**B0 → B1 transition confirmed by dev, 2026-07-30.** Two companion docs for B1: `Docs/Beta/B1_UI_UX.md` (task breakdown, entry/exit criteria) and `Docs/Planning/B1_UIDesignSession_2026-07-30.md` (the actual UI design — HUD philosophy, Tab-menu structure, inventory compartments — decided ahead of implementation, read this before touching any layout work).
 
-## Last completed (2026-07-30)
+## B0 exit summary (closed 2026-07-30, practically not 100% formally)
 
-**Side session, not B0 itself**: a full B1 (UI/UX) design conversation happened ahead of implementation — HUD philosophy, Tab-menu structure, inventory compartments (Pockets/Backpack/Duffle + weapon-mount slots), and a plan-wide efficiency review across all B0–B12 docs. Written up and committed: `Docs/Planning/B1_UIDesignSession_2026-07-30.md`, plus updates to `B1_UI_UX.md` (new T5.0 data-model prerequisite) and `T_ContinuousTracks.md` (icon-authoring gap closed). B0 stays the active phase — B1 has not started.
+Everything B1 builds UI against is solo-PIE-confirmed: item instances (`FZSItemInstance` refactor), weapon/combat mechanics, camera/aim, `BT_Zombie`, needs simulation. Two real bugs found and fixed this session: zombie bite zone weighting (was always Torso, now a weighted random roll) and `BT_Zombie` freezing after one melee hit (stale `bIsInMeleeRange` Blackboard bool, `AZombieAIController::Tick`, commit `1693884`).
 
-**B0's two remaining deferred fixes from 2026-07-29 are now implemented, rebuilt, and test-run**: zombie bite zone weighted random roll (`UZSZombieConfig::HeadBiteChance`/`ArmsBiteChance`/`LegsBiteChance`, replacing the fixed-height trace) and `Server_StoreInBag`'s hotbar/SecondaryHand guard (new `AZSPlayerCharacter::Server_StoreInBagChecked`). Commits `30f7ad7`, `ced011a`.
+**Two scope decisions moved formal B0 exit items to later phases** (both dev calls, "not a concern right now"):
+- 2-client PIE verification → folds into **B1's own exit sweep** instead (debug-console-only feedback made it impractical to judge; far more legible once B1's HUD exists). Detail: `B0_Stabilization.md` Exit criteria, `B1_UI_UX.md` Exit criteria.
+- B0-T12 performance baseline → moved to **B8** entirely, not carried as a checkpoint. Reverses the plan's original "profile early" requirement — B8 now captures its own before/after baseline instead of importing an early one. Detail: `B0_Stabilization.md` T12, `B8_Performance.md` Entry/Exit criteria.
 
-**First-ever run of the full `ZS.*` automation suite** (23 tests — this whole batch had never actually been executed before today, per prior sessions' own notes). **18 passed, 5 failed**:
-- `ZS.Inventory.StoreInBagRejectsSecondaryHandInstance` — ✅ pass, new fix confirmed.
-- `ZS.Inventory.BagStoreAndRetrieve` — known pre-existing content gap, already documented, not new.
-- `ZS.Combat.ZombieBiteZoneWeightedRoll` — ❌ **new fix's own test fails**: no wound landed anywhere (not even wrong-zone), meaning damage never arrived rather than the zone math being wrong. Every *other* zone/wound test in the suite calls `Server_ApplyDamage` directly; this is the first to go through the real `ApplyPointDamage → TakeDamage` chain. Added a health-before/after diagnostic (commit `ced011a`, not yet rebuilt/retested) to pinpoint where it breaks next run.
-- `ZS.Combat.DownedZombieAutoRecovery`, `ZS.Combat.ZombieDeathWhileDownedClearsDownedFlag`, `ZS.Health.AmputationChoreographyEntersBlackout` — pre-existing tests, never run before today, now found failing. Not caused by this session's changes. **Dev decision 2026-07-30: parked for later, not investigated this session.**
+**Three items carried forward, not blocking B1** (revisit whenever convenient, none of them gate B1 work):
+1. Sections 6-7 (two-tier infection, amputation/blackout) — code complete, still PIE-unverified, dev-deferred since 2026-07-29. May end up easier to verify once B1 gives real UI feedback instead of `ZS.DebugListWounds` log dumps.
+2. 5 parked automation-test failures — 1 new-fix bug (`ZS.Combat.ZombieBiteZoneWeightedRoll`, diagnostic added in commit `ced011a`, needs a rebuild+retest to interpret), 3 pre-existing (`ZS.Combat.DownedZombieAutoRecovery`, `ZS.Combat.ZombieDeathWhileDownedClearsDownedFlag`, `ZS.Health.AmputationChoreographyEntersBlackout`), 1 known content gap (`ZS.Inventory.BagStoreAndRetrieve`, `DA_Bag.bIsEquippable` — actually already fixed, this one might pass on retest).
+3. PT6's full-stage-sweep-A–G has never run as one explicit single pass (pieces separately confirmed).
 
-## Last completed, continued (2026-07-30)
-
-**Scroll-wheel zoom bug fixed** (editor-side `IA_Zoom` mapping, dev's own fix) and **PT2 camera checkpoint passed** — zoom smooth 600-1400 both directions, hotbar untouched by scroll, hip-fire vs. aimed spread/headshot-rate split confirmed, 20+ min full pass already covered in earlier testing.
-
-**`BT_Zombie` "stops attacking after one hit" fixed and PIE-confirmed**: `AZombieAIController::Tick` was leaving `bIsInMeleeRange` stale-true when `TargetActor` went null (a momentary perception loss at point-blank range), so the Selector kept re-picking the Attacking branch forever while `TriggerMeleeAttack` silently no-op'd on the null target. Now clears the bool on the same early-return. Commit `1693884`. Fought a zombie through multiple hits in PIE — no longer freezes. Detail: `B0_Stabilization.md` T8.6.
-
-**Scope decision: 2-client PIE verification is deferred out of B0 entirely, into B1's own exit sweep** (dev call, 2026-07-30) — debug-console-only feedback makes judging a second client's state impractical right now, and it'll be far more legible once B1's HUD/menus exist to observe it against. B0's exit criteria, Playtest Checkpoints (PT1, PT4 scenario e, PT6), and every scattered "2-client check" in the checklist doc are all updated to reflect this — B0 no longer formally blocks on any of it. Full detail: `B0_Stabilization.md` Exit criteria (carried-forward note) and `B1_UI_UX.md` Exit criteria (matching note on the receiving end).
-
-**Scope decision: the B0-T12 performance baseline is dropped from B0 entirely, not carried forward — moved to B8, its actual home phase** (dev call, 2026-07-30, "not a concern right now"). This reverses a CONFIRMED plan requirement (profile early, before content adds noise) — B8 will now capture its own "before" number at B8 entry instead of importing an early B0 baseline. `ZS.SpawnZombies` itself (the spawn mechanism) is unaffected, still real working code — only the profiling run and the dedicated `Lvl_ZS_StressTest` map are deferred. Full detail: `B0_Stabilization.md` T12/Exit criteria and `B8_Performance.md` Entry/Exit criteria.
-
-## B0 readiness for B1 — assessed 2026-07-30
-
-**Practically ready.** Everything B1 actually builds UI against — item instances, weapon/combat mechanics, camera, `BT_Zombie`, needs simulation — is solo-PIE-confirmed. Nothing above blocks B1 mechanically.
-
-**Not formally 100% clean against B0's own exit criteria**, three carried items:
-1. Sections 6–7 (two-tier infection, amputation/blackout) — code complete, still PIE-unverified, deferred by dev choice since 2026-07-29.
-2. 5 parked automation-test failures (1 new-fix bug + 3 pre-existing + 1 known content gap) — see above.
-3. PT6's single full-stage-sweep-A–G checkpoint has never been run as one explicit pass, even though its individual pieces are separately confirmed.
-
-None of these three depend on anything B1 needs, and — same logic as the 2-client deferral — sections 6-7 specifically may end up easier to verify *after* B1 gives them real visual feedback instead of `ZS.DebugListWounds` log dumps. Recommend treating B0 as practically exited and starting B1, carrying these 3 items forward rather than blocking on them further.
+Full detail on all of the above: `Docs/Beta/B0_Stabilization.md` and `Docs/Beta/B0_ChecklistAndDecisions_2026-07-26.md` (both still current, kept for reference — B0 isn't deleted, just no longer the active phase).
 
 ## Next step
 
-Pending dev confirmation on the readiness assessment above — if confirmed, next step is starting B1 implementation (`B1_UI_UX.md` task breakdown, starting at B1-T1 input-mode switching).
-
-Full sequenced runbook for step 1 (with exact commands) is in this conversation's history — re-derive from `B0_ChecklistAndDecisions_2026-07-26.md` if picked up cold in a future session.
+**Start B1-T1 — Input-mode switching** (`B1_UI_UX.md`), the foundational piece every other B1 task depends on: `IMC_ZS_UI` mapping context, `UZSUIManager` (a `ULocalPlayerSubsystem`) owning a modal input stack. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold — it has the actual HUD/Tab-menu/inventory design decisions T1 and later tasks need to build against.
 
 ## Known tooling gotchas (worth remembering)
 
