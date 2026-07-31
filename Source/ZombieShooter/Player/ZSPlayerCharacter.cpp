@@ -36,6 +36,7 @@
 #include "../Zombies/ZSNoiseSystem.h"
 #include "../Inventory/ZSInventoryComponent.h"
 #include "../Zombies/ZombieCharacter.h"
+#include "../UI/ZSUIManager.h"
 #include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/DamageEvents.h"
@@ -1466,6 +1467,16 @@ bool AZSPlayerCharacter::GetCursorGroundLocation(FVector& OutLocation) const
 
 bool AZSPlayerCharacter::IsCursorFacingActive() const
 {
+	// B1-T1.3: cursor-facing must not fight the mouse while a menu is focused - a click meant to
+	// select a UI element shouldn't also spin the character to face wherever it landed on-screen.
+	if (const UZSUIManager* UIManager = GetUIManager())
+	{
+		if (UIManager->IsAnyModalActive())
+		{
+			return false;
+		}
+	}
+
 	if (bIsAiming)
 	{
 		return true;
@@ -2388,11 +2399,31 @@ bool AZSPlayerCharacter::CanAttack() const
 	return !bIsSprinting && !bIsBusy && !bIsBlackedOut;
 }
 
+UZSUIManager* AZSPlayerCharacter::GetUIManager() const
+{
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	const ULocalPlayer* LocalPlayer = PC ? PC->GetLocalPlayer() : nullptr;
+	return LocalPlayer ? ULocalPlayer::GetSubsystem<UZSUIManager>(LocalPlayer) : nullptr;
+}
+
 void AZSPlayerCharacter::HandleAttack()
 {
 	if (!CanAttack())
 	{
 		return;
+	}
+
+	// B1-T1.4: with a menu open, left-click means UI select, not attack. IMC_ZS_UI's higher-priority
+	// left-click binding is meant to consume the raw input before AttackAction ever triggers (see
+	// UZSUIManager::PushModal), but this direct check makes it a hard guarantee rather than relying
+	// solely on Enhanced Input's cross-context consumption timing - PT1's adversarial-use checkpoint
+	// (menu opened/closed mid-swing) wants zero leakage, not "usually zero."
+	if (const UZSUIManager* UIManager = GetUIManager())
+	{
+		if (UIManager->IsAnyModalActive())
+		{
+			return;
+		}
 	}
 
 	// Same "hip-fire still turns to face the cursor" window HandleFireStarted uses - an attack

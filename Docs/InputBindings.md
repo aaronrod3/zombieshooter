@@ -41,6 +41,16 @@
 | Toggle Inventory | Tab |
 | Toggle Map | M |
 | Main Menu | Escape |
+| UI Select | Left Mouse Button |
+| UI Cancel | Escape |
+| UI Navigate (focus movement within a menu) | Arrow Keys |
+
+🔧 **B1-T1 implemented 2026-07-30**: `UZSUIManager` (`ULocalPlayerSubsystem`, `Source/ZombieShooter/UI/`) owns the modal stack that adds/removes `IMC_ZS_UI` at a higher Enhanced Input priority than `IMC_ZS_Default`. **Content gap**: `IMC_ZS_UI` and its three actions (`IA_UISelect`, `IA_UICancel`, `IA_UINavigate`) don't exist as `.uasset`s yet — same graceful-if-missing pattern as every other input asset in this project, needs manual creation in-editor:
+- `IA_UISelect` (Digital bool) — Left Mouse Button, Pressed.
+- `IA_UICancel` (Digital bool) — Escape, Pressed.
+- `IA_UINavigate` (Axis2D) — Arrow Keys (Up/Down/Left/Right as +Y/-Y/-X/+X via the standard WASD-style modifier setup already used on `IA_Move`). Deliberately **not** WASD — movement must keep working while a menu is open (Decision 1, no pause layer), so UI focus navigation needs its own keys.
+- `IMC_ZS_UI` — add all three above. Left Mouse Button here is what's meant to out-prioritize `IMC_ZS_Default`'s own Left Mouse Button → `IA_Attack` binding once a modal is open; `UZSUIManager::PushModal` adds this context at priority 10 (`IMC_ZS_Default` is added at priority 0 in `AZSPlayerController::SetupInputComponent`).
+`IA_UINavigate`'s actual focus-cycling logic is T2.4's job (generic base-class focus navigation), not T1's — T1 only needs the mapping context/actions to exist so T2 has something to bind to.
 
 ## Hotbar / Items
 

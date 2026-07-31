@@ -28,6 +28,7 @@ class USkeletalMesh;
 class UZSInventoryComponent;
 class AZombieCharacter;
 class USpotLightComponent;
+class UZSUIManager;
 struct FInputActionValue;
 struct FDamageEvent;
 
@@ -960,6 +961,18 @@ protected:
 	FTimerHandle BusyClearTimerHandle;
 	FTimerHandle AimBlockBeginTimerHandle;
 	FTimerHandle AimBlockEndTimerHandle;
+
+	// =====================================================================
+	// B1-T1 - UI Manager integration (Docs/Beta/B1_UI_UX.md) - GetUIManager() is the one lookup
+	// point HandleAttack() and IsCursorFacingActive() both use to ask "is a menu open right now."
+	// =====================================================================
+
+protected:
+
+	/** Resolves this character's local UZSUIManager via its owning PlayerController's LocalPlayer.
+	 *  Null for a remote/non-locally-controlled proxy (their UI state is meaningless to this
+	 *  machine) or before a controller/local player exists yet - callers must handle null. */
+	UZSUIManager* GetUIManager() const;
 
 	// =====================================================================
 	// P4/P5 - Attack input dispatch + melee (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)

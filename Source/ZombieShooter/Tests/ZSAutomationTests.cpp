@@ -34,6 +34,7 @@
 #include "ZSPlayerCharacter.h"
 #include "ZombieCharacter.h"
 #include "ZSZombieConfig.h"
+#include "ZSUIManager.h"
 
 namespace ZSTest
 {
@@ -1678,6 +1679,53 @@ bool FZSWeaponDestroyTakesMagazineTest::RunTest(const FString& Parameters)
 		}
 	}
 	TestEqual(TEXT("No magazine actors survive the weapon's destruction"), MagazineCountAfter, 0);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.UI.ModalStackOrdering - B1-T1.2's headline claim ("a stack, not a bool"). Constructed via
+// NewObject with no owning ULocalPlayer (same "no world needed" reasoning as the severity-tier and
+// condition-quality tests above) - UZSUIManager's own code already treats a missing LocalPlayer as
+// a graceful no-op for the Enhanced Input/PlayerController side effects, so this only exercises the
+// stack bookkeeping itself: push/pop ordering, IsAnyModalActive's empty<->non-empty boundary, and
+// that a mismatched-tag pop still pops the real top rather than corrupting the stack.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSUIModalStackTest, "ZS.UI.ModalStackOrdering", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSUIModalStackTest::RunTest(const FString& Parameters)
+{
+	UZSUIManager* UIManager = NewObject<UZSUIManager>();
+	if (!TestNotNull(TEXT("UZSUIManager constructed"), UIManager))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("Empty stack: no modal active"), UIManager->IsAnyModalActive());
+	TestEqual(TEXT("Empty stack: no top tag"), UIManager->GetTopModalTag(), FName(NAME_None));
+
+	UIManager->PushModal(TEXT("Inventory"));
+	TestTrue(TEXT("After first push: a modal is active"), UIManager->IsAnyModalActive());
+	TestEqual(TEXT("After first push: top is Inventory"), UIManager->GetTopModalTag(), FName(TEXT("Inventory")));
+
+	// Inventory opens a container, which opens a confirm dialog - the exact nested-modal scenario
+	// T1.2's design doc calls out by name.
+	UIManager->PushModal(TEXT("Container"));
+	UIManager->PushModal(TEXT("ConfirmDialog"));
+	TestEqual(TEXT("Nested pushes: top is the most recent (ConfirmDialog)"), UIManager->GetTopModalTag(), FName(TEXT("ConfirmDialog")));
+
+	// Popping with the wrong tag should still pop the real top (a bug in the calling screen, not a
+	// license to corrupt the stack) - it just logs a warning, which this test doesn't assert on.
+	UIManager->PopModal(TEXT("WrongTag"));
+	TestEqual(TEXT("Mismatched-tag pop still pops the real top, landing on Container"), UIManager->GetTopModalTag(), FName(TEXT("Container")));
+	TestTrue(TEXT("Still active after popping one of three"), UIManager->IsAnyModalActive());
+
+	UIManager->PopModal(TEXT("Container"));
+	TestEqual(TEXT("Back down to Inventory"), UIManager->GetTopModalTag(), FName(TEXT("Inventory")));
+
+	UIManager->PopModal(TEXT("Inventory"));
+	TestFalse(TEXT("Stack empty again: no modal active"), UIManager->IsAnyModalActive());
+	TestEqual(TEXT("Stack empty again: no top tag"), UIManager->GetTopModalTag(), FName(NAME_None));
 
 	return true;
 }
