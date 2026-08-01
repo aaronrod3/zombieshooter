@@ -247,3 +247,46 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
    - Tooltip → `GetStatPreviewLines()` on hover, same pattern as T3.7.
 2. **T5.7 (2-client verified)** — folds into the same B1 exit sweep as PT1's 2-client half (see this doc's Exit criteria section); not a separate task, just don't forget it's still owed.
 3. **Non-weapon hotbar items** (a quick-use consumable in a hotbar slot) — explicitly **not** built. `Server_AssignHotbarSlot` only accepts a mounted weapon today, per the design this doc already confirmed; broadening it to arbitrary items is new scope needing its own call, not guessed past here.
+
+### B1-T6 — Container loot screen
+
+**Completed — compiled and automation-tested, commit `00d3633`:**
+- `AZSContainerActor::Server_TakeItem(FGuid InstanceId, AZSPlayerCharacter* Requester)` (T6.2) — GUID-exact per-item take, replacing nothing (see below) but adding the capability T6.2 needed. Dupe-safe by construction: server RPCs execute serially, so a second take of an already-removed `InstanceId` just fails its lookup — verified by `ZS.Inventory.ContainerTakeItemIsDupeSafe` (T6.3's requirement, no extra locking needed).
+- `AZSContainerActor::Server_TakeAllItems(AZSPlayerCharacter* Requester)` — the original "loot all" transfer, extracted and renamed so it's reusable by both the existing auto-interact path (unchanged behavior) and a future "Take All" button.
+- `AZSContainerActor::Server_AddItemToContainer(FZSItemInstance)` — a real production capability (hand-place a guaranteed item in a specific container), also what seeds test data without depending on a real `UZSLootTableConfig` content asset.
+- `AZSContainerActor::OnContainerSlotsChanged` — `ContainerSlots` had replication but no real change delegate before this; a T6 widget binds this instead of polling `GetContainerSlots()`.
+- `AZSPlayerCharacter::Server_TakeContainerItem`/`Server_TakeAllContainerItems` — real `Server, Reliable` RPCs (unlike the container-level functions above, which are plain `HasAuthority()`-gated calls, not RPCs themselves) so a client's UI can actually reach the server. Same reasoning `Server_AssignHotbarSlot` was built with for T5.
+
+**Next steps:**
+
+1. **Build `WBP_ZS_ContainerLoot`** (two-pane screen, reuses T5's `WBP_ZS_ItemSlot`/`UZSDragDropPayload` — `EZSDragSourceKind::Container` was already reserved for this) — bind `OnContainerSlotsChanged`, re-read `GetContainerSlots()`. Item actions call `Server_TakeContainerItem`/`Server_TakeAllContainerItems`.
+2. **Open UX question, not decided:** should interacting with a container open this screen, or keep auto-looting everything (today's unchanged behavior)? `Docs/Planning/B1_UIDesignSession_2026-07-30.md` explicitly says container-loot UX "was not mocked up this session" - worth a call before rewiring `OnInteract`.
+3. T6.4 (no pause while looting) needs no code - inherent, same as every other B1 screen. Testing pass only, once the widget exists.
+
+### B1-T7 — Death, respawn & sleep screens
+
+**Completed — compiled and automation-tested, commit `00d3633`:**
+- New `FZSDeathInfo` (`Zone`/`WoundType`/`InstigatorLabel`) + `UZSHealthComponent::LastDeathInfo`/`GetLastDeathInfo()` (T7.1) — "cause of death" didn't exist anywhere before this. Captured on every hit in `Server_ApplyDamage` (plain `Replicated`, set before `bIsDead` in the same call, same pattern `AZSGameState::PendingSleepHours` already uses) - reflects the most recent hit, which for bleed-out/infection deaths (never routed through `Server_ApplyDamage` - see `TickBleed`/`TickInfection`) is the last discrete hit rather than the literal final tick. `InstigatorLabel` resolves to a player name, `"Zombie"` (an instigator with no `PlayerState`), or `"Unknown"` (no instigator at all).
+- `AZSPlayerCharacter::GetRespawnDelaySeconds()` (T7.2) — `RespawnDelaySeconds` was `EditAnywhere`-only, not Blueprint-readable at all before this.
+- `AZSGameState::GetSleepReadyCounts(int32& OutReady, int32& OutTotal)` (T7.4) — a "2/4 ready" readout without every consumer re-deriving the same `PlayerArray` cast-and-count loop `UpdateSleepRequestState` already does internally.
+- T7.3 (blackout) needed **no new code** — `IsBlackedOut()`/`OnBlackoutChanged` already existed and were already public/`BlueprintAssignable`.
+
+**Next steps:**
+
+1. **Build the widgets**: `WBP_ZS_DeathScreen` (bind `OnDeath`, read `GetLastDeathInfo()`, non-interactive), a respawn countdown (pull-based - read `GetRespawnDelaySeconds()` once, run a local timer from whenever `IsDead()` flips true; don't query the server's timer, it's not valid on a non-host client), `WBP_ZS_BlackoutOverlay` (bind `OnBlackoutChanged`, distinct treatment from the death screen - still attackable/revivable, not dead), `WBP_ZS_SleepPrompt` (bind `OnSleepRequestStateChanged`, read `GetSleepReadyCounts()` and `IsSafeToSleep()` before commit, call `ToggleSleepReady()`).
+2. **Open question (OQ-B6-07):** whether a fuller death-recap screen (stats, kill feed) is wanted beyond plain cause-of-death - not decided, `GetLastDeathInfo()` covers only what's built.
+
+### B1-T8 — Main menu & pause
+
+**Completed — compiled and automation-tested, commit `00d3633`:**
+- New `UZSGameInstance` (`UGameInstance`) — the project had **no GameInstance subclass at all** before this (confirmed by search). `HostGame(FName MapName)` (`UGameplayStatics::OpenLevel(..., "listen")`) and `JoinGame(const FString& IPAddress)` (`APlayerController::ClientTravel`) cover T8.1's host/join-by-IP - neither needs an online subsystem.
+- `OnLoadingScreenShouldShow`/`OnLoadingScreenShouldHide` (T8.4), bound to `FCoreUObjectDelegates::PreLoadMap`/`PostLoadMapWithWorld` in `Init()` - fires automatically around every level transition, no manual trigger needed per `OpenLevel` call site.
+- T8.2 (in-game menu) and T8.3 (settings stub) need **no new C++** - T8.2 reuses `UZSUIManager::PushModal`/`PopModal` directly, T8.3 is a placeholder button with nothing to configure yet.
+- **Steam friends-list invite (T8.1) deliberately NOT built** - `OnlineSubsystemSteam` isn't wired into `ZombieShooter.Build.cs` at all (still commented out, per `CLAUDE.md`'s Off-Limits: no dedicated-server/online subsystem yet). Enabling it is an infrastructure decision (Steam AppID, plugin enablement) for you to make, not guessed past here.
+
+**Next steps:**
+
+1. **Required manual step, not yet done: set `GameInstanceClass` to `ZSGameInstance`** (Project Settings → Maps & Modes, or a Blueprint child of it if you want BP-level tuning). Without this, none of `UZSGameInstance` runs at all - deliberately left undone since `Config/DefaultEngine.ini` already has your own uncommitted changes this pass didn't touch.
+2. **Build the widgets**: `WBP_ZS_MainMenu` (Host/Join/Quit calling `HostGame`/`JoinGame`; "Continue/Load" stays stubbed until B3), an in-game pause menu (Resume/Settings/Quit-to-menu, pushed via `UZSUIManager` - make "the world is still running" legible somehow, exact treatment undecided), a settings stub button, `WBP_ZS_LoadingScreen` (bind `OnLoadingScreenShouldShow`/`Hide`).
+3. **Open question (OQ-B1-03):** solo pause behaviour - does a lone host get to actually pause, unlike co-op? Not decided.
+4. **Decide on Steam invite** (needs `OnlineSubsystemSteam` wired into `ZombieShooter.Build.cs` + `.uproject` plugin enablement + a Steam AppID) before building it - real infrastructure scope, not a UI-only task.
