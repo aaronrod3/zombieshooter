@@ -7,15 +7,17 @@ FReply UZSUserWidgetBase::NativeOnKeyDown(const FGeometry& InGeometry, const FKe
 {
 	const FKey Key = InKeyEvent.GetKey();
 
-	EUINavigation Navigation = EUINavigation::Invalid;
-	if (Key == EKeys::Up) { Navigation = EUINavigation::Up; }
-	else if (Key == EKeys::Down) { Navigation = EUINavigation::Down; }
-	else if (Key == EKeys::Left) { Navigation = EUINavigation::Left; }
-	else if (Key == EKeys::Right) { Navigation = EUINavigation::Right; }
+	// Named NavDirection, not Navigation - the latter shadows UWidget::Navigation (a
+	// TObjectPtr<UWidgetNavigation> inherited member, unrelated to this local EUINavigation value).
+	EUINavigation NavDirection = EUINavigation::Invalid;
+	if (Key == EKeys::Up) { NavDirection = EUINavigation::Up; }
+	else if (Key == EKeys::Down) { NavDirection = EUINavigation::Down; }
+	else if (Key == EKeys::Left) { NavDirection = EUINavigation::Left; }
+	else if (Key == EKeys::Right) { NavDirection = EUINavigation::Right; }
 
-	if (Navigation != EUINavigation::Invalid)
+	if (NavDirection != EUINavigation::Invalid)
 	{
-		return FReply::Handled().SetNavigation(Navigation, ENavigationGenesis::Keyboard);
+		return FReply::Handled().SetNavigation(NavDirection, ENavigationGenesis::Keyboard);
 	}
 
 	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
