@@ -168,12 +168,12 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 **Completed:**
 - `UZSUIStyleConfig` (`UPrimaryDataAsset`) C++ implemented — colour/type-scale/spacing fields, functional-grey code defaults per OQ-B1-01 (commit `fca75fc`).
 - `UZSUserWidgetBase` (`UUserWidget`) C++ implemented — `Style` reference every `WBP_ZS_*` child will point at, plus T2.4's generic arrow-key focus navigation (`NativeOnKeyDown` → `FReply::SetNavigation`). All new API usage verified directly against the UE 5.8 engine source (not from memory) since no compiler was available this pass — see the commit message for exactly what was checked.
+- **`DA_ZS_UIStyle_Default` data asset created** (dev-confirmed 2026-08-01) — the one restyle surface OQ-B1-01 calls for now exists.
+- **`WBP_ZS_Base` Widget Blueprint created, reparented to `UZSUserWidgetBase`** (dev-confirmed 2026-08-01) — ahead of the original "wait until T3 needs it" note here, dev's call. First real screen (T3's HUD) has a base to build on.
 
 **Next steps:**
 
-1. **Create `DA_ZS_UIStyle_Default`** (rebuild already confirmed clean): right-click in `/Game/ZS/UI/` (create the folder if it doesn't exist) → Miscellaneous → Data Asset → pick `ZSUIStyleConfig` as the class → name it `DA_ZS_UIStyle_Default`. The C++ defaults are already functional-grey-appropriate; no field edits needed yet (OQ-B1-01: real restyle is B2's job).
-2. **`WBP_ZS_Base` Widget Blueprint is deliberately not created yet** — no real screen exists to use it until T3 builds the first HUD element. Create it (right-click → User Interface → Widget Blueprint, reparent to `UZSUserWidgetBase`) when that work actually starts, not speculatively now.
-3. T2.2 (every widget binds a delegate, never polls) and T2.3 (widget pooling for list-heavy screens) have no code to write yet either — T2.2 is a convention to hold future widgets to (this pass's delegate audit below is the groundwork for it), T2.3 has nothing to pool until T5's grid exists. Neither is a content gap, just not-yet-applicable.
+1. T2.2 (every widget binds a delegate, never polls) and T2.3 (widget pooling for list-heavy screens) still have no code to write - T2.2 is a convention to hold future widgets to (the T3/T7 delegate audit below is the groundwork for it), T2.3 has nothing to pool until T5's grid exists. Neither is a content gap, just not-yet-applicable until a real widget exists to apply them to.
 
 ### B1-T3 / B1-T7 — Delegate audit (groundwork for HUD + sleep prompt)
 
