@@ -160,14 +160,15 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 **Next steps:**
 
-1. **PT1 in PIE** (hands-only, no automation path exists for this):
-   - `ZS.UI.PushTestModal Test` while mid-attack (e.g. holding the trigger on an auto weapon) — attack should stop dead, no leaked shots.
-   - `ZS.UI.PopTestModal Test` at the exact moment of a click — that click should not fire an attack.
+1. **PT1 in PIE** (hands-only, no automation path exists for this). Revised 2026-08-01 to sequential steps — a solo player can't physically hold a mouse button and type a console command at once, and `HandleAttack`'s guard (`if (IsAnyModalActive()) return;`) is a synchronous check with no queued/buffered-click state to catch, so sequential testing exercises the identical code path as true simultaneity would:
+   - `ZS.UI.PushTestModal Test`, then try to fire — confirm nothing happens (no shot, no ammo consumed, no muzzle flash).
+   - `ZS.UI.PopTestModal Test`, then fire again — confirm it works normally.
    - Spam `PushTestModal`/`PopTestModal` rapidly (different tags each time) — no stuck cursor, no stuck input mode, no error spam.
    - Nested modal: `ZS.UI.PushTestModal A` then `ZS.UI.PushTestModal B`, then `ZS.UI.PopTestModal B` — should land back on `A` (each command logs `IsAnyModalActive` and the tag to the output log; watch there since there's no on-screen readout yet).
    - Try popping a tag that isn't on top (e.g. push `A` then `B`, then `PopTestModal A`) — should log a mismatch warning but still pop the real top (`B`), not corrupt the stack.
    - 2-client: disconnect one client with a modal open — the other client's UI state should be unaffected (this is per-local-player state, not replicated).
    - Confirm T1.5 throughout every step above: zombies keep moving, needs keep decaying, the player remains attackable while a test modal is "open." Nothing should visibly pause.
+   - **Optional, not required to close T1**: genuine simultaneous input (hold LMB + trigger a push/pop in the same frame) is only reachable by binding the console command directly to a key (Project Settings → Input → new Action Mapping, then one "Execute Console Command" node in a Blueprint) rather than typing it live. Worth doing during the fuller B1 exit sweep if ever wanted, not blocking now — nothing in the implementation is timing-sensitive enough to need it.
 
 ### B1-T2 — Widget architecture & design tokens
 
