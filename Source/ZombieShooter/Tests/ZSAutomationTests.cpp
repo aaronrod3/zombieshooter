@@ -13,6 +13,7 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
 #include "Engine/DamageEvents.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
@@ -1684,18 +1685,34 @@ bool FZSWeaponDestroyTakesMagazineTest::RunTest(const FString& Parameters)
 }
 
 // ---------------------------------------------------------------------------------------------
-// ZS.UI.ModalStackOrdering - B1-T1.2's headline claim ("a stack, not a bool"). Constructed via
-// NewObject with no owning ULocalPlayer (same "no world needed" reasoning as the severity-tier and
-// condition-quality tests above) - UZSUIManager's own code already treats a missing LocalPlayer as
-// a graceful no-op for the Enhanced Input/PlayerController side effects, so this only exercises the
-// stack bookkeeping itself: push/pop ordering, IsAnyModalActive's empty<->non-empty boundary, and
-// that a mismatched-tag pop still pops the real top rather than corrupting the stack.
+// ZS.UI.ModalStackOrdering - B1-T1.2's headline claim ("a stack, not a bool"). No world needed
+// (same reasoning as the severity-tier and condition-quality tests above), but real bug found
+// running this 2026-08-01: UZSUIManager derives from ULocalPlayerSubsystem, which declares
+// UCLASS(Within = LocalPlayer) - constructing it via bare NewObject<UZSUIManager>() (defaulting to
+// GetTransientPackage() as Outer) fails UObjectGlobals.cpp's ClassWithin validation (an ensure, not
+// a graceful failure). ULocalPlayer itself is UCLASS(Within = Engine), so the minimal valid chain
+// is GEngine -> a throwaway ULocalPlayer -> UZSUIManager. This only exercises the stack bookkeeping
+// itself: push/pop ordering, IsAnyModalActive's empty<->non-empty boundary, and that a
+// mismatched-tag pop still pops the real top rather than corrupting the stack - UZSUIManager's own
+// code still treats the Enhanced Input/PlayerController side effects as a no-op here, since this
+// throwaway ULocalPlayer has no real viewport/PlayerController behind it.
 // ---------------------------------------------------------------------------------------------
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSUIModalStackTest, "ZS.UI.ModalStackOrdering", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FZSUIModalStackTest::RunTest(const FString& Parameters)
 {
-	UZSUIManager* UIManager = NewObject<UZSUIManager>();
+	if (!TestNotNull(TEXT("GEngine available"), GEngine))
+	{
+		return false;
+	}
+
+	ULocalPlayer* TestLocalPlayer = NewObject<ULocalPlayer>(GEngine);
+	if (!TestNotNull(TEXT("Throwaway ULocalPlayer constructed"), TestLocalPlayer))
+	{
+		return false;
+	}
+
+	UZSUIManager* UIManager = NewObject<UZSUIManager>(TestLocalPlayer);
 	if (!TestNotNull(TEXT("UZSUIManager constructed"), UIManager))
 	{
 		return false;
