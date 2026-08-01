@@ -153,22 +153,15 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 ### B1-T1 — Input-mode switching
 
-**Completed:**
+**Completed — T1.1-T1.5 (the solo mechanism) are done:**
 - `UZSUIManager` C++ implemented — modal stack, `HandleAttack`/`IsCursorFacingActive` hard-gated directly on `IsAnyModalActive()` (commit `aee5eb1`).
 - `IA_UISelect`/`IA_UICancel`/`IA_UINavigate`/`IMC_ZS_UI` all created and mapped correctly in-editor, confirmed by a clean rebuild + a passing `ZS.UI.ModalStackOrdering` automation run (`de612a5`, 2026-08-01) — the 3 misplaced rows are gone from `IMC_ZS_Default`, `IMC_ZS_UI` has the right mappings/modifiers.
 - Full project rebuild verified clean, `ZS.` automation suite run clean (only the 5 pre-existing unrelated failures tracked in `SessionHandoff.md`).
+- **PT1 solo pass run in PIE, all clean (dev-confirmed 2026-08-01)** — sequential push/fire, pop/fire, spam open/close, nested modal, mismatched-tag pop, and T1.5 (nothing pauses) all passed. Good enough to unblock T2+ (which don't need more than this).
 
 **Next steps:**
 
-1. **PT1 in PIE** (hands-only, no automation path exists for this). Revised 2026-08-01 to sequential steps — a solo player can't physically hold a mouse button and type a console command at once, and `HandleAttack`'s guard (`if (IsAnyModalActive()) return;`) is a synchronous check with no queued/buffered-click state to catch, so sequential testing exercises the identical code path as true simultaneity would:
-   - `ZS.UI.PushTestModal Test`, then try to fire — confirm nothing happens (no shot, no ammo consumed, no muzzle flash).
-   - `ZS.UI.PopTestModal Test`, then fire again — confirm it works normally.
-   - Spam `PushTestModal`/`PopTestModal` rapidly (different tags each time) — no stuck cursor, no stuck input mode, no error spam.
-   - Nested modal: `ZS.UI.PushTestModal A` then `ZS.UI.PushTestModal B`, then `ZS.UI.PopTestModal B` — should land back on `A` (each command logs `IsAnyModalActive` and the tag to the output log; watch there since there's no on-screen readout yet).
-   - Try popping a tag that isn't on top (e.g. push `A` then `B`, then `PopTestModal A`) — should log a mismatch warning but still pop the real top (`B`), not corrupt the stack.
-   - 2-client: disconnect one client with a modal open — the other client's UI state should be unaffected (this is per-local-player state, not replicated).
-   - Confirm T1.5 throughout every step above: zombies keep moving, needs keep decaying, the player remains attackable while a test modal is "open." Nothing should visibly pause.
-   - **Optional, not required to close T1**: genuine simultaneous input (hold LMB + trigger a push/pop in the same frame) is only reachable by binding the console command directly to a key (Project Settings → Input → new Action Mapping, then one "Execute Console Command" node in a Blueprint) rather than typing it live. Worth doing during the fuller B1 exit sweep if ever wanted, not blocking now — nothing in the implementation is timing-sensitive enough to need it.
+1. **Not yet done, not blocking T2+**: PT1's 2-client half. This doc's own carried-forward note (Exit criteria section above) folds the deferred B0 2-client baseline sweep into *this* PT1 checkpoint specifically — fire/reload/aim/sprint/crouch/hotbar/melee/loot/drop from both clients, plus confirming modal state genuinely doesn't cross-talk between them. That's a bigger, separate session (2 PIE clients, walking through existing B0 mechanics, not new T1 work) — worth doing deliberately rather than folding into a quick solo check. Tracked here so it doesn't quietly get dropped; still gates the full B1 exit sweep either way.
 
 ### B1-T2 — Widget architecture & design tokens
 
