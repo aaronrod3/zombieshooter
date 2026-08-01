@@ -173,21 +173,25 @@ void UZSNeedsComponent::Server_ConsumeStamina(float Amount)
 void UZSNeedsComponent::OnRep_Hunger()
 {
 	OnHungerChanged.Broadcast(Hunger);
+	OnMoodleStackChanged.Broadcast();
 }
 
 void UZSNeedsComponent::OnRep_Thirst()
 {
 	OnThirstChanged.Broadcast(Thirst);
+	OnMoodleStackChanged.Broadcast();
 }
 
 void UZSNeedsComponent::OnRep_Fatigue()
 {
 	OnFatigueChanged.Broadcast(Fatigue);
+	OnMoodleStackChanged.Broadcast();
 }
 
 void UZSNeedsComponent::OnRep_Stamina()
 {
 	OnStaminaChanged.Broadcast(Stamina);
+	OnMoodleStackChanged.Broadcast();
 }
 
 void UZSNeedsComponent::OnRep_IsWet()
@@ -198,6 +202,7 @@ void UZSNeedsComponent::OnRep_IsWet()
 void UZSNeedsComponent::OnRep_Temperature()
 {
 	OnTemperatureChanged.Broadcast(Temperature);
+	OnMoodleStackChanged.Broadcast();
 }
 
 void UZSNeedsComponent::Server_SetWet(bool bNewWet)
@@ -345,4 +350,50 @@ int32 UZSNeedsComponent::GetTemperatureSeverityTier() const
 	// extreme (50 units of distance either way).
 	const float ComfortValue = FMath::Clamp(100.f - FMath::Abs(Temperature - NeedsConfig->NeutralTemperature) * 2.f, 0.f, 100.f);
 	return NeedsConfig->GetSeverityTier(ComfortValue);
+}
+
+TArray<FZSMoodleEntry> UZSNeedsComponent::GetMoodleEntries() const
+{
+	TArray<FZSMoodleEntry> Entries;
+	Entries.Reserve(5);
+
+	FZSMoodleEntry HungerEntry;
+	HungerEntry.NeedId = TEXT("Hunger");
+	HungerEntry.DisplayName = FText::FromString(TEXT("Hunger"));
+	HungerEntry.Value = Hunger;
+	HungerEntry.SeverityTier = GetHungerSeverityTier();
+	Entries.Add(HungerEntry);
+
+	FZSMoodleEntry ThirstEntry;
+	ThirstEntry.NeedId = TEXT("Thirst");
+	ThirstEntry.DisplayName = FText::FromString(TEXT("Thirst"));
+	ThirstEntry.Value = Thirst;
+	ThirstEntry.SeverityTier = GetThirstSeverityTier();
+	Entries.Add(ThirstEntry);
+
+	FZSMoodleEntry FatigueEntry;
+	FatigueEntry.NeedId = TEXT("Fatigue");
+	FatigueEntry.DisplayName = FText::FromString(TEXT("Fatigue"));
+	// Inverted to match GetFatigueSeverityTier's own "100 - Fatigue" transform - moodle Value is
+	// always "100 = fine" across every entry, even though the underlying Fatigue field is the
+	// opposite (0 = fully rested).
+	FatigueEntry.Value = 100.f - Fatigue;
+	FatigueEntry.SeverityTier = GetFatigueSeverityTier();
+	Entries.Add(FatigueEntry);
+
+	FZSMoodleEntry StaminaEntry;
+	StaminaEntry.NeedId = TEXT("Stamina");
+	StaminaEntry.DisplayName = FText::FromString(TEXT("Stamina"));
+	StaminaEntry.Value = Stamina;
+	StaminaEntry.SeverityTier = GetStaminaSeverityTier();
+	Entries.Add(StaminaEntry);
+
+	FZSMoodleEntry TemperatureEntry;
+	TemperatureEntry.NeedId = TEXT("Temperature");
+	TemperatureEntry.DisplayName = FText::FromString(TEXT("Temperature"));
+	TemperatureEntry.Value = NeedsConfig ? FMath::Clamp(100.f - FMath::Abs(Temperature - NeedsConfig->NeutralTemperature) * 2.f, 0.f, 100.f) : 100.f;
+	TemperatureEntry.SeverityTier = GetTemperatureSeverityTier();
+	Entries.Add(TemperatureEntry);
+
+	return Entries;
 }

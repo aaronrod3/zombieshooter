@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameStateBase.h"
 #include "../Survival/ZSItemConfig.h"
+#include "../UI/ZSNotificationSubsystem.h"
 #include "ZSGameState.generated.h"
 
 class AZSPlayerCharacter;
@@ -14,6 +15,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnTimeOfDayChanged, float, NewTi
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnUtilitiesShutoff);
 /** B1-T7.4 audit gap, closed 2026-07-30: bSleepRequestPending/PendingSleepHours were plain Replicated with no change notification - a sleep-prompt widget would have had to poll. RequestedSleepHours carries PendingSleepHours's current value alongside the bool so a single bind covers both ("is a request pending" and "for how long"), same bundling FZSOnTimeOfDayChanged already does for its two related values. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnSleepRequestStateChanged, bool, bRequestPending, float, RequestedSleepHours);
+/** B1-T3.9: AGameStateBase::PlayerArray itself has no OnRep of its own - a scoreboard widget binds this instead of polling PlayerArray every tick, then re-reads PlayerArray fresh (same "re-read rather than diff params" pattern as FZSOnBodyZonesChanged). */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnPlayerListChanged);
 
 /**
  *  P6: authored per-session budget for one Rare/VeryRare UZSItemConfig - GameDevPlan.md §7 P6,
@@ -135,6 +138,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Loot")
 	float RollConditionQuality(EZSItemRarity Rarity) const;
 
+	// ---- B1-T3.9: scoreboard/player-list change notification ----
+
+	/** Called by AZSGameMode::PostLogin/Logout - bumps PlayerListVersion and re-broadcasts on the server (OnRep never fires on the authoring machine itself, same pattern as every other OnRep_ in this project). No-op off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Players")
+	void NotifyPlayerListChanged();
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Players")
+	FZSOnPlayerListChanged OnPlayerListChanged;
+
+	// ---- B1-T3.10: toast/notification dispatch ----
+
+	/** Server -> every client toast trigger - routes into the receiving client's own UZSNotificationSubsystem (a ULocalPlayerSubsystem, so this multicast just forwards into local queue state; the queue itself is never replicated). Wired so far only from AZSGameMode::PostLogin/Logout (player joined/left) - pickup confirmation and horde-approaching wiring are still open, see B1_UI_UX.md's Manual setup steps. */
+	UFUNCTION(NetMulticast, Reliable, Category = "ZS|Notifications")
+	void Multicast_ShowToast(const FText& Message, EZSToastType Type);
+
 protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loot")
@@ -192,4 +210,11 @@ protected:
 
 	/** Scans PlayerArray: if nobody's ready anymore, clears the pending request; if everyone connected is ready, advances the clock by PendingSleepHours, applies sleep recovery to each player's UZSNeedsComponent, and resets everyone's ready flag. */
 	void UpdateSleepRequestState();
+
+	/** B1-T3.9: bumped by NotifyPlayerListChanged - PlayerArray itself has no ReplicatedUsing of its own to hook, so this plain counter is the change-notification surface a scoreboard widget actually binds to. The value itself is meaningless - only the fact that it changed matters. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_PlayerListVersion, Category = "ZS|Players")
+	int32 PlayerListVersion = 0;
+
+	UFUNCTION()
+	void OnRep_PlayerListVersion();
 };

@@ -89,6 +89,21 @@ FZSItemInstance UZSInventoryComponent::GetInstance(FGuid InstanceId) const
 	return FZSItemInstance();
 }
 
+TArray<FZSItemInstance> UZSInventoryComponent::GetSlotsInLocation(EZSCarryLocation Location) const
+{
+	TArray<FZSItemInstance> Result;
+
+	for (const FZSItemInstance& Instance : CarrySlots)
+	{
+		if (Instance.Location == Location)
+		{
+			Result.Add(Instance);
+		}
+	}
+
+	return Result;
+}
+
 FZSItemInstance UZSInventoryComponent::GetEquippedItem(EZSEquipSlot Slot) const
 {
 	switch (Slot)

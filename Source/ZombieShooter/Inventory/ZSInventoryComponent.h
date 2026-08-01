@@ -67,6 +67,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	TArray<FZSItemInstance> GetCarrySlots() const { return CarrySlots; }
 
+	/** B1-T5.1: CarrySlots filtered to one compartment (Pockets = OnPerson/Backpack/Duffle) - the exact grouping T5's grid widget needs, so each compartment panel doesn't reimplement the same filter in Blueprint. Weapons never appear here (they live in the weapon-mount slots below, per T5.0/T5.1's "weapons do not appear in this grid at all"). */
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	TArray<FZSItemInstance> GetSlotsInLocation(EZSCarryLocation Location) const;
+
 	/** B0-T2 Step B: the one lookup every GUID-holding slot (HotbarSlots, EquippedBack/Duffle, the weapon mounts) resolves through. Returns a default-constructed (invalid) instance if InstanceId isn't found in CarrySlots - callers should check IsValid() before trusting the result (e.g. the referenced item was dropped/consumed elsewhere since the slot last pointed at it). */
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	FZSItemInstance GetInstance(FGuid InstanceId) const;

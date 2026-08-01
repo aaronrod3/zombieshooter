@@ -260,6 +260,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
 	FZSOnHotbarChanged OnHotbarSlotsChanged;
 
+	/** T3.4: what OnHotbarSlotsChanged tells a hotbar widget to re-read - HotbarSlots itself is protected, this was the missing read path (the delegate alone gives no way to see what changed). Returns a copy, same convention as UZSInventoryComponent::GetCarrySlots(). */
+	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
+	TArray<FGuid> GetHotbarSlots() const { return HotbarSlots; }
+
 protected:
 
 	static constexpr int32 NumHotbarSlots = 9;
@@ -284,6 +288,18 @@ protected:
 
 	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
 	void Server_SelectHotbarSlot(int32 SlotIndex);
+
+	/** B1-T5.0/T5.4: the runtime "assign an item to hotbar slot N" mechanism T5.0 flagged as not yet built - HotbarSlots was BeginPlay-seeded only until now. Scoped exactly to what B1_UI_UX.md's T5.0 entry already dev-confirmed: a hotbar slot points at a currently-MOUNTED weapon (UZSInventoryComponent::IsWeaponMounted), not an arbitrary carried item - generalizing to non-weapon hotbar items (a quick-use consumable) is explicitly further scope, not guessed past here. Reassigns what SlotIndex points at only - does NOT re-equip, even if SlotIndex == ActiveHotbarIndex; the player must reselect the slot (Server_SelectHotbarSlot) to actually switch to the new weapon, same as swapping a magazine doesn't fire the gun. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
+	void Server_AssignHotbarSlot(int32 SlotIndex, FGuid InstanceId);
+
+	/** The drag-off/unassign path - clears SlotIndex back to an empty hotbar slot. Does not force an unequip if SlotIndex == ActiveHotbarIndex, same "reassignment isn't re-equip" reasoning as Server_AssignHotbarSlot. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
+	void Server_ClearHotbarSlot(int32 SlotIndex);
+
+	/** T5.3: cheap client-side pre-check a drag-drop target can call before attempting Server_AssignHotbarSlot, so a UMG OnDrop can reject an invalid drop without a round-trip - re-validated authoritatively server-side regardless. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
+	bool CanAssignToHotbarSlot(int32 SlotIndex, FGuid InstanceId) const;
 
 	/** Timer callback for both directions - PendingIndex is INDEX_NONE for "finish unequipping to bare-fist", otherwise a valid HotbarSlots index to actually EquipWeapon(). Server-only (only ever scheduled from Server_SelectHotbarSlot, which already gates on HasAuthority()). */
 	void CompleteHotbarSwitch(int32 PendingIndex);

@@ -1263,6 +1263,39 @@ void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
 	GetWorldTimerManager().SetTimer(HotbarSwitchTimerHandle, SwitchDelegate, FMath::Max(SwitchDelay, 0.01f), false);
 }
 
+bool AZSPlayerCharacter::CanAssignToHotbarSlot(int32 SlotIndex, FGuid InstanceId) const
+{
+	if (!HotbarSlots.IsValidIndex(SlotIndex) || !InstanceId.IsValid())
+	{
+		return false;
+	}
+
+	const UZSInventoryComponent* Inventory = GetInventoryComponent();
+	return Inventory && Inventory->IsWeaponMounted(InstanceId);
+}
+
+void AZSPlayerCharacter::Server_AssignHotbarSlot_Implementation(int32 SlotIndex, FGuid InstanceId)
+{
+	if (!HasAuthority() || !CanAssignToHotbarSlot(SlotIndex, InstanceId))
+	{
+		return;
+	}
+
+	HotbarSlots[SlotIndex] = InstanceId;
+	OnRep_HotbarSlots();
+}
+
+void AZSPlayerCharacter::Server_ClearHotbarSlot_Implementation(int32 SlotIndex)
+{
+	if (!HasAuthority() || !HotbarSlots.IsValidIndex(SlotIndex))
+	{
+		return;
+	}
+
+	HotbarSlots[SlotIndex] = FGuid();
+	OnRep_HotbarSlots();
+}
+
 void AZSPlayerCharacter::WriteBackCurrentWeaponDurability()
 {
 	if (!CurrentWeapon || !HotbarSlots.IsValidIndex(ActiveHotbarIndex))

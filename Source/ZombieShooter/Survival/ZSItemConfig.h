@@ -88,6 +88,22 @@ enum class EZSItemRarity : uint8
 	VeryRare
 };
 
+/** B1-T3.7/T5.6: one row of an item's transparent stat preview - "eat this, gain +X Hunger," not a hidden number. Label/Value are both already-formatted FText so the tooltip widget renders rows verbatim with zero per-item-type branching. */
+USTRUCT(BlueprintType)
+struct FZSStatPreviewLine
+{
+	GENERATED_BODY()
+
+	FZSStatPreviewLine() = default;
+	FZSStatPreviewLine(FText InLabel, FText InValue) : Label(MoveTemp(InLabel)), Value(MoveTemp(InValue)) {}
+
+	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	FText Label;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	FText Value;
+};
+
 /*
 	P2's "items exist minimally" slice (Docs/GameDevPlan.md P2), extended in P3 to cover the
 	medical treatment actions (Docs/Phases/P3_HealthDamageMedical.md: "bandage/disinfect/splint").
@@ -174,4 +190,9 @@ public:
 	/** B0-T11.3, 2026-07-26: whether IA_SecondaryAction toggles this item on/off (a flashlight) instead of dispatching an attack when it's the one equipped in SecondaryHand - checked before falling through to weapon-attack dispatch (see AZSPlayerCharacter::Server_HandleSecondaryAction). Only meaningful for an item equipped in SecondaryHand; meaningless for anything else. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	bool bIsToggleable = false;
+
+	/** B1-T3.7/T5.6: establishes the transparent-stat-preview pattern once here - every later tooltip (T5.6's inventory grid, T3.7's HUD hover) reuses this instead of a bespoke per-screen implementation. BlueprintNativeEvent, same "gameplay execution point" convention as OnInteract/EquipWeapon, so UZSWeaponConfig (below) can append its own lines via Super(). Base implementation covers only the fields every UZSItemConfig has; ItemUseType-irrelevant fields are simply skipped, not shown as zeroes. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Item")
+	TArray<FZSStatPreviewLine> GetStatPreviewLines() const;
+	virtual TArray<FZSStatPreviewLine> GetStatPreviewLines_Implementation() const;
 };

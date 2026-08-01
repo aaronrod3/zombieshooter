@@ -54,6 +54,9 @@ public:
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override;
 
+	/** B1-T3.7/T5.6: appends weapon-specific lines (Damage/Fire Rate/Magazine for Ranged, Damage for Melee) on top of UZSItemConfig's base set - see FZSStatPreviewLine's own comment. */
+	virtual TArray<FZSStatPreviewLine> GetStatPreviewLines_Implementation() const override;
+
 	/**
 	 *  Which AZSWeapon (sub)class AZSPlayerCharacter::EquipWeapon spawns for this config. Left
 	 *  unset by default (falls back to plain AZSWeapon) - only needs setting if a specific

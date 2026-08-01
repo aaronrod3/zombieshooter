@@ -4,6 +4,9 @@
 #include "ZombieShooter/Player/ZSPlayerCharacter.h"
 #include "ZombieShooter/Survival/ZSNeedsComponent.h"
 #include "GameFramework/PlayerState.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/LocalPlayer.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
 AZSGameState::AZSGameState()
@@ -34,6 +37,7 @@ void AZSGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(AZSGameState, bUtilitiesShutoffTriggered);
 	DOREPLIFETIME(AZSGameState, bSleepRequestPending);
 	DOREPLIFETIME(AZSGameState, PendingSleepHours);
+	DOREPLIFETIME(AZSGameState, PlayerListVersion);
 }
 
 void AZSGameState::BeginPlay()
@@ -237,4 +241,30 @@ float AZSGameState::RollConditionQuality(EZSItemRarity Rarity) const
 
 	const FZSConditionQualityBand& Band = ConditionQualityBands[Index];
 	return FMath::FRandRange(FMath::Min(Band.MinQuality, Band.MaxQuality), Band.MaxQuality);
+}
+
+void AZSGameState::NotifyPlayerListChanged()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	++PlayerListVersion;
+	OnRep_PlayerListVersion();
+}
+
+void AZSGameState::OnRep_PlayerListVersion()
+{
+	OnPlayerListChanged.Broadcast();
+}
+
+void AZSGameState::Multicast_ShowToast_Implementation(const FText& Message, EZSToastType Type)
+{
+	const APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+	const ULocalPlayer* LocalPlayer = PC ? PC->GetLocalPlayer() : nullptr;
+	if (UZSNotificationSubsystem* Notifications = LocalPlayer ? ULocalPlayer::GetSubsystem<UZSNotificationSubsystem>(LocalPlayer) : nullptr)
+	{
+		Notifications->AddToast(Message, Type);
+	}
 }

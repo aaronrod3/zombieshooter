@@ -36,6 +36,7 @@
 #include "ZombieCharacter.h"
 #include "ZSZombieConfig.h"
 #include "ZSUIManager.h"
+#include "ZSNotificationSubsystem.h"
 
 namespace ZSTest
 {
@@ -1743,6 +1744,177 @@ bool FZSUIModalStackTest::RunTest(const FString& Parameters)
 	UIManager->PopModal(TEXT("Inventory"));
 	TestFalse(TEXT("Stack empty again: no modal active"), UIManager->IsAnyModalActive());
 	TestEqual(TEXT("Stack empty again: no top tag"), UIManager->GetTopModalTag(), FName(NAME_None));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Loadout.AssignHotbarSlotRequiresMountedWeapon - B1-T5.0/T5.4. Server_AssignHotbarSlot is the
+// runtime "assign an item to hotbar slot N" mechanism T5.0 flagged as not yet built - scoped to
+// only accept a currently-MOUNTED weapon (UZSInventoryComponent::IsWeaponMounted), not an
+// arbitrary carried item, per B1_UI_UX.md's dev-confirmed design. Verifies both the accept and
+// reject paths, that CanAssignToHotbarSlot's client-side pre-check agrees with the server's actual
+// result, and that Server_ClearHotbarSlot un-assigns cleanly.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSHotbarAssignmentTest, "ZS.Loadout.AssignHotbarSlotRequiresMountedWeapon", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSHotbarAssignmentTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* SidearmConfig = NewObject<UZSWeaponConfig>();
+	SidearmConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	SidearmConfig->AttackType = EZSAttackType::Ranged;
+
+	UZSWeaponConfig* UnmountedConfig = NewObject<UZSWeaponConfig>();
+	UnmountedConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	UnmountedConfig->AttackType = EZSAttackType::Ranged;
+
+	if (!TestEqual(TEXT("Sidearm added to CarrySlots"), Inventory->Server_AddItem(SidearmConfig, 1), 1))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Second weapon added to CarrySlots"), Inventory->Server_AddItem(UnmountedConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* SidearmInstance = Slots.FindByPredicate([SidearmConfig](const FZSItemInstance& I) { return I.Config == SidearmConfig; });
+	const FZSItemInstance* UnmountedInstance = Slots.FindByPredicate([UnmountedConfig](const FZSItemInstance& I) { return I.Config == UnmountedConfig; });
+	if (!TestNotNull(TEXT("Sidearm instance found"), SidearmInstance) || !TestNotNull(TEXT("Unmounted instance found"), UnmountedInstance))
+	{
+		return false;
+	}
+	const FGuid SidearmId = SidearmInstance->InstanceId;
+	const FGuid UnmountedId = UnmountedInstance->InstanceId;
+
+	if (!TestTrue(TEXT("Sidearm mounts successfully"), Inventory->Server_MountSidearm(SidearmId)))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("CanAssignToHotbarSlot: mounted weapon is assignable"), Character->CanAssignToHotbarSlot(0, SidearmId));
+	Character->Server_AssignHotbarSlot(0, SidearmId);
+	TestEqual(TEXT("Hotbar slot 0 now points at the mounted sidearm"), Character->GetHotbarSlots()[0], SidearmId);
+
+	TestFalse(TEXT("CanAssignToHotbarSlot: unmounted weapon is rejected"), Character->CanAssignToHotbarSlot(1, UnmountedId));
+	Character->Server_AssignHotbarSlot(1, UnmountedId);
+	TestNotEqual(TEXT("Hotbar slot 1 was NOT assigned - unmounted weapon rejected"), Character->GetHotbarSlots()[1], UnmountedId);
+
+	Character->Server_ClearHotbarSlot(0);
+	TestFalse(TEXT("Hotbar slot 0 cleared back to invalid"), Character->GetHotbarSlots()[0].IsValid());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.SlotsInLocationFilter - B1-T5.1. GetSlotsInLocation is the compartment filter T5's
+// grid widget groups by (Pockets/Backpack/Duffle) - verifies it actually partitions CarrySlots by
+// EZSCarryLocation rather than returning everything or nothing.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSSlotsInLocationTest, "ZS.Inventory.SlotsInLocationFilter", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSSlotsInLocationTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Harness->InventoryComponent;
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	// Server_AddItem mints new instances at the default Location (OnPerson) - matches "Pockets" in
+	// T5's three-compartment model without needing Server_StoreInBag/a real bag setup here.
+	UZSItemConfig* PocketItemConfig = NewObject<UZSItemConfig>();
+	if (!TestEqual(TEXT("Pocket item added"), Inventory->Server_AddItem(PocketItemConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> OnPersonSlots = Inventory->GetSlotsInLocation(EZSCarryLocation::OnPerson);
+	const TArray<FZSItemInstance> BackpackSlots = Inventory->GetSlotsInLocation(EZSCarryLocation::Backpack);
+	const TArray<FZSItemInstance> DuffleSlots = Inventory->GetSlotsInLocation(EZSCarryLocation::Duffle);
+
+	TestEqual(TEXT("OnPerson compartment has exactly the one item added"), OnPersonSlots.Num(), 1);
+	TestEqual(TEXT("Backpack compartment is empty - nothing stored there"), BackpackSlots.Num(), 0);
+	TestEqual(TEXT("Duffle compartment is empty - nothing stored there"), DuffleSlots.Num(), 0);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.UI.NotificationQueueAddDismiss - B1-T3.10. UZSNotificationSubsystem is the client-local toast
+// queue T3.10's HUD notification widget binds to - verifies AddToast/DismissToast actually mutate
+// the queue and broadcast, using the same throwaway-ULocalPlayer construction pattern as
+// ZS.UI.ModalStackOrdering (ULocalPlayerSubsystem requires a valid LocalPlayer outer).
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSNotificationQueueTest, "ZS.UI.NotificationQueueAddDismiss", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSNotificationQueueTest::RunTest(const FString& Parameters)
+{
+	if (!TestNotNull(TEXT("GEngine available"), GEngine))
+	{
+		return false;
+	}
+
+	ULocalPlayer* TestLocalPlayer = NewObject<ULocalPlayer>(GEngine);
+	if (!TestNotNull(TEXT("Throwaway ULocalPlayer constructed"), TestLocalPlayer))
+	{
+		return false;
+	}
+
+	UZSNotificationSubsystem* Notifications = NewObject<UZSNotificationSubsystem>(TestLocalPlayer);
+	if (!TestNotNull(TEXT("UZSNotificationSubsystem constructed"), Notifications))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Empty queue at start"), Notifications->GetActiveToasts().Num(), 0);
+
+	Notifications->AddToast(FText::FromString(TEXT("Picked up a bandage")), EZSToastType::PickupConfirmation);
+	const TArray<FZSToastEntry> AfterAdd = Notifications->GetActiveToasts();
+	if (!TestEqual(TEXT("One toast queued"), AfterAdd.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Queued toast has the right type"), AfterAdd[0].Type, EZSToastType::PickupConfirmation);
+	TestTrue(TEXT("Queued toast has a valid Id"), AfterAdd[0].ToastId.IsValid());
+
+	const FGuid ToastId = AfterAdd[0].ToastId;
+	Notifications->DismissToast(ToastId);
+	TestEqual(TEXT("Queue empty after dismissing the only toast"), Notifications->GetActiveToasts().Num(), 0);
+
+	// Dismissing an already-gone Id is a no-op, not an error.
+	Notifications->DismissToast(ToastId);
+	TestEqual(TEXT("Dismissing a stale Id is a no-op"), Notifications->GetActiveToasts().Num(), 0);
 
 	return true;
 }

@@ -6,6 +6,8 @@
 #include "ZombieShooter/Player/ZSPlayerCharacter.h"
 #include "ZSPlayerController.h"
 #include "UObject/ConstructorHelpers.h"
+#include "GameFramework/PlayerState.h"
+#include "Internationalization/Text.h"
 
 AZSGameMode::AZSGameMode()
 {
@@ -27,4 +29,35 @@ AZSGameMode::AZSGameMode()
 	{
 		DefaultPawnClass = AZSPlayerCharacter::StaticClass();
 	}
+}
+
+void AZSGameMode::PostLogin(APlayerController* NewPlayer)
+{
+	Super::PostLogin(NewPlayer);
+
+	AZSGameState* ZSGameState = GetGameState<AZSGameState>();
+	if (!ZSGameState)
+	{
+		return;
+	}
+
+	ZSGameState->NotifyPlayerListChanged();
+
+	const FString PlayerName = (NewPlayer && NewPlayer->PlayerState) ? NewPlayer->PlayerState->GetPlayerName() : TEXT("A player");
+	ZSGameState->Multicast_ShowToast(FText::Format(NSLOCTEXT("ZS", "PlayerJoinedToast", "{0} joined"), FText::FromString(PlayerName)), EZSToastType::PlayerJoinedLeft);
+}
+
+void AZSGameMode::Logout(AController* Exiting)
+{
+	if (AZSGameState* ZSGameState = GetGameState<AZSGameState>())
+	{
+		const FString PlayerName = (Exiting && Exiting->PlayerState) ? Exiting->PlayerState->GetPlayerName() : TEXT("A player");
+		ZSGameState->Multicast_ShowToast(FText::Format(NSLOCTEXT("ZS", "PlayerLeftToast", "{0} left"), FText::FromString(PlayerName)), EZSToastType::PlayerJoinedLeft);
+
+		// Bump the version before Super::Logout removes Exiting's PlayerState from PlayerArray -
+		// see the header comment for why the ordering matters.
+		ZSGameState->NotifyPlayerListChanged();
+	}
+
+	Super::Logout(Exiting);
 }

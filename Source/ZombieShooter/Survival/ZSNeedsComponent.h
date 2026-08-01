@@ -12,6 +12,30 @@ class UZSItemConfig;
 /** Broadcast by every OnRep_ below - lets a moodle WBP bind to state changes instead of polling, per CLAUDE.md's replication convention. Reused across all four needs, same pattern as AZSWeapon's FZSOnAmmoChanged covering two properties. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnNeedChanged, float, NewValue);
 
+/** B1-T3.1: one row of the HUD's moodle stack - generic enough that a 9th/10th need is a new entry in GetMoodleEntries() below, not a new widget class (B1_UI_UX.md's "designed for N needs, not 8, assume it grows again"). */
+USTRUCT(BlueprintType)
+struct FZSMoodleEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Needs")
+	FName NeedId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Needs")
+	FText DisplayName;
+
+	/** 0-100, same scale GetHunger/GetThirst/GetFatigue/GetStamina already use - Temperature is pre-transformed to a 0-100 "comfort" value here (matching GetTemperatureSeverityTier's own transform) since raw Temperature is bad in both directions, not a single low-is-worse scale. */
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Needs")
+	float Value = 100.f;
+
+	/** 0-3, the shared 4-tier scale every GetXSeverityTier() accessor already returns - 0 = fine, 3 = worst. */
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Needs")
+	int32 SeverityTier = 0;
+};
+
+/** B1-T3.1: fires whenever any single need's severity tier-relevant value changes - one delegate for a moodle-stack widget to bind instead of five (OnHunger/Thirst/Fatigue/Stamina/TemperatureChanged individually). Re-read GetMoodleEntries() rather than diffing params, same "more than one thing can change in one tick" reasoning as UZSHealthComponent::FZSOnBodyZonesChanged. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnMoodleStackChanged);
+
 /**
  *  P2 survival simulation core (Docs/GameDevPlan.md P2, Docs/Phases/P2_SurvivalCore.md):
  *  Hunger/Thirst/Fatigue/Stamina, data-asset-tuned via UZSNeedsConfig. Attach to AZSPlayerCharacter
@@ -119,6 +143,13 @@ public:
 	/** Reuses the same 0-100/4-tier thresholds as Hunger/Thirst/Fatigue, fed a transformed "comfort value" (100 at NeutralTemperature, falling toward 0 at either extreme) rather than the raw Temperature scalar - Temperature is bad in both directions, unlike the other three. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
 	int32 GetTemperatureSeverityTier() const;
+
+	/** B1-T3.1: Hunger/Thirst/Fatigue/Stamina/Temperature as one generically-sized array for the HUD's moodle stack - see FZSMoodleEntry's own comment. Derived fresh from already-replicated state each call, not itself replicated. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Needs")
+	TArray<FZSMoodleEntry> GetMoodleEntries() const;
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Needs")
+	FZSOnMoodleStackChanged OnMoodleStackChanged;
 
 	// ---- B0-T4.6: perception (CR-10) - see UZSNeedsConfig's own comment on FatiguePerceptionCurve. ----
 
