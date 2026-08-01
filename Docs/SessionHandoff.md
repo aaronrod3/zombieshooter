@@ -10,16 +10,21 @@
 
 **B0 → B1 transition confirmed by dev, 2026-07-30.** Two companion docs for B1: `Docs/Beta/B1_UI_UX.md` (task breakdown, entry/exit criteria) and `Docs/Planning/B1_UIDesignSession_2026-07-30.md` (the actual UI design — HUD philosophy, Tab-menu structure, inventory compartments — decided ahead of implementation, read this before touching any layout work).
 
-## B1 progress — 2026-07-30, NONE of this session's C++ has been compiled yet
+## B1 progress — 2026-07-30
 
-Two stretches this session: a present, interactive pass (T1), then an away-session-style pass (T2/T3-T7-audit/T5.0-partial) while the dev worked T1's manual editor steps in parallel. **Every commit from the second stretch is tagged `[uncompiled]`** — the editor was closed (likely mid-rebuild) or busy with the dev's own hands-on work the whole time, so none of it could be build-gated or PIE-tested. Treat it as "implemented against established patterns, not yet verified," not "done."
+Three stretches this session: a present, interactive pass (T1), an away-session-style pass while the dev worked T1's manual editor steps in parallel (T2/T3-T7-audit/T5.0-partial), then back to present/interactive for two build-error fixes and T5.0's remaining data-model work.
 
-- **T1 (Input-mode switching)** — `UZSUIManager` modal stack + hard-gated `HandleAttack`/`IsCursorFacingActive` (commit `aee5eb1`). `IA_UISelect`/`IA_UICancel`/`IA_UINavigate`/`IMC_ZS_UI` all now exist on disk (dev's own editor work, in progress).
-- **T2.1/T2.4** — `UZSUIStyleConfig` + `UZSUserWidgetBase` (focus nav via `NativeOnKeyDown`), commit `fca75fc`. New API usage was checked against the actual UE 5.8 engine source, not memory, since no compiler was available.
-- **T3/T7 delegate audit** — closed 3 real "no OnRep needed, no UI yet" gaps now that UI is coming (sleep-request state, weapon durability, ammo not broadcasting on host), commit `89f466e`.
-- **T5.0 partial** — `EZSItemSize` field only, commit `9c77d44`. The rest (EZSCarryLocation Backpack/Duffle split, weapon-mount slots, HotbarSlots rewiring) was deliberately **not** attempted — found a genuine open design question (what happens to `EZSEquipSlot::Hip` under the new compartment model) and the risk of blind-editing B0's already-verified hotbar/equip flow with no way to compile-check it was too high. Full detail + the specific question: `B1_UI_UX.md`'s Manual setup steps, T5.0 entry.
+**Compiles clean as of `1b7d4a5`** (dev-confirmed: "build succeeded"): `aee5eb1`/`fca75fc`/`89f466e`/`9c77d44` plus two fixes - `d8b9e94` (a local `Navigation` var in `ZSUserWidgetBase.cpp` shadowed `UWidget::Navigation`, C4458) and `1b7d4a5` (LNK2019 - `FReply`'s constructors needed `SlateCore` added as an explicit `ZombieShooter.Build.cs` dependency, not just transitively through `Slate`).
 
-**Full click-by-click steps for all of the above** (T1's remaining PIE verification, T2's `DA_ZS_UIStyle_Default` creation, the rebuild everything needs) are in **`B1_UI_UX.md`'s "Manual setup steps" section** — that's the one place this level of detail lives now (see `Docs/Beta/README.md`'s convention note). **First thing next session: a real compile.** Everything from `fca75fc` onward is unverified.
+- **T1 (Input-mode switching)** — `UZSUIManager` modal stack + hard-gated `HandleAttack`/`IsCursorFacingActive`. `IA_UISelect`/`IA_UICancel`/`IA_UINavigate`/`IMC_ZS_UI` all exist on disk (dev's own editor work) - PT1 PIE pass still not run.
+- **T2.1/T2.4** — `UZSUIStyleConfig` + `UZSUserWidgetBase` (arrow-key focus nav). `DA_ZS_UIStyle_Default` data asset instance not created yet.
+- **T3/T7 delegate audit** — closed 3 real "no OnRep needed, no UI yet" gaps (sleep-request state, weapon durability, ammo not broadcasting on host).
+
+**Not yet compiled/verified — needs the next rebuild**, commit `75af0fe`: T5.0's Hip→Sidearm question got a dev answer ("Hip is for the pistol, name it Sidearm; long-gun mounts attach to the backpack if equipped else the back") mid-session, unblocking most of the rest. `EZSEquipSlot::Hip` retired entirely (replaced by `Duffle`, the second bag slot), `EZSCarryLocation::Bag` split into `Backpack`/`Duffle`, and `UZSInventoryComponent` gained real weapon-mount slots (`MountedLongGuns[2]` + `MountedSidearm`, pure `FGuid` capacity-gate references, no `AZSWeapon` actor lifecycle) with `Server_Mount*`/`Server_Unmount*` validated against `UZSWeaponConfig::Handedness`/`AttackType`. **Real content risk flagged**: `Hip`'s old raw enum value now belongs to `Duffle` - any existing config with `EquipSlot == Hip` will likely silently reinterpret as `Duffle` rather than fail to load; `DA_Bag.uasset` needs a manual check after rebuilding. Full detail: `B1_UI_UX.md`'s T5.0 entry.
+
+**Still deliberately not started**: `HotbarSlots` becoming a quick-select pointer into a mount - turned out bigger than scoped (no runtime "assign an item to hotbar slot N" mechanism exists at all yet, `HotbarSlots` is currently `BeginPlay`-seeded only). Needs a call on whether to build that now or defer to T5's inventory screen - see `B1_UI_UX.md`.
+
+**Full click-by-click steps** (T1's PT1 PIE pass, T2's `DA_ZS_UIStyle_Default` creation, the content-risk check) are in **`B1_UI_UX.md`'s "Manual setup steps" section**.
 
 ## B0 exit summary (closed 2026-07-30, practically not 100% formally)
 
@@ -38,7 +43,7 @@ Full detail on all of the above: `Docs/Beta/B0_Stabilization.md` and `Docs/Beta/
 
 ## Next step
 
-**Compile first.** A full `Build.bat` rebuild covers everything from this session in one pass — T1's `IMC_ZS_UI`/content fixes plus all the new C++ (`Source/ZombieShooter/UI/`, `ZSGameState`/`ZSWeapon` delegate additions, `ZSItemConfig`'s new enum). Fix whatever doesn't compile before trusting any of it. Then work `B1_UI_UX.md`'s "Manual setup steps" section top to bottom (T1's PT1 PIE pass, T2's `DA_ZS_UIStyle_Default`), and raise T5.0's open Hip/Duffle question when convenient — it blocks the rest of T5.0 but not T2/T3 work. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold.
+**Rebuild to verify commit `75af0fe`** (T5.0's Hip→Duffle/weapon-mount work) — everything before it is confirmed compiling. Then: check `DA_Bag.uasset`'s `EquipSlot` for the Hip→Duffle content-risk noted above, work `B1_UI_UX.md`'s "Manual setup steps" section top to bottom (T1's PT1 PIE pass, T2's `DA_ZS_UIStyle_Default`), and decide on `HotbarSlots`' rewiring scope when ready to continue T5.0. Read `Docs/Planning/B1_UIDesignSession_2026-07-30.md` first if picking this up cold.
 
 ## Known tooling gotchas (worth remembering)
 
