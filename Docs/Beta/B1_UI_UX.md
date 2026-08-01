@@ -186,6 +186,31 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 **Next steps:** none content/editor-related — this was pure C++, folded into the same rebuild as T1/T2. A background task was spawned separately for one same-class bug found but left alone (`CycleFireMode_Implementation` not re-broadcasting on host) since no B1 HUD task reads fire mode yet.
 
+### B1-T3 — HUD
+
+**Completed (uncompiled as of this entry, commit `ea64726`):**
+- `UZSNeedsComponent::GetMoodleEntries()`/`OnMoodleStackChanged` (T3.1) — one delegate + one array accessor covering Hunger/Thirst/Fatigue/Stamina/Temperature, so a 6th/7th need is a new entry in that function, not a new widget class.
+- `UZSItemConfig`/`UZSWeaponConfig::GetStatPreviewLines()` (T3.7, and T5.6 below reuses it) — the transparent-stat-preview contract, `BlueprintNativeEvent` so weapon configs append Damage/Fire Rate/Magazine on top of the base Hunger/Thirst/Carry Capacity/Insulation lines.
+- `AZSGameState::PlayerListVersion`/`OnPlayerListChanged` (T3.9) — `PlayerArray` itself has no change delegate, this is the wrapper a scoreboard widget binds to instead; wired from `AZSGameMode::PostLogin`/`Logout`.
+- New `UZSNotificationSubsystem` (T3.10) — client-local toast queue, same C++-state/Blueprint-presentation split as `UZSUIManager`. `AZSGameState::Multicast_ShowToast` + the same `PostLogin`/`Logout` hook wire up player-joined/left as the one concrete trigger so far. `ZS.UI.PushTestToast [message]` console command for pre-widget testing, same pattern as T1's `ZS.UI.PushTestModal`.
+- T3.2 (health/wound), T3.3 (infection), T3.4 (hotbar — plus the new `GetHotbarSlots()` accessor), T3.5 (ammo), T3.6 (interaction prompt) needed **no new code** — the T3/T7 delegate audit above already covers every bind point; those widgets just need building against what already exists.
+
+**Next steps:**
+
+1. **Get a real compile** — editor was open this pass, didn't attempt `Build.bat` per `CLAUDE.md`. Full rebuild + `ZS.` automation suite run (6 new tests this pass, see `SessionHandoff.md`) before trusting any of the above.
+2. **Build the actual `WBP_ZS_*` widgets**, each reparented to `UZSUserWidgetBase` (T2's base). One widget per HUD element, each binding to the delegate already in place rather than polling:
+   - Moodle stack → bind `OnMoodleStackChanged`, re-read `GetMoodleEntries()`.
+   - Health/wound display → bind `OnBodyZonesChanged`/`OnHealthChanged`, re-read `GetZoneWound`/`GetCurrentHealth` — make `bCriticalBleed` visually unmistakable (T3.2's stated requirement).
+   - Infection indicator → bind `OnInfectionStageChanged` and the wound-infection state inside `OnBodyZonesChanged` (two separate infection concepts, see `CLAUDE.md`'s Combat/ note) — show both plainly, per T3.3's reversal.
+   - Hotbar → bind `OnHotbarSlotsChanged`/`OnActiveHotbarIndexChanged`/`OnBusyChanged`, re-read `GetHotbarSlots()`; each slot's icon also binds the equipped `AZSWeapon`'s `OnDurabilityChanged`/`OnJamStateChanged` when that slot is the active one.
+   - Ammo counter → bind `AZSWeapon::OnMagazineAmmoChanged` for the magazine half; reserve ammo reads `UZSInventoryComponent::GetCarrySlots()` filtered to `Config == CurrentWeapon->GetConfig()->AmmoItemConfig`, summed — a plain Blueprint filter/sum, no new C++ needed.
+   - Interaction prompt → bind `AZSPlayerCharacter::OnNearestInteractableChanged`, read `InteractionVerb`.
+   - Stat-preview tooltip → call `GetStatPreviewLines()` on hover, render each line's Label/Value verbatim.
+   - Scoreboard → bind `OnPlayerListChanged`, re-read `PlayerArray` (native, always available on `AGameStateBase`).
+   - Toast list → bind `UZSNotificationSubsystem::OnToastQueued`, call `DismissToast` once each entry's own display timer elapses.
+3. **T3.11 (save/autosave indicator) is blocked**, not attempted — B3's save system doesn't exist yet, nothing to bind to. Revisit once B3 lands.
+4. T3.8 (legibility at both zoom extremes) is a testing pass once the widgets above exist, not a code task.
+
 ### B1-T5.0 — Inventory/loadout data-model prerequisite
 
 **Completed:**
@@ -194,10 +219,31 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - **Data model implemented** (uncompiled as of this entry - see below): `EZSEquipSlot::Hip` removed entirely, replaced by `Duffle` (`{None, Back, Duffle}`) - `Back`/`Duffle` are the two bag-capable gear slots, unchanged general `bIsEquippable`/`CarryCapacityBonus` mechanism. `EZSCarryLocation::Bag` split into `Backpack`/`Duffle`. `UZSInventoryComponent` gained `EquippedDuffle` (renamed from `EquippedHip`) and 3 new weapon-mount fields: `MountedLongGuns` (fixed 2-element `TArray<FGuid>`) + `MountedSidearm` (single `FGuid`), each a pure GUID reference into `CarrySlots` - **no `AZSWeapon` actor lifecycle**, mounting is a carry-capacity gate only, same as `EquippedBack`/`EquippedDuffle`, not the same thing as actively equipping via `CurrentWeapon`/hotbar. `Server_MountLongGun`/`Server_UnmountLongGun`/`Server_MountSidearm`/`Server_UnmountSidearm` validate via `UZSWeaponConfig::Handedness` (`TwoHanded` → long-gun slots, `OneHanded` + `AttackType::Ranged` → sidearm slot, excluding a one-handed melee weapon like a knife) - inferred from existing weapon-config fields, no new weapon-category field added. `Server_StoreInBag` now rejects `UZSWeaponConfig` instances outright (weapons excluded from all 3 compartments) and picks `Backpack` vs `Duffle` by the target bag's own `EquipSlot`. Fixed every downstream reference (`ZSNeedsComponent`'s insulation sum, one automation test).
 - **Deviated from the plan written here 2026-07-30 in one way, on purpose:** that version said the sidearm mount "probably reuses the renamed `Sidearm` equip slot directly." Implemented differently - `MountedSidearm` is its own field, not routed through `EZSEquipSlot`/`Server_EquipToSlot` at all. Reasoning: `Server_EquipToSlot`'s validation (`bIsEquippable`/`CarryCapacityBonus`) is a *bag* concern; a weapon mount's validation (`UZSWeaponConfig` type + `Handedness`) is a different one, and conflating them would have meant `Server_StoreInBag` needing extra special-casing to keep excluding weapons from bag storage anyway. Kept the two systems parallel instead - lower risk, cleaner separation matching how `SecondaryHandInstanceId` already lives on `AZSPlayerCharacter` as its own thing rather than folding into the bag-slot system.
 
+- ~~Get a real compile.~~ Done 2026-08-01 - full rebuild clean, `ZS.` automation suite run clean (`de612a5`; caught and fixed one real bug along the way, `ZS.UI.ModalStackOrdering` needed a valid `ULocalPlayer` outer chain - see `SessionHandoff.md`).
+- **`HotbarSlots` runtime-assignment mechanism - built.** `AZSPlayerCharacter::Server_AssignHotbarSlot`/`Server_ClearHotbarSlot`/`CanAssignToHotbarSlot` (commit `ea64726`, uncompiled as of this entry). Scoped exactly to the design already confirmed here: a hotbar slot points at a currently-**mounted** weapon (`UZSInventoryComponent::IsWeaponMounted`), not an arbitrary carried item - generalizing to non-weapon hotbar items (a quick-use consumable) is still open, see T5's Next steps below. Also added `GetHotbarSlots()` - `HotbarSlots` had no public C++ accessor at all before this.
+
 **Next steps:**
 
-~~Get a real compile.~~ Done 2026-08-01 - full rebuild clean, `ZS.` automation suite run clean (`de612a5`; caught and fixed one real bug along the way, `ZS.UI.ModalStackOrdering` needed a valid `ULocalPlayer` outer chain - see `SessionHandoff.md`).
-
 1. **Check existing content for a silent reinterpretation risk** (not yet done). `EZSEquipSlot::Hip` occupied raw enum value `2`; `Duffle` now occupies that same position (`{None=0, Back=1, Duffle=2}`). Any already-authored `UZSItemConfig`/`UZSWeaponConfig` instance whose `EquipSlot` was set to `Hip` will likely deserialize as `Duffle`, not fail loudly. `Content/ZS/Items/DA_Bag.uasset` (untracked, your own in-progress content) is the one to check first - open it and confirm `EquipSlot` still reads as the value you intended.
-2. **`HotbarSlots` becomes a quick-select pointer into a mount, not its own capacity check — deliberately still not started.** Turns out to be bigger than originally scoped: there's currently no runtime mechanism to assign an arbitrary `CarrySlots` instance into a hotbar slot at all - `HotbarSlots` is only ever populated once, at `BeginPlay`, from `StartingHotbarLoadout`. Making a mounted weapon hotbar-selectable means either building that assignment mechanism now (real new scope, arguably more T5-widget-adjacent than data-model) or deferring the actual wiring until T5's inventory screen exists to trigger it. Worth a call before starting - not guessed past.
-3. Duffle's `bIsBusy` gate ("opening its panel blocks movement") isn't wired anywhere yet - there's no panel to open (T5's job). The equip slot itself works today; the busy-gate is UI-triggered behavior with nothing to trigger it yet.
+2. Duffle's `bIsBusy` gate ("opening its panel blocks movement") isn't wired anywhere yet - there's no panel to open (T5's job below). The equip slot itself works today; the busy-gate is UI-triggered behavior with nothing to trigger it yet.
+
+### B1-T5 — Inventory screen
+
+**Completed (uncompiled as of this entry, commit `ea64726`):**
+- `UZSInventoryComponent::GetSlotsInLocation()` (T5.1) — the Pockets/Backpack/Duffle compartment filter T5's grid groups by.
+- New `UZSDragDropPayload` (T5.3) — reusable `UDragDropOperation` subclass (`InstanceId` + `SourceKind` + `SourceIndex`/`SourceEquipSlot`) every T5 item widget's `OnDragDetected` builds and every drop target's `OnDrop` reads; also reusable by T6's container transfer.
+- T5.0's `Server_AssignHotbarSlot`/`Server_ClearHotbarSlot` above are T5.4's hotbar-assignment half.
+- T5.2 (weight bar), T5.5 (condition/durability per instance) needed **no new code** — `GetCurrentWeight()`/`GetMaxCarryWeight()` and `FZSItemInstanceState::ConditionQuality` were already `BlueprintPure`/`BlueprintReadWrite`, directly bindable from a "Break" node in Blueprint.
+- T5.6 reuses T3.7's `GetStatPreviewLines()` — see the T3 section above, nothing T5-specific to add.
+
+**Next steps:**
+
+1. **Get a real compile** — same rebuild as T3's, not yet done (editor was open this pass).
+2. **Build `WBP_ZS_Inventory`** (the Tab-opened Loadout screen, per `Docs/Planning/B1_UIDesignSession_2026-07-30.md`'s layout) and its child widgets:
+   - Three compartment panels (Pockets/Backpack/Duffle) → each calls `GetSlotsInLocation()` for its own `EZSCarryLocation`, bound to `OnInventoryChanged` to refresh.
+   - Weight bar → `GetCurrentWeight()` / `GetMaxCarryWeight()`, threshold marker at `GetMaxCarryWeight()` itself (the encumbrance penalty starts exactly there, see `GetEncumbranceMultiplier()`'s own comment).
+   - Item widget → `OnDragDetected` constructs a `UZSDragDropPayload` (`InstanceId` + the correct `SourceKind`); condition/durability reads `InstanceState.ConditionQuality` directly.
+   - Drop targets (compartment panel, equip slot, weapon-mount slot, hotbar slot) → each `OnDrop` reads the payload and calls the matching `Server_` function (`Server_EquipToSlot`, `Server_MountLongGun`/`Server_MountSidearm`, `Server_AssignHotbarSlot`) - **every drag also needs a keyboard-driven equivalent** (T5.3's standing keyboard-accessibility requirement, same as T2.4).
+   - Tooltip → `GetStatPreviewLines()` on hover, same pattern as T3.7.
+3. **T5.7 (2-client verified)** — folds into the same B1 exit sweep as PT1's 2-client half (see this doc's Exit criteria section); not a separate task, just don't forget it's still owed.
+4. **Non-weapon hotbar items** (a quick-use consumable in a hotbar slot) — explicitly **not** built. `Server_AssignHotbarSlot` only accepts a mounted weapon today, per the design this doc already confirmed; broadening it to arbitrary items is new scope needing its own call, not guessed past here.
