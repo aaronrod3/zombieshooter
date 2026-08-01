@@ -1771,6 +1771,13 @@ bool FZSHotbarAssignmentTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	// Same BeginPlay gotcha as ZS.Health.AmputationStateTransition/ZS.Combat.ZombieBiteZoneWeightedRoll -
+	// HotbarSlots is only sized to NumHotbarSlots (HotbarSlots.Init) inside BeginPlay, so indexing it
+	// before this would read past an empty array.
+	if (!Character->HasActorBegunPlay())
+	{
+		Character->DispatchBeginPlay();
+	}
 
 	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
 	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
