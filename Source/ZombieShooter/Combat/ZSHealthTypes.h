@@ -102,3 +102,20 @@ struct FZSBodyZoneWound
 	UPROPERTY(BlueprintReadOnly)
 	float WoundInfectionProgressGameHours = 0.f;
 };
+
+/** B1-T7.1: what a death screen needs to show "cause of death" - captured at the moment of every hit in UZSHealthComponent::Server_ApplyDamage (not just the killing one, so it's always current by the time Die() runs), read back via GetLastDeathInfo() once OnDeath fires. Plain Replicated (not ReplicatedUsing) - always set before bIsDead in the same function call, same "set before the bool in the same function" pattern AZSGameState::PendingSleepHours already uses, so OnRep_IsDead always sees the correct value already in place. */
+USTRUCT(BlueprintType)
+struct FZSDeathInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Health")
+	EZSBodyZone Zone = EZSBodyZone::Torso;
+
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Health")
+	EZSWoundType WoundType = EZSWoundType::None;
+
+	/** Resolved from the damage event's EventInstigator - the instigator's PlayerState name if a player dealt the hit, a generic "Zombie" label if the instigator exists but has no PlayerState (the only other damage source in this project), or "Unknown" if there was no instigator at all (e.g. bleed/infection damage has none). See UZSHealthComponent::Server_ApplyDamage. */
+	UPROPERTY(BlueprintReadOnly, Category = "ZS|Health")
+	FText InstigatorLabel;
+};

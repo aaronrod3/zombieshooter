@@ -120,6 +120,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|WorldClock")
 	bool IsSleepRequestPending() const { return bSleepRequestPending; }
 
+	/** T7.4: "2/4 ready" for a sleep prompt widget - AZSPlayerCharacter::IsReadyToSleep() is already public/BlueprintPure and PlayerArray is always available, so a widget could loop this itself, but every consumer would otherwise duplicate the same cast-and-count loop UpdateSleepRequestState already does internally. Counts every connected player, not just ones who've pressed sleep - a widget wanting "who's still not ready" diffs against PlayerArray itself. */
+	UFUNCTION(BlueprintPure, Category = "ZS|WorldClock")
+	void GetSleepReadyCounts(int32& OutReadyCount, int32& OutTotalCount) const;
+
 	/** T7.4: the one delegate a future sleep-prompt widget binds to instead of polling IsSleepRequestPending() every tick - see OnRep_SleepRequestPending. */
 	UPROPERTY(BlueprintAssignable, Category = "ZS|WorldClock")
 	FZSOnSleepRequestStateChanged OnSleepRequestStateChanged;

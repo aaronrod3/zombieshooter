@@ -29,6 +29,7 @@ class UZSInventoryComponent;
 class AZombieCharacter;
 class USpotLightComponent;
 class UZSUIManager;
+class AZSContainerActor;
 struct FInputActionValue;
 struct FDamageEvent;
 
@@ -614,6 +615,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
 	UZSHealthComponent* GetHealthComponent() const { return HealthComponent; }
 
+	/** T7.2: RespawnDelaySeconds is EditAnywhere-only (protected), not Blueprint-readable on its own - a death screen countdown reads this once (starting its own local timer from whenever IsDead() locally flips true) rather than trying to query the server-only RespawnTimerHandle's remaining time, which isn't valid/meaningful on a non-host client. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	float GetRespawnDelaySeconds() const { return RespawnDelaySeconds; }
+
 	/** Client-callable entry point - GameDevPlan.md P3's "simplest version first" amputation: any zone context, solo-capable, no tool-item requirement enforced here (open questions on tool/timing/co-op-assist are refinements in GameDevPlan.md §7, not blockers). Routes through Server_AmputateZone, which now runs the real B0-T7.1 choreography (bIsBusy + montage + real duration) before HealthComponent->Server_AmputateZone actually mutates anything - HealthComponent stays the authority on whether it's valid (Arms/Legs only, not already amputated), this class only owns the timing/blackout consequences layered on top. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Health")
 	void AmputateZone(EZSBodyZone Zone);
@@ -759,6 +764,14 @@ public:
 	 * otherwise delegates to UZSInventoryComponent::Server_StoreInBag for the checks it already owns. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	bool Server_StoreInBagChecked(FGuid BagInstanceId, FGuid ItemInstanceId);
+
+	/** B1-T6.2: real RPC wrapper (unlike AZSContainerActor::Server_TakeItem/UZSInventoryComponent's own Server_-named functions, which are plain HasAuthority()-gated calls, not RPCs, and so only work when invoked from already-server-authoritative code) - a client's T6 loot-screen widget calls this directly, same pattern already established by Server_AssignHotbarSlot. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_TakeContainerItem(AZSContainerActor* Container, FGuid InstanceId);
+
+	/** The "Take All" button's client-callable entry point - same RPC reasoning as Server_TakeContainerItem. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_TakeAllContainerItems(AZSContainerActor* Container);
 
 protected:
 

@@ -37,6 +37,7 @@
 #include "ZSZombieConfig.h"
 #include "ZSUIManager.h"
 #include "ZSNotificationSubsystem.h"
+#include "ZSContainerActor.h"
 
 namespace ZSTest
 {
@@ -1922,6 +1923,177 @@ bool FZSNotificationQueueTest::RunTest(const FString& Parameters)
 	// Dismissing an already-gone Id is a no-op, not an error.
 	Notifications->DismissToast(ToastId);
 	TestEqual(TEXT("Dismissing a stale Id is a no-op"), Notifications->GetActiveToasts().Num(), 0);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.ContainerTakeItemIsDupeSafe - B1-T6.2/T6.3. Server_TakeItem is the per-item take
+// T6.2 needed to replace "loot all," and T6.3 requires it to be dupe-safe under a real-time
+// contest between two players. Verified here as a single-threaded server-authoritative call:
+// find-by-GUID-and-remove is atomic within one function call, so a second Server_TakeItem for the
+// same InstanceId correctly fails once the first has already removed it - no separate locking
+// mechanism needed. Server_AddItemToContainer (new alongside this) is what seeds test data without
+// depending on a real LootTable content asset.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSContainerTakeItemTest, "ZS.Inventory.ContainerTakeItemIsDupeSafe", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSContainerTakeItemTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSContainerActor* Container = TestWorld.World->SpawnActor<AZSContainerActor>();
+	AZSPlayerCharacter* PlayerA = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	AZSPlayerCharacter* PlayerB = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Container spawned"), Container) || !TestNotNull(TEXT("Player A spawned"), PlayerA) || !TestNotNull(TEXT("Player B spawned"), PlayerB))
+	{
+		return false;
+	}
+
+	UZSItemConfig* ItemConfig = NewObject<UZSItemConfig>();
+
+	FZSItemInstance Instance;
+	Instance.InstanceId = FGuid::NewGuid();
+	Instance.Config = ItemConfig;
+	Instance.StackCount = 1;
+	if (!TestTrue(TEXT("Item seeded into container"), Container->Server_AddItemToContainer(Instance)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Container has one item"), Container->GetContainerSlots().Num(), 1))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("Player A's take succeeds"), Container->Server_TakeItem(Instance.InstanceId, PlayerA));
+	TestEqual(TEXT("Container empty after the take"), Container->GetContainerSlots().Num(), 0);
+	TestEqual(TEXT("Player A's inventory received the item"), PlayerA->GetInventoryComponent()->GetCarrySlots().Num(), 1);
+
+	// Player B races for the same (now-gone) item - must fail, not duplicate.
+	TestFalse(TEXT("Player B's take of the same InstanceId fails - dupe-safe"), Container->Server_TakeItem(Instance.InstanceId, PlayerB));
+	TestEqual(TEXT("Player B's inventory received nothing"), PlayerB->GetInventoryComponent()->GetCarrySlots().Num(), 0);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSContainerTakeAllTest, "ZS.Inventory.ContainerTakeAllTransfersEverything", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSContainerTakeAllTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSContainerActor* Container = TestWorld.World->SpawnActor<AZSContainerActor>();
+	AZSPlayerCharacter* Player = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Container spawned"), Container) || !TestNotNull(TEXT("Player spawned"), Player))
+	{
+		return false;
+	}
+
+	FZSItemInstance InstanceA;
+	InstanceA.InstanceId = FGuid::NewGuid();
+	InstanceA.Config = NewObject<UZSItemConfig>();
+	InstanceA.StackCount = 1;
+	Container->Server_AddItemToContainer(InstanceA);
+
+	FZSItemInstance InstanceB;
+	InstanceB.InstanceId = FGuid::NewGuid();
+	InstanceB.Config = NewObject<UZSItemConfig>();
+	InstanceB.StackCount = 1;
+	Container->Server_AddItemToContainer(InstanceB);
+
+	if (!TestEqual(TEXT("Container has two items"), Container->GetContainerSlots().Num(), 2))
+	{
+		return false;
+	}
+
+	Container->Server_TakeAllItems(Player);
+
+	TestEqual(TEXT("Container empty after take-all"), Container->GetContainerSlots().Num(), 0);
+	TestEqual(TEXT("Player received both items"), Player->GetInventoryComponent()->GetCarrySlots().Num(), 2);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Health.LastDeathInfoCapturesLastHit - B1-T7.1. A death screen needs "cause of death," which
+// didn't exist anywhere before this pass - Server_ApplyDamage now caches Zone/WoundType/instigator
+// label into LastDeathInfo on every hit. No instigator (this test) resolves to "Unknown" - see
+// UZSHealthComponent::Server_ApplyDamage's comment for the Zombie/player/Unknown resolution.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSDeathInfoTest, "ZS.Health.LastDeathInfoCapturesLastHit", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSDeathInfoTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSHealthConfig* HealthConfig = LoadObject<UZSHealthConfig>(nullptr, TEXT("/Game/ZS/Stats/Health/DA_ZS_HealthConfig_Default.DA_ZS_HealthConfig_Default"));
+	if (!TestNotNull(TEXT("DA_ZS_HealthConfig_Default loaded"), HealthConfig))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+
+	if (!Harness->HasActorBegunPlay())
+	{
+		Harness->DispatchBeginPlay();
+	}
+	Harness->HealthComponent->HealthConfig = HealthConfig;
+
+	Harness->HealthComponent->Server_ApplyDamage(10.f, EZSBodyZone::Legs, EZSWoundType::Laceration, nullptr, nullptr);
+
+	const FZSDeathInfo Info = Harness->HealthComponent->GetLastDeathInfo();
+	TestEqual(TEXT("LastDeathInfo captured the hit zone"), Info.Zone, EZSBodyZone::Legs);
+	TestEqual(TEXT("LastDeathInfo captured the wound type"), Info.WoundType, EZSWoundType::Laceration);
+	TestEqual(TEXT("No instigator resolves to Unknown"), Info.InstigatorLabel.ToString(), FString(TEXT("Unknown")));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Survival.SleepReadyCounts - B1-T7.4. Smoke-tests the zero-players edge case only (populating
+// AGameStateBase::PlayerArray with real connected players needs PlayerController/PlayerState setup
+// beyond what this headless harness builds elsewhere) - confirms no divide-by-zero-style issue
+// rather than exercising the "2 of 4 ready" case a real PIE session would.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSSleepReadyCountsTest, "ZS.Survival.SleepReadyCounts", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSSleepReadyCountsTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSGameState* GameState = TestWorld.World->SpawnActor<AZSGameState>();
+	if (!TestNotNull(TEXT("GameState spawned"), GameState))
+	{
+		return false;
+	}
+
+	int32 ReadyCount = -1;
+	int32 TotalCount = -1;
+	GameState->GetSleepReadyCounts(ReadyCount, TotalCount);
+
+	TestEqual(TEXT("No players connected - zero ready"), ReadyCount, 0);
+	TestEqual(TEXT("No players connected - zero total"), TotalCount, 0);
 
 	return true;
 }

@@ -55,23 +55,50 @@ void AZSContainerActor::OnRep_ContainerSlots()
 	{
 		InteractableComponent->bIsInteractable = ContainerSlots.Num() > 0;
 	}
+
+	OnContainerSlotsChanged.Broadcast();
 }
 
-void AZSContainerActor::HandleInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor)
+bool AZSContainerActor::Server_TakeItem(FGuid InstanceId, AZSPlayerCharacter* Requester)
 {
-	// Temporary verification logging for B0-T1 Stage G re-test - remove once a world-prompt widget
-	// exists and failures here are visible without the log (same note as Server_Fire).
-	if (!HasAuthority() || !Interactor || ContainerSlots.Num() == 0)
+	if (!HasAuthority() || !Requester || !InstanceId.IsValid())
 	{
-		UE_LOG(LogZombieShooter, Log, TEXT("%s: HandleInteracted rejected - HasAuthority=%d Interactor=%s ContainerSlots=%d"),
-			*GetName(), HasAuthority(), *GetNameSafe(Interactor), ContainerSlots.Num());
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Requester->GetInventoryComponent();
+	if (!Inventory)
+	{
+		return false;
+	}
+
+	const int32 Index = ContainerSlots.IndexOfByPredicate([InstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == InstanceId; });
+	if (Index == INDEX_NONE)
+	{
+		// Already taken by someone else (or never existed) - this IS the dupe-safety guarantee, not
+		// a failure worth logging every time two players race for the same item.
+		return false;
+	}
+
+	const FZSItemInstance TakenInstance = ContainerSlots[Index];
+	ContainerSlots.RemoveAt(Index);
+	Inventory->Server_AddItemInstance(TakenInstance);
+	OnRep_ContainerSlots();
+
+	return true;
+}
+
+void AZSContainerActor::Server_TakeAllItems(AZSPlayerCharacter* Requester)
+{
+	if (!HasAuthority() || !Requester)
+	{
 		return;
 	}
 
-	UZSInventoryComponent* Inventory = Interactor->GetInventoryComponent();
+	UZSInventoryComponent* Inventory = Requester->GetInventoryComponent();
 	if (!Inventory)
 	{
-		UE_LOG(LogZombieShooter, Log, TEXT("%s: HandleInteracted rejected - %s has no InventoryComponent"), *GetName(), *Interactor->GetName());
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_TakeAllItems rejected - %s has no InventoryComponent"), *GetName(), *Requester->GetName());
 		return;
 	}
 
@@ -82,16 +109,34 @@ void AZSContainerActor::HandleInteracted(UZSInteractableComponent* Interactable,
 		{
 			Inventory->Server_AddItemInstance(Instance);
 			++ItemsTransferred;
-
-			// Temporary GUID logging for B0-T2 Checkpoint A - remove alongside the rest of this
-			// session's verification logging (B0-T5.5).
-			UE_LOG(LogZombieShooter, Log, TEXT("%s: transferred %s x%d, InstanceId %s"),
-				*GetName(), *Instance.Config->DisplayName.ToString(), Instance.StackCount, *Instance.InstanceId.ToString());
 		}
 	}
 
-	UE_LOG(LogZombieShooter, Log, TEXT("%s: loot-all transferred %d slot(s) to %s"), *GetName(), ItemsTransferred, *Interactor->GetName());
+	UE_LOG(LogZombieShooter, Log, TEXT("%s: take-all transferred %d slot(s) to %s"), *GetName(), ItemsTransferred, *Requester->GetName());
 
 	ContainerSlots.Empty();
 	OnRep_ContainerSlots();
+}
+
+bool AZSContainerActor::Server_AddItemToContainer(FZSItemInstance Instance)
+{
+	if (!HasAuthority() || !Instance.IsValid())
+	{
+		return false;
+	}
+
+	ContainerSlots.Add(Instance);
+	OnRep_ContainerSlots();
+
+	return true;
+}
+
+void AZSContainerActor::HandleInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor)
+{
+	if (!HasAuthority() || !Interactor || ContainerSlots.Num() == 0)
+	{
+		return;
+	}
+
+	Server_TakeAllItems(Interactor);
 }

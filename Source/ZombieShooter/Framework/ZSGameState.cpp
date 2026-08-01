@@ -243,6 +243,21 @@ float AZSGameState::RollConditionQuality(EZSItemRarity Rarity) const
 	return FMath::FRandRange(FMath::Min(Band.MinQuality, Band.MaxQuality), Band.MaxQuality);
 }
 
+void AZSGameState::GetSleepReadyCounts(int32& OutReadyCount, int32& OutTotalCount) const
+{
+	OutReadyCount = 0;
+	OutTotalCount = PlayerArray.Num();
+
+	for (const APlayerState* PS : PlayerArray)
+	{
+		const AZSPlayerCharacter* PlayerCharacter = PS ? Cast<AZSPlayerCharacter>(PS->GetPawn()) : nullptr;
+		if (PlayerCharacter && PlayerCharacter->IsReadyToSleep())
+		{
+			++OutReadyCount;
+		}
+	}
+}
+
 void AZSGameState::NotifyPlayerListChanged()
 {
 	if (!HasAuthority())

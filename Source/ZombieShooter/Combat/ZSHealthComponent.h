@@ -77,6 +77,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
 	bool IsDead() const { return bIsDead; }
 
+	/** B1-T7.1: what killed this character - see FZSDeathInfo's own comment. Meaningful once IsDead() is true; reflects whatever the most recent hit was before that. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	FZSDeathInfo GetLastDeathInfo() const { return LastDeathInfo; }
+
 	/** Legs zone: 1 = full mobility, lower = worse (Fracture/amputation). */
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
 	float GetMobilityMultiplier() const;
@@ -145,6 +149,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_IsDead, Category = "ZS|Health")
 	bool bIsDead = false;
+
+	/** B1-T7.1: set at the top of every Server_ApplyDamage call, before bIsDead can flip - see FZSDeathInfo's own comment for why this is plain Replicated, not ReplicatedUsing. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "ZS|Health")
+	FZSDeathInfo LastDeathInfo;
 
 	UFUNCTION()
 	void OnRep_CurrentHealth();

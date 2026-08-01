@@ -6,6 +6,8 @@
 #include "Net/UnrealNetwork.h"
 #include "ZombieShooter.h"
 #include "Engine/Engine.h"
+#include "GameFramework/Controller.h"
+#include "GameFramework/PlayerState.h"
 
 UZSHealthComponent::UZSHealthComponent()
 {
@@ -26,6 +28,7 @@ void UZSHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UZSHealthComponent, BodyZones);
 	DOREPLIFETIME(UZSHealthComponent, InfectionStage);
 	DOREPLIFETIME(UZSHealthComponent, bIsDead);
+	DOREPLIFETIME(UZSHealthComponent, LastDeathInfo);
 }
 
 void UZSHealthComponent::BeginPlay()
@@ -154,6 +157,28 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 
 	CurrentHealth = FMath::Clamp(CurrentHealth - DamageAmount, 0.f, GetMaxHealth());
 	OnRep_CurrentHealth();
+
+	// B1-T7.1: set before Die() can possibly run below (see FZSDeathInfo's own comment on why this
+	// is a plain Replicated field, not ReplicatedUsing) - always reflects the most recent hit, which
+	// for a killing blow is exactly the cause of death.
+	LastDeathInfo.Zone = Zone;
+	LastDeathInfo.WoundType = WoundType;
+	if (EventInstigator && EventInstigator->PlayerState)
+	{
+		LastDeathInfo.InstigatorLabel = FText::FromString(EventInstigator->PlayerState->GetPlayerName());
+	}
+	else if (EventInstigator)
+	{
+		// The only other damage instigator in this project is a zombie's AIController, which has no
+		// PlayerState - see AZombieAIController.
+		LastDeathInfo.InstigatorLabel = FText::FromString(TEXT("Zombie"));
+	}
+	else
+	{
+		// No instigator at all - bleed/infection damage (UZSHealthComponent::TickBleed/TickInfection)
+		// calls Server_ApplyDamage with EventInstigator unset.
+		LastDeathInfo.InstigatorLabel = FText::FromString(TEXT("Unknown"));
+	}
 
 	// B0-T5.5: temporary UE_LOG/on-screen confirmation removed - OnDamageImpact is the stub a
 	// Blueprint subclass binds cosmetic VFX/SFX to; real pass is B7.

@@ -35,6 +35,7 @@
 #include "../Survival/ZSItemConfig.h"
 #include "../Zombies/ZSNoiseSystem.h"
 #include "../Inventory/ZSInventoryComponent.h"
+#include "../Inventory/ZSContainerActor.h"
 #include "../Zombies/ZombieCharacter.h"
 #include "../UI/ZSUIManager.h"
 #include "Engine/OverlapResult.h"
@@ -1331,6 +1332,26 @@ bool AZSPlayerCharacter::Server_StoreInBagChecked(FGuid BagInstanceId, FGuid Ite
 	}
 
 	return GetInventoryComponent()->Server_StoreInBag(BagInstanceId, ItemInstanceId);
+}
+
+void AZSPlayerCharacter::Server_TakeContainerItem_Implementation(AZSContainerActor* Container, FGuid InstanceId)
+{
+	if (!HasAuthority() || !Container)
+	{
+		return;
+	}
+
+	Container->Server_TakeItem(InstanceId, this);
+}
+
+void AZSPlayerCharacter::Server_TakeAllContainerItems_Implementation(AZSContainerActor* Container)
+{
+	if (!HasAuthority() || !Container)
+	{
+		return;
+	}
+
+	Container->Server_TakeAllItems(this);
 }
 
 void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
