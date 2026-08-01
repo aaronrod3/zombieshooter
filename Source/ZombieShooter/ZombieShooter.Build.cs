@@ -19,6 +19,7 @@ public class ZombieShooter : ModuleRules
 			"NavigationSystem",
 			"UMG",
 			"Slate",
+			"SlateCore",
 			"PhysicsCore"
 		});
 
