@@ -155,34 +155,12 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 **Completed:**
 - `UZSUIManager` C++ implemented — modal stack, `HandleAttack`/`IsCursorFacingActive` hard-gated directly on `IsAnyModalActive()` (commit `aee5eb1`).
-- `IA_UISelect`/`IA_UICancel`/`IA_UINavigate` created in-editor with correct Value Types (Boolean/Boolean/Axis2D, confirmed via `unreal-mcp` 2026-07-30).
-- `IMC_ZS_UI.uasset` now exists on disk, alongside `IA_UISelect.uasset`/`IA_UICancel.uasset` (inferred from `git status` — these weren't saved `.uasset` files earlier in the session; **not independently re-verified**, `unreal-mcp` was disconnected for this check. Confirm the actual mappings/modifiers inside `IMC_ZS_UI` match step 3 below before checking it off, and confirm the 3 rows were actually removed from `IMC_ZS_Default` per step 1, not just that new files exist.)
+- `IA_UISelect`/`IA_UICancel`/`IA_UINavigate`/`IMC_ZS_UI` all created and mapped correctly in-editor, confirmed by a clean rebuild + a passing `ZS.UI.ModalStackOrdering` automation run (`de612a5`, 2026-08-01) — the 3 misplaced rows are gone from `IMC_ZS_Default`, `IMC_ZS_UI` has the right mappings/modifiers.
+- Full project rebuild verified clean, `ZS.` automation suite run clean (only the 5 pre-existing unrelated failures tracked in `SessionHandoff.md`).
 
 **Next steps:**
 
-1. ~~Remove the 3 misplaced rows from `IMC_ZS_Default`.~~ Open it and double-check the `IA_UISelect`/`IA_UICancel`/`IA_UINavigate` rows are actually gone (not just superseded) — `IA_Attack`'s own `LeftMouseButton` mapping should be the only survivor among these overlapping keys.
-
-2. ~~Create `IMC_ZS_UI`.~~ Confirmed on disk.
-
-3. **Verify the mappings inside `IMC_ZS_UI`** match this exactly:
-   - `IA_UISelect` → Key `Left Mouse Button`. No triggers, no modifiers.
-   - `IA_UICancel` → Key `Escape`. No triggers, no modifiers.
-   - `IA_UINavigate` (Axis2D) → **4 separate rows**, one per arrow key, mirroring `IA_Move`'s W/A/S/D setup:
-
-     | Key | Modifiers (in order) |
-     |---|---|
-     | Up Arrow | `Swizzle Input Axis Values` |
-     | Down Arrow | `Swizzle Input Axis Values`, then `Negate` |
-     | Left Arrow | `Negate` |
-     | Right Arrow | *(none)* |
-
-     Order matters (top-to-bottom = evaluation order) — Swizzle before Negate on Down Arrow, matching S. If any of this is missing/wrong, fix it and `Ctrl+S`.
-
-4. **Regen project files + full rebuild** — this adds a brand-new `UCLASS` (`Source/ZombieShooter/UI/`), not a Live Coding patch. Exact commands in `Docs/CommandReference.md` (close the editor first — check nothing's holding the build open, then `Build.bat -projectfiles`, then the normal `Build.bat ZombieShooterEditor Win64 Development`). **This pass also added new C++ under `Source/ZombieShooter/UI/`** (see T2/T5.0 entries below) — one rebuild covers all of it, no need to rebuild per-task.
-
-5. **Run the automation suite once** to confirm `ZS.UI.ModalStackOrdering` actually passes (new test, pure state logic, no PIE needed) — command in `Docs/CommandReference.md`'s "Editor close/rebuild for automation test runs" section.
-
-6. **PT1 in PIE** (hands-only, no automation path exists for this):
+1. **PT1 in PIE** (hands-only, no automation path exists for this):
    - `ZS.UI.PushTestModal Test` while mid-attack (e.g. holding the trigger on an auto weapon) — attack should stop dead, no leaked shots.
    - `ZS.UI.PopTestModal Test` at the exact moment of a click — that click should not fire an attack.
    - Spam `PushTestModal`/`PopTestModal` rapidly (different tags each time) — no stuck cursor, no stuck input mode, no error spam.
@@ -199,7 +177,7 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 **Next steps:**
 
-1. **Create `DA_ZS_UIStyle_Default`** once the rebuild below lands: right-click in `/Game/ZS/UI/` (create the folder if it doesn't exist) → Miscellaneous → Data Asset → pick `ZSUIStyleConfig` as the class → name it `DA_ZS_UIStyle_Default`. The C++ defaults are already functional-grey-appropriate; no field edits needed yet (OQ-B1-01: real restyle is B2's job).
+1. **Create `DA_ZS_UIStyle_Default`** (rebuild already confirmed clean): right-click in `/Game/ZS/UI/` (create the folder if it doesn't exist) → Miscellaneous → Data Asset → pick `ZSUIStyleConfig` as the class → name it `DA_ZS_UIStyle_Default`. The C++ defaults are already functional-grey-appropriate; no field edits needed yet (OQ-B1-01: real restyle is B2's job).
 2. **`WBP_ZS_Base` Widget Blueprint is deliberately not created yet** — no real screen exists to use it until T3 builds the first HUD element. Create it (right-click → User Interface → Widget Blueprint, reparent to `UZSUserWidgetBase`) when that work actually starts, not speculatively now.
 3. T2.2 (every widget binds a delegate, never polls) and T2.3 (widget pooling for list-heavy screens) have no code to write yet either — T2.2 is a convention to hold future widgets to (this pass's delegate audit below is the groundwork for it), T2.3 has nothing to pool until T5's grid exists. Neither is a content gap, just not-yet-applicable.
 
@@ -224,7 +202,8 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 **Next steps:**
 
-1. **Get a real compile.** This was written present-session but without a build available at the time (a `dotnet`/`MSBuild` process was active) - the data-model layer above needs its own verification pass before trusting it, same as the rest of this session's C++.
+~~Get a real compile.~~ Done 2026-08-01 - full rebuild clean, `ZS.` automation suite run clean (`de612a5`; caught and fixed one real bug along the way, `ZS.UI.ModalStackOrdering` needed a valid `ULocalPlayer` outer chain - see `SessionHandoff.md`).
+
+1. **Check existing content for a silent reinterpretation risk** (not yet done). `EZSEquipSlot::Hip` occupied raw enum value `2`; `Duffle` now occupies that same position (`{None=0, Back=1, Duffle=2}`). Any already-authored `UZSItemConfig`/`UZSWeaponConfig` instance whose `EquipSlot` was set to `Hip` will likely deserialize as `Duffle`, not fail loudly. `Content/ZS/Items/DA_Bag.uasset` (untracked, your own in-progress content) is the one to check first - open it and confirm `EquipSlot` still reads as the value you intended.
 2. **`HotbarSlots` becomes a quick-select pointer into a mount, not its own capacity check — deliberately still not started.** Turns out to be bigger than originally scoped: there's currently no runtime mechanism to assign an arbitrary `CarrySlots` instance into a hotbar slot at all - `HotbarSlots` is only ever populated once, at `BeginPlay`, from `StartingHotbarLoadout`. Making a mounted weapon hotbar-selectable means either building that assignment mechanism now (real new scope, arguably more T5-widget-adjacent than data-model) or deferring the actual wiring until T5's inventory screen exists to trigger it. Worth a call before starting - not guessed past.
 3. Duffle's `bIsBusy` gate ("opening its panel blocks movement") isn't wired anywhere yet - there's no panel to open (T5's job). The equip slot itself works today; the busy-gate is UI-triggered behavior with nothing to trigger it yet.
-4. **Check existing content for a silent reinterpretation risk.** `EZSEquipSlot::Hip` occupied raw enum value `2`; `Duffle` now occupies that same position (`{None=0, Back=1, Duffle=2}`). Any already-authored `UZSItemConfig`/`UZSWeaponConfig` instance whose `EquipSlot` was set to `Hip` will likely deserialize as `Duffle` after rebuilding, not fail loudly. `Content/ZS/Items/DA_Bag.uasset` (untracked, your own in-progress content) is the one to check first - open it and confirm `EquipSlot` still reads as the value you intended.
