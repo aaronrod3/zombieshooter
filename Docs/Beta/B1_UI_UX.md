@@ -188,17 +188,17 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 ### B1-T3 — HUD
 
-**Completed (uncompiled as of this entry, commit `ea64726`):**
+**Completed — compiled and automation-tested, commit `e064bc3`:**
 - `UZSNeedsComponent::GetMoodleEntries()`/`OnMoodleStackChanged` (T3.1) — one delegate + one array accessor covering Hunger/Thirst/Fatigue/Stamina/Temperature, so a 6th/7th need is a new entry in that function, not a new widget class.
 - `UZSItemConfig`/`UZSWeaponConfig::GetStatPreviewLines()` (T3.7, and T5.6 below reuses it) — the transparent-stat-preview contract, `BlueprintNativeEvent` so weapon configs append Damage/Fire Rate/Magazine on top of the base Hunger/Thirst/Carry Capacity/Insulation lines.
 - `AZSGameState::PlayerListVersion`/`OnPlayerListChanged` (T3.9) — `PlayerArray` itself has no change delegate, this is the wrapper a scoreboard widget binds to instead; wired from `AZSGameMode::PostLogin`/`Logout`.
 - New `UZSNotificationSubsystem` (T3.10) — client-local toast queue, same C++-state/Blueprint-presentation split as `UZSUIManager`. `AZSGameState::Multicast_ShowToast` + the same `PostLogin`/`Logout` hook wire up player-joined/left as the one concrete trigger so far. `ZS.UI.PushTestToast [message]` console command for pre-widget testing, same pattern as T1's `ZS.UI.PushTestModal`.
 - T3.2 (health/wound), T3.3 (infection), T3.4 (hotbar — plus the new `GetHotbarSlots()` accessor), T3.5 (ammo), T3.6 (interaction prompt) needed **no new code** — the T3/T7 delegate audit above already covers every bind point; those widgets just need building against what already exists.
+- ~~Get a real compile.~~ Done 2026-08-01 - full rebuild clean, `ZS.` automation suite (27 tests) run clean (`e064bc3`; caught and fixed two real bugs along the way — `Server_AssignHotbarSlot`/`Server_ClearHotbarSlot`/`CanAssignToHotbarSlot` had landed under `protected:` instead of `public:`, and the new hotbar-assignment test crashed the run by indexing `HotbarSlots` before `BeginPlay()` sized it — see `SessionHandoff.md`).
 
 **Next steps:**
 
-1. **Get a real compile** — editor was open this pass, didn't attempt `Build.bat` per `CLAUDE.md`. Full rebuild + `ZS.` automation suite run (6 new tests this pass, see `SessionHandoff.md`) before trusting any of the above.
-2. **Build the actual `WBP_ZS_*` widgets**, each reparented to `UZSUserWidgetBase` (T2's base). One widget per HUD element, each binding to the delegate already in place rather than polling:
+1. **Build the actual `WBP_ZS_*` widgets**, each reparented to `UZSUserWidgetBase` (T2's base). One widget per HUD element, each binding to the delegate already in place rather than polling:
    - Moodle stack → bind `OnMoodleStackChanged`, re-read `GetMoodleEntries()`.
    - Health/wound display → bind `OnBodyZonesChanged`/`OnHealthChanged`, re-read `GetZoneWound`/`GetCurrentHealth` — make `bCriticalBleed` visually unmistakable (T3.2's stated requirement).
    - Infection indicator → bind `OnInfectionStageChanged` and the wound-infection state inside `OnBodyZonesChanged` (two separate infection concepts, see `CLAUDE.md`'s Combat/ note) — show both plainly, per T3.3's reversal.
@@ -208,8 +208,8 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
    - Stat-preview tooltip → call `GetStatPreviewLines()` on hover, render each line's Label/Value verbatim.
    - Scoreboard → bind `OnPlayerListChanged`, re-read `PlayerArray` (native, always available on `AGameStateBase`).
    - Toast list → bind `UZSNotificationSubsystem::OnToastQueued`, call `DismissToast` once each entry's own display timer elapses.
-3. **T3.11 (save/autosave indicator) is blocked**, not attempted — B3's save system doesn't exist yet, nothing to bind to. Revisit once B3 lands.
-4. T3.8 (legibility at both zoom extremes) is a testing pass once the widgets above exist, not a code task.
+2. **T3.11 (save/autosave indicator) is blocked**, not attempted — B3's save system doesn't exist yet, nothing to bind to. Revisit once B3 lands.
+3. T3.8 (legibility at both zoom extremes) is a testing pass once the widgets above exist, not a code task.
 
 ### B1-T5.0 — Inventory/loadout data-model prerequisite
 
@@ -229,21 +229,21 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 ### B1-T5 — Inventory screen
 
-**Completed (uncompiled as of this entry, commit `ea64726`):**
+**Completed — compiled and automation-tested, commit `e064bc3`:**
 - `UZSInventoryComponent::GetSlotsInLocation()` (T5.1) — the Pockets/Backpack/Duffle compartment filter T5's grid groups by.
 - New `UZSDragDropPayload` (T5.3) — reusable `UDragDropOperation` subclass (`InstanceId` + `SourceKind` + `SourceIndex`/`SourceEquipSlot`) every T5 item widget's `OnDragDetected` builds and every drop target's `OnDrop` reads; also reusable by T6's container transfer.
 - T5.0's `Server_AssignHotbarSlot`/`Server_ClearHotbarSlot` above are T5.4's hotbar-assignment half.
 - T5.2 (weight bar), T5.5 (condition/durability per instance) needed **no new code** — `GetCurrentWeight()`/`GetMaxCarryWeight()` and `FZSItemInstanceState::ConditionQuality` were already `BlueprintPure`/`BlueprintReadWrite`, directly bindable from a "Break" node in Blueprint.
 - T5.6 reuses T3.7's `GetStatPreviewLines()` — see the T3 section above, nothing T5-specific to add.
+- ~~Get a real compile.~~ Done 2026-08-01 - same rebuild/test pass as T3's above (`e064bc3`), all 6 new tests pass including `ZS.Loadout.AssignHotbarSlotRequiresMountedWeapon`/`ZS.Inventory.SlotsInLocationFilter`.
 
 **Next steps:**
 
-1. **Get a real compile** — same rebuild as T3's, not yet done (editor was open this pass).
-2. **Build `WBP_ZS_Inventory`** (the Tab-opened Loadout screen, per `Docs/Planning/B1_UIDesignSession_2026-07-30.md`'s layout) and its child widgets:
+1. **Build `WBP_ZS_Inventory`** (the Tab-opened Loadout screen, per `Docs/Planning/B1_UIDesignSession_2026-07-30.md`'s layout) and its child widgets:
    - Three compartment panels (Pockets/Backpack/Duffle) → each calls `GetSlotsInLocation()` for its own `EZSCarryLocation`, bound to `OnInventoryChanged` to refresh.
    - Weight bar → `GetCurrentWeight()` / `GetMaxCarryWeight()`, threshold marker at `GetMaxCarryWeight()` itself (the encumbrance penalty starts exactly there, see `GetEncumbranceMultiplier()`'s own comment).
    - Item widget → `OnDragDetected` constructs a `UZSDragDropPayload` (`InstanceId` + the correct `SourceKind`); condition/durability reads `InstanceState.ConditionQuality` directly.
    - Drop targets (compartment panel, equip slot, weapon-mount slot, hotbar slot) → each `OnDrop` reads the payload and calls the matching `Server_` function (`Server_EquipToSlot`, `Server_MountLongGun`/`Server_MountSidearm`, `Server_AssignHotbarSlot`) - **every drag also needs a keyboard-driven equivalent** (T5.3's standing keyboard-accessibility requirement, same as T2.4).
    - Tooltip → `GetStatPreviewLines()` on hover, same pattern as T3.7.
-3. **T5.7 (2-client verified)** — folds into the same B1 exit sweep as PT1's 2-client half (see this doc's Exit criteria section); not a separate task, just don't forget it's still owed.
-4. **Non-weapon hotbar items** (a quick-use consumable in a hotbar slot) — explicitly **not** built. `Server_AssignHotbarSlot` only accepts a mounted weapon today, per the design this doc already confirmed; broadening it to arbitrary items is new scope needing its own call, not guessed past here.
+2. **T5.7 (2-client verified)** — folds into the same B1 exit sweep as PT1's 2-client half (see this doc's Exit criteria section); not a separate task, just don't forget it's still owed.
+3. **Non-weapon hotbar items** (a quick-use consumable in a hotbar slot) — explicitly **not** built. `Server_AssignHotbarSlot` only accepts a mounted weapon today, per the design this doc already confirmed; broadening it to arbitrary items is new scope needing its own call, not guessed past here.
