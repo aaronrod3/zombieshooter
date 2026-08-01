@@ -4,12 +4,17 @@
 #include "ZSWorldItemActor.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
+#include "../Weapons/ZSWeaponConfig.h"
 #include "../ZombieShooter.h"
 
 UZSInventoryComponent::UZSInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+
+	// B1-T5.0: always exactly NumLongGunMounts elements (invalid FGuid = empty mount), same "always
+	// sized, index is the identity" reasoning as AZSPlayerCharacter::HotbarSlots.
+	MountedLongGuns.SetNum(NumLongGunMounts);
 }
 
 void UZSInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -18,7 +23,9 @@ void UZSInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 
 	DOREPLIFETIME(UZSInventoryComponent, CarrySlots);
 	DOREPLIFETIME(UZSInventoryComponent, EquippedBack);
-	DOREPLIFETIME(UZSInventoryComponent, EquippedHip);
+	DOREPLIFETIME(UZSInventoryComponent, EquippedDuffle);
+	DOREPLIFETIME(UZSInventoryComponent, MountedLongGuns);
+	DOREPLIFETIME(UZSInventoryComponent, MountedSidearm);
 }
 
 float UZSInventoryComponent::GetCurrentWeight() const
@@ -26,7 +33,7 @@ float UZSInventoryComponent::GetCurrentWeight() const
 	float Total = 0.f;
 
 	// B0-T2 Step B: equipping never removes an instance from CarrySlots (see Server_EquipToSlot), so
-	// an equipped bag's weight is already counted by this loop alone - no separate EquippedBack/Hip
+	// an equipped bag's weight is already counted by this loop alone - no separate EquippedBack/Duffle
 	// special-case needed anymore. GetTotalWeight() (B0-T2.9) folds in a bag's ContainedItems too.
 	for (const FZSItemInstance& Instance : CarrySlots)
 	{
@@ -43,8 +50,8 @@ float UZSInventoryComponent::GetMaxCarryWeight() const
 	const FZSItemInstance BackInstance = GetInstance(EquippedBack);
 	if (BackInstance.Config) { MaxWeight += BackInstance.Config->CarryCapacityBonus; }
 
-	const FZSItemInstance HipInstance = GetInstance(EquippedHip);
-	if (HipInstance.Config) { MaxWeight += HipInstance.Config->CarryCapacityBonus; }
+	const FZSItemInstance DuffleInstance = GetInstance(EquippedDuffle);
+	if (DuffleInstance.Config) { MaxWeight += DuffleInstance.Config->CarryCapacityBonus; }
 
 	return MaxWeight;
 }
@@ -87,9 +94,14 @@ FZSItemInstance UZSInventoryComponent::GetEquippedItem(EZSEquipSlot Slot) const
 	switch (Slot)
 	{
 	case EZSEquipSlot::Back: return GetInstance(EquippedBack);
-	case EZSEquipSlot::Hip: return GetInstance(EquippedHip);
+	case EZSEquipSlot::Duffle: return GetInstance(EquippedDuffle);
 	default: return FZSItemInstance();
 	}
+}
+
+FZSItemInstance UZSInventoryComponent::GetMountedLongGun(int32 MountIndex) const
+{
+	return MountedLongGuns.IsValidIndex(MountIndex) ? GetInstance(MountedLongGuns[MountIndex]) : FZSItemInstance();
 }
 
 int32 UZSInventoryComponent::Server_AddItem(UZSItemConfig* Item, int32 Count)
@@ -298,7 +310,7 @@ bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid Instance
 		return false;
 	}
 
-	if (InstanceId == EquippedBack || InstanceId == EquippedHip)
+	if (InstanceId == EquippedBack || InstanceId == EquippedDuffle)
 	{
 		// Already worn in the other gear slot - can't equip the same physical bag twice at once.
 		return false;
@@ -312,7 +324,7 @@ bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid Instance
 
 	// Nothing is removed from CarrySlots - equipping just points the slot at an instance that's
 	// still (and stays) resident there. See the header comment on this function.
-	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedHip;
+	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedDuffle;
 	TargetRef = InstanceId;
 
 	OnRep_InventoryState();
@@ -326,7 +338,7 @@ void UZSInventoryComponent::Server_UnequipSlot(EZSEquipSlot Slot)
 		return;
 	}
 
-	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedHip;
+	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedDuffle;
 	if (!TargetRef.IsValid())
 	{
 		return;
@@ -345,7 +357,11 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 	}
 
 	FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
-	if (!Bag || !Bag->Config || !Bag->Config->bIsEquippable)
+	// B1-T5.0: EquipSlot must actually be Back or Duffle, not just bIsEquippable - a mounted sidearm
+	// (bIsEquippable + EquipSlot == None, since weapon mounts don't use this enum at all) or any
+	// other future equippable-but-not-a-bag item shouldn't be treated as storage.
+	if (!Bag || !Bag->Config || !Bag->Config->bIsEquippable
+		|| (Bag->Config->EquipSlot != EZSEquipSlot::Back && Bag->Config->EquipSlot != EZSEquipSlot::Duffle))
 	{
 		return false;
 	}
@@ -356,14 +372,23 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 		return false;
 	}
 
+	// B1-T5.0: weapons are excluded from all three compartments entirely - they use the mount slots
+	// instead. A UZSWeaponConfig instance would otherwise pass every check above (a rifle could be
+	// bIsEquippable == false by default, so this is mostly a safety net, not the primary gate).
+	if (Cast<UZSWeaponConfig>(CarrySlots[ItemIndex].Config))
+	{
+		return false;
+	}
+
 	// Reject storing an instance currently equipped to a gear slot - GetInstance()/GetEquippedItem()
-	// only resolve top-level CarrySlots, so nesting it here would silently orphan EquippedBack/Hip's
+	// only resolve top-level CarrySlots, so nesting it here would silently orphan EquippedBack/Duffle's
 	// GUID reference (it'd resolve to an invalid instance from then on) instead of clearing it.
-	// Note: this doesn't cover HotbarSlots/SecondaryHandInstanceId, which live on the owning
-	// AZSPlayerCharacter, not here. Closed 2026-07-30 via AZSPlayerCharacter::Server_StoreInBagChecked,
-	// which validates against that character-side state before calling this function - callers should
-	// go through that wrapper, not this function directly, wherever a character is available.
-	if (ItemInstanceId == EquippedBack || ItemInstanceId == EquippedHip)
+	// Note: this doesn't cover HotbarSlots/SecondaryHandInstanceId/weapon mounts, which live on the
+	// owning AZSPlayerCharacter or are checked above - Closed 2026-07-30 via
+	// AZSPlayerCharacter::Server_StoreInBagChecked, which validates against that character-side state
+	// before calling this function - callers should go through that wrapper, not this function
+	// directly, wherever a character is available.
+	if (ItemInstanceId == EquippedBack || ItemInstanceId == EquippedDuffle)
 	{
 		return false;
 	}
@@ -377,7 +402,7 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 	}
 
 	FZSItemInstance MovedItem = CarrySlots[ItemIndex];
-	MovedItem.Location = EZSCarryLocation::Bag;
+	MovedItem.Location = (Bag->Config->EquipSlot == EZSEquipSlot::Duffle) ? EZSCarryLocation::Duffle : EZSCarryLocation::Backpack;
 	CarrySlots.RemoveAt(ItemIndex);
 
 	// Re-find Bag - CarrySlots.RemoveAt above may have reallocated/shifted the array, invalidating
@@ -494,7 +519,94 @@ void UZSInventoryComponent::Server_DropAllItems(FVector DropLocation)
 
 	CarrySlots.Empty();
 	EquippedBack = FGuid();
-	EquippedHip = FGuid();
+	EquippedDuffle = FGuid();
+	// B1-T5.0: mounted weapons are just CarrySlots instances too (dropped in the loop above) - their
+	// mount-slot GUID references need clearing the same way EquippedBack/Duffle's do.
+	for (FGuid& MountSlot : MountedLongGuns)
+	{
+		MountSlot = FGuid();
+	}
+	MountedSidearm = FGuid();
+	OnRep_InventoryState();
+}
+
+bool UZSInventoryComponent::IsWeaponMounted(FGuid InstanceId) const
+{
+	if (!InstanceId.IsValid())
+	{
+		return false;
+	}
+	return MountedSidearm == InstanceId || MountedLongGuns.Contains(InstanceId);
+}
+
+const UZSWeaponConfig* UZSInventoryComponent::ResolveMountableWeapon(FGuid InstanceId) const
+{
+	if (!InstanceId.IsValid() || IsWeaponMounted(InstanceId) || InstanceId == EquippedBack || InstanceId == EquippedDuffle)
+	{
+		return nullptr;
+	}
+
+	const FZSItemInstance Instance = GetInstance(InstanceId);
+	return Instance.IsValid() ? Cast<UZSWeaponConfig>(Instance.Config) : nullptr;
+}
+
+bool UZSInventoryComponent::Server_MountLongGun(int32 MountIndex, FGuid InstanceId)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !MountedLongGuns.IsValidIndex(MountIndex))
+	{
+		return false;
+	}
+
+	const UZSWeaponConfig* WeaponConfig = ResolveMountableWeapon(InstanceId);
+	if (!WeaponConfig || WeaponConfig->Handedness != EZSWeaponHandedness::TwoHanded)
+	{
+		return false;
+	}
+
+	MountedLongGuns[MountIndex] = InstanceId;
+	OnRep_InventoryState();
+	return true;
+}
+
+void UZSInventoryComponent::Server_UnmountLongGun(int32 MountIndex)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !MountedLongGuns.IsValidIndex(MountIndex) || !MountedLongGuns[MountIndex].IsValid())
+	{
+		return;
+	}
+
+	MountedLongGuns[MountIndex] = FGuid();
+	OnRep_InventoryState();
+}
+
+bool UZSInventoryComponent::Server_MountSidearm(FGuid InstanceId)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return false;
+	}
+
+	const UZSWeaponConfig* WeaponConfig = ResolveMountableWeapon(InstanceId);
+	// OneHanded + Ranged only - excludes a one-handed melee weapon (e.g. a knife) from being
+	// "mounted as a sidearm," see the header comment on this function.
+	if (!WeaponConfig || WeaponConfig->Handedness != EZSWeaponHandedness::OneHanded || WeaponConfig->AttackType != EZSAttackType::Ranged)
+	{
+		return false;
+	}
+
+	MountedSidearm = InstanceId;
+	OnRep_InventoryState();
+	return true;
+}
+
+void UZSInventoryComponent::Server_UnmountSidearm()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !MountedSidearm.IsValid())
+	{
+		return;
+	}
+
+	MountedSidearm = FGuid();
 	OnRep_InventoryState();
 }
 

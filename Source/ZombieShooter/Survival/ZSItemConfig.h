@@ -34,15 +34,24 @@ enum class EZSItemUseType : uint8
  *  for review): two slots, not PZ/DayZ's deeper clothing-layer model - proportionate to this
  *  project's "roughly 1/3 of PZ's depth" pillar, easy to extend with more values later without a
  *  rearchitect. Meaningless for a non-equippable item (see UZSItemConfig::bIsEquippable below).
+ *
+ *  B1-T5.0, 2026-07-30 (dev-confirmed): `Hip` is retired from this enum entirely - the dev
+ *  repurposed the physical hip slot to hold a sidearm weapon instead of a bag/pouch, and weapon
+ *  mounting is its own separate system (`UZSInventoryComponent::MountedSidearm`/`MountedLongGuns`,
+ *  not this enum - a mount slot only ever holds a `UZSWeaponConfig`, so it doesn't need the general
+ *  `bIsEquippable`/`CarryCapacityBonus` machinery this enum's values are validated against). `Duffle`
+ *  replaces it as the second bag-capable slot, per the design session's three-compartment model
+ *  (Pockets/Backpack/Duffle) - `bIsBusy`-gated when its panel opens, that gate is T5's UI job, not
+ *  this data-model layer's.
  */
 UENUM(BlueprintType)
 enum class EZSEquipSlot : uint8
 {
 	None,
-	/** Large capacity bonus - the primary backpack slot. */
+	/** Large capacity bonus - the Backpack compartment (EZSCarryLocation::Backpack). */
 	Back,
-	/** Small capacity bonus - quick-access belt/pouch slot. */
-	Hip
+	/** Largest capacity bonus, adds a movement penalty and can't be opened without stopping - the Duffle compartment (EZSCarryLocation::Duffle). */
+	Duffle
 };
 
 /**

@@ -13,14 +13,20 @@ class UZSItemConfig;
  *  which of the four carry categories an FZSItemInstance currently lives in. Not yet enforced
  *  anywhere (that's T2.9/Step C) - Step A just starts threading the field through correctly.
  *  Vehicle is reserved, forward-compat only - no vehicle inventory exists to populate it (CR-02).
+ *
+ *  B1-T5.0, 2026-07-30: the old single `Bag` value split into `Backpack`/`Duffle` - the design
+ *  session's three-compartment model (Pockets/Backpack/Duffle) needs each to be visually/mechanically
+ *  distinct (T5.1), which a shared tag couldn't represent.
  */
 UENUM(BlueprintType)
 enum class EZSCarryLocation : uint8
 {
 	/** Pockets/worn - always available, small, no bag required. */
 	OnPerson,
-	/** Granted by an equipped Back/Hip UZSItemConfig (CarryCapacityBonus). */
-	Bag,
+	/** Granted by the equipped Back (EZSEquipSlot::Back) UZSItemConfig (CarryCapacityBonus). */
+	Backpack,
+	/** Granted by the equipped Duffle (EZSEquipSlot::Duffle) UZSItemConfig (CarryCapacityBonus). */
+	Duffle,
 	/** Sitting inside an AZSContainerActor's ContainerSlots. */
 	World,
 	/** RESERVED - forward-compat only, see CR-02. No implementation. */

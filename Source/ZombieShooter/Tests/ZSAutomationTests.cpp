@@ -1398,7 +1398,7 @@ bool FZSFractureClearsBleedTest::RunTest(const FString& Parameters)
 
 // ---------------------------------------------------------------------------------------------
 // ZS.Inventory.StoreInBagRejectsEquippedInstance - Server_StoreInBag never checked whether the
-// instance being stored was currently referenced by EquippedBack/Hip, silently orphaning the gear
+// instance being stored was currently referenced by EquippedBack/Duffle, silently orphaning the gear
 // slot's GUID (it'd resolve to an invalid instance from then on) instead of rejecting the move.
 // Partial fix only: doesn't cover HotbarSlots/SecondaryHandInstanceId, which live on
 // AZSPlayerCharacter, not this component - closing that half needs the character to validate
@@ -1432,7 +1432,7 @@ bool FZSStoreInBagRejectsEquippedTest::RunTest(const FString& Parameters)
 
 	UZSItemConfig* ClothingConfig = NewObject<UZSItemConfig>();
 	ClothingConfig->bIsEquippable = true;
-	ClothingConfig->EquipSlot = EZSEquipSlot::Hip;
+	ClothingConfig->EquipSlot = EZSEquipSlot::Duffle;
 
 	if (!TestEqual(TEXT("Bag added to CarrySlots"), Inventory->Server_AddItem(BagConfig, 1), 1))
 	{
@@ -1457,15 +1457,15 @@ bool FZSStoreInBagRejectsEquippedTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	if (!TestTrue(TEXT("Clothing equips to Hip"), Inventory->Server_EquipToSlot(EZSEquipSlot::Hip, ClothingId)))
+	if (!TestTrue(TEXT("Clothing equips to Duffle"), Inventory->Server_EquipToSlot(EZSEquipSlot::Duffle, ClothingId)))
 	{
 		return false;
 	}
 
 	// Real bug found and fixed 2026-07-29: storing a currently-equipped instance into a bag used to
-	// succeed, silently orphaning EquippedHip's GUID reference.
+	// succeed, silently orphaning EquippedDuffle's GUID reference.
 	TestFalse(TEXT("Storing the equipped clothing into the bag is rejected"), Inventory->Server_StoreInBag(BagId, ClothingId));
-	TestEqual(TEXT("Clothing still equipped to Hip, not orphaned"), Inventory->GetEquippedItem(EZSEquipSlot::Hip).InstanceId, ClothingId);
+	TestEqual(TEXT("Clothing still equipped to Duffle, not orphaned"), Inventory->GetEquippedItem(EZSEquipSlot::Duffle).InstanceId, ClothingId);
 
 	return true;
 }

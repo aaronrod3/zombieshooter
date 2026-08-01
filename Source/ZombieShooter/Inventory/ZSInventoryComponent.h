@@ -8,6 +8,8 @@
 #include "../Survival/ZSItemConfig.h"
 #include "ZSInventoryComponent.generated.h"
 
+class UZSWeaponConfig;
+
 /** Broadcast on every OnRep_ below - re-read the getters rather than diffing params, same "more than one thing can change in one server tick" reasoning as UZSHealthComponent::FZSOnBodyZonesChanged. No UI exists yet to bind this to - it's here so one exists once a UI does, per CLAUDE.md's replication convention ("never poll replicated state directly"). */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnInventoryChanged);
 
@@ -20,10 +22,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnInventoryChanged);
  *  1. A flat CarrySlots list of FZSItemInstance (B0-T2 Step A: each a stable InstanceId + Config +
  *     StackCount, not a bare Config+count) - general loot, no grid/weight-independent-of-stacking
  *     complexity, matching the "roughly 1/3 of PZ's depth" pillar.
- *  2. Two equip slots (EZSEquipSlot::Back/Hip - GameDevPlan.md §7 P6, resolved 2026-07-21
- *     autonomously, dev unavailable to consult, flagged for review) for bags/clothing that grant
- *     a carry-capacity bonus (UZSItemConfig::CarryCapacityBonus) while worn - "equip-only vs.
- *     carry-only categories" per the phase file.
+ *  2. Two equip slots (EZSEquipSlot::Back/Duffle - GameDevPlan.md §7 P6, resolved 2026-07-21
+ *     autonomously, dev unavailable to consult, flagged for review; Duffle replaced Hip in the
+ *     B1-T5.0 rework, 2026-07-30 - Hip is now a weapon-only sidearm mount, see the WeaponMounts
+ *     section below) for bags/clothing that grant a carry-capacity bonus
+ *     (UZSItemConfig::CarryCapacityBonus) while worn - "equip-only vs. carry-only categories" per
+ *     the phase file. Plus, as of B1-T5.0, three weapon-mount slots (2 long-gun + 1 sidearm) -
+ *     the actual weapon-carry capacity, a separate concern from the two bag slots above.
  *
  *  GetEncumbranceMultiplier() is the one accessor AZSPlayerCharacter wires into its movement
  *  speed (UpdateMovementSpeed, alongside UZSHealthComponent::GetMobilityMultiplier) - same
@@ -50,7 +55,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	float GetCurrentWeight() const;
 
-	/** BaseCarryWeight plus CarryCapacityBonus from whatever's equipped in Back/Hip. */
+	/** BaseCarryWeight plus CarryCapacityBonus from whatever's equipped in Back/Duffle. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	float GetMaxCarryWeight() const;
 
@@ -62,11 +67,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	TArray<FZSItemInstance> GetCarrySlots() const { return CarrySlots; }
 
-	/** B0-T2 Step B: the one lookup every GUID-holding slot (HotbarSlots, EquippedBack/Hip) resolves through. Returns a default-constructed (invalid) instance if InstanceId isn't found in CarrySlots - callers should check IsValid() before trusting the result (e.g. the referenced item was dropped/consumed elsewhere since the slot last pointed at it). */
+	/** B0-T2 Step B: the one lookup every GUID-holding slot (HotbarSlots, EquippedBack/Duffle, the weapon mounts) resolves through. Returns a default-constructed (invalid) instance if InstanceId isn't found in CarrySlots - callers should check IsValid() before trusting the result (e.g. the referenced item was dropped/consumed elsewhere since the slot last pointed at it). */
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	FZSItemInstance GetInstance(FGuid InstanceId) const;
 
-	/** B0-T2 Step B: whatever's currently referenced by Slot, resolved through CarrySlots - equipping never physically removes an instance from CarrySlots (see Server_EquipToSlot), so this is just GetInstance(EquippedBack/Hip). Invalid instance if the slot is empty. */
+	/** B0-T2 Step B: whatever's currently referenced by Slot, resolved through CarrySlots - equipping never physically removes an instance from CarrySlots (see Server_EquipToSlot), so this is just GetInstance(EquippedBack/Duffle). Invalid instance if the slot is empty. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
 	FZSItemInstance GetEquippedItem(EZSEquipSlot Slot) const;
 
@@ -90,13 +95,54 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	bool Server_UpdateInstanceState(FGuid InstanceId, const FZSItemInstanceState& NewState);
 
-	/** Server-authoritative: points Slot at InstanceId. Validates the instance exists in CarrySlots, Config->bIsEquippable, and Config->EquipSlot matches Slot; rejects if InstanceId is already equipped in the *other* gear slot (can't wear the same bag in both Back and Hip). B0-T2 Step B: doesn't remove anything from CarrySlots - equipped items stay resident there (see class comment), so a bag's own contents are never disturbed by equipping/unequipping it (Step C's "items stay in the bag" requirement). */
+	/** Server-authoritative: points Slot at InstanceId. Validates the instance exists in CarrySlots, Config->bIsEquippable, and Config->EquipSlot matches Slot; rejects if InstanceId is already equipped in the *other* gear slot (can't wear the same bag in both Back and Duffle). B0-T2 Step B: doesn't remove anything from CarrySlots - equipped items stay resident there (see class comment), so a bag's own contents are never disturbed by equipping/unequipping it (Step C's "items stay in the bag" requirement). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	bool Server_EquipToSlot(EZSEquipSlot Slot, FGuid InstanceId);
 
 	/** Server-authoritative: clears Slot's GUID. Nothing moves - see Server_EquipToSlot's comment. No-op if the slot is already empty. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_UnequipSlot(EZSEquipSlot Slot);
+
+	// =====================================================================
+	// B1-T5.0, 2026-07-30 (dev-confirmed): weapon-mount slots - the actual weapon-carry capacity,
+	// not cosmetic. A weapon must occupy one of these to be carried at all; HotbarSlots (still
+	// AZSPlayerCharacter's job, not rewired yet - see B1_UI_UX.md's Manual setup steps) is meant to
+	// become a quick-select pointer into whichever of these is mounted, not its own capacity check.
+	// Pure FGuid references into CarrySlots, same "equipping never removes it" model as
+	// EquippedBack/EquippedDuffle above - no AZSWeapon actor spawns for a merely-mounted weapon,
+	// only for whatever's actively equipped via CurrentWeapon/SecondaryWeapon. LongGun slots gate on
+	// Handedness == TwoHanded; the Sidearm slot gates on OneHanded + AttackType == Ranged (excludes
+	// a one-handed melee weapon, e.g. a knife, from being "mounted as a sidearm") - both inferred
+	// from UZSWeaponConfig's existing fields, not a new weapon-category field, since none was asked
+	// for. Two long-gun slots use a fixed-size array (mirrors HotbarSlots' own pattern); the single
+	// sidearm slot is a plain FGuid (mirrors SecondaryHandInstanceId's pattern).
+	// =====================================================================
+
+	static constexpr int32 NumLongGunMounts = 2;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory|WeaponMounts")
+	FZSItemInstance GetMountedLongGun(int32 MountIndex) const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory|WeaponMounts")
+	FZSItemInstance GetMountedSidearm() const { return GetInstance(MountedSidearm); }
+
+	/** Validates InstanceId resolves to a carried UZSWeaponConfig with Handedness == TwoHanded, isn't already mounted/equipped elsewhere, and MountIndex is in range. No-op (false) off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory|WeaponMounts")
+	bool Server_MountLongGun(int32 MountIndex, FGuid InstanceId);
+
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory|WeaponMounts")
+	void Server_UnmountLongGun(int32 MountIndex);
+
+	/** Validates InstanceId resolves to a carried UZSWeaponConfig with Handedness == OneHanded and AttackType == Ranged, and isn't already mounted/equipped elsewhere. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory|WeaponMounts")
+	bool Server_MountSidearm(FGuid InstanceId);
+
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory|WeaponMounts")
+	void Server_UnmountSidearm();
+
+	/** True if InstanceId is currently referenced by any of the 3 weapon-mount slots - the actual "is this weapon carried at all" check other systems (eventually HotbarSlots) gate on. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory|WeaponMounts")
+	bool IsWeaponMounted(FGuid InstanceId) const;
 
 	/** B0-T2.9: moves ItemInstanceId from the top-level CarrySlots into BagInstanceId's ContainedItems - "put this in that bag." Both must be top-level CarrySlots entries (a bag can't be stored inside itself or another bag - Tier 2 nesting isn't scoped). Requires BagInstanceId's Config->bIsEquippable (the "this can hold things" signal - no separate container-capability flag exists yet). No-op (returns false) if either GUID doesn't resolve, the target isn't actually a bag, or called off a non-authoritative machine. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
@@ -110,7 +156,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_DropItem(UZSItemConfig* Item, int32 Count);
 
-	/** B0-T9.1: dumps every top-level CarrySlots instance (which already covers whatever's referenced by the hotbar or the two equip slots, per this project's "equipping never removes from CarrySlots" model - see the class comment) as its own AZSWorldItemActor at DropLocation, each preserving its InstanceId/InstanceState (and, for a bag, its nested ContainedItems) exactly like Server_DropItem does for a single stack. Clears CarrySlots/EquippedBack/EquippedHip afterward. Called from AZSPlayerCharacter::HandleDeath - "loot stays at the death location," not scattered one call at a time. */
+	/** B0-T9.1: dumps every top-level CarrySlots instance (which already covers whatever's referenced by the hotbar, the two equip slots, or (B1-T5.0) the three weapon mounts, per this project's "equipping never removes from CarrySlots" model - see the class comment) as its own AZSWorldItemActor at DropLocation, each preserving its InstanceId/InstanceState (and, for a bag, its nested ContainedItems) exactly like Server_DropItem does for a single stack. Clears CarrySlots/EquippedBack/EquippedDuffle/MountedLongGuns/MountedSidearm afterward. Called from AZSPlayerCharacter::HandleDeath - "loot stays at the death location," not scattered one call at a time. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_DropAllItems(FVector DropLocation);
 
@@ -140,10 +186,21 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory")
 	FGuid EquippedBack;
 
+	/** B1-T5.0, 2026-07-30: renamed from EquippedHip - the hip slot now holds a sidearm weapon (see MountedSidearm below), this is the new second bag-capable slot instead. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory")
-	FGuid EquippedHip;
+	FGuid EquippedDuffle;
 
-	/** Shared OnRep for all three properties above - broadcasts FZSOnInventoryChanged. Manually called right after every authoritative mutation too (see class comment). */
+	/** B1-T5.0: fixed-size, always exactly NumLongGunMounts elements (invalid FGuid = empty mount) - same "always sized, index is the identity" pattern as AZSPlayerCharacter::HotbarSlots. Sized in the constructor. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory|WeaponMounts")
+	TArray<FGuid> MountedLongGuns;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_InventoryState, Category = "ZS|Inventory|WeaponMounts")
+	FGuid MountedSidearm;
+
+	/** Shared OnRep for every property above - broadcasts FZSOnInventoryChanged. Manually called right after every authoritative mutation too (see class comment). */
 	UFUNCTION()
 	void OnRep_InventoryState();
+
+	/** Shared resolve+validate for Server_MountLongGun/Server_MountSidearm: null unless InstanceId is a carried, weapon-typed instance not already mounted (any of the 3 slots) or equipped (Back/Duffle) - callers apply their own Handedness/AttackType checks on the returned config on top of this, since long-gun vs. sidearm eligibility differs. */
+	const UZSWeaponConfig* ResolveMountableWeapon(FGuid InstanceId) const;
 };
