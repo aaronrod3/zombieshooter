@@ -148,6 +148,27 @@ float UZSHealthComponent::GetReloadSpeedMultiplier() const
 	return Arms->WoundType != EZSWoundType::None ? HealthConfig->ArmWoundedReloadSpeedMultiplier : 1.f;
 }
 
+float UZSHealthComponent::GetAccuracySpreadMultiplier() const
+{
+	if (!HealthConfig)
+	{
+		return 1.f;
+	}
+
+	const FZSBodyZoneWound* Arms = FindZone(EZSBodyZone::Arms);
+	if (!Arms)
+	{
+		return 1.f;
+	}
+
+	if (Arms->bAmputated)
+	{
+		return HealthConfig->ArmAmputatedAccuracySpreadMultiplier;
+	}
+
+	return Arms->WoundType != EZSWoundType::None ? HealthConfig->ArmWoundedAccuracySpreadMultiplier : 1.f;
+}
+
 void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone, EZSWoundType WoundType, AController* EventInstigator, AActor* DamageCauser)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDead || DamageAmount <= 0.f)

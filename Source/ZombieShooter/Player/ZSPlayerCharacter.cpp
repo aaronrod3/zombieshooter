@@ -2402,7 +2402,11 @@ void AZSPlayerCharacter::FireWeapon(AZSWeapon* Weapon)
 
 		// B0-T3.5: resolve within a spread cone rather than a perfect ray - aiming narrows the cone
 		// (AimedSpreadDegrees vs. HipFireSpreadDegrees), no camera change either way per OQ-B0-02.
-		const float SpreadDegrees = bIsAiming ? Config->AimedSpreadDegrees : Config->HipFireSpreadDegrees;
+		// 2026-08-02: a wounded/amputated Arms zone widens that cone further (GetAccuracySpreadMultiplier
+		// >= 1, multiply not divide) - see UZSHealthComponent's "arm wounds -> attack speed/reload/accuracy" mapping.
+		const float BaseSpreadDegrees = bIsAiming ? Config->AimedSpreadDegrees : Config->HipFireSpreadDegrees;
+		const float AccuracySpreadMultiplier = HealthComponent ? HealthComponent->GetAccuracySpreadMultiplier() : 1.f;
+		const float SpreadDegrees = BaseSpreadDegrees * AccuracySpreadMultiplier;
 		const float HeadshotChance = bIsAiming ? Config->AimedHeadshotChance : Config->HipFireHeadshotChance;
 		const FVector FireDirection = FMath::VRandCone(GetActorForwardVector(), FMath::DegreesToRadians(SpreadDegrees));
 

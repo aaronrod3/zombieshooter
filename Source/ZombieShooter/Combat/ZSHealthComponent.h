@@ -25,9 +25,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnDeath);
  *  Zones (EZSBodyZone) each carry one current wound (FZSBodyZoneWound) - not a stacking list, per
  *  the project's "simplify" scope. A wound bleeds (drains CurrentHealth over time until bandaged),
  *  can be dirty/clean (Server_Disinfect / a clean Server_ApplyBandage), and degrades a gameplay
- *  multiplier (GetMobilityMultiplier for Legs, GetAttackSpeedMultiplier/GetReloadSpeedMultiplier
- *  for Arms) rather than touching health directly - same "performance debuff first" philosophy as
- *  UZSNeedsComponent.
+ *  multiplier (GetMobilityMultiplier for Legs, GetAttackSpeedMultiplier/GetReloadSpeedMultiplier/
+ *  GetAccuracySpreadMultiplier for Arms) rather than touching health directly - same "performance
+ *  debuff first" philosophy as UZSNeedsComponent.
  *
  *  Infection is a separate, parallel death vector: a Bite wound rolls a hidden chance
  *  (UZSHealthConfig::BiteInfectionChance); on success, EZSInfectionStage progresses
@@ -92,6 +92,10 @@ public:
 	/** Arms zone: scales reload speed. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
 	float GetReloadSpeedMultiplier() const;
+
+	/** Arms zone: widens weapon spread. Unlike the other Get*Multiplier accessors, 1 = no penalty and HIGHER is worse - multiply SpreadDegrees by this, don't divide. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	float GetAccuracySpreadMultiplier() const;
 
 	/** The one entry point for all damage - called from AZSPlayerCharacter::TakeDamage. Upgrades Zone's wound if WoundType is more severe (GetWoundSeverity) than what's already there, always re-marks it bleeding/dirty on a fresh hit regardless. Rolls for infection if WoundType is Bite. Server-only. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Health")

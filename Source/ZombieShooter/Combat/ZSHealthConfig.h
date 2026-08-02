@@ -74,6 +74,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects|Arms", meta = (ClampMin = "0", ClampMax = "1"))
 	float ArmWoundedReloadSpeedMultiplier = 0.7f;
 
+	/** Widens weapon spread (SpreadDegrees * this) while an arm is wounded - unlike every other Zone Effects multiplier, 1 = no penalty and HIGHER is worse, since it scales a spread angle rather than a speed/rate. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects|Arms", meta = (ClampMin = "1"))
+	float ArmWoundedAccuracySpreadMultiplier = 1.4f;
+
+	/** Applied instead of the above once an arm is permanently amputated - deliberately harsher, same reasoning as AmputatedZoneMultiplier below. Also a widen-is-worse multiplier, so this is its own field rather than reusing AmputatedZoneMultiplier (which is a slow-is-worse, <=1 value). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects|Arms", meta = (ClampMin = "1"))
+	float ArmAmputatedAccuracySpreadMultiplier = 1.8f;
+
 	/** Applied instead of the above once a zone is permanently amputated - deliberately harsher than any active-wound penalty (Server_AmputateZone, "permanent version of the zone-mapping penalties"). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Zone Effects", meta = (ClampMin = "0", ClampMax = "1"))
 	float AmputatedZoneMultiplier = 0.25f;

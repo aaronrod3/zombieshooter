@@ -487,6 +487,62 @@ bool FZSHealthWoundTest::RunTest(const FString& Parameters)
 }
 
 // ---------------------------------------------------------------------------------------------
+// ZS.Health.AccuracySpreadMultiplierScalesWithArmWound - 2026-08-02, the "arm wounds widen weapon
+// spread" accuracy penalty. Unlike GetMobilityMultiplier/GetAttackSpeedMultiplier/
+// GetReloadSpeedMultiplier (1 = full, lower = worse), this one is 1 = no penalty and HIGHER is
+// worse - it multiplies a spread angle, not a speed/rate - so this test explicitly checks the
+// direction, not just that the value changes.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSAccuracySpreadMultiplierTest, "ZS.Health.AccuracySpreadMultiplierScalesWithArmWound", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSAccuracySpreadMultiplierTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSHealthConfig* HealthConfig = LoadObject<UZSHealthConfig>(nullptr, TEXT("/Game/ZS/Stats/Health/DA_ZS_HealthConfig_Default.DA_ZS_HealthConfig_Default"));
+	if (!TestNotNull(TEXT("DA_ZS_HealthConfig_Default loaded"), HealthConfig))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	if (!Harness->HasActorBegunPlay())
+	{
+		Harness->DispatchBeginPlay();
+	}
+	UZSHealthComponent* Health = Harness->HealthComponent;
+	Health->HealthConfig = HealthConfig;
+
+	TestEqual(TEXT("No penalty with an unwounded Arms zone"), Health->GetAccuracySpreadMultiplier(), 1.f);
+
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Arms, EZSWoundType::Laceration, nullptr, nullptr);
+	TestEqual(TEXT("Wounded Arms applies ArmWoundedAccuracySpreadMultiplier"), Health->GetAccuracySpreadMultiplier(), HealthConfig->ArmWoundedAccuracySpreadMultiplier);
+	TestTrue(TEXT("Wounded multiplier is a widen-the-cone penalty (> 1), not a tighten-up bonus"), Health->GetAccuracySpreadMultiplier() > 1.f);
+
+	const bool bAmputated = Health->Server_AmputateZone(EZSBodyZone::Arms);
+	if (!TestTrue(TEXT("Arms amputation succeeds"), bAmputated))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Amputated Arms applies ArmAmputatedAccuracySpreadMultiplier"), Health->GetAccuracySpreadMultiplier(), HealthConfig->ArmAmputatedAccuracySpreadMultiplier);
+	TestTrue(TEXT("Amputated penalty is harsher than the active-wound penalty"), Health->GetAccuracySpreadMultiplier() > HealthConfig->ArmWoundedAccuracySpreadMultiplier);
+
+	// A Legs wound (mobility's zone) must not leak into the Arms-only accuracy multiplier.
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Legs, EZSWoundType::Fracture, nullptr, nullptr);
+	TestEqual(TEXT("A Legs wound doesn't affect the Arms accuracy multiplier"), Health->GetAccuracySpreadMultiplier(), HealthConfig->ArmAmputatedAccuracySpreadMultiplier);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Second batch, added 2026-07-28.
 // ---------------------------------------------------------------------------------------------
 
