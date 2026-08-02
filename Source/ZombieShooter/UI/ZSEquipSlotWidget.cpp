@@ -27,7 +27,7 @@ bool UZSEquipSlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDr
 		return false;
 	}
 
-	Character->Server_EquipToSlot(Slot, Payload->InstanceId);
+	Character->Server_EquipToSlot(GearSlot, Payload->InstanceId);
 	return true;
 }
 
@@ -39,7 +39,7 @@ void UZSEquipSlotWidget::RefreshIcon()
 		return;
 	}
 
-	const FZSItemInstance Equipped = Inventory->GetEquippedItem(Slot);
+	const FZSItemInstance Equipped = Inventory->GetEquippedItem(GearSlot);
 	if (!Equipped.IsValid() || !Equipped.Config)
 	{
 		Image_Icon->SetVisibility(ESlateVisibility::Collapsed);

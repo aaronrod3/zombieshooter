@@ -12,7 +12,7 @@ class UDragDropOperation;
 
 /**
  *  B1-T5.4, 2026-08-02 C++ conversion: a Back/Duffle gear equip target. Replaces WBP_ZS_EquipSlot's
- *  Graph tab. 2 instances placed in WBP_ZS_Inventory's Designer tab (Slot = Back, Slot = Duffle).
+ *  Graph tab. 2 instances placed in WBP_ZS_Inventory's Designer tab (GearSlot = Back, GearSlot = Duffle).
  *  Also refreshes its own icon from whatever's currently equipped there - the original Blueprint
  *  design only wired the drop-to-assign side and never actually showed what was equipped; fixed
  *  here while converting.
@@ -24,9 +24,9 @@ class UZSEquipSlotWidget : public UZSUserWidgetBase
 
 public:
 
-	/** Set per-instance in the Details panel - one instance per gear slot. */
+	/** Set per-instance in the Details panel - one instance per gear slot. Named GearSlot, not Slot - UWidget already declares a Slot property (its UPanelSlot), which would shadow. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
-	EZSEquipSlot Slot = EZSEquipSlot::Back;
+	EZSEquipSlot GearSlot = EZSEquipSlot::Back;
 
 protected:
 
