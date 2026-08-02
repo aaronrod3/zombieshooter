@@ -54,5 +54,5 @@ public:
 	 *  SourceEquipSlot stay at their defaults - set them directly on the returned object for the
 	 *  HotbarSlot/WeaponMount/EquipSlot cases that need them. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
-	static UZSDragDropPayload* Make(FGuid InstanceId, EZSDragSourceKind SourceKind);
+	static UZSDragDropPayload* Make(FGuid NewInstanceId, EZSDragSourceKind NewSourceKind);
 };

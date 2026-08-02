@@ -2,10 +2,10 @@
 
 #include "ZSDragDropPayload.h"
 
-UZSDragDropPayload* UZSDragDropPayload::Make(FGuid InstanceId, EZSDragSourceKind SourceKind)
+UZSDragDropPayload* UZSDragDropPayload::Make(FGuid NewInstanceId, EZSDragSourceKind NewSourceKind)
 {
 	UZSDragDropPayload* Payload = NewObject<UZSDragDropPayload>();
-	Payload->InstanceId = InstanceId;
-	Payload->SourceKind = SourceKind;
+	Payload->InstanceId = NewInstanceId;
+	Payload->SourceKind = NewSourceKind;
 	return Payload;
 }
