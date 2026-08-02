@@ -61,17 +61,18 @@ Always-on, non-modal, never eats input.
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T3.1 | **Moodle stack** — designed for **N needs, not 8.** The list has already grown from 6 to 8 (CR-03); assume it grows again. 4 severity tiers each, driven by B0-T4.9's authored thresholds. | P2-R6 |
-| T3.2 | **Health/wound display** — 4 zones, wound type, bleed state, splinted/amputated. Must make **critical head bleed (B0-T5.3) unmistakably urgent** or it's an invisible death. | P3-R4 |
-| T3.3 | ⚑ **Infection legibility — REVERSED 2026-07-26 (dev-confirmed).** The original constraint here was "identical signals, no UI element names the tier." That's gone. Build the opposite: **clearly show the player when they've been bitten and when an infection (either tier) is active** — a legible "Infected: Bite"-style indicator is now correct, not a design violation. | P3-R2, CR-06 |
-| T3.4 | **Hotbar** — 9 slots, current selection, equip-in-progress state, durability indication, **jam state (B0-T10.2)**. | P5-R1 |
-| T3.5 | **Ammo counter** reading from the inventory ammo stack (post-B0-T2.11), not from weapon actor state. | P5-R6 |
+| T3.1 | ⚑ **Moodle stack — MOVED OFF THE HUD 2026-08-01 (dev-confirmed).** Not a HUD element anymore - lives in the Loadout tab's Needs section instead (T5.1's "Needs bars" region), matching the design session's "Needs live inside the Loadout panel, not on the main HUD" note literally rather than as a HUD/detail-view split. `WBP_ZS_MoodleStack`/`WBP_ZS_MoodleEntry` are built once, placed in T5's Inventory screen. Still N-needs-not-8 (CR-03), still 4 severity tiers off B0-T4.9's thresholds - only the placement changed. | P2-R6 |
+| T3.2 | **Health/wound display** — 4 zones, wound type, bleed state, splinted/amputated. Must make **critical head bleed (B0-T5.3) unmistakably urgent** or it's an invisible death. Top-left corner, above the infection indicator (T3.3). | P3-R4 |
+| T3.3 | ⚑ **Infection legibility — REVERSED 2026-07-26 (dev-confirmed).** The original constraint here was "identical signals, no UI element names the tier." That's gone. Build the opposite: **clearly show the player when they've been bitten and when an infection (either tier) is active** — a legible "Infected: Bite"-style indicator is now correct, not a design violation. **Position: top-left of the HUD (dev-confirmed 2026-08-01)**, directly under health/wounds. | P3-R2, CR-06 |
+| T3.4 | ⚑ **Hotbar — REPLACED 2026-08-01 (dev-confirmed) with a single equipped-item indicator, bottom-right.** No 9-slot grid, no free assignment. Weapons are key-mapped directly: **1 = Primary, 2 = Pistol, 3 = Secondary** (fixed to the 3 weapon-mount slots - mounting a weapon is what makes it key-selectable, no separate "assign to hotbar" step exists anymore). The HUD widget just shows one icon for whatever `CurrentWeapon` currently is, plus its durability/jam state (`B0-T10.2`). | P5-R1 |
+| T3.5 | ⚑ **Ammo counter — CUT 2026-08-01 (dev-confirmed).** Not built. `AZSWeapon::OnMagazineAmmoChanged`/reserve-ammo access still exist in C++ if this is revisited later, just not surfaced in B1's HUD. | ~~P5-R6~~ |
 | T3.6 | **Interaction prompt** — the world-space "E — Open" widget P1 specified and never shipped. Consumes `OnNearestInteractableChanged`. | P1-R7 |
 | T3.7 | **Transparent stat preview** (Notes §21 pillar) — hovering an item shows its actual mechanical effect, not hidden numbers. Establish the pattern here; every later screen inherits it. | — |
 | T3.8 | HUD is legible at both zoom extremes from B0-T3.1. Test at min and max, not just default. | — |
-| T3.9 | **New, added 2026-07-30.** Scoreboard/player-list screen — shows connected players. Doubles as the target-selection UI for the host admin/moderation tools (`OQ-B10-12`). | OQ-B1-07 |
+| T3.9 | ⚑ **Scoreboard — CUT 2026-08-01 (dev-confirmed).** Not built for B1. `AZSGameState::OnPlayerListChanged`/`PlayerListVersion` stay in C++ (harmless, small, may still matter for future host admin/moderation tools per `OQ-B10-12`) but nothing in the UI surfaces them. | ~~OQ-B1-07~~ |
 | T3.10 | **New, added 2026-07-30.** Lightweight, queued toast/notification system — pickup confirmation, horde-approaching alert, player joined/left, and future needs share one widget rather than a bespoke UI per event type. | OQ-B1-04 |
 | T3.11 | **New, added 2026-07-30.** Save/autosave indicator — small HUD icon flashes on B3-T2.1's ~10s character-save cadence. | OQ-B1-06 |
+| T3.12 | **New, added 2026-08-01 (dev-confirmed).** Equipment slot indicator — a 4th quick-equip slot (grenades/quick-use equipment), key-bound to **G**, separate from the 3 weapon-mount keys and from SecondaryHand. Shown as part of the same bottom-right equipped-item area as T3.4, or immediately beside it. | — |
 
 ### B1-T4 — Interaction & world-space prompts · **S (1–2 sessions)** · *depends on T3*
 
@@ -89,11 +90,11 @@ The first modal screen; the real test of T1.
 
 | Sub-task | Definition of done | Ref |
 |---|---|---|
-| T5.0 | **New, added 2026-07-30 — data-model prerequisite, land before any T5 widget work starts.** Extends B0-T2's item-instance model rather than reopening it: (1) `EZSCarryLocation` split so Backpack and Duffle are distinct carry compartments instead of one shared `Bag` value; (2) new `EZSItemSize {Small, Medium, Large}` field on `UZSItemConfig`, gating which compartment accepts an item (Pockets: Small only; Backpack: Small+Medium; Duffle: all); (3) new dedicated weapon-mount equip slots (2 long-gun + 1 sidearm) on `AZSPlayerCharacter`/`UZSInventoryComponent`, same `FGuid`-reference pattern already proven for Back/Hip/SecondaryHand — **these mounts are the actual weapon-carry capacity, not cosmetic**: a weapon must occupy a mount slot to be carried at all, and `HotbarSlots` becomes a quick-select pointer into a mounted weapon (or other item) for the active loadout rather than its own capacity check for weapons specifically; (4) Duffle equip slot gated by the same `bIsBusy` mechanism already used for reload/amputation — opening its panel blocks movement/combat until closed. Reuses proven patterns throughout, not new architecture. **Content gap this creates**: every existing item/weapon config needs an `EZSItemSize` value authored — folds into `T_ContinuousTracks.md` T4's content-authoring track. Full design reasoning in `Docs/Planning/B1_UIDesignSession_2026-07-30.md`. | — |
-| T5.1 | Grid/list of `CarrySlots`, **grouped by compartment** (Pockets/Backpack/Duffle per T5.0's size-tier gating) — each visually distinct, since B0-T2.9 made location mechanically meaningful. Weapons do not appear in this grid at all — they live in T5.0's mount slots. | CR-09 |
+| T5.0 | **New, added 2026-07-30 — data-model prerequisite, land before any T5 widget work starts.** Extends B0-T2's item-instance model rather than reopening it: (1) `EZSCarryLocation` split so Backpack and Duffle are distinct carry compartments instead of one shared `Bag` value; (2) new `EZSItemSize {Small, Medium, Large}` field on `UZSItemConfig`, gating which compartment accepts an item (Pockets: Small only; Backpack: Small+Medium; Duffle: all); (3) new dedicated weapon-mount equip slots (2 long-gun + 1 sidearm) on `AZSPlayerCharacter`/`UZSInventoryComponent`, same `FGuid`-reference pattern already proven for Back/Hip/SecondaryHand — **these mounts are the actual weapon-carry capacity, not cosmetic**: a weapon must occupy a mount slot to be carried at all. ⚑ *Superseded 2026-08-01: the original plan here ("`HotbarSlots` becomes a quick-select pointer into a mounted weapon") was replaced by a simpler design — 3 fixed keys (1/2/3) map directly to the 3 mount slots, no separate hotbar-array/quick-select layer exists at all. See T3.4's redesign note.* (4) Duffle equip slot gated by the same `bIsBusy` mechanism already used for reload/amputation — opening its panel blocks movement/combat until closed. Reuses proven patterns throughout, not new architecture. **Content gap this creates**: every existing item/weapon config needs an `EZSItemSize` value authored — folds into `T_ContinuousTracks.md` T4's content-authoring track. Full design reasoning in `Docs/Planning/B1_UIDesignSession_2026-07-30.md`. | — |
+| T5.1 | Grid/list of `CarrySlots`, **grouped by compartment** (Pockets/Backpack/Duffle per T5.0's size-tier gating) — each visually distinct, since B0-T2.9 made location mechanically meaningful. Weapons do not appear in this grid at all — they live in T5.0's mount slots. ⚑ **Also hosts the Needs bars (`WBP_ZS_MoodleStack`) as of 2026-08-01** — see T3.1's redesign note; needs display was moved here rather than the main HUD. | CR-09 |
 | T5.2 | Weight/encumbrance bar with the threshold where the stamina penalty begins clearly marked. | P2-R5 |
 | T5.3 | Drag-and-drop between locations, plus a keyboard/gamepad path for every drag operation. |
-| T5.4 | Equip to `Back`/`Hip`; assign to a hotbar slot; drop to world. All operate on `FGuid`, so state (durability, condition) visibly follows the item. | P6-R3 |
+| T5.4 | ⚑ **REDESIGNED 2026-08-01 (dev-confirmed): equip to `Back`/`Duffle`; mount into a weapon-mount slot (which is what makes it key-selectable via 1/2/3 - no separate "assign to hotbar slot" step exists anymore); assign to the new Equipment slot (T3.12, G key); drop to world.** All operate on `FGuid`, so state (durability, condition) visibly follows the item. | P6-R3 |
 | T5.5 | **Condition/durability shown per instance** — two "rare" items with different `ConditionQuality` must look different. This is the payoff for B0-T2.10 and it is invisible without UI. | P6-R2 |
 | T5.6 | Item tooltip uses T3.7's transparent-stat-preview pattern. |
 | T5.7 | **2-client verified**: player A dropping an item updates player B's world view; neither player's inventory UI reflects the other's. |
@@ -188,25 +189,26 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 ### B1-T3 — HUD
 
-**Completed — compiled and automation-tested, commit `e064bc3`:**
-- `UZSNeedsComponent::GetMoodleEntries()`/`OnMoodleStackChanged` (T3.1) — one delegate + one array accessor covering Hunger/Thirst/Fatigue/Stamina/Temperature, so a 6th/7th need is a new entry in that function, not a new widget class.
-- `UZSItemConfig`/`UZSWeaponConfig::GetStatPreviewLines()` (T3.7, and T5.6 below reuses it) — the transparent-stat-preview contract, `BlueprintNativeEvent` so weapon configs append Damage/Fire Rate/Magazine on top of the base Hunger/Thirst/Carry Capacity/Insulation lines.
-- `AZSGameState::PlayerListVersion`/`OnPlayerListChanged` (T3.9) — `PlayerArray` itself has no change delegate, this is the wrapper a scoreboard widget binds to instead; wired from `AZSGameMode::PostLogin`/`Logout`.
-- New `UZSNotificationSubsystem` (T3.10) — client-local toast queue, same C++-state/Blueprint-presentation split as `UZSUIManager`. `AZSGameState::Multicast_ShowToast` + the same `PostLogin`/`Logout` hook wire up player-joined/left as the one concrete trigger so far. `ZS.UI.PushTestToast [message]` console command for pre-widget testing, same pattern as T1's `ZS.UI.PushTestModal`.
-- T3.2 (health/wound), T3.3 (infection), T3.4 (hotbar — plus the new `GetHotbarSlots()` accessor), T3.5 (ammo), T3.6 (interaction prompt) needed **no new code** — the T3/T7 delegate audit above already covers every bind point; those widgets just need building against what already exists.
-- ~~Get a real compile.~~ Done 2026-08-01 - full rebuild clean, `ZS.` automation suite (27 tests) run clean (`e064bc3`; caught and fixed two real bugs along the way — `Server_AssignHotbarSlot`/`Server_ClearHotbarSlot`/`CanAssignToHotbarSlot` had landed under `protected:` instead of `public:`, and the new hotbar-assignment test crashed the run by indexing `HotbarSlots` before `BeginPlay()` sized it — see `SessionHandoff.md`).
+> ⚑ **Redesigned 2026-08-01, dev-confirmed, while widget-building was already underway.** No moodle stack on the HUD (moved to T5's Loadout panel), no 9-slot hotbar grid (replaced with one equipped-item icon, key-mapped straight to the 3 mount slots), no ammo counter, no scoreboard. See T3.1/T3.4/T3.5/T3.9's rows in the task-breakdown table above for the exact per-subtask disposition, and commit `6d413ac` for the underlying C++ (`AZSPlayerCharacter`'s weapon-key-slot rewrite).
+
+**Completed — compiled and automation-tested, commit `6d413ac`:**
+- `UZSItemConfig`/`UZSWeaponConfig::GetStatPreviewLines()` (T3.7, and T5.6 reuses it) — the transparent-stat-preview contract, `BlueprintNativeEvent` so weapon configs append Damage/Fire Rate/Magazine on top of the base Hunger/Thirst/Carry Capacity/Insulation lines.
+- New `UZSNotificationSubsystem` (T3.10) — client-local toast queue, same C++-state/Blueprint-presentation split as `UZSUIManager`. `AZSGameState::Multicast_ShowToast` + `AZSGameMode::PostLogin`/`Logout` wire up player-joined/left as the one concrete trigger so far. `ZS.UI.PushTestToast [message]` console command for pre-widget testing.
+- **Weapon-key redesign**: `AZSPlayerCharacter::ResolveWeaponSlotInstance(SlotIndex)` resolves 0/1/2 (keys 1/2/3) live from `UZSInventoryComponent::GetMountedLongGun(0)`/`GetMountedSidearm()`/`GetMountedLongGun(1)`, and 3 (key G) from the new `EquipmentSlotInstanceId`. The old free-form `HotbarSlots` array and its manual-assignment API (`Server_AssignHotbarSlot`/`Server_ClearHotbarSlot`/`CanAssignToHotbarSlot`) are gone entirely — mounting a weapon (T5.4) is now the only "assignment" step there is. `OnActiveHotbarIndexChanged`/`OnBusyChanged`/`GetActiveHotbarIndex()` are unchanged and are what T3.4's equipped-item icon binds to.
+- New Equipment slot (T3.12): `Server_AssignEquipmentSlot`/`Server_ClearEquipmentSlot`/`GetEquipmentSlotInstanceId()`/`OnEquipmentSlotChanged`, mirrors `SecondaryHandInstanceId`'s pattern. Scoped to `UZSWeaponConfig` instances only this pass — see `AZSPlayerCharacter.h`'s Equipment-slot section comment for why a genuinely non-weapon "other equipment" item isn't dispatchable through it yet (`CompleteHotbarSwitch` only knows how to equip a `UZSWeaponConfig`). A grenade is expected to be authored as one (`AttackType::Ranged` + `ProjectileClass`, reusing `AZSProjectile`'s existing simulated-projectile mechanism for the actual throw) rather than needing new dispatch logic.
+- T3.2 (health/wound), T3.3 (infection), T3.6 (interaction prompt) needed **no new code** — the T3/T7 delegate audit already covers every bind point.
+- **Required manual step, not yet done**: create `IA_EquipItem` (G key) — same graceful-if-missing pattern as every other Input Action in this project; the C++ finder is already in place and no-ops safely until the asset exists.
+- Full rebuild clean, `ZS.` automation suite (32 tests) run clean — 2 new tests (`ZS.Loadout.WeaponKeySlotsResolveFromMounts`, `ZS.Loadout.EquipmentSlotRequiresWeaponConfig`) replace the removed hotbar-assignment test, only the same 5 pre-existing failures remain.
 
 **Next steps:**
 
-1. **Build the actual `WBP_ZS_*` widgets**, each reparented to `UZSUserWidgetBase` (T2's base). One widget per HUD element, each binding to the delegate already in place rather than polling:
-   - Moodle stack → bind `OnMoodleStackChanged`, re-read `GetMoodleEntries()`.
-   - Health/wound display → bind `OnBodyZonesChanged`/`OnHealthChanged`, re-read `GetZoneWound`/`GetCurrentHealth` — make `bCriticalBleed` visually unmistakable (T3.2's stated requirement).
-   - Infection indicator → bind `OnInfectionStageChanged` and the wound-infection state inside `OnBodyZonesChanged` (two separate infection concepts, see `CLAUDE.md`'s Combat/ note) — show both plainly, per T3.3's reversal.
-   - Hotbar → bind `OnHotbarSlotsChanged`/`OnActiveHotbarIndexChanged`/`OnBusyChanged`, re-read `GetHotbarSlots()`; each slot's icon also binds the equipped `AZSWeapon`'s `OnDurabilityChanged`/`OnJamStateChanged` when that slot is the active one.
-   - Ammo counter → bind `AZSWeapon::OnMagazineAmmoChanged` for the magazine half; reserve ammo reads `UZSInventoryComponent::GetCarrySlots()` filtered to `Config == CurrentWeapon->GetConfig()->AmmoItemConfig`, summed — a plain Blueprint filter/sum, no new C++ needed.
+1. **Build the actual `WBP_ZS_*` widgets** (see the UI Build Manifest artifact for full hierarchy diagrams/steps per widget), each reparented to `UZSUserWidgetBase`:
+   - Health/wound display (top-left) → bind `OnBodyZonesChanged`/`OnHealthChanged`, re-read `GetZoneWound`/`GetCurrentHealth` — make `bCriticalBleed` visually unmistakable.
+   - Infection indicator (top-left, below health) → bind `OnInfectionStageChanged` + the wound-infection state inside `OnBodyZonesChanged` — show both plainly.
+   - Equipped-item indicator (bottom-right, T3.4) → bind `OnActiveHotbarIndexChanged`/`OnBusyChanged`, resolve the icon via whichever mount/`EquipmentSlotInstanceId` the new active index corresponds to; also bind the equipped `AZSWeapon`'s `OnDurabilityChanged`/`OnJamStateChanged`, re-binding whenever the active weapon actor changes.
+   - Equipment-slot indicator (T3.12, beside/part of the same bottom-right area) → bind `OnEquipmentSlotChanged`, resolve via `GetEquipmentSlotInstanceId()`.
    - Interaction prompt → bind `AZSPlayerCharacter::OnNearestInteractableChanged`, read `InteractionVerb`.
-   - Stat-preview tooltip → call `GetStatPreviewLines()` on hover, render each line's Label/Value verbatim.
-   - Scoreboard → bind `OnPlayerListChanged`, re-read `PlayerArray` (native, always available on `AGameStateBase`).
+   - Stat-preview tooltip (build in `Common/`, shared with T5.6) → call `GetStatPreviewLines()` on hover, render each line's Label/Value verbatim.
    - Toast list → bind `UZSNotificationSubsystem::OnToastQueued`, call `DismissToast` once each entry's own display timer elapses.
 2. **T3.11 (save/autosave indicator) is blocked**, not attempted — B3's save system doesn't exist yet, nothing to bind to. Revisit once B3 lands.
 3. T3.8 (legibility at both zoom extremes) is a testing pass once the widgets above exist, not a code task.
@@ -220,7 +222,7 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - **Deviated from the plan written here 2026-07-30 in one way, on purpose:** that version said the sidearm mount "probably reuses the renamed `Sidearm` equip slot directly." Implemented differently - `MountedSidearm` is its own field, not routed through `EZSEquipSlot`/`Server_EquipToSlot` at all. Reasoning: `Server_EquipToSlot`'s validation (`bIsEquippable`/`CarryCapacityBonus`) is a *bag* concern; a weapon mount's validation (`UZSWeaponConfig` type + `Handedness`) is a different one, and conflating them would have meant `Server_StoreInBag` needing extra special-casing to keep excluding weapons from bag storage anyway. Kept the two systems parallel instead - lower risk, cleaner separation matching how `SecondaryHandInstanceId` already lives on `AZSPlayerCharacter` as its own thing rather than folding into the bag-slot system.
 
 - ~~Get a real compile.~~ Done 2026-08-01 - full rebuild clean, `ZS.` automation suite run clean (`de612a5`; caught and fixed one real bug along the way, `ZS.UI.ModalStackOrdering` needed a valid `ULocalPlayer` outer chain - see `SessionHandoff.md`).
-- **`HotbarSlots` runtime-assignment mechanism - built.** `AZSPlayerCharacter::Server_AssignHotbarSlot`/`Server_ClearHotbarSlot`/`CanAssignToHotbarSlot` (commit `ea64726`, uncompiled as of this entry). Scoped exactly to the design already confirmed here: a hotbar slot points at a currently-**mounted** weapon (`UZSInventoryComponent::IsWeaponMounted`), not an arbitrary carried item - generalizing to non-weapon hotbar items (a quick-use consumable) is still open, see T5's Next steps below. Also added `GetHotbarSlots()` - `HotbarSlots` had no public C++ accessor at all before this.
+- ~~`HotbarSlots` runtime-assignment mechanism.~~ **Superseded 2026-08-01** — the free-form assignment API built here (`Server_AssignHotbarSlot`/`Server_ClearHotbarSlot`/`CanAssignToHotbarSlot`) was removed entirely by the weapon-key redesign (see T3's section below and commit `6d413ac`). Mounting a weapon is now the only "assignment" there is - a mounted weapon is automatically selectable via its fixed key (1/2/3), no separate step. `GetHotbarSlots()` is also gone (there's no array left to read).
 
 **Next steps:**
 
@@ -229,24 +231,27 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 
 ### B1-T5 — Inventory screen
 
-**Completed — compiled and automation-tested, commit `e064bc3`:**
+> ⚑ **T5.1/T5.4 redesigned 2026-08-01, dev-confirmed** — see T3's redesign note above. T5.1 now also hosts the Needs bars (`WBP_ZS_MoodleStack`, relocated off the HUD). T5.4's "assign to a hotbar slot" step is gone - mounting a weapon (already part of T5.4) is the only assignment step now; a new Equipment-slot drop target (T3.12) is added instead.
+
+**Completed — compiled and automation-tested, commit `6d413ac`:**
 - `UZSInventoryComponent::GetSlotsInLocation()` (T5.1) — the Pockets/Backpack/Duffle compartment filter T5's grid groups by.
 - New `UZSDragDropPayload` (T5.3) — reusable `UDragDropOperation` subclass (`InstanceId` + `SourceKind` + `SourceIndex`/`SourceEquipSlot`) every T5 item widget's `OnDragDetected` builds and every drop target's `OnDrop` reads; also reusable by T6's container transfer.
-- T5.0's `Server_AssignHotbarSlot`/`Server_ClearHotbarSlot` above are T5.4's hotbar-assignment half.
+- `UZSNeedsComponent::GetMoodleEntries()`/`OnMoodleStackChanged` (now T5.1's Needs bars, not a HUD element) — one delegate + one array accessor covering Hunger/Thirst/Fatigue/Stamina/Temperature, so a 6th/7th need is a new entry in that function, not a new widget class.
 - T5.2 (weight bar), T5.5 (condition/durability per instance) needed **no new code** — `GetCurrentWeight()`/`GetMaxCarryWeight()` and `FZSItemInstanceState::ConditionQuality` were already `BlueprintPure`/`BlueprintReadWrite`, directly bindable from a "Break" node in Blueprint.
 - T5.6 reuses T3.7's `GetStatPreviewLines()` — see the T3 section above, nothing T5-specific to add.
-- ~~Get a real compile.~~ Done 2026-08-01 - same rebuild/test pass as T3's above (`e064bc3`), all 6 new tests pass including `ZS.Loadout.AssignHotbarSlotRequiresMountedWeapon`/`ZS.Inventory.SlotsInLocationFilter`.
+- Full rebuild clean, `ZS.` suite (32 tests) run clean.
 
 **Next steps:**
 
 1. **Build `WBP_ZS_Inventory`** (the Tab-opened Loadout screen, per `Docs/Planning/B1_UIDesignSession_2026-07-30.md`'s layout) and its child widgets:
    - Three compartment panels (Pockets/Backpack/Duffle) → each calls `GetSlotsInLocation()` for its own `EZSCarryLocation`, bound to `OnInventoryChanged` to refresh.
+   - Needs bars (`WBP_ZS_MoodleStack`) → bind `OnMoodleStackChanged`, re-read `GetMoodleEntries()` — same widget T3.1 originally specified, now placed here instead of the HUD.
    - Weight bar → `GetCurrentWeight()` / `GetMaxCarryWeight()`, threshold marker at `GetMaxCarryWeight()` itself (the encumbrance penalty starts exactly there, see `GetEncumbranceMultiplier()`'s own comment).
    - Item widget → `OnDragDetected` constructs a `UZSDragDropPayload` (`InstanceId` + the correct `SourceKind`); condition/durability reads `InstanceState.ConditionQuality` directly.
-   - Drop targets (compartment panel, equip slot, weapon-mount slot, hotbar slot) → each `OnDrop` reads the payload and calls the matching `Server_` function (`Server_EquipToSlot`, `Server_MountLongGun`/`Server_MountSidearm`, `Server_AssignHotbarSlot`) - **every drag also needs a keyboard-driven equivalent** (T5.3's standing keyboard-accessibility requirement, same as T2.4).
+   - Drop targets (compartment panel, equip slot, weapon-mount slot, Equipment slot) → each `OnDrop` reads the payload and calls the matching `Server_` function (`Server_EquipToSlot`, `Server_MountLongGun`/`Server_MountSidearm`, `Server_AssignEquipmentSlot`) - **every drag also needs a keyboard-driven equivalent** (T5.3's standing keyboard-accessibility requirement, same as T2.4).
    - Tooltip → `GetStatPreviewLines()` on hover, same pattern as T3.7.
 2. **T5.7 (2-client verified)** — folds into the same B1 exit sweep as PT1's 2-client half (see this doc's Exit criteria section); not a separate task, just don't forget it's still owed.
-3. **Non-weapon hotbar items** (a quick-use consumable in a hotbar slot) — explicitly **not** built. `Server_AssignHotbarSlot` only accepts a mounted weapon today, per the design this doc already confirmed; broadening it to arbitrary items is new scope needing its own call, not guessed past here.
+3. **Non-weapon Equipment-slot items** (a quick-use consumable that isn't a `UZSWeaponConfig`) — explicitly **not** built. `Server_AssignEquipmentSlot` only accepts a weapon-config instance today; broadening it to arbitrary items is new scope needing its own call, not guessed past here (see `AZSPlayerCharacter.h`'s Equipment-slot section comment).
 
 ### B1-T6 — Container loot screen
 
@@ -255,7 +260,7 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - `AZSContainerActor::Server_TakeAllItems(AZSPlayerCharacter* Requester)` — the original "loot all" transfer, extracted and renamed so it's reusable by both the existing auto-interact path (unchanged behavior) and a future "Take All" button.
 - `AZSContainerActor::Server_AddItemToContainer(FZSItemInstance)` — a real production capability (hand-place a guaranteed item in a specific container), also what seeds test data without depending on a real `UZSLootTableConfig` content asset.
 - `AZSContainerActor::OnContainerSlotsChanged` — `ContainerSlots` had replication but no real change delegate before this; a T6 widget binds this instead of polling `GetContainerSlots()`.
-- `AZSPlayerCharacter::Server_TakeContainerItem`/`Server_TakeAllContainerItems` — real `Server, Reliable` RPCs (unlike the container-level functions above, which are plain `HasAuthority()`-gated calls, not RPCs themselves) so a client's UI can actually reach the server. Same reasoning `Server_AssignHotbarSlot` was built with for T5.
+- `AZSPlayerCharacter::Server_TakeContainerItem`/`Server_TakeAllContainerItems` — real `Server, Reliable` RPCs (unlike the container-level functions above, which are plain `HasAuthority()`-gated calls, not RPCs themselves) so a client's UI can actually reach the server. Same reasoning `Server_SelectHotbarSlot` already establishes for weapon-key selection.
 
 **Next steps:**
 
