@@ -75,8 +75,8 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> Text_Infection;
 
-	/** Optional - only plays if a UMG Animation named exactly "CriticalBleedFlash" exists on this Blueprint (Designer tab -> Animations panel -> + Animation). PlayAnimation no-ops safely if this stays null, so building it is not required to compile/run. */
-	UPROPERTY(Transient, BlueprintReadOnly, meta = (BindWidgetAnim), Category = "ZS|UI")
+	/** Optional - only plays if a UMG Animation named exactly "CriticalBleedFlash" exists on this Blueprint (Designer tab -> Animations panel -> + Animation). BindWidgetAnimOptional (not BindWidgetAnim - that variant is required and fails the Blueprint compile if the animation doesn't exist yet, confirmed 2026-08-02) is what makes building it optional; PlayAnimation itself also no-ops safely on a null animation either way. */
+	UPROPERTY(Transient, BlueprintReadOnly, meta = (BindWidgetAnimOptional), Category = "ZS|UI")
 	TObjectPtr<UWidgetAnimation> CriticalBleedFlash;
 
 	/** One icon per non-None EZSWoundDisplayCondition - assign these on this Blueprint's Class Defaults panel (functional-grey placeholders are fine for B1, same as everything else per OQ-B1-01). */
