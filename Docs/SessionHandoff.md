@@ -33,7 +33,7 @@
 - **T2** — C++ done, plus `DA_ZS_UIStyle_Default` and `WBP_ZS_Base` (dev-confirmed created 2026-08-01).
 - **T5.0** — Hip→Duffle/weapon-mount data model, compiled and automation-tested as of `de612a5`. **Real content risk still open**: `DA_Bag.uasset`'s `EquipSlot` needs a manual check (not yet done).
 
-**Full click-by-click / per-widget steps** are in **`B1_UI_UX.md`'s "Manual setup steps" section** - every task group (T1-T8) now has its own entry listing every `WBP_ZS_*` widget still to build, which delegate/accessor each one binds to, and every open question flagged inline. A compiled visual checklist (hierarchy diagrams, screen wireframes) of the same list also exists as a private Claude artifact (not part of the repo) - not yet re-synced to this redesign, flag it if you use it before that catches up.
+**Full click-by-click / per-widget steps** are in **`B1_UI_UX.md`'s "Manual setup steps" section** - every task group (T1-T8) now has its own entry listing every `WBP_ZS_*` widget still to build, which delegate/accessor each one binds to, and every open question flagged inline. A compiled visual checklist (hierarchy diagrams, screen wireframes) of the same list also exists as a private Claude artifact (not part of the repo) - re-synced to this redesign 2026-08-01 (Equipped Item Indicator replaces the hotbar/ammo/scoreboard cards, moodle stack moved into the T5 section, new Equipment slot card added).
 
 ## B0 exit summary (closed 2026-07-30, practically not 100% formally)
 
