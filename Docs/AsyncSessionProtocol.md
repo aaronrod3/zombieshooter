@@ -31,6 +31,18 @@ Drop into this only when Mode A's compile loop stalls (step 3) or is clearly cos
 - Still push periodically so progress is checkable from your phone — just honestly labeled, since there's no CI badge to signal state either way.
 - No smoke test (nothing compiled to launch).
 
+## Queue mode — scheduled / auto-selected clusters
+
+Applies when a session's trigger is a scheduled firing, or any away session pulling from the GitHub Issues backlog instead of you naming a specific cluster. Full design context: `Docs/Planning/MaxPlanAutomationStrategy_2026-08-01.md`.
+
+- **Source & selection**: read Issues labeled `away-safe:ready` instead of being told a cluster. Pick up to 2 whose `Area` field doesn't overlap — drop to 1 on any ambiguity about file overlap. Raise the cap only once trial runs confirm the machine handles 2 parallel Unreal rebuilds fine.
+- **Isolation**: each selected issue runs in its own git worktree + branch, not the main working copy, so parallel streams can't collide on uncommitted state. Otherwise follow Mode A/B exactly as written above — same compile-gate, same ~4-attempt cap, same exclusions.
+- **Push mechanics differ from Mode A step 6**: instead of pushing straight to `origin main`, each stream pushes its branch and opens a PR tagged `Closes #<issue>`. If more than one stream in the same run produced a `[compiled]` PR, merge them into a temporary integration branch and run one more `Build.bat` compile-gate on the combined result before fast-forwarding `main` — this catches a same-run collision neither stream could see alone. A single-stream run merges straight through, same as a normal Mode A session. `[uncompiled]` (Mode B) streams stay open as PRs, not merged.
+- **Unattended fork handling**: "Always, either mode" below assumes someone might see an in-chat question. For a scheduled firing, replace that with: log the fork as an open question in the phase's decisions doc, mark the issue `blocked`, stop that cluster — don't wait in chat, and don't pick up a second cluster to compensate.
+- **Editor-open-at-fire-time**: if the editor is open when a scheduled firing starts, skip cleanly rather than "treat like a normal session" (nobody's driving in queue mode) — log it, no notification needed.
+- **Cascade safeguard**: each new scheduled firing is its own "proceed" by design — that's what enabling scheduled runs means. But if the previous firing left an unmerged/blocked PR or uncompiled work, the next firing doesn't stack a new cluster on top of it — it re-checks status, re-notifies if still unresolved, and waits. On-demand sessions (you naming the trigger phrase) keep the original literal "stop, wait for proceed" behavior from the section above, unchanged — this carve-out is queue-mode only.
+- **Notification**: push notification only when something happened or needs attention (cluster completed, blocked, compile failure after the cap, editor was open so it skipped). A genuinely empty `away-safe:ready` label stays silent — no news is not worth a ping.
+
 ## Always, either mode
 
 - Never touch `main` destructively, never force-push, never skip hooks.
