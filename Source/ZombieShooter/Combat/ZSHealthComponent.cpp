@@ -169,6 +169,51 @@ float UZSHealthComponent::GetAccuracySpreadMultiplier() const
 	return Arms->WoundType != EZSWoundType::None ? HealthConfig->ArmWoundedAccuracySpreadMultiplier : 1.f;
 }
 
+EZSWoundDisplayCondition UZSHealthComponent::GetWoundDisplayCondition(const FZSBodyZoneWound& Wound) const
+{
+	if (Wound.bAmputated)
+	{
+		return EZSWoundDisplayCondition::Amputated;
+	}
+	if (Wound.WoundInfectionState == EZSWoundInfectionState::Infected)
+	{
+		return EZSWoundDisplayCondition::Infected;
+	}
+	if (Wound.bBleeding)
+	{
+		return EZSWoundDisplayCondition::Bleeding;
+	}
+	if (Wound.WoundType == EZSWoundType::Fracture)
+	{
+		return EZSWoundDisplayCondition::Fracture;
+	}
+
+	// Beyond bleeding/infection/fracture/amputation, only Arms/Legs currently touch a gameplay
+	// multiplier at all - GetMobilityMultiplier/GetAttackSpeedMultiplier/GetReloadSpeedMultiplier/
+	// GetAccuracySpreadMultiplier above all key off Arms/Legs WoundType != None. A Head/Torso wound
+	// with no active bleed has no mechanical effect yet, so it stays None here.
+	const bool bZoneHasMultiplier = Wound.Zone == EZSBodyZone::Arms || Wound.Zone == EZSBodyZone::Legs;
+	if (bZoneHasMultiplier && Wound.WoundType != EZSWoundType::None)
+	{
+		return EZSWoundDisplayCondition::Wounded;
+	}
+
+	return EZSWoundDisplayCondition::None;
+}
+
+bool UZSHealthComponent::HasAnyGameplayAffectingCondition() const
+{
+	static const EZSBodyZone AllZones[] = { EZSBodyZone::Head, EZSBodyZone::Torso, EZSBodyZone::Arms, EZSBodyZone::Legs };
+	for (EZSBodyZone Zone : AllZones)
+	{
+		if (GetWoundDisplayCondition(GetZoneWound(Zone)) != EZSWoundDisplayCondition::None)
+		{
+			return true;
+		}
+	}
+	return GetInfectionStage() != EZSInfectionStage::None;
+}
+
 void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone, EZSWoundType WoundType, AController* EventInstigator, AActor* DamageCauser)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDead || DamageAmount <= 0.f)

@@ -50,6 +50,18 @@ enum class EZSWoundInfectionState : uint8
 	Infected
 };
 
+/** B1, 2026-08-02: what WBP_ZS_BodyConditionIndicator shows for one zone - see UZSHealthComponent::GetWoundDisplayCondition() for the exact priority rule (worst wins) and why it's zone-aware (only Arms/Legs currently have a wound-driven multiplier at all). None means the zone's icon stays hidden. */
+UENUM(BlueprintType)
+enum class EZSWoundDisplayCondition : uint8
+{
+	None,
+	Wounded,
+	Bleeding,
+	Fracture,
+	Infected,
+	Amputated
+};
+
 /**
  *  Per-zone wound state. One of these exists per EZSBodyZone on UZSHealthComponent (4 total, fixed
  *  - not a growable list, per GameDevPlan.md's "simplify" scope: a zone has one current wound, not

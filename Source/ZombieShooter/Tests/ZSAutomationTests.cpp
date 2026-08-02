@@ -543,6 +543,74 @@ bool FZSAccuracySpreadMultiplierTest::RunTest(const FString& Parameters)
 }
 
 // ---------------------------------------------------------------------------------------------
+// ZS.Health.WoundDisplayConditionIsZoneAwareAndPrioritized - 2026-08-02, B1's WBP_ZS_BodyConditionIndicator
+// support. Locks in two easy-to-get-wrong subtleties: (1) Arms/Legs get a gameplay multiplier
+// penalty for ANY non-None WoundType (see GetAttackSpeedMultiplier/GetMobilityMultiplier above),
+// not just Fracture, so GetWoundDisplayCondition must return Wounded (not None) for a plain
+// Laceration on those zones; (2) Head/Torso currently feed no multiplier at all, so an unbled
+// Head/Torso wound must stay None despite having a WoundType set. Also covers the worst-wins
+// priority order and HasAnyGameplayAffectingCondition's aggregate check.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSWoundDisplayConditionTest, "ZS.Health.WoundDisplayConditionIsZoneAwareAndPrioritized", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSWoundDisplayConditionTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSHealthConfig* HealthConfig = LoadObject<UZSHealthConfig>(nullptr, TEXT("/Game/ZS/Stats/Health/DA_ZS_HealthConfig_Default.DA_ZS_HealthConfig_Default"));
+	if (!TestNotNull(TEXT("DA_ZS_HealthConfig_Default loaded"), HealthConfig))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	if (!Harness->HasActorBegunPlay())
+	{
+		Harness->DispatchBeginPlay();
+	}
+	UZSHealthComponent* Health = Harness->HealthComponent;
+	Health->HealthConfig = HealthConfig;
+
+	TestEqual(TEXT("Fresh Head zone is None"), Health->GetWoundDisplayCondition(Health->GetZoneWound(EZSBodyZone::Head)), EZSWoundDisplayCondition::None);
+	TestFalse(TEXT("No gameplay-affecting condition at full health"), Health->HasAnyGameplayAffectingCondition());
+
+	// Torso Fracture with bleeding stopped immediately (a fresh hit starts bleeding - bandage it off
+	// before checking, since Torso/Head aren't in the Wounded-tier zone list at all).
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Torso, EZSWoundType::Fracture, nullptr, nullptr);
+	Health->Server_ApplyBandage(EZSBodyZone::Torso, true);
+	TestEqual(TEXT("Unbled Torso Fracture stays None - Torso feeds no multiplier"), Health->GetWoundDisplayCondition(Health->GetZoneWound(EZSBodyZone::Torso)), EZSWoundDisplayCondition::None);
+
+	// Same fracture-then-bandage sequence on Legs must show Wounded... actually Fracture specifically,
+	// since the Fracture check runs before the zone-multiplier fallback regardless of zone.
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Legs, EZSWoundType::Fracture, nullptr, nullptr);
+	Health->Server_ApplyBandage(EZSBodyZone::Legs, true);
+	TestEqual(TEXT("Unbled Legs Fracture still reports Fracture"), Health->GetWoundDisplayCondition(Health->GetZoneWound(EZSBodyZone::Legs)), EZSWoundDisplayCondition::Fracture);
+
+	// A plain Laceration on Arms, bandaged clean (not bleeding, not infected, not fractured) must
+	// still report Wounded - this is the case the old hand-wired Blueprint OR-chain got wrong.
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Arms, EZSWoundType::Laceration, nullptr, nullptr);
+	Health->Server_ApplyBandage(EZSBodyZone::Arms, true);
+	TestEqual(TEXT("Bandaged-but-still-wounded Arms reports Wounded, not None"), Health->GetWoundDisplayCondition(Health->GetZoneWound(EZSBodyZone::Arms)), EZSWoundDisplayCondition::Wounded);
+	TestTrue(TEXT("HasAnyGameplayAffectingCondition is true once any zone is Wounded"), Health->HasAnyGameplayAffectingCondition());
+
+	// Amputation outranks everything else, including an active bleed on the same zone.
+	Health->Server_ApplyDamage(5.f, EZSBodyZone::Arms, EZSWoundType::Bite, nullptr, nullptr);
+	TestTrue(TEXT("Fresh Bite is bleeding"), Health->GetZoneWound(EZSBodyZone::Arms).bBleeding);
+	Health->Server_AmputateZone(EZSBodyZone::Arms);
+	TestEqual(TEXT("Amputated zone reports Amputated even though it was just bleeding"), Health->GetWoundDisplayCondition(Health->GetZoneWound(EZSBodyZone::Arms)), EZSWoundDisplayCondition::Amputated);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Second batch, added 2026-07-28.
 // ---------------------------------------------------------------------------------------------
 

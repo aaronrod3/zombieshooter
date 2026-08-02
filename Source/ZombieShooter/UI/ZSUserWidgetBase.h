@@ -7,6 +7,12 @@
 #include "ZSUserWidgetBase.generated.h"
 
 class UZSUIStyleConfig;
+class AZSPlayerCharacter;
+class UZSHealthComponent;
+class UZSNeedsComponent;
+class UZSInventoryComponent;
+class UZSUIManager;
+class UZSNotificationSubsystem;
 
 /**
  *  B1-T2.1/T2.4 (Docs/Beta/B1_UI_UX.md): the one base class every `WBP_ZS_*` screen inherits from.
@@ -46,6 +52,33 @@ public:
 	 *  for every other not-yet-authored content reference. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|UI")
 	TObjectPtr<UZSUIStyleConfig> Style;
+
+	/** B1, 2026-08-02: every `WBP_ZS_*` screen needs "the player character" constantly - this is the
+	 *  Get Owning Player -> Get Controlled Pawn -> Cast to ZSPlayerCharacter chain that used to be
+	 *  hand-wired at the start of nearly every card's Graph tab, done once here instead. Returns
+	 *  nullptr before a pawn exists (e.g. very early in a loading screen). */
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	AZSPlayerCharacter* GetOwningZSPlayerCharacter() const;
+
+	/** Convenience one-hop past GetOwningZSPlayerCharacter() for the 3 components most B1 widgets
+	 *  actually want - same nullptr-if-no-pawn-yet behaviour. */
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	UZSHealthComponent* GetOwningHealthComponent() const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	UZSNeedsComponent* GetOwningNeedsComponent() const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	UZSInventoryComponent* GetOwningInventoryComponent() const;
+
+	/** Same idea as GetOwningZSPlayerCharacter(), but for the two local-player subsystems most modal
+	 *  screens need to Push/PopModal or queue a toast against - collapses the Get Game Instance ->
+	 *  Get Local Player -> Get Subsystem chain via UUserWidget's own GetOwningLocalPlayer(). */
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	UZSUIManager* GetUIManager() const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	UZSNotificationSubsystem* GetNotificationSubsystem() const;
 
 protected:
 

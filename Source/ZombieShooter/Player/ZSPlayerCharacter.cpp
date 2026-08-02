@@ -1211,6 +1211,21 @@ void AZSPlayerCharacter::RefreshBodyMeshFromWeapon()
 // P5 - Loadout: real-time hotbar
 // =====================================================================
 
+FText AZSPlayerCharacter::GetKeyLabelForHotbarIndex(int32 Index) const
+{
+	if (Index == EquipmentSlotIndex)
+	{
+		return FText::FromString(TEXT("G"));
+	}
+	switch (Index)
+	{
+	case 0: return FText::FromString(TEXT("1"));
+	case 1: return FText::FromString(TEXT("3"));
+	case 2: return FText::FromString(TEXT("2"));
+	default: return FText::GetEmpty();
+	}
+}
+
 void AZSPlayerCharacter::SelectHotbarSlot(int32 SlotIndex)
 {
 	if (!CanSwitchLoadout() || SlotIndex < 0 || SlotIndex >= NumWeaponSlots)

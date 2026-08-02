@@ -250,6 +250,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
 	int32 GetActiveHotbarIndex() const { return ActiveHotbarIndex; }
 
+	/** B1, 2026-08-02: the on-screen key label for a weapon-key slot index (0/1 = the 2 long-gun mounts, 2 = sidearm mount, EquipmentSlotIndex = Equipment) - single source of truth for the "1 = Primary, 2 = Pistol, 3 = Secondary, G = Equipment" mapping, so WBP_ZS_EquippedItemIndicator doesn't need to replicate it in a Blueprint Switch. Returns an empty FText for anything outside 0..NumWeaponSlots-1. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
+	FText GetKeyLabelForHotbarIndex(int32 Index) const;
+
 	/** Client-callable entry point, bound to HotbarSelectAction (keys 1-3) or EquipItemAction (G, always slot 3 - see HandleEquipmentSelect). SlotIndex is already 0-based. No-op if mid-switch (CanSwitchLoadout) or out of range. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Loadout")
 	void SelectHotbarSlot(int32 SlotIndex);

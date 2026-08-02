@@ -97,6 +97,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
 	float GetAccuracySpreadMultiplier() const;
 
+	/** B1, 2026-08-02: what WBP_ZS_BodyConditionIndicator should show for Wound's zone, single source
+	 *  of truth so the "is this wound gameplay-relevant" decision can't drift out of sync with the
+	 *  Get*Multiplier functions above. Priority when more than one applies (worst wins): Amputated >
+	 *  Infected > Bleeding > Fracture > Wounded > None. Zone-aware on purpose - Arms/Legs get a
+	 *  multiplier penalty for ANY non-None WoundType (see GetMobilityMultiplier/GetAttackSpeedMultiplier
+	 *  above, which key off WoundType != None, not just Fracture), but Head/Torso currently feed no
+	 *  multiplier at all, so an unbled Head/Torso wound correctly returns None here despite having a
+	 *  WoundType set. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	EZSWoundDisplayCondition GetWoundDisplayCondition(const FZSBodyZoneWound& Wound) const;
+
+	/** B1, 2026-08-02: true if any of the 4 zones' GetWoundDisplayCondition() is non-None, or a bite
+	 *  infection is active - drives WBP_ZS_BodyConditionIndicator's root Visibility directly from game
+	 *  state instead of re-checking every child widget's own current Visibility after the fact. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	bool HasAnyGameplayAffectingCondition() const;
+
 	/** The one entry point for all damage - called from AZSPlayerCharacter::TakeDamage. Upgrades Zone's wound if WoundType is more severe (GetWoundSeverity) than what's already there, always re-marks it bleeding/dirty on a fresh hit regardless. Rolls for infection if WoundType is Bite. Server-only. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Health")
 	void Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone, EZSWoundType WoundType, AController* EventInstigator = nullptr, AActor* DamageCauser = nullptr);

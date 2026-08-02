@@ -48,4 +48,11 @@ public:
 	/** Meaningful only for SourceKind == EquipSlot. */
 	UPROPERTY(BlueprintReadWrite, Category = "ZS|Inventory")
 	EZSEquipSlot SourceEquipSlot = EZSEquipSlot::None;
+
+	/** B1, 2026-08-02: the common case (a CarrySlots-only source, e.g. WBP_ZS_ItemSlot's OnDragDetected)
+	 *  in one call instead of Construct Object from Class + 2 separate Set nodes. SourceIndex/
+	 *  SourceEquipSlot stay at their defaults - set them directly on the returned object for the
+	 *  HotbarSlot/WeaponMount/EquipSlot cases that need them. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	static UZSDragDropPayload* Make(FGuid InstanceId, EZSDragSourceKind SourceKind);
 };
