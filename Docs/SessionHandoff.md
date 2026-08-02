@@ -23,6 +23,12 @@
 - **Required manual step, not yet done**: create `IA_EquipItem` (G key) - the C++ finder is already in place, graceful-if-missing like every other Input Action here.
 - 2 new automation tests (`ZS.Loadout.WeaponKeySlotsResolveFromMounts`, `ZS.Loadout.EquipmentSlotRequiresWeaponConfig`) replace the removed hotbar-assignment test. Full rebuild clean, `ZS.` suite (32 tests) clean - only the same 5 pre-existing failures remain.
 
+**Further HUD redesign, 2026-08-02 (dev-confirmed, docs-only — no C++ needed):**
+- **T3.2 (health/wound display) and T3.3 (infection indicator) merged into one widget**, `WBP_ZS_BodyConditionIndicator`, Collapsed entirely by default. It only shows a zone's icon when that zone's state actually changes a gameplay multiplier — bleeding, a fracture, amputation, or an infected wound — not for a cosmetic scratch with no mechanical effect. Bite-infection stage is folded into the same widget rather than staying a separate element.
+- **No raw numeric health bar anywhere on the HUD anymore.** Nothing elsewhere (T5's Inventory screen never had one either) replaces it — flagged as an open question in `B1_UI_UX.md`'s T3 manual-setup-steps section, not resolved here.
+- Needed **zero new C++** — every field the merged widget reads (`bBleeding`/`WoundType`/`bAmputated`/`bCriticalBleed`/`WoundInfectionState` via `Get Zone Wound`, `OnInfectionStageChanged`) was already exposed for the two separate widgets this replaces.
+- Manifest artifact re-synced same pass — one `WBP_ZS_BodyConditionIndicator` card replaces the old `WBP_ZS_HealthDisplay`/`WBP_ZS_InfectionIndicator` cards, HUD wireframe down to 4 regions.
+
 **T6/T7/T8 — commit `00d3633` (unchanged by the redesign):**
 - **T6 (container loot)**: `AZSContainerActor::Server_TakeItem` (GUID-exact per-item take, dupe-safe by construction), `Server_TakeAllItems`, `Server_AddItemToContainer`, `OnContainerSlotsChanged`, and the client→server RPC wrappers on `AZSPlayerCharacter`. **Open UX question**: should interacting with a container open a real loot screen instead of auto-looting? Not decided.
 - **T7 (death/respawn/sleep)**: new `FZSDeathInfo`/`GetLastDeathInfo()` - "cause of death" didn't exist before this. `GetRespawnDelaySeconds()`. `AZSGameState::GetSleepReadyCounts()`. **Open question (OQ-B6-07)**: fuller death-recap screen, not decided.
@@ -33,7 +39,7 @@
 - **T2** — C++ done, plus `DA_ZS_UIStyle_Default` and `WBP_ZS_Base` (dev-confirmed created 2026-08-01).
 - **T5.0** — Hip→Duffle/weapon-mount data model, compiled and automation-tested as of `de612a5`. **Real content risk still open**: `DA_Bag.uasset`'s `EquipSlot` needs a manual check (not yet done).
 
-**Full click-by-click / per-widget steps** are in **`B1_UI_UX.md`'s "Manual setup steps" section** - every task group (T1-T8) now has its own entry listing every `WBP_ZS_*` widget still to build, which delegate/accessor each one binds to, and every open question flagged inline. A compiled visual checklist (hierarchy diagrams, screen wireframes) of the same list also exists as a private Claude artifact (not part of the repo) - re-synced to this redesign 2026-08-01 (Equipped Item Indicator replaces the hotbar/ammo/scoreboard cards, moodle stack moved into the T5 section, new Equipment slot card added).
+**Full click-by-click / per-widget steps** are in **`B1_UI_UX.md`'s "Manual setup steps" section** - every task group (T1-T8) now has its own entry listing every `WBP_ZS_*` widget still to build, which delegate/accessor each one binds to, and every open question flagged inline. A compiled visual checklist (hierarchy diagrams, screen wireframes) of the same list also exists as a private Claude artifact (not part of the repo) - re-synced through 2026-08-02 (Equipped Item Indicator replaces the hotbar/ammo/scoreboard cards, moodle stack moved into the T5 section, new Equipment slot card added, and Health Display + Infection Indicator merged into one Body Condition Indicator).
 
 ## B0 exit summary (closed 2026-07-30, practically not 100% formally)
 
