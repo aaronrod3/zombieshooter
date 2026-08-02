@@ -202,15 +202,12 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - **Required manual step, not yet done**: create `IA_EquipItem` (G key) — same graceful-if-missing pattern as every other Input Action in this project; the C++ finder is already in place and no-ops safely until the asset exists.
 - Full rebuild clean, `ZS.` automation suite (32 tests) run clean — 2 new tests (`ZS.Loadout.WeaponKeySlotsResolveFromMounts`, `ZS.Loadout.EquipmentSlotRequiresWeaponConfig`) replace the removed hotbar-assignment test, only the same 5 pre-existing failures remain.
 
+**Completed — 2026-08-02, uncompiled (see `SessionHandoff.md` for live compile/PIE status):**
+- Following the `UZSBodyConditionIndicatorWidget` trial (confirmed a real win), every remaining T3 widget moved the same way: `UZSStatPreviewLineWidget`/`UZSStatPreviewTooltipWidget`, `UZSEquippedItemIndicatorWidget`, `UZSInteractionPromptWidget`, `UZSToastEntryWidget`/`UZSToastListWidget` — all `UZSUserWidgetBase` subclasses in `Source/ZombieShooter/UI/` with `BindWidget`/`BindWidgetAnimOptional` auto-binding and `NativeConstruct()` doing all delegate wiring. Nothing left to hand-wire in these widgets' Graph tabs.
+
 **Next steps:**
 
-1. **Build the actual `WBP_ZS_*` widgets** (see the UI Build Manifest artifact for full hierarchy diagrams/steps per widget), each reparented to `UZSUserWidgetBase`:
-   - **`WBP_ZS_BodyConditionIndicator`** (top-left, T3.2+T3.3 merged) — Collapsed by default. Bind `OnBodyZonesChanged`: per zone (`Get Zone Wound` ×4), show that zone's icon only if `bBleeding` OR `WoundType == Fracture` OR `bAmputated` OR `WoundInfectionState == Infected`; a plain scratch stays hidden. Separately bind `OnInfectionStageChanged` for bite-infection stage, shown in the same widget. Collapse the whole thing when no zone and no infection qualify. Make `bCriticalBleed` (Head) visually unmistakable — flash/pulse, not just an icon swap.
-   - Equipped-item indicator (bottom-right, T3.4) → bind `OnActiveHotbarIndexChanged`/`OnBusyChanged`, resolve the icon via whichever mount/`EquipmentSlotInstanceId` the new active index corresponds to; also bind the equipped `AZSWeapon`'s `OnDurabilityChanged`/`OnJamStateChanged`, re-binding whenever the active weapon actor changes.
-   - Equipment-slot indicator (T3.12, beside/part of the same bottom-right area) → bind `OnEquipmentSlotChanged`, resolve via `GetEquipmentSlotInstanceId()`.
-   - Interaction prompt → bind `AZSPlayerCharacter::OnNearestInteractableChanged`, read `InteractionVerb`.
-   - Stat-preview tooltip (build in `Common/`, shared with T5.6) → call `GetStatPreviewLines()` on hover, render each line's Label/Value verbatim.
-   - Toast list → bind `UZSNotificationSubsystem::OnToastQueued`, call `DismissToast` once each entry's own display timer elapses.
+1. **Build the actual `WBP_ZS_*` widgets** — Designer-tab hierarchy (exact `BindWidget` names) + Class Defaults only now, no Graph-tab wiring. Full per-widget steps and exact hierarchy diagrams: UI Build Manifest artifact.
 2. **T3.11 (save/autosave indicator) is blocked**, not attempted — B3's save system doesn't exist yet, nothing to bind to. Revisit once B3 lands.
 3. T3.8 (legibility at both zoom extremes) is a testing pass once the widgets above exist, not a code task.
 4. **Open question, not decided**: with no raw numeric health bar anywhere (HUD dropped it 2026-08-02, and T5's Inventory screen never had one), the player has no numeric HP readout at all — only wound/bleed/fracture state via `WBP_ZS_BodyConditionIndicator`, PZ-style. Confirm that's intentional before B1 exit, or add one somewhere (likely T5.1's player panel).
@@ -243,15 +240,13 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - T5.6 reuses T3.7's `GetStatPreviewLines()` — see the T3 section above, nothing T5-specific to add.
 - Full rebuild clean, `ZS.` suite (32 tests) run clean.
 
+**Completed — 2026-08-02, uncompiled (see `SessionHandoff.md` for live compile/PIE status):**
+- Same C++-widget-class treatment as T3, applied to every T5 widget: `UZSItemSlotWidget` (drag-detect builds the `UZSDragDropPayload`, eagerly creates+populates its own `UZSStatPreviewTooltipWidget` and calls `SetToolTip` — no manual hover wiring needed), `UZSCompartmentPanelWidget` (also now genuinely enforces the "hide Backpack/Duffle panel unless that gear slot is equipped" rule the old Blueprint-only design never actually wired), `UZSWeightBarWidget`, `UZSEquipSlotWidget`/`UZSWeaponMountSlotWidget`/`UZSEquipmentSlotWidget` (each `NativeOnDrop` reads the payload and calls the matching `Server_` function directly), `UZSMoodleEntryWidget`/`UZSMoodleStackWidget`, and the root `UZSInventoryScreenWidget` (`OpenAsModal`/`CloseAsModal` wrap the modal-stack push/pop, tab-switcher wiring included).
+- **Bug fix found while wiring the drop targets**: `UZSInventoryComponent::Server_EquipToSlot`/`Server_MountLongGun`/`Server_MountSidearm` are plain `HasAuthority()`-gated calls, not real RPCs — calling them straight from a client-owned widget (as this doc's own now-superseded next-steps text below used to say to do) silently no-ops on a non-host client. Fixed with new `Server, Reliable` wrappers on `AZSPlayerCharacter` (same name, forwards to the Inventory Component), which is what `UZSEquipSlotWidget`/`UZSWeaponMountSlotWidget`/`UZSEquipmentSlotWidget` actually call now.
+
 **Next steps:**
 
-1. **Build `WBP_ZS_Inventory`** (the Tab-opened Loadout screen, per `Docs/Planning/B1_UIDesignSession_2026-07-30.md`'s layout) and its child widgets:
-   - Three compartment panels (Pockets/Backpack/Duffle) → each calls `GetSlotsInLocation()` for its own `EZSCarryLocation`, bound to `OnInventoryChanged` to refresh.
-   - Needs bars (`WBP_ZS_MoodleStack`) → bind `OnMoodleStackChanged`, re-read `GetMoodleEntries()` — same widget T3.1 originally specified, now placed here instead of the HUD.
-   - Weight bar → `GetCurrentWeight()` / `GetMaxCarryWeight()`, threshold marker at `GetMaxCarryWeight()` itself (the encumbrance penalty starts exactly there, see `GetEncumbranceMultiplier()`'s own comment).
-   - Item widget → `OnDragDetected` constructs a `UZSDragDropPayload` (`InstanceId` + the correct `SourceKind`); condition/durability reads `InstanceState.ConditionQuality` directly.
-   - Drop targets (compartment panel, equip slot, weapon-mount slot, Equipment slot) → each `OnDrop` reads the payload and calls the matching `Server_` function (`Server_EquipToSlot`, `Server_MountLongGun`/`Server_MountSidearm`, `Server_AssignEquipmentSlot`) - **every drag also needs a keyboard-driven equivalent** (T5.3's standing keyboard-accessibility requirement, same as T2.4).
-   - Tooltip → `GetStatPreviewLines()` on hover, same pattern as T3.7.
+1. **Build `WBP_ZS_Inventory`** (the Tab-opened Loadout screen, per `Docs/Planning/B1_UIDesignSession_2026-07-30.md`'s layout) and its child widgets — Designer-tab hierarchy (exact `BindWidget` names) + Class Defaults only now, no Graph-tab wiring for any of them. Full per-widget steps and exact hierarchy diagrams: UI Build Manifest artifact. Keyboard-driven equivalents for every drag target (T5.3's standing accessibility requirement) still need deciding/building — the C++ drop handlers don't cover input-method choice.
 2. **T5.7 (2-client verified)** — folds into the same B1 exit sweep as PT1's 2-client half (see this doc's Exit criteria section); not a separate task, just don't forget it's still owed.
 3. **Non-weapon Equipment-slot items** (a quick-use consumable that isn't a `UZSWeaponConfig`) — explicitly **not** built. `Server_AssignEquipmentSlot` only accepts a weapon-config instance today; broadening it to arbitrary items is new scope needing its own call, not guessed past here (see `AZSPlayerCharacter.h`'s Equipment-slot section comment).
 
@@ -264,9 +259,12 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - `AZSContainerActor::OnContainerSlotsChanged` — `ContainerSlots` had replication but no real change delegate before this; a T6 widget binds this instead of polling `GetContainerSlots()`.
 - `AZSPlayerCharacter::Server_TakeContainerItem`/`Server_TakeAllContainerItems` — real `Server, Reliable` RPCs (unlike the container-level functions above, which are plain `HasAuthority()`-gated calls, not RPCs themselves) so a client's UI can actually reach the server. Same reasoning `Server_SelectHotbarSlot` already establishes for weapon-key selection.
 
+**Completed — 2026-08-02, uncompiled (see `SessionHandoff.md` for live compile/PIE status):**
+- `UZSContainerLootWidget` (`UZSUserWidgetBase` subclass) — reuses T5's `UZSItemSlotWidget`/`UZSDragDropPayload` (`EZSDragSourceKind::Container`) directly. Binds `OnContainerSlotsChanged`, its Take All button calls `Server_TakeAllContainerItems`, `OpenAsModal`/`CloseAsModal` wrap the modal stack. Per-item take is now automatic — `UZSItemSlotWidget::NativeOnMouseButtonDown` calls `Server_TakeContainerItem` itself when `SourceKind == Container`, so the old separate "per-item take" card is gone from the manifest, folded into `UZSItemSlotWidget`'s own behavior.
+
 **Next steps:**
 
-1. **Build `WBP_ZS_ContainerLoot`** (two-pane screen, reuses T5's `WBP_ZS_ItemSlot`/`UZSDragDropPayload` — `EZSDragSourceKind::Container` was already reserved for this) — bind `OnContainerSlotsChanged`, re-read `GetContainerSlots()`. Item actions call `Server_TakeContainerItem`/`Server_TakeAllContainerItems`.
+1. **Build `WBP_ZS_ContainerLoot`** — Designer-tab hierarchy + Class Defaults only, no Graph-tab wiring. Full steps: UI Build Manifest artifact.
 2. **Open UX question, not decided:** should interacting with a container open this screen, or keep auto-looting everything (today's unchanged behavior)? `Docs/Planning/B1_UIDesignSession_2026-07-30.md` explicitly says container-loot UX "was not mocked up this session" - worth a call before rewiring `OnInteract`.
 3. T6.4 (no pause while looting) needs no code - inherent, same as every other B1 screen. Testing pass only, once the widget exists.
 
@@ -278,9 +276,12 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - `AZSGameState::GetSleepReadyCounts(int32& OutReady, int32& OutTotal)` (T7.4) — a "2/4 ready" readout without every consumer re-deriving the same `PlayerArray` cast-and-count loop `UpdateSleepRequestState` already does internally.
 - T7.3 (blackout) needed **no new code** — `IsBlackedOut()`/`OnBlackoutChanged` already existed and were already public/`BlueprintAssignable`.
 
+**Completed — 2026-08-02, uncompiled (see `SessionHandoff.md` for live compile/PIE status):**
+- `UZSDeathScreenWidget` (binds `OnDeath`, formats cause-of-death from `GetLastDeathInfo()`, runs the local respawn countdown itself via a repeating timer), `UZSBlackoutOverlayWidget` (no `BindWidget` properties at all — just toggles its own root Visibility off `OnBlackoutChanged`), `UZSSleepPlayerRowWidget` + `UZSSleepPromptWidget` (binds `OnSleepRequestStateChanged`, loops `GameState->PlayerArray` casting each pawn to `AZSPlayerCharacter` to build the ready-row list, gates the toggle button on `IsSafeToSleep()`, `Btn_ToggleReady` calls `ToggleSleepReady()` directly). All three are `UZSUserWidgetBase` subclasses, all Graph-tab logic gone.
+
 **Next steps:**
 
-1. **Build the widgets**: `WBP_ZS_DeathScreen` (bind `OnDeath`, read `GetLastDeathInfo()`, non-interactive), a respawn countdown (pull-based - read `GetRespawnDelaySeconds()` once, run a local timer from whenever `IsDead()` flips true; don't query the server's timer, it's not valid on a non-host client), `WBP_ZS_BlackoutOverlay` (bind `OnBlackoutChanged`, distinct treatment from the death screen - still attackable/revivable, not dead), `WBP_ZS_SleepPrompt` (bind `OnSleepRequestStateChanged`, read `GetSleepReadyCounts()` and `IsSafeToSleep()` before commit, call `ToggleSleepReady()`).
+1. **Build the widgets** — Designer-tab hierarchy + Class Defaults only, no Graph-tab wiring for any of them (`WBP_ZS_SleepPlayerRow` needs building first as `WBP_ZS_SleepPrompt`'s row template). Full steps: UI Build Manifest artifact.
 2. **Open question (OQ-B6-07):** whether a fuller death-recap screen (stats, kill feed) is wanted beyond plain cause-of-death - not decided, `GetLastDeathInfo()` covers only what's built.
 
 ### B1-T8 — Main menu & pause
@@ -291,9 +292,12 @@ Dev-only, non-scriptable steps (see `Docs/Beta/README.md`'s convention note). **
 - T8.2 (in-game menu) and T8.3 (settings stub) need **no new C++** - T8.2 reuses `UZSUIManager::PushModal`/`PopModal` directly, T8.3 is a placeholder button with nothing to configure yet.
 - **Steam friends-list invite (T8.1) deliberately NOT built** - `OnlineSubsystemSteam` isn't wired into `ZombieShooter.Build.cs` at all (still commented out, per `CLAUDE.md`'s Off-Limits: no dedicated-server/online subsystem yet). Enabling it is an infrastructure decision (Steam AppID, plugin enablement) for you to make, not guessed past here.
 
+**Completed — 2026-08-02, uncompiled (see `SessionHandoff.md` for live compile/PIE status):**
+- `UZSMainMenuWidget` (wires Host/New Game/Join/Settings/Quit buttons directly to `GetOwningZSGameInstance()`/`UKismetSystemLibrary::QuitGame`; `Btn_Continue` deliberately untouched, stays disabled until B3), `UZSPauseMenuWidget` (wires Resume/Settings/Quit-to-Menu; `OpenAsModal`/`CloseAsModal` wrap the modal stack, same pattern as the Inventory/Container screens), `UZSLoadingScreenWidget` (binds `OnLoadingScreenShouldShow`/`Hide`, plays/stops the optional `Spin` animation). All three are `UZSUserWidgetBase` subclasses. `WBP_ZS_Settings` is the one B1 widget deliberately **not** converted — it's a static placeholder button with nothing to bind, no win from moving it to C++.
+
 **Next steps:**
 
 1. **Required manual step, not yet done: set `GameInstanceClass` to `ZSGameInstance`** (Project Settings → Maps & Modes, or a Blueprint child of it if you want BP-level tuning). Without this, none of `UZSGameInstance` runs at all - deliberately left undone since `Config/DefaultEngine.ini` already has your own uncommitted changes this pass didn't touch.
-2. **Build the widgets**: `WBP_ZS_MainMenu` (Host/Join/Quit calling `HostGame`/`JoinGame`; "Continue/Load" stays stubbed until B3), an in-game pause menu (Resume/Settings/Quit-to-menu, pushed via `UZSUIManager` - make "the world is still running" legible somehow, exact treatment undecided), a settings stub button, `WBP_ZS_LoadingScreen` (bind `OnLoadingScreenShouldShow`/`Hide`).
+2. **Build the widgets** — Designer-tab hierarchy + Class Defaults only for `WBP_ZS_MainMenu`/`WBP_ZS_PauseMenu`/`WBP_ZS_LoadingScreen`, no Graph-tab wiring. `WBP_ZS_Settings` still needs its one manual `Btn_Back` → `Remove from Parent` Graph node, nothing else changed there. Full steps: UI Build Manifest artifact.
 3. **Open question (OQ-B1-03):** solo pause behaviour - does a lone host get to actually pause, unlike co-op? Not decided.
 4. **Decide on Steam invite** (needs `OnlineSubsystemSteam` wired into `ZombieShooter.Build.cs` + `.uproject` plugin enablement + a Steam AppID) before building it - real infrastructure scope, not a UI-only task.

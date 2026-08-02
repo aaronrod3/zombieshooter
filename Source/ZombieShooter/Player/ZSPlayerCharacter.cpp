@@ -1400,6 +1400,36 @@ void AZSPlayerCharacter::Server_TakeAllContainerItems_Implementation(AZSContaine
 	Container->Server_TakeAllItems(this);
 }
 
+void AZSPlayerCharacter::Server_EquipToSlot_Implementation(EZSEquipSlot Slot, FGuid InstanceId)
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_EquipToSlot(Slot, InstanceId);
+}
+
+void AZSPlayerCharacter::Server_MountLongGun_Implementation(int32 MountIndex, FGuid InstanceId)
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_MountLongGun(MountIndex, InstanceId);
+}
+
+void AZSPlayerCharacter::Server_MountSidearm_Implementation(FGuid InstanceId)
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_MountSidearm(InstanceId);
+}
+
 void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
 {
 	if (!HasAuthority())

@@ -813,6 +813,16 @@ public:
 	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
 	void Server_TakeAllContainerItems(AZSContainerActor* Container);
 
+	/** B1, 2026-08-02: real RPC wrappers, same reasoning as Server_TakeContainerItem above - UZSInventoryComponent::Server_EquipToSlot/Server_MountLongGun/Server_MountSidearm are plain HasAuthority()-gated calls, not RPCs, so a client-owned drop-target widget calling them directly would silently no-op on anyone but the host. Found and fixed while converting T5's drop-target widgets to C++ - the same gap existed in this doc's own prior Blueprint instructions for those widgets, not just the new C++ path. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_EquipToSlot(EZSEquipSlot Slot, FGuid InstanceId);
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_MountLongGun(int32 MountIndex, FGuid InstanceId);
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_MountSidearm(FGuid InstanceId);
+
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

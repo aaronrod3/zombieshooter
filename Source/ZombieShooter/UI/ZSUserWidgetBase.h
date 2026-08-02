@@ -13,6 +13,8 @@ class UZSNeedsComponent;
 class UZSInventoryComponent;
 class UZSUIManager;
 class UZSNotificationSubsystem;
+class AZSGameState;
+class UZSGameInstance;
 
 /**
  *  B1-T2.1/T2.4 (Docs/Beta/B1_UI_UX.md): the one base class every `WBP_ZS_*` screen inherits from.
@@ -80,7 +82,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|UI")
 	UZSNotificationSubsystem* GetNotificationSubsystem() const;
 
+	/** 2026-08-02: two more single-node replacements for a hand-wired Cast chain - Get Game State ->
+	 *  Cast to ZSGameState, and Get Game Instance -> Cast to ZSGameInstance. Lower-traffic than the
+	 *  getters above (one card each, SleepPrompt and MainMenu/LoadingScreen) but the same pattern. */
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	AZSGameState* GetOwningZSGameState() const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	UZSGameInstance* GetOwningZSGameInstance() const;
+
 protected:
 
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+
+	/** 2026-08-02: convenience for every C++-authored modal-root widget (Inventory, ContainerLoot,
+	 *  PauseMenu, SleepPrompt) - wraps GetUIManager()->PushModal/PopModal, always passing this widget
+	 *  itself as both the modal and its own focus target, which is every one of their use cases. Not
+	 *  a UFUNCTION - internal C++ convenience for subclasses, not something a Blueprint child needs to
+	 *  call directly (they call the subclass's own OpenAsModal()/CloseAsModal() instead). */
+	void PushAsModal(FName ModalTag);
+	void PopAsModal(FName ModalTag);
 };

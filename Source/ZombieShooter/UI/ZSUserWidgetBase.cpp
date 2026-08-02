@@ -8,8 +8,11 @@
 #include "../Combat/ZSHealthComponent.h"
 #include "../Survival/ZSNeedsComponent.h"
 #include "../Inventory/ZSInventoryComponent.h"
+#include "../Framework/ZSGameState.h"
+#include "../Framework/ZSGameInstance.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
 
 AZSPlayerCharacter* UZSUserWidgetBase::GetOwningZSPlayerCharacter() const
 {
@@ -45,6 +48,34 @@ UZSNotificationSubsystem* UZSUserWidgetBase::GetNotificationSubsystem() const
 {
 	ULocalPlayer* LP = GetOwningLocalPlayer();
 	return LP ? LP->GetSubsystem<UZSNotificationSubsystem>() : nullptr;
+}
+
+AZSGameState* UZSUserWidgetBase::GetOwningZSGameState() const
+{
+	UWorld* World = GetWorld();
+	return World ? World->GetGameState<AZSGameState>() : nullptr;
+}
+
+UZSGameInstance* UZSUserWidgetBase::GetOwningZSGameInstance() const
+{
+	UWorld* World = GetWorld();
+	return World ? Cast<UZSGameInstance>(World->GetGameInstance()) : nullptr;
+}
+
+void UZSUserWidgetBase::PushAsModal(FName ModalTag)
+{
+	if (UZSUIManager* Manager = GetUIManager())
+	{
+		Manager->PushModal(ModalTag, this);
+	}
+}
+
+void UZSUserWidgetBase::PopAsModal(FName ModalTag)
+{
+	if (UZSUIManager* Manager = GetUIManager())
+	{
+		Manager->PopModal(ModalTag);
+	}
 }
 
 FReply UZSUserWidgetBase::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
