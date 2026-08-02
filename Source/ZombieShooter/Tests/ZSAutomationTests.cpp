@@ -1750,16 +1750,20 @@ bool FZSUIModalStackTest::RunTest(const FString& Parameters)
 }
 
 // ---------------------------------------------------------------------------------------------
-// ZS.Loadout.AssignHotbarSlotRequiresMountedWeapon - B1-T5.0/T5.4. Server_AssignHotbarSlot is the
-// runtime "assign an item to hotbar slot N" mechanism T5.0 flagged as not yet built - scoped to
-// only accept a currently-MOUNTED weapon (UZSInventoryComponent::IsWeaponMounted), not an
-// arbitrary carried item, per B1_UI_UX.md's dev-confirmed design. Verifies both the accept and
-// reject paths, that CanAssignToHotbarSlot's client-side pre-check agrees with the server's actual
-// result, and that Server_ClearHotbarSlot un-assigns cleanly.
+// ZS.Loadout.WeaponKeySlotsResolveFromMounts - B1 HUD redesign 2026-08-01 (dev-confirmed): the old
+// free-form 9-slot hotbar (its own manual "assign to slot N" step) is retired in favor of 3 fixed
+// keys mapped directly to the weapon-mount slots (Primary/Pistol/Secondary) plus a 4th Equipment
+// slot (G). A weapon becomes key-selectable purely by being mounted - verifies SelectHotbarSlot
+// accepts a mounted weapon (proving the new ResolveWeaponSlotInstance mount-lookup replaced the
+// removed HotbarSlots array correctly) and rejects an out-of-range index. The actual equip
+// completion is timer-scheduled (CompleteHotbarSwitch, via GetWorldTimerManager - no existing test
+// in this suite advances a timer, same "PIE testing is hands-only" limitation as the rest of the
+// equip-timing system) - this test covers what's synchronously observable: the call is accepted
+// (bIsBusy flips true) rather than silently rejected.
 // ---------------------------------------------------------------------------------------------
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSHotbarAssignmentTest, "ZS.Loadout.AssignHotbarSlotRequiresMountedWeapon", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSWeaponKeySlotTest, "ZS.Loadout.WeaponKeySlotsResolveFromMounts", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FZSHotbarAssignmentTest::RunTest(const FString& Parameters)
+bool FZSWeaponKeySlotTest::RunTest(const FString& Parameters)
 {
 	ZSTest::FScopedTestWorld TestWorld;
 	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
@@ -1772,9 +1776,6 @@ bool FZSHotbarAssignmentTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	// Same BeginPlay gotcha as ZS.Health.AmputationStateTransition/ZS.Combat.ZombieBiteZoneWeightedRoll -
-	// HotbarSlots is only sized to NumHotbarSlots (HotbarSlots.Init) inside BeginPlay, so indexing it
-	// before this would read past an empty array.
 	if (!Character->HasActorBegunPlay())
 	{
 		Character->DispatchBeginPlay();
@@ -1789,45 +1790,110 @@ bool FZSHotbarAssignmentTest::RunTest(const FString& Parameters)
 	UZSWeaponConfig* SidearmConfig = NewObject<UZSWeaponConfig>();
 	SidearmConfig->Handedness = EZSWeaponHandedness::OneHanded;
 	SidearmConfig->AttackType = EZSAttackType::Ranged;
-
-	UZSWeaponConfig* UnmountedConfig = NewObject<UZSWeaponConfig>();
-	UnmountedConfig->Handedness = EZSWeaponHandedness::OneHanded;
-	UnmountedConfig->AttackType = EZSAttackType::Ranged;
+	SidearmConfig->EquipTimeSeconds = 0.01f;
 
 	if (!TestEqual(TEXT("Sidearm added to CarrySlots"), Inventory->Server_AddItem(SidearmConfig, 1), 1))
-	{
-		return false;
-	}
-	if (!TestEqual(TEXT("Second weapon added to CarrySlots"), Inventory->Server_AddItem(UnmountedConfig, 1), 1))
 	{
 		return false;
 	}
 
 	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
 	const FZSItemInstance* SidearmInstance = Slots.FindByPredicate([SidearmConfig](const FZSItemInstance& I) { return I.Config == SidearmConfig; });
-	const FZSItemInstance* UnmountedInstance = Slots.FindByPredicate([UnmountedConfig](const FZSItemInstance& I) { return I.Config == UnmountedConfig; });
-	if (!TestNotNull(TEXT("Sidearm instance found"), SidearmInstance) || !TestNotNull(TEXT("Unmounted instance found"), UnmountedInstance))
+	if (!TestNotNull(TEXT("Sidearm instance found"), SidearmInstance))
 	{
 		return false;
 	}
 	const FGuid SidearmId = SidearmInstance->InstanceId;
-	const FGuid UnmountedId = UnmountedInstance->InstanceId;
 
 	if (!TestTrue(TEXT("Sidearm mounts successfully"), Inventory->Server_MountSidearm(SidearmId)))
 	{
 		return false;
 	}
 
-	TestTrue(TEXT("CanAssignToHotbarSlot: mounted weapon is assignable"), Character->CanAssignToHotbarSlot(0, SidearmId));
-	Character->Server_AssignHotbarSlot(0, SidearmId);
-	TestEqual(TEXT("Hotbar slot 0 now points at the mounted sidearm"), Character->GetHotbarSlots()[0], SidearmId);
+	// Key 2 (SlotIndex 1) is the Pistol slot - selecting it should be accepted (mounted weapon
+	// resolves correctly) and start the equip-timing window. SelectHotbarSlot is the public
+	// client-callable wrapper (Server_SelectHotbarSlot itself is protected, only ever reached
+	// through it or the real RPC dispatch).
+	TestFalse(TEXT("Not busy before selecting"), Character->IsBusy());
+	Character->SelectHotbarSlot(1);
+	TestTrue(TEXT("Selecting the mounted sidearm's key slot is accepted (bIsBusy set)"), Character->IsBusy());
 
-	TestFalse(TEXT("CanAssignToHotbarSlot: unmounted weapon is rejected"), Character->CanAssignToHotbarSlot(1, UnmountedId));
-	Character->Server_AssignHotbarSlot(1, UnmountedId);
-	TestNotEqual(TEXT("Hotbar slot 1 was NOT assigned - unmounted weapon rejected"), Character->GetHotbarSlots()[1], UnmountedId);
+	// Out-of-range index (the old 9-slot range no longer applies) must be rejected outright - no
+	// state change at all, not even bIsBusy.
+	AZSPlayerCharacter* SecondCharacter = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Second player character spawned"), SecondCharacter))
+	{
+		return false;
+	}
+	if (!SecondCharacter->HasActorBegunPlay())
+	{
+		SecondCharacter->DispatchBeginPlay();
+	}
+	SecondCharacter->SelectHotbarSlot(9);
+	TestFalse(TEXT("Out-of-range slot index rejected outright"), SecondCharacter->IsBusy());
 
-	Character->Server_ClearHotbarSlot(0);
-	TestFalse(TEXT("Hotbar slot 0 cleared back to invalid"), Character->GetHotbarSlots()[0].IsValid());
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Loadout.EquipmentSlotRequiresWeaponConfig - B1 HUD redesign 2026-08-01. The 4th weapon-key
+// slot (G) is scoped to UZSWeaponConfig instances only this pass (see AZSPlayerCharacter.h's
+// Equipment-slot section comment for why) - verifies Server_AssignEquipmentSlot accepts a weapon
+// config and rejects a plain UZSItemConfig, and that Server_ClearEquipmentSlot resets it.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSEquipmentSlotTest, "ZS.Loadout.EquipmentSlotRequiresWeaponConfig", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSEquipmentSlotTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* GrenadeConfig = NewObject<UZSWeaponConfig>();
+	GrenadeConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	GrenadeConfig->AttackType = EZSAttackType::Ranged;
+
+	UZSItemConfig* PlainItemConfig = NewObject<UZSItemConfig>();
+
+	if (!TestEqual(TEXT("Grenade added to CarrySlots"), Inventory->Server_AddItem(GrenadeConfig, 1), 1))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Plain item added to CarrySlots"), Inventory->Server_AddItem(PlainItemConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* GrenadeInstance = Slots.FindByPredicate([GrenadeConfig](const FZSItemInstance& I) { return I.Config == GrenadeConfig; });
+	const FZSItemInstance* PlainInstance = Slots.FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
+	if (!TestNotNull(TEXT("Grenade instance found"), GrenadeInstance) || !TestNotNull(TEXT("Plain item instance found"), PlainInstance))
+	{
+		return false;
+	}
+
+	Character->Server_AssignEquipmentSlot(PlainInstance->InstanceId);
+	TestFalse(TEXT("Plain (non-weapon) item rejected from the Equipment slot"), Character->GetEquipmentSlotInstanceId().IsValid());
+
+	Character->Server_AssignEquipmentSlot(GrenadeInstance->InstanceId);
+	TestEqual(TEXT("Weapon-config item accepted into the Equipment slot"), Character->GetEquipmentSlotInstanceId(), GrenadeInstance->InstanceId);
+
+	Character->Server_ClearEquipmentSlot();
+	TestFalse(TEXT("Equipment slot cleared back to invalid"), Character->GetEquipmentSlotInstanceId().IsValid());
 
 	return true;
 }

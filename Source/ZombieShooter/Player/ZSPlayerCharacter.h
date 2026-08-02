@@ -39,12 +39,12 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnBoolStateChanged, bool, bNewValue);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnWeaponChanged, AZSWeapon*, NewWeapon);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnNearestInteractableChanged, UZSInteractableComponent*, NewInteractable);
-/** P5: broadcast by OnRep_ActiveHotbarIndex - a hotbar UI binds this to highlight the active slot without polling. */
+/** P5/B1-T-redesign 2026-08-01 (dev-confirmed): broadcast by OnRep_ActiveHotbarIndex - a HUD binds this to know which of the 4 weapon-key slots (0/1/2 = mount-resolved Primary/Pistol/Secondary, 3 = Equipment) is currently equipped, to show one "what's in my hand right now" icon. The old free-form 9-slot hotbar (arbitrary assignment, its own WBP grid) is retired - a weapon becomes key-selectable purely by being mounted (UZSInventoryComponent::Server_MountLongGun/Server_MountSidearm), no separate assignment step. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FZSOnActiveHotbarIndexChanged, int32, NewIndex);
-/** P5: broadcast by OnRep_HotbarSlots - a hotbar UI binds this to refresh its slot icons without polling. */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnHotbarChanged);
 /** B0-T11.1: broadcast by OnRep_SecondaryHandInstanceId - a loadout UI binds this to refresh the SecondaryHand slot icon without polling. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnSecondaryHandChanged);
+/** B1-T-redesign 2026-08-01: broadcast by OnRep_EquipmentSlotInstanceId - the grenade/quick-equipment slot's own change notification, same shape as FZSOnSecondaryHandChanged. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnEquipmentSlotChanged);
 
 /**
  *  The player-controlled character for ZombieShooter. Kept non-abstract (no mandatory
@@ -227,72 +227,52 @@ protected:
 	TObjectPtr<USkeletalMesh> UnarmedBodyMesh;
 
 	// =====================================================================
-	// P5 - Loadout: real-time hotbar (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)
-	// =====================================================================
-	// CurrentWeapon above *is* the PrimaryHand slot IA_Attack dispatches on - this section adds what
-	// fills it in real time. A fixed 9-slot hotbar of instance GUIDs into GetInventoryComponent()'s
-	// CarrySlots (B0-T2 Step B, 2026-07-26 - previously a bare array of UZSWeaponConfig* references
-	// with no connection to the inventory at all, P6's own phase file flagged this as the known gap).
-	// StartingHotbarLoadout stays config-authored on the character/BP (unchanged authoring
-	// experience) but now seeds a real FZSItemInstance per entry at BeginPlay and points these GUIDs
-	// at them, so a looted weapon is equally hotbar-able, not just a pre-authored starting one.
-	// Switching slots isn't instant - Server_SelectHotbarSlot schedules the actual EquipWeapon call
-	// after the target config's EquipTimeSeconds (or UnequipTimeSeconds when switching to bare-fist),
-	// gated by the same bIsBusy the reload/melee/fire paths already respect - one busy window covers
-	// both holster-old and equip-new (v1 simplification; no equip montage content exists yet to
-	// justify a real two-phase notify-driven version, same as BeginBusyAction's reload window).
-	// Re-selecting the already-equipped slot unequips back to bare-fist (a toggle, not a separate
-	// "unequip" input/key). Unequipping/switching writes the outgoing weapon's live durability back
-	// into its CarrySlots instance first (WriteBackCurrentWeaponDurability) - the actual fix for
-	// durability resetting across an equip cycle.
+	// P5/B1 - Loadout: key-mapped weapon slots (GameDevPlan.md P5, redesigned 2026-08-01 dev-
+	// confirmed away from a free-form 9-slot hotbar). 4 fixed slots, each key-bound directly:
+	// index 0 (key 1, "Primary") resolves live to UZSInventoryComponent::GetMountedLongGun(0);
+	// index 1 (key 2, "Pistol") resolves to GetMountedSidearm(); index 2 (key 3, "Secondary")
+	// resolves to GetMountedLongGun(1); index 3 (key G) resolves to this class's own
+	// EquipmentSlotInstanceId (see the Equipment-slot section further below). A weapon becomes
+	// key-selectable purely by being mounted - there is no separate "assign to slot N" step
+	// anymore, mounting IS the assignment. Switching slots isn't instant - Server_SelectHotbarSlot
+	// schedules the actual EquipWeapon call after the target config's EquipTimeSeconds (or
+	// UnequipTimeSeconds when switching to bare-fist), gated by the same bIsBusy the reload/melee/
+	// fire paths already respect. Re-selecting the already-equipped slot unequips back to bare-fist
+	// (a toggle, not a separate "unequip" input/key). Unequipping/switching writes the outgoing
+	// weapon's live durability back into its CarrySlots instance first
+	// (WriteBackCurrentWeaponDurability). Function/property names below still say "Hotbar" in
+	// places - kept deliberately (this is all brand new this session, nothing BP-authored
+	// references the old names yet, but a second unnecessary rename pass isn't worth the extra
+	// diff) - read "hotbar slot index" as "weapon-key slot index" throughout.
 
 public:
 
 	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
 	int32 GetActiveHotbarIndex() const { return ActiveHotbarIndex; }
 
-	/** Client-callable entry point, bound to HotbarSelectAction. SlotIndex is already 0-based (HandleHotbarSelect converts from the input's 1-9 value). No-op if mid-switch (CanSwitchLoadout) or out of range. */
+	/** Client-callable entry point, bound to HotbarSelectAction (keys 1-3) or EquipItemAction (G, always slot 3 - see HandleEquipmentSelect). SlotIndex is already 0-based. No-op if mid-switch (CanSwitchLoadout) or out of range. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Loadout")
 	void SelectHotbarSlot(int32 SlotIndex);
 
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
 	FZSOnActiveHotbarIndexChanged OnActiveHotbarIndexChanged;
 
-	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
-	FZSOnHotbarChanged OnHotbarSlotsChanged;
-
-	/** T3.4: what OnHotbarSlotsChanged tells a hotbar widget to re-read - HotbarSlots itself is protected, this was the missing read path (the delegate alone gives no way to see what changed). Returns a copy, same convention as UZSInventoryComponent::GetCarrySlots(). */
-	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
-	TArray<FGuid> GetHotbarSlots() const { return HotbarSlots; }
-
-	/** B1-T5.0/T5.4: the runtime "assign an item to hotbar slot N" mechanism T5.0 flagged as not yet built - HotbarSlots was BeginPlay-seeded only until now. Scoped exactly to what B1_UI_UX.md's T5.0 entry already dev-confirmed: a hotbar slot points at a currently-MOUNTED weapon (UZSInventoryComponent::IsWeaponMounted), not an arbitrary carried item - generalizing to non-weapon hotbar items (a quick-use consumable) is explicitly further scope, not guessed past here. Reassigns what SlotIndex points at only - does NOT re-equip, even if SlotIndex == ActiveHotbarIndex; the player must reselect the slot (Server_SelectHotbarSlot) to actually switch to the new weapon, same as swapping a magazine doesn't fire the gun. */
-	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
-	void Server_AssignHotbarSlot(int32 SlotIndex, FGuid InstanceId);
-
-	/** The drag-off/unassign path - clears SlotIndex back to an empty hotbar slot. Does not force an unequip if SlotIndex == ActiveHotbarIndex, same "reassignment isn't re-equip" reasoning as Server_AssignHotbarSlot. */
-	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
-	void Server_ClearHotbarSlot(int32 SlotIndex);
-
-	/** T5.3: cheap client-side pre-check a drag-drop target can call before attempting Server_AssignHotbarSlot, so a UMG OnDrop can reject an invalid drop without a round-trip - re-validated authoritatively server-side regardless. */
-	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
-	bool CanAssignToHotbarSlot(int32 SlotIndex, FGuid InstanceId) const;
-
 protected:
 
-	static constexpr int32 NumHotbarSlots = 9;
+	/** The 3 keys (1/2/3) that map directly to a weapon-mount slot - Primary/Pistol/Secondary. */
+	static constexpr int32 NumMountKeySlots = 3;
 
-	/** Placeholder for P6's real inventory (see the section comment above) - authored directly on the character/BP, same spot StartingWeaponConfig used to occupy. Copied into HotbarSlots (clamped to NumHotbarSlots) at BeginPlay; editing this after BeginPlay has no effect. */
+	/** The 4th weapon-key slot (G) - resolves to EquipmentSlotInstanceId instead of a mount. */
+	static constexpr int32 EquipmentSlotIndex = 3;
+
+	/** Total valid range for ActiveHotbarIndex/Server_SelectHotbarSlot - NumMountKeySlots + the Equipment slot. */
+	static constexpr int32 NumWeaponSlots = 4;
+
+	/** Starting weapons, authored on the character/BP. At BeginPlay each is minted into CarrySlots and auto-mounted (TwoHanded -> next free long-gun mount, OneHanded+Ranged -> sidearm mount) so it's immediately key-selectable - no separate hotbar-seeding step exists anymore, mounting is the only carry/selectability mechanism. */
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loadout")
 	TArray<TObjectPtr<UZSWeaponConfig>> StartingHotbarLoadout;
 
-	/** Always exactly NumHotbarSlots elements (invalid FGuid = empty slot) once BeginPlay runs, regardless of how many entries StartingHotbarLoadout authored - so every number key 1-9 is always a valid target. B0-T2 Step B: was TArray<TObjectPtr<UZSWeaponConfig>> - now GUIDs into GetInventoryComponent()'s CarrySlots, so a looted weapon is actually hotbar-able (the gap CLAUDE.md's Inventory/ note used to flag). BeginPlay seeds a real FZSItemInstance per StartingHotbarLoadout entry and points these at the new GUIDs. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_HotbarSlots, Category = "ZS|Loadout")
-	TArray<FGuid> HotbarSlots;
-
-	UFUNCTION()
-	void OnRep_HotbarSlots();
-
-	/** INDEX_NONE (bare-fist/unarmed) or 0..NumHotbarSlots-1. The authoritative record of which hotbar slot CurrentWeapon corresponds to - needed so re-pressing the same number toggles unequip rather than re-equipping the same weapon. */
+	/** INDEX_NONE (bare-fist/unarmed) or 0..NumWeaponSlots-1. The authoritative record of which weapon-key slot CurrentWeapon corresponds to - needed so re-pressing the same key toggles unequip rather than re-equipping the same weapon, and so WriteBackCurrentWeaponDurability/ClearWeaponSlot know which underlying reference (a mount, or EquipmentSlotInstanceId) to act on. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ActiveHotbarIndex, Category = "ZS|Loadout")
 	int32 ActiveHotbarIndex = INDEX_NONE;
 
@@ -302,16 +282,26 @@ protected:
 	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
 	void Server_SelectHotbarSlot(int32 SlotIndex);
 
-	/** Timer callback for both directions - PendingIndex is INDEX_NONE for "finish unequipping to bare-fist", otherwise a valid HotbarSlots index to actually EquipWeapon(). Server-only (only ever scheduled from Server_SelectHotbarSlot, which already gates on HasAuthority()). */
+	/** Timer callback for both directions - PendingIndex is INDEX_NONE for "finish unequipping to bare-fist", otherwise a valid weapon-key slot index (0..NumWeaponSlots-1) to actually EquipWeapon(). Server-only (only ever scheduled from Server_SelectHotbarSlot, which already gates on HasAuthority()). */
 	void CompleteHotbarSwitch(int32 PendingIndex);
 
-	/** B0-T2 Step B: writes CurrentWeapon's live durability back into the CarrySlots instance ActiveHotbarIndex/HotbarSlots currently point at, before that AZSWeapon actor gets destroyed - the actual fix for durability resetting on unequip/re-equip. No-op if there's no current weapon, no valid active slot, or GetInventoryComponent() is unset. Not called from the weapon-breaking path (T2.8 removes the instance instead of preserving it). */
+	/** Maps a weapon-key slot index (0-3) to the FGuid it currently resolves to - 0/1/2 read live from the inventory component's weapon-mount slots (Primary/Pistol/Secondary), 3 reads EquipmentSlotInstanceId. This is what replaced the old free-form HotbarSlots array: a weapon (or the equipment-slot item) becomes key-selectable purely by occupying the underlying slot, nothing separate to keep in sync. Returns an invalid FGuid for an out-of-range index or if GetInventoryComponent() is unset. */
+	FGuid ResolveWeaponSlotInstance(int32 SlotIndex) const;
+
+	/** The write side of ResolveWeaponSlotInstance - clears whichever underlying reference SlotIndex currently resolves to (unmounts the mount, or nulls EquipmentSlotInstanceId), without touching CurrentWeapon/ActiveHotbarIndex - callers that also need those cleared (e.g. a weapon breaking) do that themselves alongside this call. */
+	void ClearWeaponSlot(int32 SlotIndex);
+
+	/** B0-T2 Step B: writes CurrentWeapon's live durability back into the CarrySlots instance ActiveHotbarIndex currently resolves to (via ResolveWeaponSlotInstance), before that AZSWeapon actor gets destroyed - the actual fix for durability resetting on unequip/re-equip. No-op if there's no current weapon, no valid active slot, or GetInventoryComponent() is unset. Not called from the weapon-breaking path (T2.8 removes the instance instead of preserving it). */
 	void WriteBackCurrentWeaponDurability();
 
-	/** Shared no-op guard for SelectHotbarSlot's input handler and Server_SelectHotbarSlot itself - same bIsBusy gate CanAttack()/CanFire()/CanReload() already use, so a hotbar switch can't be started mid-swing, mid-shot, or mid-reload, and a second switch can't be started mid-switch. */
+	/** Shared no-op guard for SelectHotbarSlot's input handler and Server_SelectHotbarSlot itself - same bIsBusy gate CanAttack()/CanFire()/CanReload() already use, so a weapon-key switch can't be started mid-swing, mid-shot, or mid-reload, and a second switch can't be started mid-switch. */
 	bool CanSwitchLoadout() const;
 
+	/** Bound to HotbarSelectAction (keys 1-3 only, via a 1-3 Axis1D value) - converts to a 0-based NumMountKeySlots-range index. Key 4+ isn't mapped to this action at all (the 4th slot, Equipment, has its own dedicated key/action - see HandleEquipmentSelect). */
 	void HandleHotbarSelect(const FInputActionValue& Value);
+
+	/** Bound to EquipItemAction (G) - always targets EquipmentSlotIndex (3), same toggle behavior (re-pressing while already equipped unequips) as the numbered weapon keys. */
+	void HandleEquipmentSelect(const FInputActionValue& Value);
 
 	/** Flat fallback used when CompleteHotbarSwitch has no destination config to read EquipTimeSeconds from (switching to bare-fist has no UZSWeaponConfig involved). */
 	UPROPERTY(EditAnywhere, Category = "ZS|Loadout", meta = (ClampMin = "0"))
@@ -320,9 +310,53 @@ protected:
 	FTimerHandle HotbarSwitchTimerHandle;
 
 	// =====================================================================
+	// B1 - Equipment slot (grenades and other quick-use equipment), added 2026-08-01 (dev-
+	// confirmed): a 4th weapon-key slot (see above), key-bound to G, distinct from the 3
+	// mount-backed slots and from SecondaryHand (which stays reserved for an offhand
+	// weapon/flashlight). Scoped deliberately narrow this pass: Server_AssignEquipmentSlot only
+	// accepts an instance resolving to a UZSWeaponConfig, same as the mount slots, since
+	// CompleteHotbarSwitch's equip path only knows how to dispatch a UZSWeaponConfig (via
+	// EquipWeapon/AttackType) - a grenade is expected to be authored as one (AttackType::Ranged
+	// with a ProjectileClass set, reusing AZSProjectile's existing "opt-in simulated projectile"
+	// mechanism for the actual throw, once that content exists). A genuinely non-weapon "other
+	// equipment" item (a flare, a quick-use non-throwable) is NOT dispatchable through this slot
+	// yet - CompleteHotbarSwitch would just fail to resolve a UZSWeaponConfig and fall through to
+	// "unequip to bare-fist" instead of equipping it, which is the wrong behavior for that case.
+	// That generalization is explicitly not guessed past here - flagged in B1_UI_UX.md instead.
+	// =====================================================================
+
+public:
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
+	FGuid GetEquipmentSlotInstanceId() const { return EquipmentSlotInstanceId; }
+
+	/** Validates InstanceId resolves to a carried UZSWeaponConfig (see this section's header comment for why weapon-config-only is the deliberate scope this pass) and assigns it. No-op if invalid or off a non-authoritative machine. Assigning does NOT equip it - same "assignment isn't equip" reasoning as the old hotbar system - the player still presses G (SelectHotbarSlot(EquipmentSlotIndex)) to actually equip it. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
+	void Server_AssignEquipmentSlot(FGuid InstanceId);
+
+	/** Clears EquipmentSlotInstanceId. If it was the currently-equipped slot (ActiveHotbarIndex == EquipmentSlotIndex), also unequips back to bare-fist first (durability writeback + cosmetic cleanup) so the item isn't dragged out of the slot while still visibly in-hand. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Loadout")
+	void Server_ClearEquipmentSlot();
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Loadout")
+	FZSOnEquipmentSlotChanged OnEquipmentSlotChanged;
+
+protected:
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_EquipmentSlotInstanceId, Category = "ZS|Loadout")
+	FGuid EquipmentSlotInstanceId;
+
+	UFUNCTION()
+	void OnRep_EquipmentSlotInstanceId();
+
+	/** Not yet created as a .uasset - needs manual creation in-editor (G key), same graceful-if-missing pattern as every other Input Action in this project. */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> EquipItemAction;
+
+	// =====================================================================
 	// B0-T11 - SecondaryHand & activatable items (Docs/Planning/InventoryLoadoutEquipping_Plan.md
 	// §6). SecondaryHandInstanceId is a GUID into GetInventoryComponent()'s CarrySlots, same
-	// "never physically removed, just referenced" model HotbarSlots/EquippedBack/Hip already use.
+	// "never physically removed, just referenced" model the weapon-mount slots/EquippedBack/Duffle already use.
 	// Legal contents: (a) a UZSWeaponConfig with Handedness == OneHanded && bUsableInSecondaryHand
 	// (offhand pistol), or (b) any UZSItemConfig with bIsToggleable (a flashlight) - a TwoHanded
 	// primary blocks the slot entirely either way. IA_SecondaryAction (T) dispatches on whichever
@@ -383,7 +417,7 @@ protected:
 	// offhand weapon doesn't actually fire/swing yet... needs its own spawned AZSWeapon actor and
 	// ammo/equip choreography mirroring CurrentWeapon's"). SecondaryWeapon mirrors CurrentWeapon's
 	// own spawn/attach/destroy/durability-writeback lifecycle one-for-one, just keyed off
-	// SecondaryHandInstanceId instead of HotbarSlots/ActiveHotbarIndex. Deliberate scope cuts,
+	// SecondaryHandInstanceId instead of the weapon-key slots/ActiveHotbarIndex. Deliberate scope cuts,
 	// documented rather than silently assumed: semi-auto only (no HandleFireStarted-style repeating
 	// auto-fire timer for the offhand yet - a single SecondaryAction press is one shot/swing);
 	// shares the same LastAttackTime cooldown as the primary hand (one shared attack rhythm, not
@@ -756,16 +790,18 @@ public:
 	UZSInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
 	/** B0-T2.9 follow-up, 2026-07-30: closes the half of UZSInventoryComponent::Server_StoreInBag's
-	 * equipped-instance guard that couldn't live on the component itself, since HotbarSlots and
-	 * SecondaryHandInstanceId live here on the character - mirrors Server_SelectHotbarSlot_Implementation's
+	 * equipped-instance guard that couldn't live on the component itself, since EquipmentSlotInstanceId
+	 * and SecondaryHandInstanceId live here on the character - mirrors Server_SelectHotbarSlot_Implementation's
 	 * existing pattern of the character validating against a sibling system's state before calling
 	 * into it, rather than giving UZSInventoryComponent an upward dependency on this class. Rejects
-	 * (returns false, no-op) if ItemInstanceId is currently on the hotbar or in SecondaryHand;
-	 * otherwise delegates to UZSInventoryComponent::Server_StoreInBag for the checks it already owns. */
+	 * (returns false, no-op) if ItemInstanceId is currently in the Equipment slot or SecondaryHand -
+	 * a mounted weapon needs no separate check here, UZSInventoryComponent::Server_StoreInBag already
+	 * rejects any UZSWeaponConfig instance outright regardless of mount state. Otherwise delegates to
+	 * UZSInventoryComponent::Server_StoreInBag for the checks it already owns. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	bool Server_StoreInBagChecked(FGuid BagInstanceId, FGuid ItemInstanceId);
 
-	/** B1-T6.2: real RPC wrapper (unlike AZSContainerActor::Server_TakeItem/UZSInventoryComponent's own Server_-named functions, which are plain HasAuthority()-gated calls, not RPCs, and so only work when invoked from already-server-authoritative code) - a client's T6 loot-screen widget calls this directly, same pattern already established by Server_AssignHotbarSlot. */
+	/** B1-T6.2: real RPC wrapper (unlike AZSContainerActor::Server_TakeItem/UZSInventoryComponent's own Server_-named functions, which are plain HasAuthority()-gated calls, not RPCs, and so only work when invoked from already-server-authoritative code) - a client's T6 loot-screen widget calls this directly, same pattern Server_SelectHotbarSlot already establishes for weapon-key selection. */
 	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
 	void Server_TakeContainerItem(AZSContainerActor* Container, FGuid InstanceId);
 
@@ -1032,7 +1068,7 @@ protected:
 	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
 	void Server_MeleeAttack();
 
-	/** Server-authoritative weapon melee (P5) - reads CurrentWeapon->GetConfig()'s Melee* fields into PerformMeleeSwing, then (on a landed hit) consumes one durability hit via CurrentWeapon->Server_ConsumeDurabilityHit(). If that breaks the weapon, it's unequipped AND cleared from its hotbar slot - "melee breaks" means gone, not temporarily disabled (a broken weapon left in HotbarSlots would just re-spawn at full durability the next time that slot's re-selected, since durability lives on the AZSWeapon actor instance, not on any persistent per-item state - no inventory-backed item-instance layer exists yet to track it more granularly than that). No-op if CurrentWeapon/its config is unset. */
+	/** Server-authoritative weapon melee (P5) - reads CurrentWeapon->GetConfig()'s Melee* fields into PerformMeleeSwing, then (on a landed hit) consumes one durability hit via CurrentWeapon->Server_ConsumeDurabilityHit(). If that breaks the weapon, it's unequipped, its CarrySlots instance removed, AND unmounted/cleared from whichever weapon-key slot it occupied (ClearWeaponSlot) - "melee breaks" means gone, not temporarily disabled; leaving a stale reference behind would just re-spawn a fresh full-durability weapon the next time that slot's re-selected, since durability lives on the AZSWeapon actor instance. No-op if CurrentWeapon/its config is unset. */
 	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
 	void Server_WeaponMeleeAttack();
 

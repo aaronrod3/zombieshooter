@@ -779,6 +779,10 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	// removed rather than rebound; scroll wheel now belongs to ZoomAction above instead.
 	static ConstructorHelpers::FObjectFinder<UInputAction> HotbarSelectActionFinder(TEXT("/Game/ZS/Input/IA_HotbarSelect.IA_HotbarSelect"));
 	if (HotbarSelectActionFinder.Succeeded()) { HotbarSelectAction = HotbarSelectActionFinder.Object; }
+
+	// B1 Equipment slot (G) - same graceful-if-missing pattern, doesn't exist yet as of this commit.
+	static ConstructorHelpers::FObjectFinder<UInputAction> EquipItemActionFinder(TEXT("/Game/ZS/Input/IA_EquipItem.IA_EquipItem"));
+	if (EquipItemActionFinder.Succeeded()) { EquipItemAction = EquipItemActionFinder.Object; }
 }
 
 void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -786,7 +790,6 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AZSPlayerCharacter, CurrentWeapon);
-	DOREPLIFETIME(AZSPlayerCharacter, HotbarSlots);
 	DOREPLIFETIME(AZSPlayerCharacter, ActiveHotbarIndex);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsBusy);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsAimingBlocked);
@@ -797,6 +800,7 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(AZSPlayerCharacter, SecondaryHandInstanceId);
 	DOREPLIFETIME(AZSPlayerCharacter, bSecondaryItemActive);
 	DOREPLIFETIME(AZSPlayerCharacter, SecondaryWeapon);
+	DOREPLIFETIME(AZSPlayerCharacter, EquipmentSlotInstanceId);
 }
 
 void AZSPlayerCharacter::BeginPlay()
@@ -820,29 +824,41 @@ void AZSPlayerCharacter::BeginPlay()
 
 	EnableTopDownPerspective();
 
-	// P5: the player starts unequipped by design (GameDevPlan.md P5) - nothing is auto-equipped at
-	// BeginPlay anymore (StartingWeaponConfig's old auto-equip behavior is retired in favor of the
-	// hotbar below). HasAuthority()-only: HotbarSlots itself replicates the result to clients.
+	// P5/B1: the player starts unequipped by design (GameDevPlan.md P5) - nothing is auto-equipped
+	// as CurrentWeapon at BeginPlay. Starting weapons ARE auto-mounted, though, so they're
+	// immediately key-selectable (1/2/3) without a separate assignment step - mounting is the
+	// actual weapon-carry capacity now (B1-T5.0), and the weapon-key slots resolve live from mount
+	// state (ResolveWeaponSlotInstance), not from a seeded array. HasAuthority()-only: mount state
+	// itself replicates the result to clients.
 	if (HasAuthority())
 	{
-		HotbarSlots.Init(FGuid(), NumHotbarSlots);
-
-		// B0-T2 Step B: StartingHotbarLoadout stays config-authored (unchanged authoring experience),
-		// but now seeds a real FZSItemInstance into CarrySlots per starting weapon so HotbarSlots has
-		// an actual carried instance to point at, same as a looted weapon would.
 		if (UZSInventoryComponent* Inventory = GetInventoryComponent())
 		{
-			for (int32 SlotIndex = 0; SlotIndex < StartingHotbarLoadout.Num() && SlotIndex < NumHotbarSlots; ++SlotIndex)
+			int32 NextLongGunMount = 0;
+			for (UZSWeaponConfig* StartingConfig : StartingHotbarLoadout)
 			{
-				if (UZSWeaponConfig* StartingConfig = StartingHotbarLoadout[SlotIndex])
+				if (!StartingConfig)
 				{
-					FZSItemInstance NewInstance;
-					NewInstance.InstanceId = FGuid::NewGuid();
-					NewInstance.Config = StartingConfig;
-					NewInstance.StackCount = 1;
-					Inventory->Server_AddItemInstance(NewInstance);
-					HotbarSlots[SlotIndex] = NewInstance.InstanceId;
+					continue;
 				}
+
+				FZSItemInstance NewInstance;
+				NewInstance.InstanceId = FGuid::NewGuid();
+				NewInstance.Config = StartingConfig;
+				NewInstance.StackCount = 1;
+				Inventory->Server_AddItemInstance(NewInstance);
+
+				if (StartingConfig->Handedness == EZSWeaponHandedness::TwoHanded && NextLongGunMount < UZSInventoryComponent::NumLongGunMounts)
+				{
+					Inventory->Server_MountLongGun(NextLongGunMount, NewInstance.InstanceId);
+					++NextLongGunMount;
+				}
+				else if (StartingConfig->Handedness == EZSWeaponHandedness::OneHanded && StartingConfig->AttackType == EZSAttackType::Ranged)
+				{
+					Inventory->Server_MountSidearm(NewInstance.InstanceId);
+				}
+				// A one-handed melee starting weapon (e.g. a knife) is carried but not auto-mounted -
+				// same as looting one, it needs a mount slot assigned manually via the Inventory screen.
 			}
 		}
 	}
@@ -980,9 +996,15 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 		if (HotbarSelectAction)
 		{
-			// Started, not Triggered - digit keys are digital presses (mapped to a 1-9 Axis1D value
-			// via per-key Scalar modifiers), same "fire once per press" intent as CrouchAction/SprintAction.
+			// Started, not Triggered - digit keys are digital presses (mapped to a 1-3 Axis1D value
+			// via per-key Scalar modifiers, keys 1/2/3 only now - see NumMountKeySlots), same
+			// "fire once per press" intent as CrouchAction/SprintAction.
 			EnhancedInputComponent->BindAction(HotbarSelectAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleHotbarSelect);
+		}
+
+		if (EquipItemAction)
+		{
+			EnhancedInputComponent->BindAction(EquipItemAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleEquipmentSelect);
 		}
 
 	}
@@ -1191,7 +1213,7 @@ void AZSPlayerCharacter::RefreshBodyMeshFromWeapon()
 
 void AZSPlayerCharacter::SelectHotbarSlot(int32 SlotIndex)
 {
-	if (!CanSwitchLoadout() || !HotbarSlots.IsValidIndex(SlotIndex))
+	if (!CanSwitchLoadout() || SlotIndex < 0 || SlotIndex >= NumWeaponSlots)
 	{
 		return;
 	}
@@ -1210,7 +1232,7 @@ bool AZSPlayerCharacter::CanSwitchLoadout() const
 void AZSPlayerCharacter::HandleHotbarSelect(const FInputActionValue& Value)
 {
 	const int32 OneBasedSlot = FMath::RoundToInt(Value.Get<float>());
-	if (OneBasedSlot < 1 || OneBasedSlot > NumHotbarSlots)
+	if (OneBasedSlot < 1 || OneBasedSlot > NumMountKeySlots)
 	{
 		return;
 	}
@@ -1218,16 +1240,59 @@ void AZSPlayerCharacter::HandleHotbarSelect(const FInputActionValue& Value)
 	SelectHotbarSlot(OneBasedSlot - 1);
 }
 
+void AZSPlayerCharacter::HandleEquipmentSelect(const FInputActionValue& Value)
+{
+	SelectHotbarSlot(EquipmentSlotIndex);
+}
+
+FGuid AZSPlayerCharacter::ResolveWeaponSlotInstance(int32 SlotIndex) const
+{
+	const UZSInventoryComponent* Inventory = GetInventoryComponent();
+
+	switch (SlotIndex)
+	{
+	case 0: return Inventory ? Inventory->GetMountedLongGun(0).InstanceId : FGuid();
+	case 1: return Inventory ? Inventory->GetMountedSidearm().InstanceId : FGuid();
+	case 2: return Inventory ? Inventory->GetMountedLongGun(1).InstanceId : FGuid();
+	case 3: return EquipmentSlotInstanceId;
+	default: return FGuid();
+	}
+}
+
+void AZSPlayerCharacter::ClearWeaponSlot(int32 SlotIndex)
+{
+	UZSInventoryComponent* Inventory = GetInventoryComponent();
+
+	switch (SlotIndex)
+	{
+	case 0:
+		if (Inventory) { Inventory->Server_UnmountLongGun(0); }
+		break;
+	case 1:
+		if (Inventory) { Inventory->Server_UnmountSidearm(); }
+		break;
+	case 2:
+		if (Inventory) { Inventory->Server_UnmountLongGun(1); }
+		break;
+	case 3:
+		EquipmentSlotInstanceId = FGuid();
+		OnRep_EquipmentSlotInstanceId();
+		break;
+	default:
+		break;
+	}
+}
+
 void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
 {
-	if (!HasAuthority() || !CanSwitchLoadout() || !HotbarSlots.IsValidIndex(SlotIndex))
+	if (!HasAuthority() || !CanSwitchLoadout() || SlotIndex < 0 || SlotIndex >= NumWeaponSlots)
 	{
 		return;
 	}
 
 	// Re-selecting the already-equipped slot toggles back to bare-fist instead of re-equipping.
 	const bool bUnequipping = (SlotIndex == ActiveHotbarIndex);
-	const FGuid TargetInstanceId = bUnequipping ? FGuid() : HotbarSlots[SlotIndex];
+	const FGuid TargetInstanceId = bUnequipping ? FGuid() : ResolveWeaponSlotInstance(SlotIndex);
 
 	if (!bUnequipping && !TargetInstanceId.IsValid())
 	{
@@ -1236,7 +1301,6 @@ void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
 		return;
 	}
 
-	// B0-T2 Step B: HotbarSlots holds a GUID now, not a config - resolve it to read EquipTimeSeconds.
 	float SwitchDelay = UnequipTimeSeconds;
 	if (!bUnequipping)
 	{
@@ -1264,47 +1328,14 @@ void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
 	GetWorldTimerManager().SetTimer(HotbarSwitchTimerHandle, SwitchDelegate, FMath::Max(SwitchDelay, 0.01f), false);
 }
 
-bool AZSPlayerCharacter::CanAssignToHotbarSlot(int32 SlotIndex, FGuid InstanceId) const
-{
-	if (!HotbarSlots.IsValidIndex(SlotIndex) || !InstanceId.IsValid())
-	{
-		return false;
-	}
-
-	const UZSInventoryComponent* Inventory = GetInventoryComponent();
-	return Inventory && Inventory->IsWeaponMounted(InstanceId);
-}
-
-void AZSPlayerCharacter::Server_AssignHotbarSlot_Implementation(int32 SlotIndex, FGuid InstanceId)
-{
-	if (!HasAuthority() || !CanAssignToHotbarSlot(SlotIndex, InstanceId))
-	{
-		return;
-	}
-
-	HotbarSlots[SlotIndex] = InstanceId;
-	OnRep_HotbarSlots();
-}
-
-void AZSPlayerCharacter::Server_ClearHotbarSlot_Implementation(int32 SlotIndex)
-{
-	if (!HasAuthority() || !HotbarSlots.IsValidIndex(SlotIndex))
-	{
-		return;
-	}
-
-	HotbarSlots[SlotIndex] = FGuid();
-	OnRep_HotbarSlots();
-}
-
 void AZSPlayerCharacter::WriteBackCurrentWeaponDurability()
 {
-	if (!CurrentWeapon || !HotbarSlots.IsValidIndex(ActiveHotbarIndex))
+	if (!CurrentWeapon || ActiveHotbarIndex < 0 || ActiveHotbarIndex >= NumWeaponSlots)
 	{
 		return;
 	}
 
-	const FGuid InstanceId = HotbarSlots[ActiveHotbarIndex];
+	const FGuid InstanceId = ResolveWeaponSlotInstance(ActiveHotbarIndex);
 	if (!InstanceId.IsValid())
 	{
 		return;
@@ -1326,7 +1357,7 @@ bool AZSPlayerCharacter::Server_StoreInBagChecked(FGuid BagInstanceId, FGuid Ite
 		return false;
 	}
 
-	if (SecondaryHandInstanceId == ItemInstanceId || HotbarSlots.Contains(ItemInstanceId))
+	if (SecondaryHandInstanceId == ItemInstanceId || EquipmentSlotInstanceId == ItemInstanceId)
 	{
 		return false;
 	}
@@ -1362,8 +1393,9 @@ void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
 	}
 
 	UZSInventoryComponent* Inventory = GetInventoryComponent();
-	const bool bTargetsAWeapon = HotbarSlots.IsValidIndex(PendingIndex) && HotbarSlots[PendingIndex].IsValid();
-	const FZSItemInstance TargetInstance = (bTargetsAWeapon && Inventory) ? Inventory->GetInstance(HotbarSlots[PendingIndex]) : FZSItemInstance();
+	const FGuid TargetId = (PendingIndex >= 0 && PendingIndex < NumWeaponSlots) ? ResolveWeaponSlotInstance(PendingIndex) : FGuid();
+	const bool bTargetsAWeapon = TargetId.IsValid();
+	const FZSItemInstance TargetInstance = (bTargetsAWeapon && Inventory) ? Inventory->GetInstance(TargetId) : FZSItemInstance();
 	UZSWeaponConfig* TargetWeaponConfig = Cast<UZSWeaponConfig>(TargetInstance.Config);
 
 	// B0-T2 Step B: write back whatever was previously equipped's live durability BEFORE it gets
@@ -1374,12 +1406,13 @@ void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
 
 	if (!TargetWeaponConfig)
 	{
-		// Unequip to bare-fist - also covers a stale GUID (the referenced item was dropped/consumed
-		// elsewhere since this slot last pointed at it): clear the slot instead of equipping garbage.
+		// Unequip to bare-fist - also covers a stale reference (the referenced item was dropped/
+		// consumed elsewhere since this slot last pointed at it, or - for the Equipment slot - a
+		// non-weapon item that CompleteHotbarSwitch simply can't dispatch, see that section's header
+		// comment): clear the underlying slot instead of equipping garbage.
 		if (bTargetsAWeapon)
 		{
-			HotbarSlots[PendingIndex] = FGuid();
-			OnRep_HotbarSlots();
+			ClearWeaponSlot(PendingIndex);
 		}
 
 		if (CurrentWeapon)
@@ -1403,11 +1436,6 @@ void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
 
 	OnRep_ActiveHotbarIndex();
 	SetBusy(false);
-}
-
-void AZSPlayerCharacter::OnRep_HotbarSlots()
-{
-	OnHotbarSlotsChanged.Broadcast();
 }
 
 void AZSPlayerCharacter::OnRep_ActiveHotbarIndex()
@@ -2660,7 +2688,7 @@ void AZSPlayerCharacter::Server_WeaponMeleeAttack_Implementation()
 	if (bHit && CurrentWeapon->Server_ConsumeDurabilityHit())
 	{
 		// Broke on this swing - P5's chosen v1 interpretation of "melee breaks": the weapon is
-		// gone, not temporarily disabled, so its own hotbar slot is cleared too (see the header
+		// gone, not temporarily disabled, so its own weapon-key slot is cleared too (see the header
 		// comment on this function for why - durability lives on the AZSWeapon actor instance,
 		// re-selecting an un-cleared slot would just spawn a fresh one at full durability).
 		const FString BrokenWeaponName = Config->GetName();
@@ -2670,17 +2698,18 @@ void AZSPlayerCharacter::Server_WeaponMeleeAttack_Implementation()
 			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 2.f, FColor::Orange, FString::Printf(TEXT("%s broke!"), *BrokenWeaponName));
 		}
 
-		if (HotbarSlots.IsValidIndex(ActiveHotbarIndex) && HotbarSlots[ActiveHotbarIndex].IsValid())
+		const FGuid BrokenInstanceId = ResolveWeaponSlotInstance(ActiveHotbarIndex);
+		if (BrokenInstanceId.IsValid())
 		{
-			// B0-T2.8: the instance is genuinely destroyed/consumed, not just orphaned from the
-			// hotbar while still technically "owned" - remove it from CarrySlots entirely.
+			// B0-T2.8: the instance is genuinely destroyed/consumed, not just orphaned while still
+			// technically "owned" - remove it from CarrySlots entirely, then clear whichever mount/
+			// equipment slot it was occupying so that slot doesn't keep pointing at nothing.
 			if (UZSInventoryComponent* Inventory = GetInventoryComponent())
 			{
 				FZSItemInstance RemovedInstance;
-				Inventory->Server_RemoveInstanceById(HotbarSlots[ActiveHotbarIndex], RemovedInstance);
+				Inventory->Server_RemoveInstanceById(BrokenInstanceId, RemovedInstance);
 			}
-			HotbarSlots[ActiveHotbarIndex] = FGuid();
-			OnRep_HotbarSlots();
+			ClearWeaponSlot(ActiveHotbarIndex);
 		}
 
 		CurrentWeapon->Destroy();
@@ -2981,6 +3010,66 @@ void AZSPlayerCharacter::OnSecondaryItemToggled_Implementation(bool bActive)
 	{
 		FlashlightComponent->SetVisibility(bActive);
 	}
+}
+
+// =====================================================================
+// B1 - Equipment slot (grenades and other quick-use equipment) - see the header's section comment
+// for scope (UZSWeaponConfig-only this pass).
+// =====================================================================
+
+void AZSPlayerCharacter::Server_AssignEquipmentSlot_Implementation(FGuid InstanceId)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	const UZSInventoryComponent* Inventory = GetInventoryComponent();
+	if (!Inventory)
+	{
+		return;
+	}
+
+	const FZSItemInstance Instance = Inventory->GetInstance(InstanceId);
+	if (!Instance.IsValid() || !Cast<UZSWeaponConfig>(Instance.Config))
+	{
+		return;
+	}
+
+	EquipmentSlotInstanceId = InstanceId;
+	OnRep_EquipmentSlotInstanceId();
+}
+
+void AZSPlayerCharacter::Server_ClearEquipmentSlot_Implementation()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// If this slot is the one currently equipped, unequip to bare-fist first (durability writeback
+	// + cosmetic cleanup) - same reasoning CompleteHotbarSwitch's bare-fist branch uses, so the item
+	// can't be dragged out of the slot while still visibly in-hand.
+	if (ActiveHotbarIndex == EquipmentSlotIndex)
+	{
+		WriteBackCurrentWeaponDurability();
+		if (CurrentWeapon)
+		{
+			CurrentWeapon->Destroy();
+			CurrentWeapon = nullptr;
+			RefreshBodyMeshFromWeapon();
+			AttachWeaponToBodyMesh();
+		}
+		ActiveHotbarIndex = INDEX_NONE;
+		OnRep_ActiveHotbarIndex();
+	}
+
+	ClearWeaponSlot(EquipmentSlotIndex);
+}
+
+void AZSPlayerCharacter::OnRep_EquipmentSlotInstanceId()
+{
+	OnEquipmentSlotChanged.Broadcast();
 }
 
 void AZSPlayerCharacter::PlayTPMontage(UAnimMontage* Montage)
