@@ -58,13 +58,13 @@ void UZSContainerLootWidget::RefreshContainerGrid()
 
 	for (const FZSItemInstance& Item : Container->GetContainerSlots())
 	{
-		if (UZSItemSlotWidget* Slot = CreateWidget<UZSItemSlotWidget>(this, ItemSlotClass))
+		if (UZSItemSlotWidget* ItemSlotWidget = CreateWidget<UZSItemSlotWidget>(this, ItemSlotClass))
 		{
-			Slot->Instance = Item;
-			Slot->SourceKind = EZSDragSourceKind::Container;
-			Slot->SourceContainer = Container;
-			Slot->RefreshFromInstance();
-			Grid_ContainerItems->AddChildToWrapBox(Slot);
+			ItemSlotWidget->Instance = Item;
+			ItemSlotWidget->SourceKind = EZSDragSourceKind::Container;
+			ItemSlotWidget->SourceContainer = Container;
+			ItemSlotWidget->RefreshFromInstance();
+			Grid_ContainerItems->AddChildToWrapBox(ItemSlotWidget);
 		}
 	}
 }

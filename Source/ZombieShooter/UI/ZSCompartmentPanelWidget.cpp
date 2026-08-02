@@ -48,12 +48,12 @@ void UZSCompartmentPanelWidget::RefreshCompartment()
 	// Weapons never come back from GetSlotsInLocation - nothing to filter manually.
 	for (const FZSItemInstance& Item : Inventory->GetSlotsInLocation(Location))
 	{
-		if (UZSItemSlotWidget* Slot = CreateWidget<UZSItemSlotWidget>(this, ItemSlotClass))
+		if (UZSItemSlotWidget* ItemSlotWidget = CreateWidget<UZSItemSlotWidget>(this, ItemSlotClass))
 		{
-			Slot->Instance = Item;
-			Slot->SourceKind = EZSDragSourceKind::CarrySlot;
-			Slot->RefreshFromInstance();
-			Grid_Items->AddChildToWrapBox(Slot);
+			ItemSlotWidget->Instance = Item;
+			ItemSlotWidget->SourceKind = EZSDragSourceKind::CarrySlot;
+			ItemSlotWidget->RefreshFromInstance();
+			Grid_Items->AddChildToWrapBox(ItemSlotWidget);
 		}
 	}
 }
