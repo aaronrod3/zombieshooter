@@ -41,7 +41,7 @@
 | T2.1 | Modular environment kit chosen against T1's direction, covering the Adirondacks brief: small-town US buildings, forest, rural fringe, interiors. |
 | T2.2 | Coverage gap analysis — what the kit does not include and how each gap gets filled (buy / Blender / cut the requirement). |
 | T2.3 | Licensing/repo rule applied: paid content gitignored, never committed; large free content re-downloadable rather than committed ($0 LFS budget). Add to `.gitignore` **before** import, not after. |
-| T2.4 | Existing placeholder content triaged. Specifically: the dead raw Lyra/ShooterGame import in `/Game/Animation/` (references a never-migrated `SK_Mannequin`) should be **deleted** — `CLAUDE.md` already identifies it as genuinely unused, and it is a standing source of confusion with the load-bearing `Content/Animation/ZSAnims/`. |
+| T2.4 | Existing placeholder content triaged. Specifically: the dead raw Lyra/ShooterGame import — `Content/LyraAnims/` (references a never-migrated `SK_Mannequin`, verified still present 2026-08-03) — should be **deleted** — `CLAUDE.md` already identifies it as genuinely unused, and it is a standing source of confusion with the load-bearing `Content/Animation/ZSAnims/`. |
 
 ### B2-T3 — Pipeline standards · **S (2 sessions)**
 

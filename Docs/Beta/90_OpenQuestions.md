@@ -126,8 +126,8 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 ### OQ-B1-02 — HUD density ✅ RESOLVED 2026-07-26
 **Contextual by default, made player-configurable in B9.** Exception: anything that can kill you in under a minute (critical head bleed) stays always-on regardless.
 
-### OQ-B1-03 — Solo pause 🟢
-**Rec: no pause in solo either** — one code path, one set of assumptions, same tension pillar in both modes.
+### OQ-B1-03 — Solo pause ✅ RESOLVED 2026-08-03
+**No pause, ever** — solo behaves identically to co-op. One code path, one set of assumptions, same tension pillar (Decision 1) in both modes. `T8.2`'s in-game menu doesn't need a solo-only branch. Issue #5 closed.
 
 ### OQ-B1-04 — Notifications/toast system ✅ RESOLVED 2026-07-30
 **Build a lightweight, queued toast system** — pickup confirmation, horde-approaching alert, player joined/left, and future needs, all through one reusable widget rather than a bespoke UI per event type. New sub-task: `B1-T3.10`.
@@ -140,6 +140,12 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 
 ### OQ-B1-07 — Scoreboard/player-list key ✅ RESOLVED 2026-07-30
 **Add a dedicated key and HUD screen** showing connected players — absent from `InputBindings.md` until now. Doubles as the target-selection UI for the new host admin tools (`OQ-B10-12`). New sub-task: `B1-T3.9`.
+
+### OQ-B1-08 — Container interact UX ✅ RESOLVED 2026-08-03
+**Option B — a real loot screen**, not auto-loot-all. Matches what's already in progress: `UZSContainerLootWidget` (C++, compiled) + `WBP_ZS_ContainerLoot` (T6, Designer-tab build in progress). Per-item take (`Server_TakeContainerItem`) plus a "Take All" convenience button (`Server_TakeAllContainerItems`) — auto-loot-everything-on-interact is retired once this screen ships. Issue #4 closed.
+
+### OQ-B1-09 — SecondaryHand offhand item action trigger ✅ RESOLVED (already shipped, not newly decided)
+**Option A — one binding, dispatches on slot content.** `IA_SecondaryAction` (B0-T11) already dispatches on the resolved config's type — toggle for items, full fire/melee for weapons (B0-T11.2, mirrors `CurrentWeapon`'s lifecycle) — confirmed against `CLAUDE.md`'s Player/ section 2026-08-03. Issue #3 closed as already-answered, not a fresh decision.
 
 ---
 
@@ -469,6 +475,8 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 
 **🟡 SEQUENCEABLE (~31)** — decide in parallel with early implementation on that phase. Includes three new items from `Docs/InputBindings.md` (OQ-X-09 Run/Sprint tiers, OQ-X-10 Toggle Safety/PvP, OQ-X-11 chat/voice).
 
-**🟢 LATE (11)** — OQ-X-05, OQ-X-08, OQ-B1-03, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B10-05, OQ-B10-09, OQ-B12-03, OQ-B12-04, OQ-B12-05.
+**🟢 LATE (10)** — OQ-X-05, OQ-X-08, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B10-05, OQ-B10-09, OQ-B12-03, OQ-B12-04, OQ-B12-05.
 
 **2026-07-30 gap-review pass** — a full sweep of the plan against what a shipped game needs turned up 28 items, each given a real decision that session (see the individual entries above, not re-tabulated here to avoid drift): `OQ-B0-16/17/18`, `OQ-B1-04/05/06/07`, `OQ-B6-10/11`, `OQ-B7-05`, `OQ-B8-03`, `OQ-B9-03`, `OQ-B10-10/11/12/13/14`, `OQ-B12-06/07/08`. One reversal: `OQ-B9-01` (gamepad, cut). One partial resolution: `OQ-X-11` (text chat built, voice half stays open under `OQ-B10-09`).
+
+**2026-08-03 weekly-scoping pass** — 3 more issues closed: `OQ-B1-03` (solo pause → no pause ever), `OQ-B1-08`/issue #4 (container interact → real loot screen), `OQ-B1-09`/issue #3 (SecondaryHand action trigger → already shipped via `IA_SecondaryAction`'s existing dispatch, not a fresh decision).
