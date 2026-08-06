@@ -9,6 +9,8 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnLoadingScreenShouldShow);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnLoadingScreenShouldHide);
 
+class UUserWidget;
+
 /**
  *  B1-T8: greenfield main-menu/travel machinery - no UGameInstance subclass existed anywhere in
  *  this project before this. Lives here rather than on AZSGameMode/AZSPlayerController because a
@@ -45,6 +47,34 @@ public:
 	/** T8.4: bind to hide the loading-screen widget the instant a level finishes loading. Fires from FCoreUObjectDelegates::PostLoadMapWithWorld. */
 	UPROPERTY(BlueprintAssignable, Category = "ZS|MainMenu")
 	FZSOnLoadingScreenShouldHide OnLoadingScreenShouldHide;
+
+	// =====================================================================
+	// B1, 2026-08-05 - the "create me at match start, keep me alive across a level travel" home
+	// WBP_ZS_MainMenu/WBP_ZS_LoadingScreen's own header comments call for. GameInstance is the one
+	// object guaranteed to survive OpenLevel/ClientTravel, which is exactly why both live here
+	// rather than on the level-scoped GameMode/PlayerController.
+	// =====================================================================
+
+	/** Assign WBP_ZS_LoadingScreen on this Blueprint's Class Defaults. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|MainMenu")
+	TSubclassOf<UUserWidget> LoadingScreenClass;
+
+	/** Created once in Init() and kept referenced here only so it isn't garbage-collected before
+	 *  it's ever shown - its own NativeConstruct binds OnLoadingScreenShouldShow/Hide above, nothing
+	 *  else needed. Never explicitly shown/hidden from here. */
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> LoadingScreenRef;
+
+	/** Assign WBP_ZS_MainMenu on this Blueprint's Class Defaults. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|MainMenu")
+	TSubclassOf<UUserWidget> MainMenuScreenClass;
+
+	/** Created once in Init() and added to the viewport immediately, per WBP_ZS_MainMenu's own
+	 *  header comment ("Added directly to the viewport at game start"). Removed by HostGame/JoinGame
+	 *  once a real session actually starts - AddToViewport content otherwise survives a non-seamless
+	 *  OpenLevel (the same reason LoadingScreenRef above needs to persist, not be recreated). */
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> MainMenuScreenRef;
 
 private:
 

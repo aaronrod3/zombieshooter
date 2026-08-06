@@ -53,6 +53,11 @@
 - `IMC_ZS_UI` — add all three above. Left Mouse Button here is what's meant to out-prioritize `IMC_ZS_Default`'s own Left Mouse Button → `IA_Attack` binding once a modal is open; `UZSUIManager::PushModal` adds this context at priority 10 (`IMC_ZS_Default` is added at priority 0 in `AZSPlayerController::SetupInputComponent`).
 `IA_UINavigate`'s actual focus-cycling logic is T2.4's job (generic base-class focus navigation), not T1's — T1 only needs the mapping context/actions to exist so T2 has something to bind to.
 
+🔧 **B1, 2026-08-05 implemented**: `AZSPlayerCharacter::ToggleInventoryScreen`/`TogglePauseMenuScreen` (C++ written, not yet compiled — see `SessionHandoff.md`). **Content gap**: `IA_ToggleInventory` and `IA_TogglePauseMenu` don't exist as `.uasset`s yet, same graceful-if-missing pattern:
+- `IA_ToggleInventory` (Digital bool) — Tab, Pressed, in `IMC_ZS_Default`.
+- `IA_TogglePauseMenu` (Digital bool) — Escape, Pressed, in `IMC_ZS_Default` — deliberately not `IMC_ZS_UI`, since this action must also fire with no modal open (to open Pause in the first place); the open-vs-close branch is decided in C++ (`TryCloseTopmostScreen`), not by which mapping context is layered on top.
+Escape's dual role above ("Main Menu" and "UI Cancel" are the same key) is handled by `TryCloseTopmostScreen()` closing whichever of Inventory/SleepPrompt/PauseMenu is open instead of opening Pause on top of it — `IA_UICancel` itself still has no bound handler (T2.4's focus-navigation-only scope), that's unrelated to this.
+
 ## Hotbar / Items
 
 | Action | Key |

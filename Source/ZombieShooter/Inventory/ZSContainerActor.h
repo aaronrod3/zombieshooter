@@ -23,12 +23,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnContainerSlotsChanged);
  *
  *  B1-T6.2, 2026-08-01: per-item take (Server_TakeItem) now exists alongside the original "loot
  *  all" bulk transfer (renamed Server_TakeAllItems, same behavior, now reusable by a future "Take
- *  All" UI button) - the v1 bootstrap this class used to only offer. HandleInteracted (bound to
- *  interact) still calls Server_TakeAllItems unchanged for now: whether interacting with a
- *  container should keep auto-looting everything or instead open a real two-pane loot screen is
- *  an open UX question the design session explicitly left unresolved (Docs/Planning/
- *  B1_UIDesignSession_2026-07-30.md: "container-loot screen was not mocked up this session") -
- *  not guessed past here, see B1_UI_UX.md's Manual setup steps.
+ *  All" UI button) - the v1 bootstrap this class used to only offer.
+ *
+ *  2026-08-05, resolved (dev call): interacting with a container opens the real WBP_ZS_ContainerLoot
+ *  screen (HandleInteracted -> AZSPlayerCharacter::Client_OpenContainerLoot) rather than
+ *  auto-looting everything - the open UX question the design session originally left unresolved
+ *  (Docs/Planning/B1_UIDesignSession_2026-07-30.md). Server_TakeAllItems is unchanged and still
+ *  reachable - it's what the loot screen's own "Take All" button calls.
  */
 UCLASS()
 class AZSContainerActor : public AActor

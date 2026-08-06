@@ -30,6 +30,10 @@ class AZombieCharacter;
 class USpotLightComponent;
 class UZSUIManager;
 class AZSContainerActor;
+class UZSInventoryScreenWidget;
+class UZSPauseMenuWidget;
+class UZSSleepPromptWidget;
+class UZSContainerLootWidget;
 struct FInputActionValue;
 struct FDamageEvent;
 
@@ -135,6 +139,16 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> SleepAction;
+
+	// ---- B1 UI toggle actions ----
+
+	/** Tab per Docs/InputBindings.md ("Toggle Inventory") - opens/closes WBP_ZS_Inventory. Not yet created as a .uasset - needs manual creation in-editor (Digital bool, Tab, Pressed, in IMC_ZS_Default), same graceful-if-missing pattern as every other action here. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> ToggleInventoryAction;
+
+	/** Escape per Docs/InputBindings.md ("Main Menu" / "UI Cancel" - same key, dual role) - opens WBP_ZS_PauseMenu if nothing's open, otherwise closes whichever B1 screen currently is (see TryCloseTopmostScreen). Not yet created as a .uasset - needs manual creation in-editor (Digital bool, Escape, Pressed). Deliberately bound in IMC_ZS_Default, not IMC_ZS_UI - this action's job includes OPENING Pause Menu when no modal is active at all, so it must fire even with IMC_ZS_UI absent; the open/close branch is decided in C++ (IsAnyModalActive()-equivalent via TryCloseTopmostScreen), not by which mapping context happens to be layered on top. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> TogglePauseMenuAction;
 
 	// ---- P5 Input Actions (loadout hotbar) ----
 
@@ -597,6 +611,10 @@ public:
 	void ToggleSleepReady();
 	virtual void ToggleSleepReady_Implementation();
 
+	/** Bound to SleepAction instead of ToggleSleepReady directly (B1) - calls ToggleSleepReady() unchanged, then also opens/closes WBP_ZS_SleepPrompt client-side so the player can see the group's ready status. ToggleSleepReady itself is a BlueprintNativeEvent, not an RPC (RequestSleep/CancelSleepReady are what forward to the server) - safe to run this local-only widget toggle alongside it on the same call. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|UI")
+	void HandleSleepKeyPressed();
+
 	UPROPERTY(EditAnywhere, Category = "ZS|Survival")
 	float DefaultSleepHours = 8.f;
 
@@ -1052,6 +1070,72 @@ protected:
 	 *  Null for a remote/non-locally-controlled proxy (their UI state is meaningless to this
 	 *  machine) or before a controller/local player exists yet - callers must handle null. */
 	UZSUIManager* GetUIManager() const;
+
+	// =====================================================================
+	// B1 - Screen toggles (Tab/Escape/Sleep) - the actual "which key opens which WBP_ZS_*" wiring
+	// UZSUIManager itself deliberately doesn't own (see its class comment: Escape/cancel handling
+	// varies per screen, not a base-class concern). Each screen is created once (lazily, on first
+	// open) and kept referenced here rather than recreated per toggle, so state (e.g. a half-filled
+	// drag) survives a close/reopen within the same life of this pawn.
+	// =====================================================================
+
+public:
+
+	/** Bound to ToggleInventoryAction (Tab) - opens WBP_ZS_Inventory (creating it once, from
+	 *  InventoryScreenClass, if this is the first open) or closes it if already in the viewport. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|UI")
+	void ToggleInventoryScreen();
+
+	/** Bound to TogglePauseMenuAction (Escape) - if Inventory/SleepPrompt/PauseMenu/ContainerLoot is
+	 *  currently open, closes the topmost one (TryCloseTopmostScreen) instead of opening Pause on
+	 *  top of it; otherwise opens WBP_ZS_PauseMenu (creating it once, from PauseMenuScreenClass, if
+	 *  needed). */
+	UFUNCTION(BlueprintCallable, Category = "ZS|UI")
+	void TogglePauseMenuScreen();
+
+	/** 2026-08-05: container-interact UX resolved (real loot screen, not auto-loot-all) - server-only
+	 *  AZSContainerActor::HandleInteracted calls this on the interacting player instead of taking
+	 *  everything directly. Client RPC since only the interacting player's own screen should open.
+	 *  Lazily creates WBP_ZS_ContainerLoot (from ContainerLootScreenClass) the same way every other
+	 *  screen in this section does, then SetContainer(Container) + OpenAsModal(). */
+	UFUNCTION(Client, Reliable, Category = "ZS|UI")
+	void Client_OpenContainerLoot(AZSContainerActor* Container);
+
+protected:
+
+	/** Closes whichever of Inventory/SleepPrompt/PauseMenu/ContainerLoot is currently in the
+	 *  viewport, in that priority order (checked most-likely-to-be-on-top first). Returns true if
+	 *  something was actually closed - TogglePauseMenuScreen uses this to decide whether Escape
+	 *  should close a screen instead of opening Pause. */
+	bool TryCloseTopmostScreen();
+
+	/** Assign WBP_ZS_Inventory on this Blueprint's Class Defaults. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|UI")
+	TSubclassOf<UZSInventoryScreenWidget> InventoryScreenClass;
+
+	/** Assign WBP_ZS_PauseMenu on this Blueprint's Class Defaults. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|UI")
+	TSubclassOf<UZSPauseMenuWidget> PauseMenuScreenClass;
+
+	/** Assign WBP_ZS_SleepPrompt on this Blueprint's Class Defaults. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|UI")
+	TSubclassOf<UZSSleepPromptWidget> SleepPromptScreenClass;
+
+	/** Assign WBP_ZS_ContainerLoot on this Blueprint's Class Defaults. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|UI")
+	TSubclassOf<UZSContainerLootWidget> ContainerLootScreenClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UZSInventoryScreenWidget> InventoryScreenRef;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UZSPauseMenuWidget> PauseMenuScreenRef;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UZSSleepPromptWidget> SleepPromptScreenRef;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UZSContainerLootWidget> ContainerLootScreenRef;
 
 	// =====================================================================
 	// P4/P5 - Attack input dispatch + melee (GameDevPlan.md P5, Docs/Phases/P5_CombatCompletion.md)

@@ -38,6 +38,10 @@
 #include "../Inventory/ZSContainerActor.h"
 #include "../Zombies/ZombieCharacter.h"
 #include "../UI/ZSUIManager.h"
+#include "../UI/ZSInventoryScreenWidget.h"
+#include "../UI/ZSPauseMenuWidget.h"
+#include "../UI/ZSSleepPromptWidget.h"
+#include "../UI/ZSContainerLootWidget.h"
 #include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/DamageEvents.h"
@@ -771,6 +775,16 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	static ConstructorHelpers::FObjectFinder<UInputAction> SleepActionFinder(TEXT("/Game/ZS/Input/IA_Sleep.IA_Sleep"));
 	if (SleepActionFinder.Succeeded()) { SleepAction = SleepActionFinder.Object; }
 
+	// B1 UI toggle actions - same graceful-if-missing pattern as above; neither exists yet as a
+	// .uasset as of this commit (needs manual creation in-editor, unreal-mcp can't author Input
+	// Action/Mapping Context assets - see CLAUDE.md's MCP/Editor Tooling notes) - both finders
+	// degrade safely (stay null, bindings below are skipped) until the dev creates them.
+	static ConstructorHelpers::FObjectFinder<UInputAction> ToggleInventoryActionFinder(TEXT("/Game/ZS/Input/IA_ToggleInventory.IA_ToggleInventory"));
+	if (ToggleInventoryActionFinder.Succeeded()) { ToggleInventoryAction = ToggleInventoryActionFinder.Object; }
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> TogglePauseMenuActionFinder(TEXT("/Game/ZS/Input/IA_TogglePauseMenu.IA_TogglePauseMenu"));
+	if (TogglePauseMenuActionFinder.Succeeded()) { TogglePauseMenuAction = TogglePauseMenuActionFinder.Object; }
+
 	// P5 action - same graceful-if-missing pattern as above; doesn't exist yet as of this commit,
 	// needs manual creation in-editor (IA_HotbarSelect as Axis1D with per-digit-key Scalar modifiers
 	// in IMC_ZS_Default) - the finder degrades safely (stays null, binding below is skipped) until
@@ -991,7 +1005,19 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 		if (SleepAction)
 		{
-			EnhancedInputComponent->BindAction(SleepAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::ToggleSleepReady);
+			// B1: HandleSleepKeyPressed, not ToggleSleepReady directly - it calls ToggleSleepReady()
+			// unchanged and additionally toggles WBP_ZS_SleepPrompt open/closed client-side.
+			EnhancedInputComponent->BindAction(SleepAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleSleepKeyPressed);
+		}
+
+		if (ToggleInventoryAction)
+		{
+			EnhancedInputComponent->BindAction(ToggleInventoryAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::ToggleInventoryScreen);
+		}
+
+		if (TogglePauseMenuAction)
+		{
+			EnhancedInputComponent->BindAction(TogglePauseMenuAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::TogglePauseMenuScreen);
 		}
 
 		if (HotbarSelectAction)
@@ -1885,6 +1911,34 @@ void AZSPlayerCharacter::ToggleSleepReady_Implementation()
 	}
 }
 
+void AZSPlayerCharacter::HandleSleepKeyPressed()
+{
+	ToggleSleepReady();
+
+	if (SleepPromptScreenRef && SleepPromptScreenRef->IsInViewport())
+	{
+		SleepPromptScreenRef->CloseAsModal();
+		return;
+	}
+
+	if (!SleepPromptScreenRef)
+	{
+		if (!SleepPromptScreenClass)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("%s: HandleSleepKeyPressed - SleepPromptScreenClass is unset, assign WBP_ZS_SleepPrompt on this Blueprint's Class Defaults"), *GetName());
+			return;
+		}
+
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		SleepPromptScreenRef = PC ? CreateWidget<UZSSleepPromptWidget>(PC, SleepPromptScreenClass) : nullptr;
+	}
+
+	if (SleepPromptScreenRef)
+	{
+		SleepPromptScreenRef->OpenAsModal();
+	}
+}
+
 void AZSPlayerCharacter::ResetSleepReady()
 {
 	bIsReadyToSleep = false;
@@ -2535,6 +2589,114 @@ UZSUIManager* AZSPlayerCharacter::GetUIManager() const
 	const APlayerController* PC = Cast<APlayerController>(GetController());
 	const ULocalPlayer* LocalPlayer = PC ? PC->GetLocalPlayer() : nullptr;
 	return LocalPlayer ? ULocalPlayer::GetSubsystem<UZSUIManager>(LocalPlayer) : nullptr;
+}
+
+bool AZSPlayerCharacter::TryCloseTopmostScreen()
+{
+	if (InventoryScreenRef && InventoryScreenRef->IsInViewport())
+	{
+		InventoryScreenRef->CloseAsModal();
+		return true;
+	}
+
+	if (ContainerLootScreenRef && ContainerLootScreenRef->IsInViewport())
+	{
+		ContainerLootScreenRef->CloseAsModal();
+		return true;
+	}
+
+	if (SleepPromptScreenRef && SleepPromptScreenRef->IsInViewport())
+	{
+		SleepPromptScreenRef->CloseAsModal();
+		return true;
+	}
+
+	if (PauseMenuScreenRef && PauseMenuScreenRef->IsInViewport())
+	{
+		PauseMenuScreenRef->CloseAsModal();
+		return true;
+	}
+
+	return false;
+}
+
+void AZSPlayerCharacter::Client_OpenContainerLoot_Implementation(AZSContainerActor* Container)
+{
+	if (!Container)
+	{
+		return;
+	}
+
+	if (!ContainerLootScreenRef)
+	{
+		if (!ContainerLootScreenClass)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("%s: Client_OpenContainerLoot - ContainerLootScreenClass is unset, assign WBP_ZS_ContainerLoot on this Blueprint's Class Defaults"), *GetName());
+			return;
+		}
+
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		ContainerLootScreenRef = PC ? CreateWidget<UZSContainerLootWidget>(PC, ContainerLootScreenClass) : nullptr;
+	}
+
+	if (ContainerLootScreenRef)
+	{
+		ContainerLootScreenRef->SetContainer(Container);
+		ContainerLootScreenRef->OpenAsModal();
+	}
+}
+
+void AZSPlayerCharacter::ToggleInventoryScreen()
+{
+	if (InventoryScreenRef && InventoryScreenRef->IsInViewport())
+	{
+		InventoryScreenRef->CloseAsModal();
+		return;
+	}
+
+	if (!InventoryScreenRef)
+	{
+		if (!InventoryScreenClass)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("%s: ToggleInventoryScreen - InventoryScreenClass is unset, assign WBP_ZS_Inventory on this Blueprint's Class Defaults"), *GetName());
+			return;
+		}
+
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		InventoryScreenRef = PC ? CreateWidget<UZSInventoryScreenWidget>(PC, InventoryScreenClass) : nullptr;
+	}
+
+	if (InventoryScreenRef)
+	{
+		InventoryScreenRef->OpenAsModal();
+	}
+}
+
+void AZSPlayerCharacter::TogglePauseMenuScreen()
+{
+	// Escape's dual role per Docs/InputBindings.md ("Main Menu" / "UI Cancel", same key) - if
+	// anything is already open, close it instead of stacking Pause on top.
+	if (TryCloseTopmostScreen())
+	{
+		return;
+	}
+
+	if (!PauseMenuScreenRef)
+	{
+		if (!PauseMenuScreenClass)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("%s: TogglePauseMenuScreen - PauseMenuScreenClass is unset, assign WBP_ZS_PauseMenu on this Blueprint's Class Defaults"), *GetName());
+			return;
+		}
+
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		PauseMenuScreenRef = PC ? CreateWidget<UZSPauseMenuWidget>(PC, PauseMenuScreenClass) : nullptr;
+	}
+
+	if (PauseMenuScreenRef)
+	{
+		PauseMenuScreenRef->OpenAsModal();
+	}
 }
 
 void AZSPlayerCharacter::HandleAttack()

@@ -10,7 +10,44 @@
 
 **B0 → B1 transition confirmed by dev, 2026-07-30.** Two companion docs for B1: `Docs/Beta/B1_UI_UX.md` (task breakdown, entry/exit criteria) and `Docs/Planning/B1_UIDesignSession_2026-07-30.md` (the actual UI design — HUD philosophy, Tab-menu structure, inventory compartments — decided ahead of implementation, read this before touching any layout work).
 
-## B1 progress — 2026-08-02 (rewritten at session end; full blow-by-blow history is in the git log, not repeated here)
+## B1 progress — 2026-08-06 (away session, Mode A per `AsyncSessionProtocol.md`)
+
+**Both items flagged as "left alone" at the end of 2026-08-05's session are now resolved and compiled clean.** One design fork (container-interact UX) was asked in-chat and answered immediately (dev picked "real loot screen"), so both went into one cluster:
+1. **`AZSContainerActor::HandleInteracted` now opens `WBP_ZS_ContainerLoot` on interact** (via new `AZSPlayerCharacter::Client_OpenContainerLoot`), replacing the old auto-loot-all. `Server_TakeAllItems` unchanged, still what the loot screen's own "Take All" button calls.
+2. **New `AZSHUD`** (`Framework/ZSHUD.h/.cpp`) creates `WBP_ZS_DeathScreen`/`WBP_ZS_BlackoutOverlay` at `BeginPlay()` (survives pawn respawn, unlike a widget owned by the pawn); **`UZSGameInstance::Init()`** now creates `WBP_ZS_LoadingScreen`/`WBP_ZS_MainMenu` (survives level travel). Closes the "must exist at match start, nothing creates it" gap from 2026-08-05 for all 4 screens.
+
+**Full `Build.bat` rebuild — succeeded clean, first attempt.** Headless smoke-test launch showed no crashes/asserts — only the expected graceful content-gap errors (new Input Actions/`BP_ZS_HUD` not created yet, logged and skipped, not fatal). The smoke-test process itself never processed its `Quit` command and had to be left running (sandbox blocked killing it) — harmless, doesn't hold the build lock, close it manually next time you're at the keyboard (`Stop-Process -Id 16896 -Force` if it's still there, check with `Get-Process UnrealEditor-Cmd` first since the PID may differ by now).
+
+Commit tagged `[compiled]`, pushed. Full detail: `B1_UI_UX.md`'s "Screen input wiring" subsection.
+
+## B1 progress — 2026-08-05 (kept for history; superseded by the entry above for current status)
+
+**All 22 `WBP_ZS_*` Widget Blueprints in the UI Build Manifest are now built and compiled clean**, via `unreal-mcp` tool calls against the live editor (`UMGToolSet`/`ObjectTools`/`BlueprintTools`) rather than by hand — dev had deleted all previously hand-built WBPs and asked for the full manifest to be executed through MCP instead, in one unattended pass. Every widget was built in Build Order (Tier A leaf widgets first), verified via `GetWidgetDescription` tree dumps before each compile, and compiled clean on the first attempt for all 22.
+
+**All 3 originally-unconfirmed MCP capabilities are now confirmed working, not just theorized:**
+1. **Reparenting to real C++ classes with genuine `BindWidget` requirements** — works; `CreateWidgetBlueprint`'s `parentClass` arg reparents at creation, no separate step needed. Every widget compiled clean against real `BindWidget` UPROPERTYs. Also confirmed: `BindWidget` resolution does **not** require `bIsVariable: true` — several widgets came back `bIsVariable: false` from `AddWidget` yet still compiled clean, binding purely by exact WidgetTree name.
+2. **Nesting `WBP_ZS_*` Blueprint instances as children of another Blueprint** (Tier B checkpoint, `WBP_ZS_MoodleStack` nesting 5× `WBP_ZS_MoodleEntry`) — works. Pass a nested Blueprint's generated-class refPath (`.../WBP_ZS_X.WBP_ZS_X_C`) as `AddWidget`'s `widgetClass`.
+3. **Setting per-instance custom `EditAnywhere` properties on a nested instance** (Tier C, `WBP_ZS_Inventory`'s 6 properties across 5 instances — `GearSlot`/`MountIndex`+`IsSidearm`/`Location` — plus `WBP_ZS_ContainerLoot`'s 3× `Location`) — works via `ObjectTools.set_properties` on the nested instance's own refPath, same as any other widget property.
+
+**Two deviations from the manifest's literal hierarchy tree, both the same established pattern** (insert a `SizeBox` wrapper for an auto-layout child that needs an explicit fixed size, since Overlay/HBox/VBox-slot children have no Position/Size-override of their own):
+- `WBP_ZS_SleepPrompt`: inserted `SizeBox_Dialog` (770×590) between `Overlay_0` and `VBox_Dialog`.
+- `WBP_ZS_Inventory`: inserted `SizeBox` wrappers around `Image_PlayerSilhouette` (200×352), each of the 5 clothing-slot placeholder Images (64×64), and the melee-placeholder Image (64×192) — none shown as needing one in the manifest's literal diagram, but all are plain `Image`s inside auto-layout Boxes with zero intrinsic size.
+
+**Left unset/deferred for the dev, not guessed:**
+- `WBP_ZS_PauseMenu`'s `Main Menu Level Name` Class Default — genuinely ambiguous, since this project has no dedicated main-menu level (single persistent world, B0-T9.4). `WBP_ZS_MainMenu`'s `Target Level Name` **was** set, to `Lvl_ThirdPerson` (the current `GameDefaultMap`, legacy-named from before the TopDown pivot). Both widgets' `Settings Class` **was** set, to `WBP_ZS_Settings`, once that widget existed.
+- `WBP_ZS_ContainerLoot`'s 4 top-level Canvas positions — the manifest itself flags these as "eyeballed, never precision-computed" (unlike `WBP_ZS_Inventory`'s exact numbers); used reasonable approximate values in that same spirit, needs a visual check once in-editor.
+- `DA_ZS_UIStyle_Default` (the `style` property every widget carries) — still not assigned anywhere, unchanged from before this session.
+- `WBP_ZS_BodyConditionIndicator`'s 5 icon textures, and all 4 optional UMG animations — unchanged from before, not touched this session.
+- ~~All EventGraph wiring~~ **Tab/Escape/Sleep production input wiring done later this same session** (see below) — Inventory/PauseMenu/SleepPrompt are covered. `ContainerLoot`'s `SetContainer` and its real interact-trigger are still unwired (deliberately — see below), and MainMenu/LoadingScreen/DeathScreen/BlackoutOverlay still have no real "create me at match start" call site (also below).
+- **Still no PIE testing done on any of this UI work** — everything above is Designer-tab/Class-Defaults-only progress, same caveat as every prior B1 session note.
+
+**Later the same session, dev asked to make sure every screen has an input and can be toggled in PIE — C++ written, not yet compiled:**
+- `AZSPlayerCharacter::ToggleInventoryScreen`/`TogglePauseMenuScreen`/`HandleSleepKeyPressed` (new) give Tab/Escape/Sleep real production wiring — Tab and Escape need 2 new Input Action assets (`IA_ToggleInventory`, `IA_TogglePauseMenu`) the dev must create manually (same MCP limitation as every other Input Action in this project), plus 3 Class Defaults on `BP_ZS_PlayerCharacter` (`InventoryScreenClass`/`PauseMenuScreenClass`/`SleepPromptScreenClass`). Full detail: `B1_UI_UX.md`'s new "B1 — Screen input wiring" subsection.
+- New `Source/ZombieShooter/UI/ZSUIDebugCommands.cpp` — 5 `ZS.UI.Toggle*` console commands cover the other screens (MainMenu/LoadingScreen/DeathScreen/BlackoutOverlay/ContainerLoot) for visual verification; for the 3 with a real existing delegate (`OnDeath`/`OnBlackoutChanged`/`OnLoadingScreenShouldShow`+`Hide`, all confirmed already correctly wired from earlier B1 work) the debug command broadcasts that same delegate rather than faking anything.
+- **Genuine content gap surfaced, not fixed here**: `WBP_ZS_MainMenu`/`WBP_ZS_LoadingScreen`/`WBP_ZS_DeathScreen`/`WBP_ZS_BlackoutOverlay` all need to exist "at match start" per their own header comments, but nothing anywhere creates an instance of any of them — no HUD-root widget or GameInstance-owned singleton does this yet. Their internal show/hide logic is real and correct; they just have no creation point. Tracked as a separate future task in `B1_UI_UX.md`.
+- **Deliberately not wired**: `ContainerLoot`'s real trigger — container-interact UX (auto-loot vs. real loot screen) is still an open, undecided question; wiring it into `TryInteract` would have silently resolved that question rather than let it get a real answer.
+
+## B1 progress — 2026-08-02 (kept for history; superseded by the entry above for current status)
 
 **All B1 C++ (T1-T8) is compiled and in the editor.** T1/T2/T5.0/T3/T5/T6/T7/T8's C++ groundwork all landed across earlier commits this session (`e064bc3`, `00d3633`, `6d413ac`, `de612a5`), capped by the big one: **every remaining B1 Widget Blueprint (except `WBP_ZS_Settings`) now has a dedicated `UZSUserWidgetBase` subclass** in `Source/ZombieShooter/UI/` — ~23 new files, following the `BindWidget`/`BindWidgetAnimOptional`/`NativeConstruct()` pattern proven on the `UZSBodyConditionIndicatorWidget` trial. Every card's **Bind** row in the manifest now says "nothing to bind" and lists what the C++ already does; remaining manual work per card is Designer-tab hierarchy + Class Defaults only, no Graph-tab wiring except a handful of "Create Widget → Open As Modal" call sites. New shared getters on `UZSUserWidgetBase` (`GetOwningZSGameState`/`GetOwningZSGameInstance`, plus `PushAsModal`/`PopAsModal`), `UZSHealthComponent::GetWoundDisplayCondition`/`HasAnyGameplayAffectingCondition`, `AZSPlayerCharacter::GetKeyLabelForHotbarIndex`, `UZSDragDropPayload::Make`, and the new **arm-wound accuracy-spread penalty** (`GetAccuracySpreadMultiplier()`, wired into `FireWeapon`'s spread roll) all landed the same way.
 
@@ -59,12 +96,23 @@ Full detail on all of the above: `Docs/Beta/B0_Stabilization.md` and `Docs/Beta/
 
 ## Next step
 
-**Resume in-editor widget building, picking up `WBP_ZS_Inventory` at its now-elaborated open/close-toggle step** (an `InventoryScreenRef` variable + `IsValid`/`IsInViewport` branch pattern, spelled out in the manifest artifact — the old version was too vague to build against). `WBP_ZS_ItemSlot` is done. Continue through the rest of T3/T5/T6/T7/T8's remaining `WBP_ZS_*` widgets the same way — Designer-tab hierarchy + Class Defaults only, no Graph-tab wiring except a handful of explicit "Create Widget → Open As Modal" call sites. The manifest artifact has the exact class name, hierarchy diagram (with every previously-missing node — `Canvas_Loadout`, `VBox_Compartments`, the Size Box fixes — now filled in), Placement/anchor numbers, and steps per card; `B1_UI_UX.md`'s Manual setup steps section has the same per-task-group.
+**Everything below is compiled clean (2026-08-06 away session) — next is in-editor manual setup, then a first real PIE pass. Nothing has been PIE-tested yet.**
 
-**Three concrete loose ends from today, not blocking further building but worth doing before B1 exit:**
-1. **`WBP_ZS_BodyConditionIndicator`'s 5 icon texture slots are unassigned** — any functional-grey placeholder works, just remember to swap for real art later.
-2. **No animations exist anywhere yet** (`CriticalBleedFlash`/`FadeInOut`/`SeverityPulse`/`Spin`) — all optional, nothing is blocked, build whenever or skip for B1 entirely.
-3. **Nothing has been PIE-tested yet.** Once enough of T3/T5 is built to see the HUD + Inventory screen together, a first PIE pass is worth doing before building much further — a wrong `BindWidget` name or Size Box value is cheaper to catch early than after 10 more widgets are built the same way. `ZS.` automation suite also hasn't been re-run since the 2 Slot-shadowing build-error fixes — worth a run to confirm the 5-pre-existing-failures baseline is unchanged.
+1. **Required manual steps, none done yet (all need a live editor):**
+   - Create `IA_ToggleInventory` (Tab, Pressed) and `IA_TogglePauseMenu` (Escape, Pressed), both in `IMC_ZS_Default`. Detail: `Docs/InputBindings.md`'s UI section.
+   - Create `BP_ZS_HUD` (parent `AZSHUD`, in `/Game/ZS/Framework/`) and assign its 2 Class Defaults (`DeathScreenClass`→`WBP_ZS_DeathScreen`, `BlackoutOverlayClass`→`WBP_ZS_BlackoutOverlay`).
+   - Assign Class Defaults on `BP_ZS_PlayerCharacter` (`InventoryScreenClass`/`PauseMenuScreenClass`/`SleepPromptScreenClass`/`ContainerLootScreenClass`) and on the GameInstance Blueprint (`LoadingScreenClass`/`MainMenuScreenClass`).
+   - Still outstanding from T8: set `GameInstanceClass` to `ZSGameInstance` in Project Settings — none of the above runs without it either.
+2. **Open the editor and eyeball every screen** — nothing has been screenshot-verified yet, only tree-dump-verified. `WBP_ZS_ContainerLoot`'s 4 top-level positions especially need a look (manifest calls those eyeballed, not computed).
+3. **Assign real textures/colors** — every `Image` in the built widgets is still an unset/default brush; `DA_ZS_UIStyle_Default` isn't assigned to any widget's `style` property yet either.
+4. **Decide `WBP_ZS_PauseMenu`'s quit-to-menu flow** — its `Main Menu Level Name` Class Default is deliberately left unset; no dedicated main-menu level exists in this single-persistent-world project, so this needs a real design call.
+5. **First PIE pass** once the manual steps above are done — confirm Tab/Escape/Sleep toggle their screens, a real container interact opens the loot screen (not the old auto-loot), MainMenu shows at boot and hides on Host/Join, LoadingScreen shows during a level transition, Death/Blackout display on a real death/blackout, and the 5 `ZS.UI.Toggle*` debug commands still work.
+6. **`ZS.` automation suite still hasn't been re-run since the 2 Slot-shadowing build-error fixes from 2026-08-02** — worth a run to confirm the 5-pre-existing-failures baseline is unchanged.
+7. **One stray background process left running from the smoke test** — a headless `UnrealEditor-Cmd.exe` (was PID 16896) that never processed its `Quit` command; harmless (doesn't hold the build lock), close it manually next time you're at the keyboard.
+
+**Two older loose ends, unchanged:**
+1. `WBP_ZS_BodyConditionIndicator`'s 5 icon texture slots are unassigned — any functional-grey placeholder works, swap for real art later.
+2. No animations exist anywhere yet (`CriticalBleedFlash`/`FadeInOut`/`SeverityPulse`/`Spin`) — all optional, nothing is blocked, build whenever or skip for B1 entirely.
 
 **Before diving into any screen, check for an open design question flagged on it** — several are deliberately left undecided (container-interact behavior, solo pause OQ-B1-03, death-recap scope OQ-B6-07, Steam invite infra, non-weapon Equipment-slot items, no-numeric-health-bar, keyboard-equivalents for every drag target) rather than guessed past.
 

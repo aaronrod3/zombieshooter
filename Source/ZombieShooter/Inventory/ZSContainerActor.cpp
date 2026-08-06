@@ -138,5 +138,9 @@ void AZSContainerActor::HandleInteracted(UZSInteractableComponent* Interactable,
 		return;
 	}
 
-	Server_TakeAllItems(Interactor);
+	// 2026-08-05: resolved (real loot screen, not auto-loot-all) - opens WBP_ZS_ContainerLoot on the
+	// interacting client instead of transferring everything server-side. Server_TakeAllItems is
+	// unchanged and still reachable - it's what the loot screen's own "Take All" button calls, via
+	// AZSPlayerCharacter::Server_TakeAllContainerItems.
+	Interactor->Client_OpenContainerLoot(this);
 }

@@ -5,6 +5,7 @@
 #include "ZSPlayerState.h"
 #include "ZombieShooter/Player/ZSPlayerCharacter.h"
 #include "ZSPlayerController.h"
+#include "ZSHUD.h"
 #include "UObject/ConstructorHelpers.h"
 #include "GameFramework/PlayerState.h"
 #include "Internationalization/Text.h"
@@ -28,6 +29,19 @@ AZSGameMode::AZSGameMode()
 	else
 	{
 		DefaultPawnClass = AZSPlayerCharacter::StaticClass();
+	}
+
+	// B1, 2026-08-05: same graceful Blueprint-preferred pattern as DefaultPawnClass above -
+	// BP_ZS_HUD is where DeathScreenClass/BlackoutOverlayClass actually get assigned (AZSHUD itself
+	// has no Blueprint child yet, same content gap as every other not-yet-authored default here).
+	static ConstructorHelpers::FClassFinder<AZSHUD> HUDBPClass(TEXT("/Game/ZS/Framework/BP_ZS_HUD"));
+	if (HUDBPClass.Succeeded())
+	{
+		HUDClass = HUDBPClass.Class;
+	}
+	else
+	{
+		HUDClass = AZSHUD::StaticClass();
 	}
 }
 
