@@ -466,6 +466,7 @@
       <li><a href="#files"><span class="n">10</span>File Structure</a></li>
       <li><a href="#gaps"><span class="n">11</span>Open Gaps</a></li>
       <li><a href="#checklist"><span class="n">12</span>New-Item Checklist</a></li>
+      <li><a href="#icon-pipeline"><span class="n">13</span>Icon Pipeline</a></li>
     </ul>
     <div class="toc-foot">Compiled 2026-08-08 from the working tree (Source/ + Content/ + Docs/Planning). Planning draft — nothing here has been executed against Content.</div>
   </nav>
@@ -1076,7 +1077,7 @@ Content/ZS/Weapons/    <span class="note">unchanged, already matches this patter
       <div class="gap-list">
         <div class="gap-item"><span class="pill bad">blocking</span><p><strong>The 2026-08-06 inventory/equip/loadout rework is written but not compiled.</strong> Needs a graceful editor close + full <code class="mono">Build.bat</code> (not Live Coding — this touches headers/enums/new component arrays project-wide). SessionHandoff's #1 priority.</p></div>
         <div class="gap-item"><span class="pill bad">blocking</span><p><strong>DA_Bag's EquipSlot needs a manual in-editor check</strong> immediately after that rebuild. Two enum renames (Hip→Duffle, then Back→Backpack) risk it silently resolving to None on load.</p></div>
-        <div class="gap-item"><span class="pill warn">content</span><p><strong>No icon has ever been imported.</strong> An icon-generator is being transferred from ShooterGame — output convention (resolution/format/naming) not yet known, needed before §12's checklist step 4 can run for real.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>No icon has ever been imported.</strong> An icon-generator is being transferred from ShooterGame — output convention (resolution/format/naming) not yet known, needed before §12's checklist step 4 can run for real. A candidate capture-based pipeline is sketched in <a href="#icon-pipeline">§13</a>, not yet verified against this project.</p></div>
         <div class="gap-item"><span class="pill warn">content</span><p><strong>World-mesh folder convention undecided</strong> — flat Items/ today vs. the proposed Food/Medical/Tools/Containers/Misc reorg (§10). Not yet executed either way.</p></div>
         <div class="gap-item"><span class="pill warn">content</span><p><strong>ItemSize hierarchical gating (§03)</strong> — direction confirmed, but the Backpack-rejects-Large C++ was folded into the bigger rework above rather than compiled standalone. Unverified until that build lands.</p></div>
         <div class="gap-item"><span class="pill warn">review</span><p><strong>DA_ZS_ItemConfig_PistolPickup's status is unclear</strong> — may be a stale P2-era test asset superseded by DA_ZS_WeaponConfig_Pistol. Needs a dev call before it's treated as real content.</p></div>
@@ -1097,7 +1098,7 @@ Content/ZS/Weapons/    <span class="note">unchanged, already matches this patter
         <li>Pick the archetype (§09), confirm which fields are required.</li>
         <li>Create <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> (or <code class="mono">DA_ZS_WeaponConfig_&lt;Name&gt;</code>) in Content/ZS/Items/ or Content/ZS/Weapons/&lt;Category&gt;/.</li>
         <li>Fill the base 6 fields plus whatever the archetype requires.</li>
-        <li>Import/assign Icon — blocked on the icon-generator handoff (§11).</li>
+        <li>Import/assign Icon — blocked on the icon-generator handoff (§11); candidate pipeline in <a href="#icon-pipeline">§13</a>.</li>
         <li>Assign WorldMesh, and WornMesh if equippable.</li>
         <li>Set ItemSize per the hierarchical rubric (§03).</li>
         <li>Set Rarity — decide if it needs an AZSGameState rarity-pool gate (Rare/VeryRare only).</li>
@@ -1107,8 +1108,70 @@ Content/ZS/Weapons/    <span class="note">unchanged, already matches this patter
       </ol>
     </section>
 
+    <!-- ============================================================ -->
+    <section id="icon-pipeline" class="wide">
+      <div class="eyebrow">13 · Authoring</div>
+      <h2 class="h">Icon Pipeline — Scene Capture → Static Texture</h2>
+      <p class="lede">A candidate answer to the <a href="#gaps">§11</a> gap ("no icon has ever been imported, no pipeline exists") — Scene Capture 2D rendering a mesh into a Render Target, then baked to a real <code class="mono">UTexture2D</code> and assigned to <code class="mono">UZSItemConfig::Icon</code>. This is UE5's one standard, well-documented approach to the problem, not one option among several.</p>
+
+      <div class="callout warn">
+        <strong>How this was compiled — read before treating it as verified.</strong> The chapter breakdown below was pulled directly from the source video's own metadata (real, not guessed). A full spoken transcript wasn't recoverable — the video has no manual captions, and its auto-generated captions didn't reliably re-sync when scrubbed programmatically. The steps and settings below therefore follow that real chapter structure but are reconstructed from the standard UE5 Scene-Capture-to-icon technique, not quoted from the narration. <strong>Sanity-check the exact clicks against the video itself before building against this blind.</strong>
+      </div>
+
+      <h4 style="margin-bottom:6px;">Source</h4>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td class="field">Title</td><td class="notes">"How To Create An Icon Of Any Mesh In Unreal Engine 5"</td></tr>
+            <tr><td class="field">Channel</td><td class="notes">Unreal University</td></tr>
+            <tr><td class="field">URL</td><td class="notes"><a href="https://www.youtube.com/watch?v=EpthBJJ9S-o">youtube.com/watch?v=EpthBJJ9S-o</a></td></tr>
+            <tr><td class="field">Length</td><td class="notes">5:46</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 22px 0 6px;">Real chapter breakdown</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Timestamp</th><th>Chapter</th></tr></thead>
+          <tbody>
+            <tr><td class="default num">0:00</td><td class="notes">Introduction to creating an icon generator system</td></tr>
+            <tr><td class="default num">1:00</td><td class="notes">Setting up the Scene Capture Component 2D and render target</td></tr>
+            <tr><td class="default num">2:01</td><td class="notes">Creating a material for the icon and setting up the static mesh</td></tr>
+            <tr><td class="default num">4:44</td><td class="notes">Finalizing the texture for the icon and removing the background</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 22px 0 6px;">Build steps</h4>
+      <ol class="checklist">
+        <li><strong>Set up the capture rig.</strong> New Actor Blueprint (e.g. <code class="mono">BP_IconCapture</code>), placed in an empty void area so nothing else bleeds into frame. Add a <strong>Scene Capture Component 2D</strong>. Create a <strong>Render Target 2D</strong> asset sized to icon resolution (match whatever convention <a href="#gaps">§11</a>'s icon-pipeline gap settles on) and assign it to the capture component's <strong>Texture Target</strong>. Add a <strong>Static Mesh Component</strong> as a child, exposed as an editable variable, so the same rig captures any item's mesh.</li>
+        <li><strong>Frame it orthographically.</strong> Set <strong>Projection Type = Orthographic</strong> (kills perspective distortion) and tune <strong>Ortho Width</strong> to frame the mesh consistently regardless of its actual size.</li>
+        <li><strong>Isolate and light the subject.</strong> Restrict the capture to only the target mesh (Show Only List / Show Only Actors) so the rest of the level never bleeds in. Light the rig with its own fixed light(s), not level lighting, so every icon shades consistently.</li>
+        <li><strong>Capture and bake to a real texture.</strong> Call <strong>Capture Scene</strong> once, on demand. Right-click the Render Target asset → <strong>Create Static Texture</strong> to bake the live capture into a real <code class="mono">UTexture2D</code> that doesn't need the capture rig at runtime.</li>
+        <li><strong>Strip the background.</strong> Enable alpha (Project Settings → Rendering → <strong>Enable Alpha Channel Support in Post Processing</strong>; Render Target format <code class="mono">RTF_RGBA8</code>) so the capture composites transparent instead of baking in a solid color, then re-bake to static.</li>
+        <li><strong>Wire it into the item.</strong> Assign the resulting texture to <code class="mono">UZSItemConfig::Icon</code> — the field every content item currently leaves unset (§08).</li>
+      </ol>
+
+      <h4 style="margin: 22px 0 6px;">Key settings, at a glance</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td class="field">Projection Type</td><td class="default">Orthographic</td><td class="notes">No perspective distortion on the icon.</td></tr>
+            <tr><td class="field">Render Target format</td><td class="default">RTF_RGBA8</td><td class="notes">Needs an alpha channel to key out the background.</td></tr>
+            <tr><td class="field">Post Process alpha support</td><td class="default">Enabled</td><td class="notes">Project Settings → Rendering — required for a transparent capture to actually carry alpha through.</td></tr>
+            <tr><td class="field">Capture scope</td><td class="default">Show Only List</td><td class="notes">Only the target mesh renders — nothing else in the level.</td></tr>
+            <tr><td class="field">Final asset</td><td class="default">Create Static Texture</td><td class="notes">Render Target context-menu action — bakes the live capture to a saved, reusable UTexture2D.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="font-size:13px; color:var(--text-faint);">Doesn't resolve <a href="#gaps">§11</a>'s icon-output-convention question by itself — resolution/format/naming for the baked texture still needs a decision once this is actually tried, and should be reconciled with whatever ShooterGame's transferred icon generator already produces.</p>
+    </section>
+
     <footer class="doc-foot">
-      ZombieShooter — Item System Manifest · compiled 2026-08-08 from the working tree · planning draft, not yet approved · sources: ZSItemConfig.h, ZSWeaponConfig.h, ZSWeaponTypes.h, ZSItemInstance.h, ZSInventoryComponent.h, ZSWorldItemActor.cpp, ZSContainerActor.h, ZSLootTableConfig.h, ZSWeapon.h, ZSMagazine.h, ZSProjectile.h, Docs/Planning/ItemSetupStandard_2026-08-06.md, Docs/SessionHandoff.md, Docs/TuningReference.md, Docs/GameDevPlan.md, git status
+      ZombieShooter — Item System Manifest · compiled 2026-08-08 from the working tree · planning draft, not yet approved · sources: ZSItemConfig.h, ZSWeaponConfig.h, ZSWeaponTypes.h, ZSItemInstance.h, ZSInventoryComponent.h, ZSWorldItemActor.cpp, ZSContainerActor.h, ZSLootTableConfig.h, ZSWeapon.h, ZSMagazine.h, ZSProjectile.h, Docs/Planning/ItemSetupStandard_2026-08-06.md, Docs/SessionHandoff.md, Docs/TuningReference.md, Docs/GameDevPlan.md, git status, "How To Create An Icon Of Any Mesh In Unreal Engine 5" (Unreal University, youtube.com/watch?v=EpthBJJ9S-o)
     </footer>
   </main>
 </div>
