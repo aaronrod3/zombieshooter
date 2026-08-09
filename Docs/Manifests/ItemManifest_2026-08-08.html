@@ -1,4 +1,4 @@
-<title>ZombieShooter — Item System Manifest</title>
+<title>ZombieShooter — Item System Guide</title>
 <style>
   :root {
     --bg: #14170f;
@@ -146,6 +146,7 @@
   .toc-list a:hover { background: var(--surface-2); color: var(--text); }
   .toc-list a.active { background: var(--accent-soft); color: var(--accent-2); }
   .toc-list a.active .n { color: var(--accent-2); }
+  .toc-divider { height: 1px; background: var(--border-soft); margin: 10px 8px; }
 
   .toc-foot {
     margin-top: 24px;
@@ -171,9 +172,9 @@
     font-size: 11.5px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--warn);
-    background: var(--warn-soft);
-    border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    color: var(--ok);
+    background: var(--ok-soft);
+    border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
     padding: 5px 11px;
     border-radius: 3px;
     margin-bottom: 20px;
@@ -181,14 +182,14 @@
   .status-band::before {
     content: "";
     width: 6px; height: 6px; border-radius: 50%;
-    background: var(--warn);
-    box-shadow: 0 0 0 3px var(--warn-soft);
+    background: var(--ok);
+    box-shadow: 0 0 0 3px var(--ok-soft);
   }
   h1.title { font-size: clamp(32px, 4.4vw, 46px); line-height: 1.05; }
   h1.title .accent { color: var(--accent-2); }
   .dek {
     margin-top: 14px;
-    max-width: 62ch;
+    max-width: 64ch;
     font-size: 16.5px;
     color: var(--text-muted);
     line-height: 1.6;
@@ -338,6 +339,7 @@
   .callout strong { color: var(--text); }
   .callout.gap { border-left-color: var(--bad); }
   .callout.warn { border-left-color: var(--warn); }
+  .callout.ok { border-left-color: var(--ok); }
 
   /* ---------- Diagram (CSS, no SVG needed) ---------- */
   .instance-diagram {
@@ -392,9 +394,10 @@
   pre.tree .file { color: var(--text); }
   pre.tree .note { color: var(--text-faint); font-style: italic; }
   pre.tree .cxx { color: var(--ok); }
+  pre.tree .new { color: var(--ok); }
 
   /* ---------- Checklist ---------- */
-  ol.checklist { max-width: 74ch; padding-left: 0; list-style: none; counter-reset: step; margin: 18px 0; }
+  ol.checklist { max-width: 76ch; padding-left: 0; list-style: none; counter-reset: step; margin: 18px 0; }
   ol.checklist li {
     counter-increment: step;
     display: flex;
@@ -416,6 +419,7 @@
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
+  ol.checklist.compact li { padding: 8px 0; font-size: 13.5px; }
 
   /* ---------- Gap list ---------- */
   .gap-list { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
@@ -451,51 +455,76 @@
 <div class="layout">
   <nav class="toc" aria-label="Table of contents">
     <div class="toc-brand">ZombieShooter · B1</div>
-    <div class="toc-title">Item Manifest</div>
+    <div class="toc-title">Item Guide</div>
     <ul class="toc-list" id="toc-list">
       <li><a href="#overview"><span class="n">00</span>Overview</a></li>
-      <li><a href="#base-classes"><span class="n">01</span>Base Classes</a></li>
-      <li><a href="#instance"><span class="n">02</span>Item Instance</a></li>
-      <li><a href="#enums"><span class="n">03</span>Classification Enums</a></li>
-      <li><a href="#world-actors"><span class="n">04</span>World Pickup &amp; Container</a></li>
-      <li><a href="#weapon-actor"><span class="n">05</span>Weapon Actor</a></li>
-      <li><a href="#inventory"><span class="n">06</span>Inventory &amp; Equip</a></li>
-      <li><a href="#loot"><span class="n">07</span>Loot Tables</a></li>
-      <li><a href="#content"><span class="n">08</span>Current Content</a></li>
-      <li><a href="#archetypes"><span class="n">09</span>Item Archetypes</a></li>
-      <li><a href="#files"><span class="n">10</span>File Structure</a></li>
-      <li><a href="#gaps"><span class="n">11</span>Open Gaps</a></li>
-      <li><a href="#checklist"><span class="n">12</span>New-Item Checklist</a></li>
-      <li><a href="#icon-pipeline"><span class="n">13</span>Icon Pipeline</a></li>
+      <li><a href="#quickstart"><span class="n">01</span>Quick Start</a></li>
+      <div class="toc-divider"></div>
+      <li><a href="#base-classes"><span class="n">02</span>Base Classes</a></li>
+      <li><a href="#instance"><span class="n">03</span>Item Instance</a></li>
+      <li><a href="#enums"><span class="n">04</span>Classification Enums</a></li>
+      <li><a href="#world-actors"><span class="n">05</span>World Pickup &amp; Container</a></li>
+      <li><a href="#weapon-actor"><span class="n">06</span>Weapon Actor</a></li>
+      <li><a href="#inventory"><span class="n">07</span>Inventory &amp; Equip</a></li>
+      <li><a href="#loot"><span class="n">08</span>Loot Tables</a></li>
+      <li><a href="#icon-pipeline"><span class="n">09</span>Icon Pipeline</a></li>
+      <div class="toc-divider"></div>
+      <li><a href="#conventions"><span class="n">10</span>Folder Conventions</a></li>
+      <li><a href="#archetypes"><span class="n">11</span>Item Archetypes</a></li>
+      <li><a href="#next-items"><span class="n">12</span>What To Build Next</a></li>
+      <li><a href="#content"><span class="n">13</span>Current Content</a></li>
+      <li><a href="#issues"><span class="n">14</span>Known Issues</a></li>
     </ul>
-    <div class="toc-foot">Compiled 2026-08-08 from the working tree (Source/ + Content/ + Docs/Planning). Planning draft — nothing here has been executed against Content.</div>
+    <div class="toc-foot">Compiled 2026-08-08 from the working tree (Source/ + Content/ZS/) — re-scan Content/ZS/Items/ before trusting §12 if content has moved on since.</div>
   </nav>
 
   <main>
     <header class="hero" id="overview">
-      <div class="status-band">Draft · Planning only · Pending approval</div>
-      <h1 class="title">The <span class="accent">Item System</span>,<br>end to end.</h1>
-      <p class="dek">Every base class an item or weapon is built from, the instance model that tracks a specific carried/dropped/stored item, the actors that present items in the world, and all 12 content instances authored so far — with exact file paths. Compiled from the current C++ and Content trees for review, not yet approved or acted on.</p>
+      <div class="status-band">Living guide · Kept in sync with the project</div>
+      <h1 class="title">Building an <span class="accent">Item</span>, Start to Finish</h1>
+      <p class="dek">How ZombieShooter's item system actually works, and the exact steps to turn a mesh into a real, pickup-able, equip-able game item — grounded in the current C++ and Content trees, not a proposal. Includes a fresh read of <code class="mono">Content/ZS/Items/Food/</code>: 14 meshes are already staged there with no item behind them yet, and one — canned beans — already has a baked icon (<code class="mono">T_CanofBeans</code>). <a href="#next-items">§12</a> maps all of it to what to build next.</p>
 
       <div class="stat-row">
         <div class="stat"><div class="v">2</div><div class="l">Base DA classes</div></div>
-        <div class="stat"><div class="v">12</div><div class="l">Content items</div></div>
+        <div class="stat"><div class="v">12</div><div class="l">Item configs</div></div>
         <div class="stat"><div class="v">3</div><div class="l">Weapons</div></div>
         <div class="stat"><div class="v">4</div><div class="l">Ammo types</div></div>
-        <div class="stat"><div class="v">12</div><div class="l">Equip slots</div></div>
-        <div class="stat"><div class="v">11</div><div class="l">Open gaps</div></div>
+        <div class="stat"><div class="v">14</div><div class="l">Meshes staged</div></div>
+        <div class="stat"><div class="v">1</div><div class="l">Icon baked</div></div>
       </div>
 
       <div class="callout warn" style="margin-top:28px;">
-        <strong>Read this before trusting anything below as "live."</strong> The 2026-08-06 inventory/equip/loadout rework (12-slot <code>EZSEquipSlot</code>, compartment capacities, worn-mesh visuals) is written into the source tree but <strong>not yet compiled</strong> — the editor was open the whole time it landed. Everything in this document reflects that uncompiled state. Treat every content-facing number and behavior as design-intent-and-code-exists, not PIE-verified, until the next full <code class="mono">Build.bat</code> succeeds (see <a href="#gaps">§11</a>).
+        <strong>One standing caveat, worth keeping in mind throughout.</strong> The 2026-08-06 inventory/equip/loadout rework (12-slot <code class="mono">EZSEquipSlot</code>, compartment capacities, worn-mesh visuals — all described below as how the system works) landed in the source tree but its compile/PIE-verification status isn't confirmed as of this guide's last scan — <code class="mono">Docs/SessionHandoff.md</code> hasn't been rewritten since. Everything below is real, current code; treat exact runtime behavior as unverified until you've confirmed a build against it yourself.
       </div>
     </header>
 
     <!-- ============================================================ -->
+    <section id="quickstart" class="wide">
+      <div class="eyebrow">01 · Guide</div>
+      <h2 class="h">Quick Start — Add a New Item</h2>
+      <p class="lede">The full path from nothing to a lootable, equippable item. Each step links to the reference section with the actual detail.</p>
+
+      <ol class="checklist">
+        <li><strong>Pick something already staged, when you can.</strong> <a href="#next-items">§12</a> lists 14 meshes sitting in <code class="mono">Content/ZS/Items/Food/</code> with no item config behind them yet — starting there skips sourcing a new mesh entirely.</li>
+        <li><strong>Pick the archetype</strong> (<a href="#archetypes">§11</a>) and confirm which fields it needs beyond the base 6 (<a href="#base-classes">§02</a>).</li>
+        <li><strong>Create the data asset</strong> — <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> or <code class="mono">DA_ZS_WeaponConfig_&lt;Name&gt;</code> — in the right folder per <a href="#conventions">§10</a>'s real convention (e.g. <code class="mono">Items/Food/&lt;Category&gt;/</code>, <code class="mono">Weapons/&lt;Category&gt;/</code>).</li>
+        <li><strong>Fill the base 6 fields</strong> (DisplayName, WorldMesh, Weight, Rarity, ItemSize) <strong>plus whatever the archetype needs</strong> — see <a href="#archetypes">§11</a>'s table.</li>
+        <li><strong>Generate the icon</strong> with <code class="mono">BP_IconGenerator</code> (<a href="#icon-pipeline">§09</a>) — bake to <code class="mono">Content/ZS/Items/Textures/T_&lt;Name&gt;</code>, assign to <code class="mono">Icon</code>.</li>
+        <li><strong>Assign <code class="mono">WorldMesh</code></strong> (already sitting in the item's folder if it came from §12), <strong>and <code class="mono">WornMesh</code></strong> if the item is equippable clothing/gear.</li>
+        <li><strong>Set <code class="mono">ItemSize</code></strong> per the hierarchical compartment rule (<a href="#enums">§04</a>) and <strong><code class="mono">Rarity</code></strong>.</li>
+        <li><strong>If lootable</strong>, add a weighted entry to a <code class="mono">UZSLootTableConfig</code> (<a href="#loot">§08</a>) — e.g. <code class="mono">DA_ZS_LootTableConfig_Basic</code>.</li>
+        <li><strong>Wire up a pickup for testing</strong> — extend <code class="mono">BP_ZS_WorldItem_Test</code>, or drop the new config into <code class="mono">BP_ZS_Container_Test</code>'s loot table.</li>
+        <li><strong>PIE test the whole loop</strong>: pick up → icon/stack render correctly in the inventory grid → move between compartments (non-weapon items) → equip (if applicable).</li>
+      </ol>
+    </section>
+
+    <div class="section-rule" style="max-width:1180px;"></div>
+
+    <!-- ============================================================ -->
     <section id="base-classes" class="wide">
-      <div class="eyebrow">01 · Data Model</div>
+      <div class="eyebrow">02 · How It Works</div>
       <h2 class="h">Base Classes</h2>
-      <p class="lede">Every item and weapon in the game is one instance of one of two <code>UPrimaryDataAsset</code> classes. There is no per-item C++ — a new item is always a new data asset instance, never a new branch (the project's multi-config rule). <code class="mono">UZSWeaponConfig</code> inherits <code class="mono">UZSItemConfig</code>, so a carried weapon is a real, first-class <code class="mono">FZSItemInstance</code> too — it can sit in a carry slot, get looted, and be dropped exactly like a can of food.</p>
+      <p class="lede">Every item and weapon in the game is one instance of one of two <code class="mono">UPrimaryDataAsset</code> classes. There is no per-item C++ — a new item is always a new data asset instance, never a new branch (the project's multi-config rule). <code class="mono">UZSWeaponConfig</code> inherits <code class="mono">UZSItemConfig</code>, so a carried weapon is a real, first-class <code class="mono">FZSItemInstance</code> too — it can sit in a carry slot, get looted, and be dropped exactly like a can of food.</p>
 
       <div class="class-card">
         <div class="ch">
@@ -508,10 +537,10 @@
             <table class="wide">
               <thead><tr><th>Group</th><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
               <tbody>
-                <tr class="group-row"><td colspan="5">Identity</td></tr>
+                <tr class="group-row"><td colspan="5">Identity — the "base 6" (plus Icon/ItemUseType) every item fills in</td></tr>
                 <tr><td></td><td class="field">DisplayName</td><td class="type">FText</td><td class="default">—</td><td class="notes">Shown everywhere an item is named — tooltip, hotbar, loot screen.</td></tr>
-                <tr><td></td><td class="field">Icon</td><td class="type">UTexture2D*</td><td class="default">unset</td><td class="notes">No icon has ever been imported into the project — unset renders gracefully, same "not sourced yet" pattern as every other optional reference.</td></tr>
-                <tr><td></td><td class="field">ItemUseType</td><td class="type">EZSItemUseType</td><td class="default">Consumable</td><td class="notes">Which server action <code class="mono">Server_UseItem</code> routes this to — see <a href="#enums">enums</a>.</td></tr>
+                <tr><td></td><td class="field">Icon</td><td class="type">UTexture2D*</td><td class="default">unset</td><td class="notes">Bake one with <code class="mono">BP_IconGenerator</code> — see <a href="#icon-pipeline">§09</a>. Unset renders gracefully.</td></tr>
+                <tr><td></td><td class="field">ItemUseType</td><td class="type">EZSItemUseType</td><td class="default">Consumable</td><td class="notes">Which server action <code class="mono">Server_UseItem</code> routes this to — see <a href="#enums">§04</a>.</td></tr>
 
                 <tr class="group-row"><td colspan="5">Consumable — only read when ItemUseType == Consumable</td></tr>
                 <tr><td></td><td class="field">HungerRestore</td><td class="type">float</td><td class="default num">0</td><td class="notes">Routes to <code class="mono">UZSNeedsComponent::Server_ConsumeItem</code>.</td></tr>
@@ -521,14 +550,14 @@
                 <tr><td></td><td class="field">bIsCleanBandage</td><td class="type">bool</td><td class="default">true</td><td class="notes">Bandage only. A clean bandage clears the wound's dirty flag; a dirty rag stops bleeding but leaves it dirty.</td></tr>
                 <tr><td></td><td class="field">MedicalIncubationDelayGameHours</td><td class="type">float</td><td class="default num">0</td><td class="notes">Bandage/Disinfectant only. Pushes the bite-infection clock back this many game-hours when applied to the source zone. 0 = basic tier, no effect.</td></tr>
 
-                <tr class="group-row"><td colspan="5">Inventory (P6) — every item, not just consumables</td></tr>
+                <tr class="group-row"><td colspan="5">Inventory — every item, not just consumables</td></tr>
                 <tr><td></td><td class="field">Weight</td><td class="type">float</td><td class="default num">0.5</td><td class="notes">Per-unit weight, read by <code class="mono">GetCurrentWeight()</code> / <code class="mono">FZSItemInstance::GetTotalWeight()</code>.</td></tr>
                 <tr><td></td><td class="field">MaxStackSize</td><td class="type">int32</td><td class="default num">1</td><td class="notes">How many stack per <code class="mono">FZSItemInstance</code>. 1 = doesn't stack (weapons, bags).</td></tr>
                 <tr><td></td><td class="field">bIsEquippable</td><td class="type">bool</td><td class="default">false</td><td class="notes">True for anything that occupies one of the 12 equip slots rather than living in the general carry list.</td></tr>
-                <tr><td></td><td class="field">EquipSlot</td><td class="type">EZSEquipSlot</td><td class="default">None</td><td class="notes">Only meaningful if bIsEquippable. See <a href="#enums">enums</a> for all 12 values.</td></tr>
+                <tr><td></td><td class="field">EquipSlot</td><td class="type">EZSEquipSlot</td><td class="default">None</td><td class="notes">Only meaningful if bIsEquippable. See <a href="#enums">§04</a> for all 12 values.</td></tr>
                 <tr><td></td><td class="field">CarryCapacityBonus</td><td class="type">float</td><td class="default num">0</td><td class="notes">How much this raises max carry weight while equipped — a bag's whole reason to exist.</td></tr>
                 <tr><td></td><td class="field">Rarity</td><td class="type">EZSItemRarity</td><td class="default">Common</td><td class="notes">Consulted by the finite rarity-pool loot system (Rare/VeryRare only).</td></tr>
-                <tr><td></td><td class="field">ItemSize</td><td class="type">EZSItemSize</td><td class="default">Small</td><td class="notes">Gates which compartments this can be stored in — see <a href="#enums">enums</a>.</td></tr>
+                <tr><td></td><td class="field">ItemSize</td><td class="type">EZSItemSize</td><td class="default">Small</td><td class="notes">Gates which compartments this can be stored in — see <a href="#enums">§04</a>.</td></tr>
                 <tr><td></td><td class="field">InsulationValue</td><td class="type">float</td><td class="default num">0</td><td class="notes">Equippable clothing only — sums into Temperature's target across all 11 clothing/gear slots while worn.</td></tr>
                 <tr><td></td><td class="field">WorldMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes"><code class="mono">AZSWorldItemActor</code>'s pickup mesh. Unset = invisible pickup, not an error.</td></tr>
                 <tr><td></td><td class="field">WornMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes">The on-character visual for equipped clothing/gear — attached to the slot's socket by <code class="mono">RefreshWornMeshes()</code>. Static, not skeletal.</td></tr>
@@ -548,7 +577,7 @@
           <div class="path">Source/ZombieShooter/Weapons/ZSWeaponConfig.h</div>
         </div>
         <div class="body">
-          <p>Inherits every field above — <code class="mono">Weight</code> needs a real per-weapon value authored (the inherited 0.5 default is too light for a rifle), <code class="mono">MaxStackSize</code> should stay 1. Adds ~45 weapon-specific fields, grouped below in declaration order. Slimmed hard from an original ~90-field Infima-mirroring catalog in the P0 de-scope — what remains is what the third-person survival game actually consumes today.</p>
+          <p>Inherits every field above — <code class="mono">Weight</code> needs a real per-weapon value authored (the inherited 0.5 default is too light for a rifle), <code class="mono">MaxStackSize</code> should stay 1. Adds ~45 weapon-specific fields, grouped below in declaration order.</p>
           <div class="table-wrap">
             <table class="wide">
               <thead><tr><th>Group</th><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
@@ -622,7 +651,7 @@
                 <tr><td></td><td class="field">FireRange</td><td class="type">float</td><td class="default num">5000</td><td class="notes">Trace distance from SocketMuzzle.</td></tr>
                 <tr><td></td><td class="field">FireDamageTypeClass</td><td class="type">TSubclassOf&lt;UDamageType&gt;</td><td class="default">unset</td><td class="notes">Falls back to <code class="mono">UZSDamageType_Laceration</code>.</td></tr>
 
-                <tr class="group-row"><td colspan="5">Aim Cone &amp; Headshot Weighting — B0-T3.5/T3.6</td></tr>
+                <tr class="group-row"><td colspan="5">Aim Cone &amp; Headshot Weighting</td></tr>
                 <tr><td></td><td class="field">HipFireSpreadDegrees</td><td class="type">float</td><td class="default num">5°</td><td class="notes">Cone half-angle, hip-fire.</td></tr>
                 <tr><td></td><td class="field">AimedSpreadDegrees</td><td class="type">float</td><td class="default num">1°</td><td class="notes">Cone half-angle, aiming.</td></tr>
                 <tr><td></td><td class="field">HipFireHeadshotChance</td><td class="type">float</td><td class="default num">0.05</td><td class="notes">Chance a landed hip-fire hit resolves to Head regardless of the ray's actual bone.</td></tr>
@@ -641,7 +670,7 @@
 
     <!-- ============================================================ -->
     <section id="instance">
-      <div class="eyebrow">02 · Data Model</div>
+      <div class="eyebrow">03 · How It Works</div>
       <h2 class="h">The Item Instance</h2>
       <p class="lede"><code class="mono">FZSItemInstance</code> is the one and only way a top-level item exists anywhere in the game. A carried slot, a container slot, and a world pickup all point at the same logical item through this struct, rather than each holding its own <code class="mono">Config</code> + count.</p>
 
@@ -675,7 +704,7 @@
             <tr><td></td><td class="field">InstanceId</td><td class="type">FGuid</td><td class="notes">Stable for the item's whole life. Invalid GUID = "no item."</td></tr>
             <tr><td></td><td class="field">Config</td><td class="type">UZSItemConfig*</td><td class="notes">Which data asset this instance is of.</td></tr>
             <tr><td></td><td class="field">StackCount</td><td class="type">int32</td><td class="notes">Meaningful only if Config->MaxStackSize &gt; 1.</td></tr>
-            <tr><td></td><td class="field">Location</td><td class="type">EZSCarryLocation</td><td class="notes">Which carry category — see <a href="#enums">enums</a>.</td></tr>
+            <tr><td></td><td class="field">Location</td><td class="type">EZSCarryLocation</td><td class="notes">Which carry category — see <a href="#enums">§04</a>.</td></tr>
             <tr><td></td><td class="field">InstanceState</td><td class="type">FZSItemInstanceState</td><td class="notes">Meaningful only if StackCount == 1.</td></tr>
 
             <tr class="group-row"><td colspan="4">FZSItemInstanceState</td></tr>
@@ -689,13 +718,13 @@
       </div>
 
       <div class="callout">
-        <strong>Invariant: stackable and per-instance-stateful are mutually exclusive by construction.</strong> <code class="mono">MaxStackSize &gt; 1</code> means <code class="mono">InstanceState</code> is never read — a stack of 12 canned foods has no individual durability, a stack of 1 weapon does. Merging two instances into one stack discards whichever instance's identity doesn't survive.
+        <strong>Invariant: stackable and per-instance-stateful are mutually exclusive by construction.</strong> <code class="mono">MaxStackSize &gt; 1</code> means <code class="mono">InstanceState</code> is never read — a stack of 12 canned foods has no individual durability, a stack of 1 weapon does. This matters for the Food items in <a href="#next-items">§12</a>: give every consumable a real <code class="mono">MaxStackSize</code> (canned goods stack, a weapon or bag never does).
       </div>
     </section>
 
     <!-- ============================================================ -->
     <section id="enums" class="wide">
-      <div class="eyebrow">03 · Data Model</div>
+      <div class="eyebrow">04 · How It Works</div>
       <h2 class="h">Classification Enums</h2>
       <p class="lede">The vocabulary every item config is authored against — all in <code class="mono">ZSItemConfig.h</code> / <code class="mono">ZSItemInstance.h</code> / <code class="mono">ZSWeaponTypes.h</code>.</p>
 
@@ -728,7 +757,7 @@
             <tr><td></td><td class="field">Helmet</td><td>—</td><td class="type">SocketHead</td><td class="notes">Equipping force-unequips Head (one-way only).</td></tr>
             <tr><td></td><td class="field">Vest</td><td class="mono">Vest</td><td class="type">SocketChest</td><td class="notes">Container-bearing.</td></tr>
             <tr><td></td><td class="field">Belt</td><td class="mono">Belt</td><td class="type">SocketWaist</td><td class="notes">Container-bearing.</td></tr>
-            <tr><td></td><td class="field">Backpack</td><td class="mono">Backpack</td><td class="type">SocketBack</td><td class="notes">Container-bearing, largest bonus of the two bags. Renamed from "Back" 2026-08-06.</td></tr>
+            <tr><td></td><td class="field">Backpack</td><td class="mono">Backpack</td><td class="type">SocketBack</td><td class="notes">Container-bearing, largest bonus of the two bags.</td></tr>
             <tr><td></td><td class="field">Duffle</td><td class="mono">Duffle</td><td class="type">SocketBack</td><td class="notes">Container-bearing, largest capacity — adds a movement penalty and can't be opened without stopping.</td></tr>
           </tbody>
         </table>
@@ -742,7 +771,7 @@
             <tr><td class="field">OnPerson</td><td class="default num">4</td><td class="notes">Pockets — gated on <code class="mono">Pants</code> equipped, always-available fallback, never itself a compartment a player "chooses."</td></tr>
             <tr><td class="field">Vest</td><td class="default num">8</td><td class="notes">Equipped Vest.</td></tr>
             <tr><td class="field">Belt</td><td class="default num">8</td><td class="notes">Equipped Belt.</td></tr>
-            <tr><td class="field">Backpack</td><td class="default num">20</td><td class="notes">Equipped Backpack. 4×5 grid — shrunk from 24 (4×6) on 2026-08-07 to fit the compartment stack's vertical budget.</td></tr>
+            <tr><td class="field">Backpack</td><td class="default num">20</td><td class="notes">Equipped Backpack. 4×5 grid.</td></tr>
             <tr><td class="field">Duffle</td><td class="default num">18</td><td class="notes">Equipped Duffle.</td></tr>
             <tr><td class="field">World</td><td class="default">—</td><td class="notes">Sitting inside an AZSContainerActor's ContainerSlots.</td></tr>
             <tr><td class="field">Vehicle</td><td class="default">—</td><td class="notes">Reserved, forward-compat only — no vehicle inventory exists yet.</td></tr>
@@ -751,19 +780,20 @@
       </div>
 
       <h4 style="margin: 22px 0 6px;">EZSItemSize — gates which compartment an item can be stored into</h4>
-      <p style="margin-top:0;">Hierarchical model, confirmed 2026-08-06: a smaller item fits anywhere a bigger one does.</p>
+      <p style="margin-top:0;">Hierarchical model: a smaller item fits anywhere a bigger one does.</p>
       <div class="chipline">
         <span class="chip acc">Small → Pockets, Backpack, Duffle</span>
         <span class="chip acc">Medium → Backpack, Duffle</span>
         <span class="chip acc">Large → Duffle only</span>
       </div>
+      <p style="font-size:13px; color:var(--text-faint); margin-top:-6px;">For food specifically: a single canned good or bottle is <code class="mono">Small</code> — no reasonable case for Medium/Large among what's staged in <a href="#next-items">§12</a>.</p>
 
       <h4 style="margin: 22px 0 6px;">EZSItemRarity &amp; other small enums</h4>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Enum</th><th>Values</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td class="field">EZSItemRarity</td><td class="type">Common, Uncommon, Rare, VeryRare</td><td class="notes">Rare/VeryRare are gated through a finite per-session pool on AZSGameState — Common/Uncommon are ungated.</td></tr>
+            <tr><td class="field">EZSItemRarity</td><td class="type">Common, Uncommon, Rare, VeryRare</td><td class="notes">Rare/VeryRare are gated through a finite per-session pool on AZSGameState — Common/Uncommon are ungated. Food is Common by default.</td></tr>
             <tr><td class="field">EZSFireMode</td><td class="type">Safety, Semi, Auto</td><td class="notes">A weapon lists which it supports in SupportedFireModes.</td></tr>
             <tr><td class="field">EZSAttackType</td><td class="type">Ranged, Melee</td><td class="notes">No Unarmed value — bare-fist is the character's own fallback when nothing is equipped, not a config.</td></tr>
             <tr><td class="field">EZSWeaponHandedness</td><td class="type">OneHanded, TwoHanded</td><td class="notes">TwoHanded blocks SecondaryHand and gates the long-gun mount; OneHanded partitions across Sidearm/Melee mounts by AttackType.</td></tr>
@@ -774,9 +804,9 @@
 
     <!-- ============================================================ -->
     <section id="world-actors" class="wide">
-      <div class="eyebrow">04 · World Presentation</div>
-      <h2 class="h">Pickup &amp; Container Actors</h2>
-      <p class="lede">Two replicated actor classes present an <code class="mono">FZSItemInstance</code> physically in the world. Both reuse P1's <code class="mono">UZSInteractableComponent</code> rather than a bespoke interaction path.</p>
+      <div class="eyebrow">05 · How It Works</div>
+      <h2 class="h">World Pickup &amp; Container Actors</h2>
+      <p class="lede">Two replicated actor classes present an <code class="mono">FZSItemInstance</code> physically in the world. Both reuse P1's <code class="mono">UZSInteractableComponent</code> rather than a bespoke interaction path — neither needs a new subclass per item.</p>
 
       <div class="class-card">
         <div class="ch">
@@ -791,9 +821,9 @@
               <tbody>
                 <tr><td class="field">PickupMesh</td><td class="notes">Root <code class="mono">UStaticMeshComponent</code> — set from <code class="mono">ItemInstance.Config->WorldMesh</code>.</td></tr>
                 <tr><td class="field">InteractableComponent</td><td class="notes">Verb text is generated live: "Pick up &lt;DisplayName&gt; x&lt;Count&gt;".</td></tr>
-                <tr><td class="field">InitializeItem(Config, Count)</td><td class="notes">Mints a fresh instance — the hand-placed / pre-populated-pickup path.</td></tr>
+                <tr><td class="field">InitializeItem(Config, Count)</td><td class="notes">Mints a fresh instance — the hand-placed / pre-populated-pickup path. What <code class="mono">BP_ZS_WorldItem_Test</code> calls.</td></tr>
                 <tr><td class="field">InitializeFromInstance(Instance)</td><td class="notes">Preserves an existing instance's identity — the drop path (Server_DropItem/Server_DropAllItems).</td></tr>
-                <tr><td class="field">HandleInteracted</td><td class="notes">2026-08-06: rejects the pickup and leaves the actor alive if <code class="mono">Server_AddItemInstance</code> fails (Pockets full) — no longer destroys on a failed add.</td></tr>
+                <tr><td class="field">HandleInteracted</td><td class="notes">Rejects the pickup and leaves the actor alive if <code class="mono">Server_AddItemInstance</code> fails (Pockets full) — doesn't destroy on a failed add.</td></tr>
               </tbody>
             </table>
           </div>
@@ -806,12 +836,12 @@
           <div class="path">Source/ZombieShooter/Inventory/ZSContainerActor.h / .cpp</div>
         </div>
         <div class="body">
-          <p>A lootable container (cabinet, crate...). Seeds <code class="mono">ContainerSlots</code> from a <code class="mono">UZSLootTableConfig</code> at <code class="mono">BeginPlay</code> (server-only). Since 2026-08-05, interacting opens the real <code class="mono">WBP_ZS_ContainerLoot</code> screen rather than auto-looting everything.</p>
+          <p>A lootable container (cabinet, crate...). Seeds <code class="mono">ContainerSlots</code> from a <code class="mono">UZSLootTableConfig</code> at <code class="mono">BeginPlay</code> (server-only). Interacting opens the real <code class="mono">WBP_ZS_ContainerLoot</code> screen.</p>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Member</th><th>Purpose</th></tr></thead>
               <tbody>
-                <tr><td class="field">LootTable</td><td class="notes"><code class="mono">EditDefaultsOnly</code> — per-archetype containers need a Blueprint subclass (e.g. <code class="mono">BP_ZS_Container_Kitchen</code>), not a raw placed actor.</td></tr>
+                <tr><td class="field">LootTable</td><td class="notes"><code class="mono">EditDefaultsOnly</code> — per-archetype containers need a Blueprint subclass (e.g. <code class="mono">BP_ZS_Container_Kitchen</code>), not a raw placed actor. <code class="mono">BP_ZS_Container_Test</code> is the one that exists today.</td></tr>
                 <tr><td class="field">ContainerSlots</td><td class="notes">Replicated <code class="mono">TArray&lt;FZSItemInstance&gt;</code>, seeded once from LootTable's weighted roll.</td></tr>
                 <tr><td class="field">Server_TakeItem(InstanceId, Requester)</td><td class="notes">GUID-exact single-item take — resolves race conditions server-side with no separate locking.</td></tr>
                 <tr><td class="field">Server_TakeAllItems(Requester)</td><td class="notes">"Take All" button — only removes whichever items actually transferred if Pockets fills up partway through.</td></tr>
@@ -825,7 +855,7 @@
 
     <!-- ============================================================ -->
     <section id="weapon-actor" class="wide">
-      <div class="eyebrow">05 · World Presentation</div>
+      <div class="eyebrow">06 · How It Works</div>
       <h2 class="h">The Weapon Actor</h2>
       <p class="lede">A carried <code class="mono">UZSWeaponConfig</code> instance only ever spawns a runtime actor when it's actively equipped — a merely mounted weapon is just a GUID reference, no actor exists for it.</p>
 
@@ -876,7 +906,7 @@
 
     <!-- ============================================================ -->
     <section id="inventory" class="wide">
-      <div class="eyebrow">06 · Systems</div>
+      <div class="eyebrow">07 · How It Works</div>
       <h2 class="h">Inventory &amp; Equip Architecture</h2>
       <p class="lede"><code class="mono">UZSInventoryComponent</code> (Source/ZombieShooter/Inventory/ZSInventoryComponent.h) owns everything above at runtime: a flat <code class="mono">CarrySlots</code> list, the 12-entry <code class="mono">EquippedSlots</code> array, and 4 weapon-mount slots. <strong>Equipping never physically removes an instance from CarrySlots</strong> — a slot just holds a GUID reference, which is what lets a bag's own contents survive equip/unequip/drop for free.</p>
 
@@ -892,12 +922,12 @@
         </table>
       </div>
 
-      <div class="callout">A weapon becomes key-selectable purely by being mounted — there's no separate "assign to slot" step. <code class="mono">SelectHotbarSlot</code> / <code class="mono">Server_SelectHotbarSlot</code> resolve a 0-based weapon-key index live from whichever mount it maps to, then schedule the actual equip after <code class="mono">EquipTimeSeconds</code>.</div>
+      <div class="callout">A weapon becomes key-selectable purely by being mounted — there's no separate "assign to slot" step. <code class="mono">SelectHotbarSlot</code> / <code class="mono">Server_SelectHotbarSlot</code> resolve a 0-based weapon-key index live from whichever mount it maps to, then schedule the actual equip after <code class="mono">EquipTimeSeconds</code>. None of this applies to Food/consumables — they never occupy a mount, only a carry slot or compartment.</div>
     </section>
 
     <!-- ============================================================ -->
     <section id="loot" class="wide">
-      <div class="eyebrow">07 · Systems</div>
+      <div class="eyebrow">08 · How It Works</div>
       <h2 class="h">Loot Tables</h2>
       <div class="class-card">
         <div class="ch">
@@ -905,7 +935,7 @@
           <div class="path">Source/ZombieShooter/Inventory/ZSLootTableConfig.h / .cpp</div>
         </div>
         <div class="body">
-          <p>A container-archetype loot table (e.g. a future <code class="mono">DA_ZS_LootTable_Kitchen</code>) — a new archetype is a new data asset instance, never a new C++ branch.</p>
+          <p>A container-archetype loot table (e.g. a future <code class="mono">DA_ZS_LootTable_Kitchen</code>) — a new archetype is a new data asset instance, never a new C++ branch. <code class="mono">DA_ZS_LootTableConfig_Basic</code> is the one that exists today; every new Food item eventually wants an entry here (or in a new kitchen/pantry-flavored table once one exists).</p>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
@@ -916,61 +946,129 @@
               </tbody>
             </table>
           </div>
-          <p style="font-size:13px; color:var(--text-faint);">Per-zone quality tiers are <strong>not</strong> built — no zone system exists yet to key off of. This table's numbers are a flat per-archetype value.</p>
         </div>
       </div>
     </section>
 
     <!-- ============================================================ -->
-    <section id="content" class="wide">
-      <div class="eyebrow">08 · Content</div>
-      <h2 class="h">Current Content</h2>
-      <p class="lede">Every item/weapon/loot data asset that exists in <code class="mono">Content/ZS/</code> today, with its archetype and working-tree status. Field values inside each <code class="mono">.uasset</code> can't be read directly (binary, off-limits per project convention) — status reflects what's knowable from git and the surrounding docs.</p>
-
-      <div class="legend">
-        <span class="item"><span class="pill ok">committed</span> unchanged since last commit</span>
-        <span class="item"><span class="pill warn">modified</span> uncommitted local edit</span>
-        <span class="item"><span class="pill bad">new</span> untracked, never committed</span>
-        <span class="item"><span class="pill neutral">test asset</span> dev/QA only, not real content</span>
-      </div>
+    <section id="icon-pipeline" class="wide">
+      <div class="eyebrow">09 · How It Works</div>
+      <h2 class="h">Icon Pipeline</h2>
+      <p class="lede"><code class="mono">Content/ZS/Items/IconCreator/</code> holds a working icon-capture rig — not a proposal anymore, it produced the project's first real baked icon (<code class="mono">T_CanofBeans</code>). This is the tool every future item's <code class="mono">Icon</code> field gets filled from.</p>
 
       <div class="table-wrap">
-        <table class="wide">
-          <thead><tr><th>Asset</th><th>Archetype</th><th>Folder</th><th>Status</th><th>Notes</th></tr></thead>
+        <table>
+          <thead><tr><th>Asset</th><th>Role</th></tr></thead>
           <tbody>
-            <tr class="group-row"><td colspan="5">Non-weapon items — Content/ZS/Items/</td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_Bandage</td><td>Medical</td><td class="type">Items/</td><td><span class="pill ok">committed</span></td><td class="notes">ItemUseType = Bandage.</td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_CannedFood</td><td>Consumable</td><td class="type">Items/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_Flashlight</td><td>Toggleable tool</td><td class="type">Items/</td><td><span class="pill warn">modified</span></td><td class="notes">bIsToggleable should be true — worth re-confirming in-editor.</td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_PistolPickup</td><td class="notes">unclear</td><td class="type">Items/</td><td><span class="pill bad">review</span></td><td class="notes">Likely a P2-era test item predating the weapon-as-item integration (B0-T2 Step B) — may be superseded by DA_ZS_WeaponConfig_Pistol. Dev call needed, see <a href="#gaps">§11</a>.</td></tr>
-            <tr><td class="field">DA_Bag</td><td>Equippable gear (bag)</td><td class="type">Items/</td><td><span class="pill bad">new</span></td><td class="notes">Off-convention name (no "ItemConfig_" segment). EquipSlot needs a manual re-check after two enum renames — see <a href="#gaps">§11</a>.</td></tr>
-            <tr><td class="field">BP_ZS_Bag</td><td>Bag Blueprint wrapper</td><td class="type">Items/</td><td><span class="pill bad">new</span></td><td class="notes"></td></tr>
-            <tr><td class="field">DA_ZS_LootTableConfig_Basic</td><td>Loot table</td><td class="type">Items/</td><td><span class="pill warn">modified</span></td><td class="notes">Entries can't be verified from binary — check in-editor.</td></tr>
-            <tr><td class="field">BP_ZS_Container_Test</td><td>Test AZSContainerActor</td><td class="type">Items/</td><td><span class="pill neutral">test asset</span></td><td class="notes"></td></tr>
-            <tr><td class="field">BP_ZS_WorldItem_Test</td><td>Test AZSWorldItemActor</td><td class="type">Items/</td><td><span class="pill neutral">test asset</span></td><td class="notes"></td></tr>
-
-            <tr class="group-row"><td colspan="5">Weapons — Content/ZS/Weapons/&lt;Category&gt;/</td></tr>
-            <tr><td class="field">DA_ZS_WeaponConfig_AssaultRifle</td><td>Ranged weapon</td><td class="type">Weapons/AssaultRifle/</td><td><span class="pill ok">committed</span></td><td class="notes">The reference config — every other weapon's aim-cone default was tuned against this one.</td></tr>
-            <tr><td class="field">DA_ZS_WeaponConfig_Pistol</td><td>Ranged weapon</td><td class="type">Weapons/Pistol/</td><td><span class="pill ok">committed</span></td><td class="notes">Still needs its own aim-cone override (8°→2° per OQ-B0-02) — otherwise inherits the rifle's 5°→1°.</td></tr>
-            <tr><td class="field">DA_ZS_WeaponConfig_Crowbar</td><td>Melee weapon</td><td class="type">Weapons/Melee/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
-
-            <tr class="group-row"><td colspan="5">Ammo — Content/ZS/Weapons/Ammo/</td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_Ammo_556</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill warn">modified</span></td><td class="notes">Rifle caliber.</td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_Ammo_762</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_Ammo_9mm</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes">Pistol caliber.</td></tr>
-            <tr><td class="field">DA_ZS_ItemConfig_Ammo_Other</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes">Catch-all/misc caliber.</td></tr>
-            <tr><td class="field">BP_Ammo</td><td>Ammo Blueprint wrapper</td><td class="type">Weapons/Ammo/</td><td><span class="pill bad">new</span></td><td class="notes"></td></tr>
+            <tr><td class="field">BP_IconGenerator</td><td class="notes">The capture rig actor — a Scene Capture 2D framing a target mesh and rendering it to a texture. Location: <code class="mono">Content/ZS/Items/IconCreator/</code>.</td></tr>
+            <tr><td class="field">RT_Icon</td><td class="notes">The shared Render Target 2D the rig captures into.</td></tr>
+            <tr><td class="field">M_Icon</td><td class="notes">Material reading RT_Icon — most likely used to preview the live capture before baking.</td></tr>
           </tbody>
         </table>
       </div>
-      <p style="font-size:13px; color:var(--text-faint); max-width:70ch;">12 item/weapon configs + 1 loot table = 13 data assets. None have a confirmed <code class="mono">AmmoItemConfig</code> cross-reference or loot-table entry yet — both need an in-editor check now that all 4 ammo types exist.</p>
+
+      <div class="callout warn">
+        <strong>What's confirmed vs. inferred.</strong> These three assets and their location are real — confirmed from the Content tree. Their exact exposed variables and click-path aren't readable from the binary <code class="mono">.uasset</code> files, so the workflow below is the standard Scene-Capture-to-icon technique this rig almost certainly implements, cross-checked against its one confirmed output. <strong>Open <code class="mono">BP_IconGenerator</code> in-editor the next time you use it and confirm the exact steps</strong> — then this note can be replaced with the real click-path.
+      </div>
+
+      <h4 style="margin: 22px 0 6px;">Observed output convention (real, from T_CanofBeans)</h4>
+      <ul style="margin: 0 0 18px; padding-left: 20px; color: var(--text-muted); max-width: 74ch;">
+        <li>Baked textures land in <code class="mono">Content/ZS/Items/Textures/</code>, alongside <code class="mono">IconCreator/</code>, not inside it.</li>
+        <li>Named <code class="mono">T_&lt;ItemName&gt;</code> — no <code class="mono">Icon_</code> infix. This is the naming actually in use; follow it for the next one.</li>
+      </ul>
+
+      <h4 style="margin: 22px 0 6px;">Workflow</h4>
+      <ol class="checklist">
+        <li><strong>Place or find <code class="mono">BP_IconGenerator</code></strong> in a scratch/void area of a level (so nothing else bleeds into frame).</li>
+        <li><strong>Set its target mesh</strong> to the new item's <code class="mono">WorldMesh</code>.</li>
+        <li><strong>Frame and light the capture</strong>, then trigger the capture into <code class="mono">RT_Icon</code>.</li>
+        <li><strong>Right-click <code class="mono">RT_Icon</code> → Create Static Texture</strong>, saving into <code class="mono">Content/ZS/Items/Textures/</code> as <code class="mono">T_&lt;ItemName&gt;</code>.</li>
+        <li><strong>Assign the resulting texture</strong> to the item's <code class="mono">Icon</code> field.</li>
+      </ol>
+
+      <h4 style="margin: 22px 0 6px;">Key settings, at a glance</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td class="field">Projection Type</td><td class="default">Orthographic</td><td class="notes">No perspective distortion on the icon.</td></tr>
+            <tr><td class="field">Render Target format</td><td class="default">RTF_RGBA8</td><td class="notes">Needs an alpha channel to key out the background.</td></tr>
+            <tr><td class="field">Post Process alpha support</td><td class="default">Enabled</td><td class="notes">Project Settings → Rendering — required for a transparent capture to actually carry alpha through.</td></tr>
+            <tr><td class="field">Capture scope</td><td class="default">Show Only List</td><td class="notes">Only the target mesh renders — nothing else in the level.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="section-rule" style="max-width:1180px;"></div>
+
+    <!-- ============================================================ -->
+    <section id="conventions" class="wide">
+      <div class="eyebrow">10 · Conventions</div>
+      <h2 class="h">Folder &amp; Naming Conventions — As Actually Practiced</h2>
+      <p class="lede">What's really on disk right now, not a proposal. Match this when adding the next item.</p>
+
+      <pre class="tree">Content/ZS/
+├── <span class="dir">Items/</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_Bandage.uasset</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_CannedFood.uasset</span>       <span class="note">generic placeholder — likely superseded, see §12</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_Flashlight.uasset</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_PistolPickup.uasset</span>    <span class="note">status unclear, §14</span>
+│   ├── <span class="file">DA_Bag.uasset</span>
+│   ├── <span class="file">BP_ZS_Bag.uasset</span>
+│   ├── <span class="file">DA_ZS_LootTableConfig_Basic.uasset</span>
+│   ├── <span class="file">BP_ZS_Container_Test.uasset</span>             <span class="note">test asset</span>
+│   ├── <span class="file">BP_ZS_WorldItem_Test.uasset</span>             <span class="note">test asset</span>
+│   ├── <span class="dir new">IconCreator/</span>                        <span class="note">the icon rig, §09</span>
+│   │   ├── <span class="file new">BP_IconGenerator.uasset</span>
+│   │   ├── <span class="file new">RT_Icon.uasset</span>
+│   │   └── <span class="file new">M_Icon.uasset</span>
+│   ├── <span class="dir new">Textures/</span>                           <span class="note">baked icon output, T_&lt;Name&gt;</span>
+│   │   └── <span class="file new">T_CanofBeans.uasset</span>            <span class="note">first real icon</span>
+│   └── <span class="dir new">Food/</span>                               <span class="note">meshes only — no item configs yet, §12</span>
+│       ├── <span class="dir new">Water/</span>
+│       │   ├── <span class="file new">SM_Bottle_0.uasset</span>
+│       │   ├── <span class="file new">SM_Bottle_1l.uasset</span>
+│       │   └── <span class="file new">SM_Cola_0_5l.uasset</span>
+│       ├── <span class="dir new">Canned/</span>
+│       │   ├── <span class="file new">SM_Canned_Meat.uasset</span>
+│       │   ├── <span class="file new">SM_Canned_Peaches.uasset</span>
+│       │   ├── <span class="file new">SM_Tuna.uasset</span>
+│       │   ├── <span class="dir new">Beans/</span>                     <span class="note">inconsistent — flat would match Meat/Peaches/Tuna above</span>
+│       │   │   └── <span class="file new">SM_Bean.uasset</span>
+│       │   └── <span class="dir new">CatFood/</span>                   <span class="note">same inconsistency</span>
+│       │       └── <span class="file new">SM_Canned_Cat_Food.uasset</span>
+│       └── <span class="dir new">Meat/</span>
+│           ├── <span class="file new">SM_Chiken_Fillet_Raw/Cooked/Rotten.uasset</span>
+│           ├── <span class="file new">SM_Salmon_Raw/Cooked/Rotten.uasset</span>
+│           └── <span class="file new">SM_Sausage.uasset</span>
+│
+└── <span class="dir">Weapons/</span>
+    ├── <span class="dir">Rifle/</span>                                  <span class="note">renamed from AssaultRifle/ — category name now, not weapon-specific</span>
+    │   └── <span class="file">DA_ZS_WeaponConfig_AssaultRifle.uasset</span>
+    ├── <span class="dir">Pistol/</span>
+    │   └── <span class="file">DA_ZS_WeaponConfig_Pistol.uasset</span>
+    ├── <span class="dir">Melee/</span>
+    │   └── <span class="file">DA_ZS_WeaponConfig_Crowbar.uasset</span>
+    └── <span class="dir">Ammo/</span>
+        ├── <span class="file">DA_ZS_ItemConfig_Ammo_556/762/9mm/Other.uasset</span>
+        └── <span class="file">BP_Ammo.uasset</span></pre>
+
+      <h4 style="margin: 22px 0 10px;">Rules to follow, read off the tree above</h4>
+      <ul style="margin: 0 0 18px; padding-left: 20px; color: var(--text-muted); max-width: 74ch;">
+        <li><strong>Data assets stay flat</strong> directly in their category folder (<code class="mono">Items/</code>, or <code class="mono">Weapons/&lt;Category&gt;/</code>) — <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> / <code class="mono">DA_ZS_WeaponConfig_&lt;Name&gt;</code>.</li>
+        <li><strong>Source meshes for a content family get their own subfolder tree</strong> under <code class="mono">Items/&lt;Family&gt;/&lt;Subcategory&gt;/</code> — <code class="mono">Items/Food/</code> mirrors the source pack's own categorization (Water/Canned/Meat), not an invented scheme.</li>
+        <li><strong>A single-mesh item sits flat in its subcategory folder</strong> — only give it a dedicated nested folder if it's a genuinely multi-part/modular mesh (like the source pack's burger/pizza sets). <code class="mono">Canned/Beans/</code> and <code class="mono">Canned/CatFood/</code> currently break this pattern for a single mesh each — worth flattening to match <code class="mono">Canned/SM_Canned_Meat.uasset</code>'s sibling pattern before Food scales further.</li>
+        <li><strong>Weapon category folders are named after the weapon class</strong>, not the specific gun — <code class="mono">Rifle/</code>, not <code class="mono">AssaultRifle/</code> — leaving room for a second rifle later with no rename.</li>
+        <li><strong>Generated tooling lives in its own folder</strong> (<code class="mono">Items/IconCreator/</code>); baked output lives separately (<code class="mono">Items/Textures/</code>), never mixed with the source meshes or the tooling that made it.</li>
+      </ul>
     </section>
 
     <!-- ============================================================ -->
     <section id="archetypes" class="wide">
-      <div class="eyebrow">09 · Authoring</div>
+      <div class="eyebrow">11 · Reference</div>
       <h2 class="h">Item Archetypes</h2>
-      <p class="lede">From <a href="Docs/Planning/ItemSetupStandard_2026-08-06.md">ItemSetupStandard_2026-08-06.md</a> (draft, paused pending the inventory rework above). Every archetype fills the same base 6 fields; everything else is archetype-specific.</p>
+      <p class="lede">Every archetype fills the same base 6 fields; everything else is archetype-specific. Use this at Quick Start step 2.</p>
 
       <div class="chipline">
         <span class="chip">DisplayName</span><span class="chip">Icon</span><span class="chip">WorldMesh</span><span class="chip">Weight</span><span class="chip">Rarity</span><span class="chip">ItemSize</span>
@@ -980,7 +1078,7 @@
         <table class="wide">
           <thead><tr><th>Archetype</th><th>Extra required fields</th><th>Example(s)</th></tr></thead>
           <tbody>
-            <tr><td class="field">Consumable</td><td class="notes">ItemUseType=Consumable, HungerRestore/ThirstRestore, MaxStackSize&gt;1</td><td class="notes">DA_ZS_ItemConfig_CannedFood</td></tr>
+            <tr><td class="field">Consumable</td><td class="notes">ItemUseType=Consumable, HungerRestore/ThirstRestore, MaxStackSize&gt;1</td><td class="notes">DA_ZS_ItemConfig_CannedFood — soon every item in §12</td></tr>
             <tr><td class="field">Medical</td><td class="notes">ItemUseType=Bandage/Disinfectant/Splint, bIsCleanBandage (Bandage), MedicalIncubationDelayGameHours</td><td class="notes">DA_ZS_ItemConfig_Bandage</td></tr>
             <tr><td class="field">Ammo</td><td class="notes">MaxStackSize in the hundreds, referenced by a weapon's AmmoItemConfig</td><td class="notes">the 4 DA_ZS_ItemConfig_Ammo_* assets</td></tr>
             <tr><td class="field">Equippable gear (bag)</td><td class="notes">bIsEquippable=true, EquipSlot=Vest/Belt/Backpack/Duffle, CarryCapacityBonus</td><td class="notes">DA_Bag</td></tr>
@@ -996,182 +1094,119 @@
     </section>
 
     <!-- ============================================================ -->
-    <section id="files" class="wide">
-      <div class="eyebrow">10 · Structure</div>
-      <h2 class="h">File &amp; Folder Structure</h2>
+    <section id="next-items" class="wide">
+      <div class="eyebrow">12 · Analysis</div>
+      <h2 class="h">What To Build Next</h2>
+      <p class="lede">Every mesh currently sitting in <code class="mono">Content/ZS/Items/Food/</code> with no <code class="mono">DA_ZS_ItemConfig_*</code> behind it yet — 14 in total. This is the concrete backlog: pick one, follow <a href="#quickstart">§01</a>.</p>
 
-      <h4>C++ source — the classes above</h4>
-      <pre class="tree">Source/ZombieShooter/
-├── <span class="dir">Survival/</span>
-│   └── <span class="cxx">ZSItemConfig.h</span>            <span class="note">UZSItemConfig + EZSItemUseType/EZSEquipSlot/EZSItemSize/EZSItemRarity</span>
-├── <span class="dir">Weapons/</span>
-│   ├── <span class="cxx">ZSWeaponConfig.h</span>          <span class="note">UZSWeaponConfig : UZSItemConfig</span>
-│   ├── <span class="cxx">ZSWeaponTypes.h</span>           <span class="note">EZSFireMode / EZSAttackType / EZSWeaponHandedness</span>
-│   ├── <span class="cxx">ZSWeapon.h / .cpp</span>         <span class="note">AZSWeapon — runtime weapon actor</span>
-│   ├── <span class="cxx">ZSMagazine.h / .cpp</span>       <span class="note">AZSMagazine — cosmetic mag prop</span>
-│   └── <span class="cxx">ZSProjectile.h / .cpp</span>     <span class="note">AZSProjectile — opt-in simulated projectile</span>
-└── <span class="dir">Inventory/</span>
-    ├── <span class="cxx">ZSItemInstance.h</span>          <span class="note">FZSItemInstance/Base/State, EZSCarryLocation</span>
-    ├── <span class="cxx">ZSInventoryComponent.h / .cpp</span>  <span class="note">UZSInventoryComponent — carry/equip/mount/compartment logic</span>
-    ├── <span class="cxx">ZSWorldItemActor.h / .cpp</span>     <span class="note">AZSWorldItemActor — world pickup</span>
-    ├── <span class="cxx">ZSContainerActor.h / .cpp</span>     <span class="note">AZSContainerActor — lootable container</span>
-    └── <span class="cxx">ZSLootTableConfig.h / .cpp</span>    <span class="note">UZSLootTableConfig — weighted loot rolls</span></pre>
-
-      <h4>Content — as it exists on disk today</h4>
-      <pre class="tree">Content/ZS/
-├── <span class="dir">Items/</span>
-│   ├── <span class="file">DA_ZS_ItemConfig_Bandage.uasset</span>
-│   ├── <span class="file">DA_ZS_ItemConfig_CannedFood.uasset</span>
-│   ├── <span class="file">DA_ZS_ItemConfig_Flashlight.uasset</span>
-│   ├── <span class="file">DA_ZS_ItemConfig_PistolPickup.uasset</span>  <span class="note">review — see §11</span>
-│   ├── <span class="file">DA_Bag.uasset</span>                        <span class="note">off-convention name</span>
-│   ├── <span class="file">BP_ZS_Bag.uasset</span>
-│   ├── <span class="file">DA_ZS_LootTableConfig_Basic.uasset</span>
-│   ├── <span class="file">BP_ZS_Container_Test.uasset</span>          <span class="note">test asset</span>
-│   └── <span class="file">BP_ZS_WorldItem_Test.uasset</span>          <span class="note">test asset</span>
-│
-└── <span class="dir">Weapons/</span>
-    ├── <span class="dir">AssaultRifle/</span>
-    │   └── <span class="file">DA_ZS_WeaponConfig_AssaultRifle.uasset</span>
-    ├── <span class="dir">Pistol/</span>
-    │   └── <span class="file">DA_ZS_WeaponConfig_Pistol.uasset</span>
-    ├── <span class="dir">Melee/</span>
-    │   └── <span class="file">DA_ZS_WeaponConfig_Crowbar.uasset</span>
-    └── <span class="dir">Ammo/</span>
-        ├── <span class="file">DA_ZS_ItemConfig_Ammo_556.uasset</span>
-        ├── <span class="file">DA_ZS_ItemConfig_Ammo_762.uasset</span>
-        ├── <span class="file">DA_ZS_ItemConfig_Ammo_9mm.uasset</span>
-        ├── <span class="file">DA_ZS_ItemConfig_Ammo_Other.uasset</span>
-        └── <span class="file">BP_Ammo.uasset</span></pre>
-
-      <h4>Proposed reorg — ItemSetupStandard §4a, not yet executed</h4>
-      <pre class="tree">Content/ZS/Items/
-  <span class="dir">Food/</span>        <span class="note">meshes + materials moved from Poly-MegaSurvivalFood, + DA_ZS_ItemConfig_CannedFood</span>
-  <span class="dir">Medical/</span>     <span class="note">+ DA_ZS_ItemConfig_Bandage</span>
-  <span class="dir">Tools/</span>       <span class="note">meshes moved from Mega_Survival_Tools, + DA_ZS_ItemConfig_Flashlight</span>
-  <span class="dir">Containers/</span>  <span class="note">bag/backpack/duffle meshes, + DA_Bag</span>
-  <span class="dir">Misc/</span>        <span class="note">junk/crafting fodder — no items authored yet</span>
-
-Content/ZS/Weapons/    <span class="note">unchanged, already matches this pattern</span>
-  Ammo/ AssaultRifle/ Melee/ Pistol/</pre>
-
-      <h4>Raw source packs — candidate meshes, not yet pulled into any item</h4>
       <div class="table-wrap">
-        <table>
-          <thead><tr><th>Pack</th><th>Assets</th><th>Feeds</th></tr></thead>
+        <table class="wide">
+          <thead><tr><th>Mesh</th><th>Folder</th><th>Proposed item</th><th>Archetype</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td class="field">Content/LowPolyWeapons/</td><td class="default num">914</td><td class="notes">Already fully in use — source for all 3 authored weapons.</td></tr>
-            <tr><td class="field">Content/Mega_Survival_Tools/</td><td class="default num">276</td><td class="notes">Tools, batteries, containers, chemicals, junk — candidate for Tools/Misc.</td></tr>
-            <tr><td class="field">Content/Poly-MegaSurvivalFood/</td><td class="default num">242</td><td class="notes">Produce, canned goods, drinks, raw/cooked/rotten meat variants — candidate for Food.</td></tr>
+            <tr class="group-row"><td colspan="5">Water — Items/Food/Water/</td></tr>
+            <tr><td class="field">SM_Bottle_1l</td><td class="type">Food/Water/</td><td class="notes">Water Bottle (1L)</td><td class="notes">Consumable, Thirst</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Cola_0_5l</td><td class="type">Food/Water/</td><td class="notes">Cola (0.5L)</td><td class="notes">Consumable, Thirst + small Hunger</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Bottle_0</td><td class="type">Food/Water/</td><td class="notes">unclear — generic/empty bottle?</td><td class="notes">—</td><td><span class="pill warn">name ambiguous</span></td></tr>
+
+            <tr class="group-row"><td colspan="5">Canned — Items/Food/Canned/</td></tr>
+            <tr><td class="field">SM_Bean</td><td class="type">Food/Canned/Beans/</td><td class="notes">Canned Beans</td><td class="notes">Consumable</td><td><span class="pill ok">icon baked (T_CanofBeans)</span></td></tr>
+            <tr><td class="field">SM_Canned_Meat</td><td class="type">Food/Canned/</td><td class="notes">Canned Meat</td><td class="notes">Consumable</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Canned_Peaches</td><td class="type">Food/Canned/</td><td class="notes">Canned Peaches</td><td class="notes">Consumable</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Tuna</td><td class="type">Food/Canned/</td><td class="notes">Canned Tuna</td><td class="notes">Consumable</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Canned_Cat_Food</td><td class="type">Food/Canned/CatFood/</td><td class="notes">Canned Cat Food</td><td class="notes">Consumable? role unclear</td><td><span class="pill warn">design call needed</span></td></tr>
+
+            <tr class="group-row"><td colspan="5">Meat — Items/Food/Meat/ (3-state sets: Raw / Cooked / Rotten)</td></tr>
+            <tr><td class="field">SM_Chiken_Fillet_Raw</td><td class="type">Food/Meat/</td><td class="notes">Raw Chicken Fillet</td><td class="notes">Consumable, low restore / risk</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Chiken_Fillet_Cooked</td><td class="type">Food/Meat/</td><td class="notes">Cooked Chicken Fillet</td><td class="notes">Consumable, better restore</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Chiken_Fillet_Rotten</td><td class="type">Food/Meat/</td><td class="notes">Rotten Chicken Fillet</td><td class="notes">Consumable (bad) or junk</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Salmon_Raw</td><td class="type">Food/Meat/</td><td class="notes">Raw Salmon</td><td class="notes">Consumable, low restore / risk</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Salmon_Cooked</td><td class="type">Food/Meat/</td><td class="notes">Cooked Salmon</td><td class="notes">Consumable, better restore</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Salmon_Rotten</td><td class="type">Food/Meat/</td><td class="notes">Rotten Salmon</td><td class="notes">Consumable (bad) or junk</td><td><span class="pill neutral">mesh staged</span></td></tr>
+            <tr><td class="field">SM_Sausage</td><td class="type">Food/Meat/</td><td class="notes">Sausage</td><td class="notes">Consumable — no Raw/Cooked/Rotten set</td><td><span class="pill neutral">mesh staged</span></td></tr>
           </tbody>
         </table>
       </div>
-    </section>
 
-    <!-- ============================================================ -->
-    <section id="gaps" class="wide">
-      <div class="eyebrow">11 · Status</div>
-      <h2 class="h">Open Gaps &amp; Decisions Needed</h2>
-      <p class="lede">Nothing below blocks reading this document — they block trusting the system in PIE, or authoring new content against it.</p>
-
-      <div class="gap-list">
-        <div class="gap-item"><span class="pill bad">blocking</span><p><strong>The 2026-08-06 inventory/equip/loadout rework is written but not compiled.</strong> Needs a graceful editor close + full <code class="mono">Build.bat</code> (not Live Coding — this touches headers/enums/new component arrays project-wide). SessionHandoff's #1 priority.</p></div>
-        <div class="gap-item"><span class="pill bad">blocking</span><p><strong>DA_Bag's EquipSlot needs a manual in-editor check</strong> immediately after that rebuild. Two enum renames (Hip→Duffle, then Back→Backpack) risk it silently resolving to None on load.</p></div>
-        <div class="gap-item"><span class="pill warn">content</span><p><strong>No icon has ever been imported.</strong> An icon-generator is being transferred from ShooterGame — output convention (resolution/format/naming) not yet known, needed before §12's checklist step 4 can run for real. A candidate capture-based pipeline is sketched in <a href="#icon-pipeline">§13</a>, not yet verified against this project.</p></div>
-        <div class="gap-item"><span class="pill warn">content</span><p><strong>World-mesh folder convention undecided</strong> — flat Items/ today vs. the proposed Food/Medical/Tools/Containers/Misc reorg (§10). Not yet executed either way.</p></div>
-        <div class="gap-item"><span class="pill warn">content</span><p><strong>ItemSize hierarchical gating (§03)</strong> — direction confirmed, but the Backpack-rejects-Large C++ was folded into the bigger rework above rather than compiled standalone. Unverified until that build lands.</p></div>
-        <div class="gap-item"><span class="pill warn">review</span><p><strong>DA_ZS_ItemConfig_PistolPickup's status is unclear</strong> — may be a stale P2-era test asset superseded by DA_ZS_WeaponConfig_Pistol. Needs a dev call before it's treated as real content.</p></div>
-        <div class="gap-item"><span class="pill neutral">naming</span><p><strong>DA_Bag / BP_ZS_Bag / BP_Ammo don't fully match</strong> the <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> convention (DA_Bag omits the "ItemConfig_" segment) — worth a rename pass once the pattern is locked in.</p></div>
-        <div class="gap-item"><span class="pill warn">content</span><p><strong>No weapon has a confirmed AmmoItemConfig assignment</strong> — can't verify from binary; needs an in-editor check now that all 4 ammo types exist.</p></div>
-        <div class="gap-item"><span class="pill warn">content</span><p><strong>DA_ZS_WeaponConfig_Pistol still inherits the rifle's aim-cone defaults</strong> (5°/1°) instead of its own OQ-B0-02 numbers (8°/2°).</p></div>
-        <div class="gap-item"><span class="pill bad">content</span><p><strong>11 worn-mesh sockets don't exist on the skeleton yet</strong> (SocketHead/Eyes/Mask/Chest/Pelvis/Feet/Waist/Back) — WornMesh content will silently place at a default transform until added.</p></div>
-        <div class="gap-item"><span class="pill neutral">unknown</span><p><strong>Loot table cross-references can't be verified</strong> — which items DA_ZS_LootTableConfig_Basic actually rolls is unreadable from the binary asset.</p></div>
+      <div class="callout ok">
+        <strong>Canned Beans is the furthest along</strong> — its icon is already baked (<code class="mono">T_CanofBeans.uasset</code>). It's the natural first one to finish end-to-end: create <code class="mono">DA_ZS_ItemConfig_CannedBeans</code>, assign the mesh + the existing icon, fill Consumable fields, add to the loot table, PIE test. Proves the whole §01 loop on a real item with the icon step already done.
       </div>
-    </section>
-
-    <!-- ============================================================ -->
-    <section id="checklist">
-      <div class="eyebrow">12 · Process</div>
-      <h2 class="h">Add-a-New-Item Checklist</h2>
-      <p class="lede">Proposed standard sequence, from ItemSetupStandard_2026-08-06.md §6 — for review, not yet run as the team's default process.</p>
-      <ol class="checklist">
-        <li>Pick the archetype (§09), confirm which fields are required.</li>
-        <li>Create <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> (or <code class="mono">DA_ZS_WeaponConfig_&lt;Name&gt;</code>) in Content/ZS/Items/ or Content/ZS/Weapons/&lt;Category&gt;/.</li>
-        <li>Fill the base 6 fields plus whatever the archetype requires.</li>
-        <li>Import/assign Icon — blocked on the icon-generator handoff (§11); candidate pipeline in <a href="#icon-pipeline">§13</a>.</li>
-        <li>Assign WorldMesh, and WornMesh if equippable.</li>
-        <li>Set ItemSize per the hierarchical rubric (§03).</li>
-        <li>Set Rarity — decide if it needs an AZSGameState rarity-pool gate (Rare/VeryRare only).</li>
-        <li>If lootable, add a weighted entry to a UZSLootTableConfig.</li>
-        <li>For pickup testing: extend BP_ZS_WorldItem_Test, or drop into BP_ZS_Container_Test's loot table.</li>
-        <li>PIE test: pick up → icon/stack/condition renders correctly in the inventory grid → move between compartments (if non-weapon) → equip (if applicable).</li>
-      </ol>
-    </section>
-
-    <!-- ============================================================ -->
-    <section id="icon-pipeline" class="wide">
-      <div class="eyebrow">13 · Authoring</div>
-      <h2 class="h">Icon Pipeline — Scene Capture → Static Texture</h2>
-      <p class="lede">A candidate answer to the <a href="#gaps">§11</a> gap ("no icon has ever been imported, no pipeline exists") — Scene Capture 2D rendering a mesh into a Render Target, then baked to a real <code class="mono">UTexture2D</code> and assigned to <code class="mono">UZSItemConfig::Icon</code>. This is UE5's one standard, well-documented approach to the problem, not one option among several.</p>
 
       <div class="callout warn">
-        <strong>How this was compiled — read before treating it as verified.</strong> The chapter breakdown below was pulled directly from the source video's own metadata (real, not guessed). A full spoken transcript wasn't recoverable — the video has no manual captions, and its auto-generated captions didn't reliably re-sync when scrubbed programmatically. The steps and settings below therefore follow that real chapter structure but are reconstructed from the standard UE5 Scene-Capture-to-icon technique, not quoted from the narration. <strong>Sanity-check the exact clicks against the video itself before building against this blind.</strong>
+        <strong>Two design calls this list surfaces, not code tasks.</strong>
+        <br><br>
+        1. <strong>Raw/Cooked/Rotten has no supporting mechanic in code today.</strong> <code class="mono">FZSItemInstance</code> has no timestamp or state-transition field — nothing ages a Raw fillet into Rotten, and nothing currently exists to "cook" one item into another. The 3 meshes per meat almost certainly imply <strong>3 separate, statically-authored item configs</strong> (a cooking station or campfire interaction consuming Raw and granting Cooked would be new C++, not content) — worth confirming that's the intended scope before authoring all 9 meat variants as if a live transition exists.
+        <br><br>
+        2. <strong><code class="mono">DA_ZS_ItemConfig_CannedFood</code> (the existing generic placeholder) overlaps with the 5 new specific canned-good meshes.</strong> Worth deciding whether it's retired once <code class="mono">CannedBeans</code>/<code class="mono">CannedMeat</code>/<code class="mono">CannedPeaches</code>/<code class="mono">Tuna</code>/<code class="mono">CannedCatFood</code> exist as their own items, or kept as a catch-all fallback.
       </div>
 
-      <h4 style="margin-bottom:6px;">Source</h4>
+      <p style="font-size:13px; color:var(--text-faint);">This table is a snapshot of one scan of <code class="mono">Content/ZS/Items/Food/</code> — re-run it (list every mesh with no matching <code class="mono">DA_ZS_ItemConfig_*</code>) whenever this guide is refreshed, since new meshes can land here between updates.</p>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="content" class="wide">
+      <div class="eyebrow">13 · Reference</div>
+      <h2 class="h">Current Content</h2>
+      <p class="lede">Every item/weapon/loot data asset that actually exists today — as opposed to the staged-but-unconfigured meshes in <a href="#next-items">§12</a>.</p>
+
+      <div class="legend">
+        <span class="item"><span class="pill ok">committed</span> unchanged since last commit</span>
+        <span class="item"><span class="pill warn">modified</span> uncommitted local edit</span>
+        <span class="item"><span class="pill bad">new</span> untracked, never committed</span>
+        <span class="item"><span class="pill neutral">test asset</span> dev/QA only, not real content</span>
+      </div>
+
       <div class="table-wrap">
-        <table>
+        <table class="wide">
+          <thead><tr><th>Asset</th><th>Archetype</th><th>Folder</th><th>Status</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td class="field">Title</td><td class="notes">"How To Create An Icon Of Any Mesh In Unreal Engine 5"</td></tr>
-            <tr><td class="field">Channel</td><td class="notes">Unreal University</td></tr>
-            <tr><td class="field">URL</td><td class="notes"><a href="https://www.youtube.com/watch?v=EpthBJJ9S-o">youtube.com/watch?v=EpthBJJ9S-o</a></td></tr>
-            <tr><td class="field">Length</td><td class="notes">5:46</td></tr>
+            <tr class="group-row"><td colspan="5">Non-weapon items — Content/ZS/Items/</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Bandage</td><td>Medical</td><td class="type">Items/</td><td><span class="pill ok">committed</span></td><td class="notes">ItemUseType = Bandage.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_CannedFood</td><td>Consumable</td><td class="type">Items/</td><td><span class="pill ok">committed</span></td><td class="notes">Generic placeholder — see §12's reconciliation note.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Flashlight</td><td>Toggleable tool</td><td class="type">Items/</td><td><span class="pill warn">modified</span></td><td class="notes"></td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_PistolPickup</td><td class="notes">unclear</td><td class="type">Items/</td><td><span class="pill bad">review</span></td><td class="notes">Status unclear — see §14.</td></tr>
+            <tr><td class="field">DA_Bag</td><td>Equippable gear (bag)</td><td class="type">Items/</td><td><span class="pill bad">new</span></td><td class="notes">Off-convention name — see §14.</td></tr>
+            <tr><td class="field">BP_ZS_Bag</td><td>Bag Blueprint wrapper</td><td class="type">Items/</td><td><span class="pill bad">new</span></td><td class="notes"></td></tr>
+            <tr><td class="field">DA_ZS_LootTableConfig_Basic</td><td>Loot table</td><td class="type">Items/</td><td><span class="pill warn">modified</span></td><td class="notes"></td></tr>
+            <tr><td class="field">BP_ZS_Container_Test</td><td>Test AZSContainerActor</td><td class="type">Items/</td><td><span class="pill neutral">test asset</span></td><td class="notes"></td></tr>
+            <tr><td class="field">BP_ZS_WorldItem_Test</td><td>Test AZSWorldItemActor</td><td class="type">Items/</td><td><span class="pill neutral">test asset</span></td><td class="notes"></td></tr>
+
+            <tr class="group-row"><td colspan="5">Weapons — Content/ZS/Weapons/&lt;Category&gt;/</td></tr>
+            <tr><td class="field">DA_ZS_WeaponConfig_AssaultRifle</td><td>Ranged weapon</td><td class="type">Weapons/Rifle/</td><td><span class="pill bad">new path</span></td><td class="notes">Folder renamed from AssaultRifle/ to Rifle/ — see §10.</td></tr>
+            <tr><td class="field">DA_ZS_WeaponConfig_Pistol</td><td>Ranged weapon</td><td class="type">Weapons/Pistol/</td><td><span class="pill ok">committed</span></td><td class="notes">Still needs its own aim-cone override — see §14.</td></tr>
+            <tr><td class="field">DA_ZS_WeaponConfig_Crowbar</td><td>Melee weapon</td><td class="type">Weapons/Melee/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
+
+            <tr class="group-row"><td colspan="5">Ammo — Content/ZS/Weapons/Ammo/</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_556</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill warn">modified</span></td><td class="notes">Rifle caliber.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_762</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_9mm</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes">Pistol caliber.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_Other</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes">Catch-all/misc caliber.</td></tr>
+            <tr><td class="field">BP_Ammo</td><td>Ammo Blueprint wrapper</td><td class="type">Weapons/Ammo/</td><td><span class="pill bad">new</span></td><td class="notes"></td></tr>
           </tbody>
         </table>
       </div>
+      <p style="font-size:13px; color:var(--text-faint); max-width:70ch;">12 item/weapon configs + 1 loot table = 13 data assets. None have a confirmed <code class="mono">AmmoItemConfig</code> cross-reference or loot-table entry verifiable from the binary — check in-editor.</p>
+    </section>
 
-      <h4 style="margin: 22px 0 6px;">Real chapter breakdown</h4>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Timestamp</th><th>Chapter</th></tr></thead>
-          <tbody>
-            <tr><td class="default num">0:00</td><td class="notes">Introduction to creating an icon generator system</td></tr>
-            <tr><td class="default num">1:00</td><td class="notes">Setting up the Scene Capture Component 2D and render target</td></tr>
-            <tr><td class="default num">2:01</td><td class="notes">Creating a material for the icon and setting up the static mesh</td></tr>
-            <tr><td class="default num">4:44</td><td class="notes">Finalizing the texture for the icon and removing the background</td></tr>
-          </tbody>
-        </table>
+    <!-- ============================================================ -->
+    <section id="issues" class="wide">
+      <div class="eyebrow">14 · Watch For</div>
+      <h2 class="h">Known Issues</h2>
+      <p class="lede">Doesn't block reading this guide — these affect trusting specific behavior in PIE, or authoring against a field that isn't what it looks like.</p>
+
+      <div class="gap-list">
+        <div class="gap-item"><span class="pill warn">verify</span><p><strong>Inventory/equip/loadout rework's compile status isn't confirmed</strong> as of this guide's last scan — build and PIE-test before relying on exact runtime behavior in §07.</p></div>
+        <div class="gap-item"><span class="pill bad">content</span><p><strong>DA_Bag's EquipSlot needs a manual in-editor check.</strong> Two past enum renames (Hip→Duffle, Back→Backpack) risk it silently resolving to None on load.</p></div>
+        <div class="gap-item"><span class="pill warn">review</span><p><strong>DA_ZS_ItemConfig_PistolPickup's status is unclear</strong> — may be a stale test asset superseded by DA_ZS_WeaponConfig_Pistol. Needs a dev call before it's treated as real content.</p></div>
+        <div class="gap-item"><span class="pill neutral">naming</span><p><strong>DA_Bag / BP_ZS_Bag / BP_Ammo don't fully match</strong> the <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> convention (DA_Bag omits the "ItemConfig_" segment) — worth a rename pass once new content stabilizes the pattern.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>No weapon has a confirmed AmmoItemConfig assignment</strong> — can't verify from binary; check in-editor now that all 4 ammo types exist.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>DA_ZS_WeaponConfig_Pistol still inherits the rifle's aim-cone defaults</strong> (5°/1°) instead of its own intended numbers (8°/2°).</p></div>
+        <div class="gap-item"><span class="pill bad">content</span><p><strong>11 worn-mesh sockets don't exist on the skeleton yet</strong> (SocketHead/Eyes/Mask/Chest/Pelvis/Feet/Waist/Back) — relevant the moment any Food-adjacent clothing/gear item authors a WornMesh.</p></div>
+        <div class="gap-item"><span class="pill neutral">unknown</span><p><strong>Loot table cross-references can't be verified from the binary asset</strong> — confirm which items DA_ZS_LootTableConfig_Basic actually rolls in-editor before assuming a new Food item is reachable in play just because it has an entry.</p></div>
       </div>
-
-      <h4 style="margin: 22px 0 6px;">Build steps</h4>
-      <ol class="checklist">
-        <li><strong>Set up the capture rig.</strong> New Actor Blueprint (e.g. <code class="mono">BP_IconCapture</code>), placed in an empty void area so nothing else bleeds into frame. Add a <strong>Scene Capture Component 2D</strong>. Create a <strong>Render Target 2D</strong> asset sized to icon resolution (match whatever convention <a href="#gaps">§11</a>'s icon-pipeline gap settles on) and assign it to the capture component's <strong>Texture Target</strong>. Add a <strong>Static Mesh Component</strong> as a child, exposed as an editable variable, so the same rig captures any item's mesh.</li>
-        <li><strong>Frame it orthographically.</strong> Set <strong>Projection Type = Orthographic</strong> (kills perspective distortion) and tune <strong>Ortho Width</strong> to frame the mesh consistently regardless of its actual size.</li>
-        <li><strong>Isolate and light the subject.</strong> Restrict the capture to only the target mesh (Show Only List / Show Only Actors) so the rest of the level never bleeds in. Light the rig with its own fixed light(s), not level lighting, so every icon shades consistently.</li>
-        <li><strong>Capture and bake to a real texture.</strong> Call <strong>Capture Scene</strong> once, on demand. Right-click the Render Target asset → <strong>Create Static Texture</strong> to bake the live capture into a real <code class="mono">UTexture2D</code> that doesn't need the capture rig at runtime.</li>
-        <li><strong>Strip the background.</strong> Enable alpha (Project Settings → Rendering → <strong>Enable Alpha Channel Support in Post Processing</strong>; Render Target format <code class="mono">RTF_RGBA8</code>) so the capture composites transparent instead of baking in a solid color, then re-bake to static.</li>
-        <li><strong>Wire it into the item.</strong> Assign the resulting texture to <code class="mono">UZSItemConfig::Icon</code> — the field every content item currently leaves unset (§08).</li>
-      </ol>
-
-      <h4 style="margin: 22px 0 6px;">Key settings, at a glance</h4>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
-          <tbody>
-            <tr><td class="field">Projection Type</td><td class="default">Orthographic</td><td class="notes">No perspective distortion on the icon.</td></tr>
-            <tr><td class="field">Render Target format</td><td class="default">RTF_RGBA8</td><td class="notes">Needs an alpha channel to key out the background.</td></tr>
-            <tr><td class="field">Post Process alpha support</td><td class="default">Enabled</td><td class="notes">Project Settings → Rendering — required for a transparent capture to actually carry alpha through.</td></tr>
-            <tr><td class="field">Capture scope</td><td class="default">Show Only List</td><td class="notes">Only the target mesh renders — nothing else in the level.</td></tr>
-            <tr><td class="field">Final asset</td><td class="default">Create Static Texture</td><td class="notes">Render Target context-menu action — bakes the live capture to a saved, reusable UTexture2D.</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p style="font-size:13px; color:var(--text-faint);">Doesn't resolve <a href="#gaps">§11</a>'s icon-output-convention question by itself — resolution/format/naming for the baked texture still needs a decision once this is actually tried, and should be reconciled with whatever ShooterGame's transferred icon generator already produces.</p>
     </section>
 
     <footer class="doc-foot">
-      ZombieShooter — Item System Manifest · compiled 2026-08-08 from the working tree · planning draft, not yet approved · sources: ZSItemConfig.h, ZSWeaponConfig.h, ZSWeaponTypes.h, ZSItemInstance.h, ZSInventoryComponent.h, ZSWorldItemActor.cpp, ZSContainerActor.h, ZSLootTableConfig.h, ZSWeapon.h, ZSMagazine.h, ZSProjectile.h, Docs/Planning/ItemSetupStandard_2026-08-06.md, Docs/SessionHandoff.md, Docs/TuningReference.md, Docs/GameDevPlan.md, git status, "How To Create An Icon Of Any Mesh In Unreal Engine 5" (Unreal University, youtube.com/watch?v=EpthBJJ9S-o)
+      ZombieShooter — Item System Guide · compiled 2026-08-08 from the working tree · sources: ZSItemConfig.h, ZSWeaponConfig.h, ZSWeaponTypes.h, ZSItemInstance.h, ZSInventoryComponent.h, ZSWorldItemActor.cpp, ZSContainerActor.h, ZSLootTableConfig.h, ZSWeapon.h, ZSMagazine.h, ZSProjectile.h, Docs/Planning/ItemSetupStandard_2026-08-06.md, Docs/SessionHandoff.md, Docs/TuningReference.md, Docs/GameDevPlan.md, a full scan of Content/ZS/Items/ and Content/ZS/Weapons/, git status
     </footer>
   </main>
 </div>
