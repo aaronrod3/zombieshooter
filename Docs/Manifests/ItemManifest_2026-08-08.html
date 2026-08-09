@@ -1,0 +1,1142 @@
+<title>ZombieShooter — Item System Manifest</title>
+<style>
+  :root {
+    --bg: #14170f;
+    --bg-2: #191d13;
+    --surface: #1c2116;
+    --surface-2: #242a1b;
+    --border: #333a26;
+    --border-soft: #262c1c;
+    --text: #eae6d9;
+    --text-muted: #9a9d84;
+    --text-faint: #6f7360;
+    --accent: #d3874a;
+    --accent-2: #e9a165;
+    --accent-soft: rgba(211,135,74,0.14);
+    --ok: #93b569;
+    --ok-soft: rgba(147,181,105,0.14);
+    --warn: #d8ac48;
+    --warn-soft: rgba(216,172,72,0.14);
+    --bad: #cc6857;
+    --bad-soft: rgba(204,104,87,0.14);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", "Consolas", "Roboto Mono", monospace;
+    --sans: -apple-system, "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --bg: #f2efe1;
+    --bg-2: #eae5d2;
+    --surface: #fbfaf2;
+    --surface-2: #f1ecda;
+    --border: #dcd4b8;
+    --border-soft: #e6dfc7;
+    --text: #201d14;
+    --text-muted: #69644e;
+    --text-faint: #8b8568;
+    --accent: #9c541f;
+    --accent-2: #7d4318;
+    --accent-soft: rgba(156,84,31,0.10);
+    --ok: #4c7433;
+    --ok-soft: rgba(76,116,51,0.12);
+    --warn: #8f6a17;
+    --warn-soft: rgba(143,106,23,0.12);
+    --bad: #9c3e2e;
+    --bad-soft: rgba(156,62,46,0.12);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f2efe1;
+      --bg-2: #eae5d2;
+      --surface: #fbfaf2;
+      --surface-2: #f1ecda;
+      --border: #dcd4b8;
+      --border-soft: #e6dfc7;
+      --text: #201d14;
+      --text-muted: #69644e;
+      --text-faint: #8b8568;
+      --accent: #9c541f;
+      --accent-2: #7d4318;
+      --accent-soft: rgba(156,84,31,0.10);
+      --ok: #4c7433;
+      --ok-soft: rgba(76,116,51,0.12);
+      --warn: #8f6a17;
+      --warn-soft: rgba(143,106,23,0.12);
+      --bad: #9c3e2e;
+      --bad-soft: rgba(156,62,46,0.12);
+      color-scheme: light;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(1200px 600px at 85% -10%, var(--accent-soft), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(147,181,105,0.06), transparent 55%);
+    z-index: 0;
+  }
+
+  a { color: var(--accent-2); }
+  h1, h2, h3, h4 { text-wrap: balance; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+  code, .mono { font-family: var(--mono); }
+
+  .layout {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 258px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  nav.toc {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 28px 18px 40px 24px;
+    border-right: 1px solid var(--border-soft);
+    background: var(--bg-2);
+  }
+  .toc-brand {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    margin-bottom: 4px;
+  }
+  .toc-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    margin-bottom: 22px;
+  }
+  .toc-list { list-style: none; margin: 0; padding: 0; }
+  .toc-list a {
+    display: flex;
+    gap: 9px;
+    align-items: baseline;
+    text-decoration: none;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: background 0.12s, color 0.12s;
+  }
+  .toc-list a .n {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    min-width: 16px;
+  }
+  .toc-list a:hover { background: var(--surface-2); color: var(--text); }
+  .toc-list a.active { background: var(--accent-soft); color: var(--accent-2); }
+  .toc-list a.active .n { color: var(--accent-2); }
+
+  .toc-foot {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 11.5px;
+    color: var(--text-faint);
+    line-height: 1.5;
+  }
+
+  /* ---------- Main ---------- */
+  main { min-width: 0; padding: 40px 48px 100px; }
+
+  header.hero {
+    max-width: 900px;
+    margin-bottom: 56px;
+  }
+  .status-band {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--warn);
+    background: var(--warn-soft);
+    border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    padding: 5px 11px;
+    border-radius: 3px;
+    margin-bottom: 20px;
+  }
+  .status-band::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--warn);
+    box-shadow: 0 0 0 3px var(--warn-soft);
+  }
+  h1.title { font-size: clamp(32px, 4.4vw, 46px); line-height: 1.05; }
+  h1.title .accent { color: var(--accent-2); }
+  .dek {
+    margin-top: 14px;
+    max-width: 62ch;
+    font-size: 16.5px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 28px;
+  }
+  .stat {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 5px;
+    padding: 10px 14px;
+    min-width: 108px;
+  }
+  .stat .v { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+  /* ---------- Sections ---------- */
+  section { max-width: 980px; margin-bottom: 64px; scroll-margin-top: 24px; }
+  section.wide { max-width: 1180px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    margin-bottom: 8px;
+  }
+  h2.h { font-size: 26px; margin-bottom: 6px; }
+  .lede { color: var(--text-muted); max-width: 72ch; margin: 10px 0 22px; }
+  p { max-width: 74ch; }
+  .section-rule { height: 1px; background: linear-gradient(90deg, var(--border), transparent); margin: 0 0 28px; }
+
+  /* ---------- Class cards ---------- */
+  .class-card {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 6px;
+    margin-bottom: 22px;
+    overflow: hidden;
+  }
+  .class-card > .ch {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .class-card .decl { font-family: var(--mono); font-size: 14.5px; }
+  .class-card .decl .kw { color: var(--text-faint); }
+  .class-card .decl .cn { color: var(--accent-2); font-weight: 600; }
+  .class-card .path { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); }
+  .class-card .body { padding: 16px 18px 4px; }
+  .class-card .body > p:first-child { margin-top: 0; }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; margin: 14px 0 20px; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13.5px; background: var(--surface); }
+  table.wide { min-width: 900px; }
+  th, td { padding: 9px 13px; text-align: left; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    background: var(--surface-2);
+    position: sticky; top: 0;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+  tr.group-row td {
+    background: var(--bg-2);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-2);
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+  }
+  td.field, td .field { font-family: var(--mono); font-size: 13px; color: var(--text); white-space: nowrap; }
+  td.type, .type { font-family: var(--mono); font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+  td.default, .default { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.notes { color: var(--text-muted); max-width: 46ch; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Pills / status ---------- */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .pill::before { content: ""; width: 5px; height: 5px; border-radius: 50%; }
+  .pill.ok { color: var(--ok); background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+  .pill.ok::before { background: var(--ok); }
+  .pill.warn { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+  .pill.warn::before { background: var(--warn); }
+  .pill.bad { color: var(--bad); background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+  .pill.bad::before { background: var(--bad); }
+  .pill.neutral { color: var(--text-muted); background: var(--surface-2); border-color: var(--border); }
+  .pill.neutral::before { background: var(--text-faint); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 4px 0 24px; font-size: 12.5px; color: var(--text-muted); }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+
+  /* ---------- Enum chips ---------- */
+  .chipline { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0 18px; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .chip.acc { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 6px 6px 0;
+    padding: 14px 18px;
+    margin: 18px 0;
+    font-size: 13.8px;
+    color: var(--text-muted);
+    max-width: 76ch;
+  }
+  .callout strong { color: var(--text); }
+  .callout.gap { border-left-color: var(--bad); }
+  .callout.warn { border-left-color: var(--warn); }
+
+  /* ---------- Diagram (CSS, no SVG needed) ---------- */
+  .instance-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 26px 0 10px;
+    padding: 30px 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .idg-node {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    text-align: center;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    min-width: 128px;
+  }
+  .idg-node.center {
+    color: var(--accent-2);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--accent-soft);
+    font-weight: 700;
+    font-size: 13.5px;
+    min-width: 180px;
+  }
+  .idg-arrow { color: var(--text-faint); font-size: 18px; padding: 0 14px; }
+  .idg-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .idg-row { display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 0; }
+
+  /* ---------- File tree ---------- */
+  pre.tree {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 22px;
+    overflow-x: auto;
+    color: var(--text-muted);
+    margin: 12px 0 20px;
+  }
+  pre.tree .dir { color: var(--accent-2); }
+  pre.tree .file { color: var(--text); }
+  pre.tree .note { color: var(--text-faint); font-style: italic; }
+  pre.tree .cxx { color: var(--ok); }
+
+  /* ---------- Checklist ---------- */
+  ol.checklist { max-width: 74ch; padding-left: 0; list-style: none; counter-reset: step; margin: 18px 0; }
+  ol.checklist li {
+    counter-increment: step;
+    display: flex;
+    gap: 14px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 14px;
+  }
+  ol.checklist li:last-child { border-bottom: none; }
+  ol.checklist li::before {
+    content: counter(step);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent-2);
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ---------- Gap list ---------- */
+  .gap-list { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+  .gap-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 13px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+  .gap-item .pill { margin-top: 2px; flex-shrink: 0; }
+  .gap-item p { margin: 0; font-size: 13.8px; color: var(--text-muted); }
+  .gap-item p strong { color: var(--text); font-weight: 600; }
+
+  footer.doc-foot {
+    max-width: 980px;
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border-soft); }
+    main { padding: 32px 20px 80px; }
+  }
+</style>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of contents">
+    <div class="toc-brand">ZombieShooter · B1</div>
+    <div class="toc-title">Item Manifest</div>
+    <ul class="toc-list" id="toc-list">
+      <li><a href="#overview"><span class="n">00</span>Overview</a></li>
+      <li><a href="#base-classes"><span class="n">01</span>Base Classes</a></li>
+      <li><a href="#instance"><span class="n">02</span>Item Instance</a></li>
+      <li><a href="#enums"><span class="n">03</span>Classification Enums</a></li>
+      <li><a href="#world-actors"><span class="n">04</span>World Pickup &amp; Container</a></li>
+      <li><a href="#weapon-actor"><span class="n">05</span>Weapon Actor</a></li>
+      <li><a href="#inventory"><span class="n">06</span>Inventory &amp; Equip</a></li>
+      <li><a href="#loot"><span class="n">07</span>Loot Tables</a></li>
+      <li><a href="#content"><span class="n">08</span>Current Content</a></li>
+      <li><a href="#archetypes"><span class="n">09</span>Item Archetypes</a></li>
+      <li><a href="#files"><span class="n">10</span>File Structure</a></li>
+      <li><a href="#gaps"><span class="n">11</span>Open Gaps</a></li>
+      <li><a href="#checklist"><span class="n">12</span>New-Item Checklist</a></li>
+    </ul>
+    <div class="toc-foot">Compiled 2026-08-08 from the working tree (Source/ + Content/ + Docs/Planning). Planning draft — nothing here has been executed against Content.</div>
+  </nav>
+
+  <main>
+    <header class="hero" id="overview">
+      <div class="status-band">Draft · Planning only · Pending approval</div>
+      <h1 class="title">The <span class="accent">Item System</span>,<br>end to end.</h1>
+      <p class="dek">Every base class an item or weapon is built from, the instance model that tracks a specific carried/dropped/stored item, the actors that present items in the world, and all 12 content instances authored so far — with exact file paths. Compiled from the current C++ and Content trees for review, not yet approved or acted on.</p>
+
+      <div class="stat-row">
+        <div class="stat"><div class="v">2</div><div class="l">Base DA classes</div></div>
+        <div class="stat"><div class="v">12</div><div class="l">Content items</div></div>
+        <div class="stat"><div class="v">3</div><div class="l">Weapons</div></div>
+        <div class="stat"><div class="v">4</div><div class="l">Ammo types</div></div>
+        <div class="stat"><div class="v">12</div><div class="l">Equip slots</div></div>
+        <div class="stat"><div class="v">11</div><div class="l">Open gaps</div></div>
+      </div>
+
+      <div class="callout warn" style="margin-top:28px;">
+        <strong>Read this before trusting anything below as "live."</strong> The 2026-08-06 inventory/equip/loadout rework (12-slot <code>EZSEquipSlot</code>, compartment capacities, worn-mesh visuals) is written into the source tree but <strong>not yet compiled</strong> — the editor was open the whole time it landed. Everything in this document reflects that uncompiled state. Treat every content-facing number and behavior as design-intent-and-code-exists, not PIE-verified, until the next full <code class="mono">Build.bat</code> succeeds (see <a href="#gaps">§11</a>).
+      </div>
+    </header>
+
+    <!-- ============================================================ -->
+    <section id="base-classes" class="wide">
+      <div class="eyebrow">01 · Data Model</div>
+      <h2 class="h">Base Classes</h2>
+      <p class="lede">Every item and weapon in the game is one instance of one of two <code>UPrimaryDataAsset</code> classes. There is no per-item C++ — a new item is always a new data asset instance, never a new branch (the project's multi-config rule). <code class="mono">UZSWeaponConfig</code> inherits <code class="mono">UZSItemConfig</code>, so a carried weapon is a real, first-class <code class="mono">FZSItemInstance</code> too — it can sit in a carry slot, get looted, and be dropped exactly like a can of food.</p>
+
+      <div class="class-card">
+        <div class="ch">
+          <div class="decl"><span class="kw">class</span> <span class="cn">UZSItemConfig</span> <span class="kw">: public</span> UPrimaryDataAsset</div>
+          <div class="path">Source/ZombieShooter/Survival/ZSItemConfig.h</div>
+        </div>
+        <div class="body">
+          <p>The base data contract every item — consumable, medical, ammo, bag, clothing, tool, or weapon — is authored from. <code class="mono">AZSPlayerCharacter::Server_UseItem</code> is the single dispatch point: it reads <code class="mono">ItemUseType</code> and routes to the right component, so neither the needs system nor the health system knows about item content directly.</p>
+          <div class="table-wrap">
+            <table class="wide">
+              <thead><tr><th>Group</th><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr class="group-row"><td colspan="5">Identity</td></tr>
+                <tr><td></td><td class="field">DisplayName</td><td class="type">FText</td><td class="default">—</td><td class="notes">Shown everywhere an item is named — tooltip, hotbar, loot screen.</td></tr>
+                <tr><td></td><td class="field">Icon</td><td class="type">UTexture2D*</td><td class="default">unset</td><td class="notes">No icon has ever been imported into the project — unset renders gracefully, same "not sourced yet" pattern as every other optional reference.</td></tr>
+                <tr><td></td><td class="field">ItemUseType</td><td class="type">EZSItemUseType</td><td class="default">Consumable</td><td class="notes">Which server action <code class="mono">Server_UseItem</code> routes this to — see <a href="#enums">enums</a>.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Consumable — only read when ItemUseType == Consumable</td></tr>
+                <tr><td></td><td class="field">HungerRestore</td><td class="type">float</td><td class="default num">0</td><td class="notes">Routes to <code class="mono">UZSNeedsComponent::Server_ConsumeItem</code>.</td></tr>
+                <tr><td></td><td class="field">ThirstRestore</td><td class="type">float</td><td class="default num">0</td><td class="notes">Same call, Thirst side.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Medical — Bandage / Disinfectant / Splint</td></tr>
+                <tr><td></td><td class="field">bIsCleanBandage</td><td class="type">bool</td><td class="default">true</td><td class="notes">Bandage only. A clean bandage clears the wound's dirty flag; a dirty rag stops bleeding but leaves it dirty.</td></tr>
+                <tr><td></td><td class="field">MedicalIncubationDelayGameHours</td><td class="type">float</td><td class="default num">0</td><td class="notes">Bandage/Disinfectant only. Pushes the bite-infection clock back this many game-hours when applied to the source zone. 0 = basic tier, no effect.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Inventory (P6) — every item, not just consumables</td></tr>
+                <tr><td></td><td class="field">Weight</td><td class="type">float</td><td class="default num">0.5</td><td class="notes">Per-unit weight, read by <code class="mono">GetCurrentWeight()</code> / <code class="mono">FZSItemInstance::GetTotalWeight()</code>.</td></tr>
+                <tr><td></td><td class="field">MaxStackSize</td><td class="type">int32</td><td class="default num">1</td><td class="notes">How many stack per <code class="mono">FZSItemInstance</code>. 1 = doesn't stack (weapons, bags).</td></tr>
+                <tr><td></td><td class="field">bIsEquippable</td><td class="type">bool</td><td class="default">false</td><td class="notes">True for anything that occupies one of the 12 equip slots rather than living in the general carry list.</td></tr>
+                <tr><td></td><td class="field">EquipSlot</td><td class="type">EZSEquipSlot</td><td class="default">None</td><td class="notes">Only meaningful if bIsEquippable. See <a href="#enums">enums</a> for all 12 values.</td></tr>
+                <tr><td></td><td class="field">CarryCapacityBonus</td><td class="type">float</td><td class="default num">0</td><td class="notes">How much this raises max carry weight while equipped — a bag's whole reason to exist.</td></tr>
+                <tr><td></td><td class="field">Rarity</td><td class="type">EZSItemRarity</td><td class="default">Common</td><td class="notes">Consulted by the finite rarity-pool loot system (Rare/VeryRare only).</td></tr>
+                <tr><td></td><td class="field">ItemSize</td><td class="type">EZSItemSize</td><td class="default">Small</td><td class="notes">Gates which compartments this can be stored in — see <a href="#enums">enums</a>.</td></tr>
+                <tr><td></td><td class="field">InsulationValue</td><td class="type">float</td><td class="default num">0</td><td class="notes">Equippable clothing only — sums into Temperature's target across all 11 clothing/gear slots while worn.</td></tr>
+                <tr><td></td><td class="field">WorldMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes"><code class="mono">AZSWorldItemActor</code>'s pickup mesh. Unset = invisible pickup, not an error.</td></tr>
+                <tr><td></td><td class="field">WornMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes">The on-character visual for equipped clothing/gear — attached to the slot's socket by <code class="mono">RefreshWornMeshes()</code>. Static, not skeletal.</td></tr>
+                <tr><td></td><td class="field">bIsToggleable</td><td class="type">bool</td><td class="default">false</td><td class="notes">Whether IA_SecondaryAction toggles this on/off (a flashlight) instead of dispatching an attack, when equipped in SecondaryHand.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Function</td></tr>
+                <tr><td></td><td class="field">GetStatPreviewLines()</td><td class="type">BlueprintNativeEvent</td><td class="default">—</td><td class="notes">Transparent stat-preview rows ("eat this, gain +X Hunger") for the tooltip widget. <code class="mono">UZSWeaponConfig</code> appends its own rows via Super().</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="class-card">
+        <div class="ch">
+          <div class="decl"><span class="kw">class</span> <span class="cn">UZSWeaponConfig</span> <span class="kw">: public</span> UZSItemConfig</div>
+          <div class="path">Source/ZombieShooter/Weapons/ZSWeaponConfig.h</div>
+        </div>
+        <div class="body">
+          <p>Inherits every field above — <code class="mono">Weight</code> needs a real per-weapon value authored (the inherited 0.5 default is too light for a rifle), <code class="mono">MaxStackSize</code> should stay 1. Adds ~45 weapon-specific fields, grouped below in declaration order. Slimmed hard from an original ~90-field Infima-mirroring catalog in the P0 de-scope — what remains is what the third-person survival game actually consumes today.</p>
+          <div class="table-wrap">
+            <table class="wide">
+              <thead><tr><th>Group</th><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr class="group-row"><td colspan="5">Weapon Class</td></tr>
+                <tr><td></td><td class="field">WeaponClass</td><td class="type">TSubclassOf&lt;AZSWeapon&gt;</td><td class="default">unset</td><td class="notes">Unset falls back to plain <code class="mono">AZSWeapon</code> — only needed for a BP child overriding PerformReload/CycleFireMode.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Setup — assembled onto AZSWeapon's static BaseWeaponMesh, no skeletal weapon mesh anywhere</td></tr>
+                <tr><td></td><td class="field">BaseWeaponMesh</td><td class="type">UStaticMesh*</td><td class="default">—</td><td class="notes">Root weapon mesh.</td></tr>
+                <tr><td></td><td class="field">TriggerMesh</td><td class="type">UStaticMesh*</td><td class="default">—</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">MagazineMesh</td><td class="type">UStaticMesh*</td><td class="default">—</td><td class="notes">Cosmetic — read by <code class="mono">AZSMagazine</code>, a separate unreplicated per-machine actor.</td></tr>
+                <tr><td></td><td class="field">TP_Mesh</td><td class="type">USkeletalMesh*</td><td class="default">—</td><td class="notes">Character body mesh used while this weapon is equipped.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Attachments — all optional, unset = that slot stays empty</td></tr>
+                <tr><td></td><td class="field">MuzzleMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes">Also where the hitscan trace / muzzle flash originates, independent of whether a mesh is assigned.</td></tr>
+                <tr><td></td><td class="field">HandguardMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes">A flashlight or laser sight, not just rail furniture.</td></tr>
+                <tr><td></td><td class="field">GripMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">OpticMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes">Single optic slot — replaces Infima's old Scope/FrontSight/RearSight three-way split.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Sockets — all on BaseWeaponMesh except SocketGunAttachment</td></tr>
+                <tr><td></td><td class="field">SocketGunAttachment</td><td class="type">FName</td><td class="default">"RightHandSocket"</td><td class="notes">On the character body mesh — shared attach point for anything in the right hand.</td></tr>
+                <tr><td></td><td class="field">SocketTrigger</td><td class="type">FName</td><td class="default">"SocketTrigger"</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">SocketMagazineAttachment</td><td class="type">FName</td><td class="default">"SocketMagazineAttachment"</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">SocketMuzzle</td><td class="type">FName</td><td class="default">"SocketMuzzle"</td><td class="notes">Hitscan trace / muzzle-flash origin, independent of MuzzleMesh.</td></tr>
+                <tr><td></td><td class="field">SocketHandguard</td><td class="type">FName</td><td class="default">"SocketHandguard"</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">SocketGrip</td><td class="type">FName</td><td class="default">"SocketGrip"</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">SocketOptic</td><td class="type">FName</td><td class="default">"SocketOptic"</td><td class="notes"></td></tr>
+
+                <tr class="group-row"><td colspan="5">Montages &amp; Poses — third-person character mesh</td></tr>
+                <tr><td></td><td class="field">TP_Fire / TP_Reload</td><td class="type">UAnimMontage*</td><td class="default">—</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">TP_IdleLoop / TP_IdlePose / TP_AimPose</td><td class="type">UAnimSequenceBase*</td><td class="default">—</td><td class="notes">Consumed by the TP AnimBP's dynamic pins.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Ammo</td></tr>
+                <tr><td></td><td class="field">MagazineCapacity</td><td class="type">int32</td><td class="default num">30</td><td class="notes">Rounds per magazine. Clamp ≥ 1.</td></tr>
+                <tr><td></td><td class="field">AmmoItemConfig</td><td class="type">UZSItemConfig*</td><td class="default">unset</td><td class="notes">Which item this weapon's magazine reloads from. <strong>Unset = the weapon can never reload.</strong></td></tr>
+
+                <tr class="group-row"><td colspan="5">Attack Dispatch &amp; Handedness</td></tr>
+                <tr><td></td><td class="field">AttackType</td><td class="type">EZSAttackType</td><td class="default">Ranged</td><td class="notes">Which half of IA_Attack this weapon uses.</td></tr>
+                <tr><td></td><td class="field">Handedness</td><td class="type">EZSWeaponHandedness</td><td class="default">TwoHanded</td><td class="notes">TwoHanded blocks SecondaryHand entirely and gates the long-gun mount.</td></tr>
+                <tr><td></td><td class="field">bUsableInSecondaryHand</td><td class="type">bool</td><td class="default">false</td><td class="notes">OneHanded only — legal to place in the offhand slot at all.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Loadout</td></tr>
+                <tr><td></td><td class="field">EquipTimeSeconds</td><td class="type">float</td><td class="default num">0.75s</td><td class="notes">How long switching the hotbar to this weapon takes — sets bIsBusy for the duration.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Melee — meaningful only when AttackType == Melee</td></tr>
+                <tr><td></td><td class="field">MeleeDamage</td><td class="type">float</td><td class="default num">35</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">MeleeRange</td><td class="type">float</td><td class="default num">180</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">MeleeAttackInterval</td><td class="type">float</td><td class="default num">0.9s</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">MeleeDamageTypeClass</td><td class="type">TSubclassOf&lt;UDamageType&gt;</td><td class="default">unset</td><td class="notes">Falls back to <code class="mono">UZSDamageType_Laceration</code>.</td></tr>
+                <tr><td></td><td class="field">MeleeMontage</td><td class="type">UAnimMontage*</td><td class="default">unset</td><td class="notes">Cosmetic swing montage.</td></tr>
+                <tr><td></td><td class="field">MaxDurabilityHits</td><td class="type">int32</td><td class="default num">0</td><td class="notes">0 = unbreakable. Landed hits survived before breaking.</td></tr>
+                <tr><td></td><td class="field">MeleeStaminaCost</td><td class="type">float</td><td class="default num">10</td><td class="notes">Per swing, whether it lands or not.</td></tr>
+                <tr><td></td><td class="field">FinisherMontage</td><td class="type">UAnimMontage*</td><td class="default">unset</td><td class="notes">Downward-strike finisher over a downed target, replacing the bare-handed stomp.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Jamming — ranged only</td></tr>
+                <tr><td></td><td class="field">bJamImmune</td><td class="type">bool</td><td class="default">false</td><td class="notes">True for revolvers/bolt-actions.</td></tr>
+                <tr><td></td><td class="field">BaseJamChance</td><td class="type">float</td><td class="default num">0.01</td><td class="notes">Per shot at pristine condition (quality = 1).</td></tr>
+                <tr><td></td><td class="field">MaxJamChance</td><td class="type">float</td><td class="default num">0.3</td><td class="notes">Per shot at worst condition (quality = 0).</td></tr>
+                <tr><td></td><td class="field">TP_ClearJam</td><td class="type">UAnimMontage*</td><td class="default">unset</td><td class="notes">"Rack Firearm" cosmetic montage.</td></tr>
+                <tr><td></td><td class="field">ClearJamTimeSeconds</td><td class="type">float</td><td class="default num">1.5s</td><td class="notes"></td></tr>
+
+                <tr class="group-row"><td colspan="5">Hit Feedback</td></tr>
+                <tr><td></td><td class="field">MeleeKnockbackStrength</td><td class="type">float</td><td class="default num">0</td><td class="notes">LaunchCharacter impulse on a landed melee swing.</td></tr>
+                <tr><td></td><td class="field">FireKnockbackStrength</td><td class="type">float</td><td class="default num">120</td><td class="notes">Same, for a landed hitscan/projectile shot.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Fire Modes, Noise &amp; Damage</td></tr>
+                <tr><td></td><td class="field">SupportedFireModes</td><td class="type">TArray&lt;EZSFireMode&gt;</td><td class="default">[Semi, Auto]</td><td class="notes">Which modes CycleFireMode cycles through.</td></tr>
+                <tr><td></td><td class="field">RoundsPerMinute</td><td class="type">float</td><td class="default num">600</td><td class="notes"></td></tr>
+                <tr><td></td><td class="field">FireNoiseRadius</td><td class="type">float</td><td class="default num">3000</td><td class="notes">How far a shot's noise event reaches (UZSNoiseSystem::ReportNoise).</td></tr>
+                <tr><td></td><td class="field">FireDamage</td><td class="type">float</td><td class="default num">25</td><td class="notes">Per-shot hitscan/projectile damage.</td></tr>
+                <tr><td></td><td class="field">FireRange</td><td class="type">float</td><td class="default num">5000</td><td class="notes">Trace distance from SocketMuzzle.</td></tr>
+                <tr><td></td><td class="field">FireDamageTypeClass</td><td class="type">TSubclassOf&lt;UDamageType&gt;</td><td class="default">unset</td><td class="notes">Falls back to <code class="mono">UZSDamageType_Laceration</code>.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Aim Cone &amp; Headshot Weighting — B0-T3.5/T3.6</td></tr>
+                <tr><td></td><td class="field">HipFireSpreadDegrees</td><td class="type">float</td><td class="default num">5°</td><td class="notes">Cone half-angle, hip-fire.</td></tr>
+                <tr><td></td><td class="field">AimedSpreadDegrees</td><td class="type">float</td><td class="default num">1°</td><td class="notes">Cone half-angle, aiming.</td></tr>
+                <tr><td></td><td class="field">HipFireHeadshotChance</td><td class="type">float</td><td class="default num">0.05</td><td class="notes">Chance a landed hip-fire hit resolves to Head regardless of the ray's actual bone.</td></tr>
+                <tr><td></td><td class="field">AimedHeadshotChance</td><td class="type">float</td><td class="default num">0.25</td><td class="notes">Same, while aiming.</td></tr>
+
+                <tr class="group-row"><td colspan="5">Projectile — opt-in, replaces instant hitscan when set</td></tr>
+                <tr><td></td><td class="field">ProjectileClass</td><td class="type">TSubclassOf&lt;AZSProjectile&gt;</td><td class="default">unset</td><td class="notes">Unset keeps the old instant hitscan trace.</td></tr>
+                <tr><td></td><td class="field">ProjectileMesh</td><td class="type">UStaticMesh*</td><td class="default">unset</td><td class="notes">Cosmetic mesh on the spawned projectile.</td></tr>
+                <tr><td></td><td class="field">ProjectileSpeed</td><td class="type">float</td><td class="default num">6000</td><td class="notes">cm/s — deliberately trackable, not realistic bullet velocity.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="instance">
+      <div class="eyebrow">02 · Data Model</div>
+      <h2 class="h">The Item Instance</h2>
+      <p class="lede"><code class="mono">FZSItemInstance</code> is the one and only way a top-level item exists anywhere in the game. A carried slot, a container slot, and a world pickup all point at the same logical item through this struct, rather than each holding its own <code class="mono">Config</code> + count.</p>
+
+      <div class="instance-diagram">
+        <div class="idg-wrap">
+          <div class="idg-row">
+            <div class="idg-node">AZSWorldItemActor<br><span style="color:var(--text-faint)">world pickup</span></div>
+            <div class="idg-arrow">↘</div>
+          </div>
+          <div class="idg-row">
+            <div class="idg-node">CarrySlots<br><span style="color:var(--text-faint)">on a player</span></div>
+            <div class="idg-arrow">→</div>
+            <div class="idg-node center">FZSItemInstance<br><span style="color:var(--text-faint); font-weight:400;">stable InstanceId · Config · StackCount</span></div>
+            <div class="idg-arrow">←</div>
+            <div class="idg-node">ContainerSlots<br><span style="color:var(--text-faint)">AZSContainerActor</span></div>
+          </div>
+          <div class="idg-row">
+            <div class="idg-arrow">↗</div>
+          </div>
+          <div class="idg-row">
+            <div class="idg-node">ContainedItems<br><span style="color:var(--text-faint)">nested one level, inside a bag's own FZSItemInstance</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>Struct</th><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr class="group-row"><td colspan="4">FZSItemInstanceBase — Source/ZombieShooter/Inventory/ZSItemInstance.h</td></tr>
+            <tr><td></td><td class="field">InstanceId</td><td class="type">FGuid</td><td class="notes">Stable for the item's whole life. Invalid GUID = "no item."</td></tr>
+            <tr><td></td><td class="field">Config</td><td class="type">UZSItemConfig*</td><td class="notes">Which data asset this instance is of.</td></tr>
+            <tr><td></td><td class="field">StackCount</td><td class="type">int32</td><td class="notes">Meaningful only if Config->MaxStackSize &gt; 1.</td></tr>
+            <tr><td></td><td class="field">Location</td><td class="type">EZSCarryLocation</td><td class="notes">Which carry category — see <a href="#enums">enums</a>.</td></tr>
+            <tr><td></td><td class="field">InstanceState</td><td class="type">FZSItemInstanceState</td><td class="notes">Meaningful only if StackCount == 1.</td></tr>
+
+            <tr class="group-row"><td colspan="4">FZSItemInstanceState</td></tr>
+            <tr><td></td><td class="field">CurrentDurability</td><td class="type">int32</td><td class="notes">-1 = uninitialised; resolves from MaxDurabilityHits × ConditionQuality on first read.</td></tr>
+            <tr><td></td><td class="field">ConditionQuality</td><td class="type">float [0,1]</td><td class="notes">Loot condition variance rolled within the rarity tier's band at spawn. Scales effective durability and jam chance.</td></tr>
+
+            <tr class="group-row"><td colspan="4">FZSItemInstance : public FZSItemInstanceBase</td></tr>
+            <tr><td></td><td class="field">ContainedItems</td><td class="type">TArray&lt;FZSItemInstanceBase&gt;</td><td class="notes">Only meaningful for a bag. Typed as the Base struct (not itself) so UHT's array-of-self restriction caps nesting at one level — a bag can hold plain items, never another loaded bag.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <strong>Invariant: stackable and per-instance-stateful are mutually exclusive by construction.</strong> <code class="mono">MaxStackSize &gt; 1</code> means <code class="mono">InstanceState</code> is never read — a stack of 12 canned foods has no individual durability, a stack of 1 weapon does. Merging two instances into one stack discards whichever instance's identity doesn't survive.
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="enums" class="wide">
+      <div class="eyebrow">03 · Data Model</div>
+      <h2 class="h">Classification Enums</h2>
+      <p class="lede">The vocabulary every item config is authored against — all in <code class="mono">ZSItemConfig.h</code> / <code class="mono">ZSItemInstance.h</code> / <code class="mono">ZSWeaponTypes.h</code>.</p>
+
+      <h4 style="margin-bottom:6px;">EZSItemUseType — what Server_UseItem routes to</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Value</th><th>Routes to</th></tr></thead>
+          <tbody>
+            <tr><td class="field">Consumable</td><td class="notes"><code class="mono">UZSNeedsComponent::Server_ConsumeItem</code> (Hunger/Thirst restore)</td></tr>
+            <tr><td class="field">Bandage</td><td class="notes"><code class="mono">UZSHealthComponent::Server_ApplyBandage(Zone, bIsClean)</code></td></tr>
+            <tr><td class="field">Disinfectant</td><td class="notes"><code class="mono">UZSHealthComponent::Server_Disinfect(Zone)</code></td></tr>
+            <tr><td class="field">Splint</td><td class="notes"><code class="mono">UZSHealthComponent::Server_Splint(Zone)</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 22px 0 6px;">EZSEquipSlot — 12 values, two families either side of the Loadout tab's character model</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Family</th><th>Slot</th><th>Compartment</th><th>Socket</th><th>Rule</th></tr></thead>
+          <tbody>
+            <tr class="group-row"><td colspan="5">Clothing — left side</td></tr>
+            <tr><td></td><td class="field">Head</td><td>—</td><td class="type">SocketHead</td><td class="notes">Force-unequipped if Helmet is equipped.</td></tr>
+            <tr><td></td><td class="field">Eyes</td><td>—</td><td class="type">SocketEyes</td><td class="notes"></td></tr>
+            <tr><td></td><td class="field">Mask</td><td>—</td><td class="type">SocketMask</td><td class="notes"></td></tr>
+            <tr><td></td><td class="field">Shirt</td><td>—</td><td class="type">SocketChest</td><td class="notes"></td></tr>
+            <tr><td></td><td class="field">Pants</td><td class="mono">OnPerson</td><td class="type">SocketPelvis</td><td class="notes">Gates the Pockets compartment rather than owning its own — no Pants equipped means zero Pockets storage.</td></tr>
+            <tr><td></td><td class="field">Shoes</td><td>—</td><td class="type">SocketFeet</td><td class="notes"></td></tr>
+            <tr class="group-row"><td colspan="5">Gear — right side</td></tr>
+            <tr><td></td><td class="field">Helmet</td><td>—</td><td class="type">SocketHead</td><td class="notes">Equipping force-unequips Head (one-way only).</td></tr>
+            <tr><td></td><td class="field">Vest</td><td class="mono">Vest</td><td class="type">SocketChest</td><td class="notes">Container-bearing.</td></tr>
+            <tr><td></td><td class="field">Belt</td><td class="mono">Belt</td><td class="type">SocketWaist</td><td class="notes">Container-bearing.</td></tr>
+            <tr><td></td><td class="field">Backpack</td><td class="mono">Backpack</td><td class="type">SocketBack</td><td class="notes">Container-bearing, largest bonus of the two bags. Renamed from "Back" 2026-08-06.</td></tr>
+            <tr><td></td><td class="field">Duffle</td><td class="mono">Duffle</td><td class="type">SocketBack</td><td class="notes">Container-bearing, largest capacity — adds a movement penalty and can't be opened without stopping.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 22px 0 6px;">EZSCarryLocation — where an FZSItemInstance currently lives, with fixed compartment capacity</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Value</th><th>Capacity</th><th>Granted by</th></tr></thead>
+          <tbody>
+            <tr><td class="field">OnPerson</td><td class="default num">4</td><td class="notes">Pockets — gated on <code class="mono">Pants</code> equipped, always-available fallback, never itself a compartment a player "chooses."</td></tr>
+            <tr><td class="field">Vest</td><td class="default num">8</td><td class="notes">Equipped Vest.</td></tr>
+            <tr><td class="field">Belt</td><td class="default num">8</td><td class="notes">Equipped Belt.</td></tr>
+            <tr><td class="field">Backpack</td><td class="default num">20</td><td class="notes">Equipped Backpack. 4×5 grid — shrunk from 24 (4×6) on 2026-08-07 to fit the compartment stack's vertical budget.</td></tr>
+            <tr><td class="field">Duffle</td><td class="default num">18</td><td class="notes">Equipped Duffle.</td></tr>
+            <tr><td class="field">World</td><td class="default">—</td><td class="notes">Sitting inside an AZSContainerActor's ContainerSlots.</td></tr>
+            <tr><td class="field">Vehicle</td><td class="default">—</td><td class="notes">Reserved, forward-compat only — no vehicle inventory exists yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 22px 0 6px;">EZSItemSize — gates which compartment an item can be stored into</h4>
+      <p style="margin-top:0;">Hierarchical model, confirmed 2026-08-06: a smaller item fits anywhere a bigger one does.</p>
+      <div class="chipline">
+        <span class="chip acc">Small → Pockets, Backpack, Duffle</span>
+        <span class="chip acc">Medium → Backpack, Duffle</span>
+        <span class="chip acc">Large → Duffle only</span>
+      </div>
+
+      <h4 style="margin: 22px 0 6px;">EZSItemRarity &amp; other small enums</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Enum</th><th>Values</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="field">EZSItemRarity</td><td class="type">Common, Uncommon, Rare, VeryRare</td><td class="notes">Rare/VeryRare are gated through a finite per-session pool on AZSGameState — Common/Uncommon are ungated.</td></tr>
+            <tr><td class="field">EZSFireMode</td><td class="type">Safety, Semi, Auto</td><td class="notes">A weapon lists which it supports in SupportedFireModes.</td></tr>
+            <tr><td class="field">EZSAttackType</td><td class="type">Ranged, Melee</td><td class="notes">No Unarmed value — bare-fist is the character's own fallback when nothing is equipped, not a config.</td></tr>
+            <tr><td class="field">EZSWeaponHandedness</td><td class="type">OneHanded, TwoHanded</td><td class="notes">TwoHanded blocks SecondaryHand and gates the long-gun mount; OneHanded partitions across Sidearm/Melee mounts by AttackType.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="world-actors" class="wide">
+      <div class="eyebrow">04 · World Presentation</div>
+      <h2 class="h">Pickup &amp; Container Actors</h2>
+      <p class="lede">Two replicated actor classes present an <code class="mono">FZSItemInstance</code> physically in the world. Both reuse P1's <code class="mono">UZSInteractableComponent</code> rather than a bespoke interaction path.</p>
+
+      <div class="class-card">
+        <div class="ch">
+          <div class="decl"><span class="kw">class</span> <span class="cn">AZSWorldItemActor</span> <span class="kw">: public</span> AActor</div>
+          <div class="path">Source/ZombieShooter/Inventory/ZSWorldItemActor.h / .cpp</div>
+        </div>
+        <div class="body">
+          <p>A single dropped or hand-placed pickup, holding exactly one <code class="mono">ItemInstance</code>. Never moves once spawned (no physics-drop-and-settle in v1).</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Member</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td class="field">PickupMesh</td><td class="notes">Root <code class="mono">UStaticMeshComponent</code> — set from <code class="mono">ItemInstance.Config->WorldMesh</code>.</td></tr>
+                <tr><td class="field">InteractableComponent</td><td class="notes">Verb text is generated live: "Pick up &lt;DisplayName&gt; x&lt;Count&gt;".</td></tr>
+                <tr><td class="field">InitializeItem(Config, Count)</td><td class="notes">Mints a fresh instance — the hand-placed / pre-populated-pickup path.</td></tr>
+                <tr><td class="field">InitializeFromInstance(Instance)</td><td class="notes">Preserves an existing instance's identity — the drop path (Server_DropItem/Server_DropAllItems).</td></tr>
+                <tr><td class="field">HandleInteracted</td><td class="notes">2026-08-06: rejects the pickup and leaves the actor alive if <code class="mono">Server_AddItemInstance</code> fails (Pockets full) — no longer destroys on a failed add.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="class-card">
+        <div class="ch">
+          <div class="decl"><span class="kw">class</span> <span class="cn">AZSContainerActor</span> <span class="kw">: public</span> AActor</div>
+          <div class="path">Source/ZombieShooter/Inventory/ZSContainerActor.h / .cpp</div>
+        </div>
+        <div class="body">
+          <p>A lootable container (cabinet, crate...). Seeds <code class="mono">ContainerSlots</code> from a <code class="mono">UZSLootTableConfig</code> at <code class="mono">BeginPlay</code> (server-only). Since 2026-08-05, interacting opens the real <code class="mono">WBP_ZS_ContainerLoot</code> screen rather than auto-looting everything.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Member</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td class="field">LootTable</td><td class="notes"><code class="mono">EditDefaultsOnly</code> — per-archetype containers need a Blueprint subclass (e.g. <code class="mono">BP_ZS_Container_Kitchen</code>), not a raw placed actor.</td></tr>
+                <tr><td class="field">ContainerSlots</td><td class="notes">Replicated <code class="mono">TArray&lt;FZSItemInstance&gt;</code>, seeded once from LootTable's weighted roll.</td></tr>
+                <tr><td class="field">Server_TakeItem(InstanceId, Requester)</td><td class="notes">GUID-exact single-item take — resolves race conditions server-side with no separate locking.</td></tr>
+                <tr><td class="field">Server_TakeAllItems(Requester)</td><td class="notes">"Take All" button — only removes whichever items actually transferred if Pockets fills up partway through.</td></tr>
+                <tr><td class="field">Server_AddItemToContainer(Instance)</td><td class="notes">Hand-placed guaranteed item, bypassing the loot roll.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="weapon-actor" class="wide">
+      <div class="eyebrow">05 · World Presentation</div>
+      <h2 class="h">The Weapon Actor</h2>
+      <p class="lede">A carried <code class="mono">UZSWeaponConfig</code> instance only ever spawns a runtime actor when it's actively equipped — a merely mounted weapon is just a GUID reference, no actor exists for it.</p>
+
+      <div class="class-card">
+        <div class="ch">
+          <div class="decl"><span class="kw">class</span> <span class="cn">AZSWeapon</span> <span class="kw">: public</span> AActor</div>
+          <div class="path">Source/ZombieShooter/Weapons/ZSWeapon.h / .cpp</div>
+        </div>
+        <div class="body">
+          <p>The live, replicated instance of an equipped weapon — assembled entirely from its <code class="mono">UZSWeaponConfig</code> at <code class="mono">InitializeFromConfig</code>. Root component is a static <code class="mono">BaseWeaponMesh</code>, no skeletal weapon mesh anywhere.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Runtime state</th><th>Type</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr><td class="field">CurrentConfig</td><td class="type">UZSWeaponConfig*</td><td class="notes">Replicated, OnRep drives cosmetic assembly.</td></tr>
+                <tr><td class="field">CurrentFireMode</td><td class="type">EZSFireMode</td><td class="notes">Cycled via <code class="mono">CycleFireMode()</code>, a <code class="mono">BlueprintNativeEvent</code>.</td></tr>
+                <tr><td class="field">CurrentMagazineAmmo</td><td class="type">int32</td><td class="notes">Loaded rounds — separate from reserve ammo, which is a real carried item.</td></tr>
+                <tr><td class="field">CurrentDurability</td><td class="type">int32</td><td class="notes">Seeded from the carried instance via <code class="mono">SeedDurabilityFromInstance</code>.</td></tr>
+                <tr><td class="field">CurrentConditionQuality</td><td class="type">float</td><td class="notes">Seeded from the instance, independent of the melee-durability system — drives the jam-chance roll.</td></tr>
+                <tr><td class="field">bIsJammed</td><td class="type">bool</td><td class="notes"><code class="mono">Server_RollForJam</code> / <code class="mono">Server_ClearJam</code> / <code class="mono">Server_ForceJam</code>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+        <div class="class-card" style="margin-bottom:0;">
+          <div class="ch">
+            <div class="decl"><span class="kw">class</span> <span class="cn">AZSMagazine</span></div>
+            <div class="path">Weapons/ZSMagazine.h</div>
+          </div>
+          <div class="body">
+            <p style="font-size:13.5px;">Cosmetic magazine prop only — not the source of truth for ammo count. Never replicated; each machine spawns its own from <code class="mono">AZSWeapon</code>'s cosmetic assembly.</p>
+          </div>
+        </div>
+        <div class="class-card" style="margin-bottom:0;">
+          <div class="ch">
+            <div class="decl"><span class="kw">class</span> <span class="cn">AZSProjectile</span></div>
+            <div class="path">Weapons/ZSProjectile.h</div>
+          </div>
+          <div class="body">
+            <p style="font-size:13.5px;">Opt-in per-weapon simulated projectile (<code class="mono">ProjectileClass</code> unset keeps the old instant-hitscan path). Replicated movement; damage/knockback/headshot-weighting apply on first blocking hit.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="inventory" class="wide">
+      <div class="eyebrow">06 · Systems</div>
+      <h2 class="h">Inventory &amp; Equip Architecture</h2>
+      <p class="lede"><code class="mono">UZSInventoryComponent</code> (Source/ZombieShooter/Inventory/ZSInventoryComponent.h) owns everything above at runtime: a flat <code class="mono">CarrySlots</code> list, the 12-entry <code class="mono">EquippedSlots</code> array, and 4 weapon-mount slots. <strong>Equipping never physically removes an instance from CarrySlots</strong> — a slot just holds a GUID reference, which is what lets a bag's own contents survive equip/unequip/drop for free.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Mount slot</th><th>Gate</th><th>Key</th></tr></thead>
+          <tbody>
+            <tr><td class="field">MountedLongGuns[2]</td><td class="notes">Handedness == TwoHanded (a two-handed melee weapon mounts here too — "long gun" is a naming holdover)</td><td class="default">1 / 2</td></tr>
+            <tr><td class="field">MountedSidearm</td><td class="notes">OneHanded + AttackType == Ranged</td><td class="default">3</td></tr>
+            <tr><td class="field">MountedMelee</td><td class="notes">OneHanded + AttackType == Melee — exact converse of Sidearm's gate</td><td class="default">4</td></tr>
+            <tr><td class="field">EquipmentSlotInstanceId</td><td class="notes">Any carried UZSWeaponConfig, no gate</td><td class="default">G</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">A weapon becomes key-selectable purely by being mounted — there's no separate "assign to slot" step. <code class="mono">SelectHotbarSlot</code> / <code class="mono">Server_SelectHotbarSlot</code> resolve a 0-based weapon-key index live from whichever mount it maps to, then schedule the actual equip after <code class="mono">EquipTimeSeconds</code>.</div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="loot" class="wide">
+      <div class="eyebrow">07 · Systems</div>
+      <h2 class="h">Loot Tables</h2>
+      <div class="class-card">
+        <div class="ch">
+          <div class="decl"><span class="kw">class</span> <span class="cn">UZSLootTableConfig</span> <span class="kw">: public</span> UPrimaryDataAsset</div>
+          <div class="path">Source/ZombieShooter/Inventory/ZSLootTableConfig.h / .cpp</div>
+        </div>
+        <div class="body">
+          <p>A container-archetype loot table (e.g. a future <code class="mono">DA_ZS_LootTable_Kitchen</code>) — a new archetype is a new data asset instance, never a new C++ branch.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr><td class="field">Entries</td><td class="type">TArray&lt;FZSLootTableEntry&gt;</td><td class="default">—</td><td class="notes">Each: Item, Weight (relative), MinCount, MaxCount.</td></tr>
+                <tr><td class="field">NumRolls</td><td class="type">int32</td><td class="default num">3</td><td class="notes">Separate weighted rolls — can repeat the same entry, no guaranteed variety.</td></tr>
+                <tr><td class="field">RollLoot(World)</td><td class="type">function</td><td class="default">—</td><td class="notes">Rare/VeryRare rolls consult <code class="mono">AZSGameState::Server_TryConsumeRarityPoolSlot</code> — an exhausted pool entry is skipped, not re-rolled.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size:13px; color:var(--text-faint);">Per-zone quality tiers are <strong>not</strong> built — no zone system exists yet to key off of. This table's numbers are a flat per-archetype value.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="content" class="wide">
+      <div class="eyebrow">08 · Content</div>
+      <h2 class="h">Current Content</h2>
+      <p class="lede">Every item/weapon/loot data asset that exists in <code class="mono">Content/ZS/</code> today, with its archetype and working-tree status. Field values inside each <code class="mono">.uasset</code> can't be read directly (binary, off-limits per project convention) — status reflects what's knowable from git and the surrounding docs.</p>
+
+      <div class="legend">
+        <span class="item"><span class="pill ok">committed</span> unchanged since last commit</span>
+        <span class="item"><span class="pill warn">modified</span> uncommitted local edit</span>
+        <span class="item"><span class="pill bad">new</span> untracked, never committed</span>
+        <span class="item"><span class="pill neutral">test asset</span> dev/QA only, not real content</span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>Asset</th><th>Archetype</th><th>Folder</th><th>Status</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr class="group-row"><td colspan="5">Non-weapon items — Content/ZS/Items/</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Bandage</td><td>Medical</td><td class="type">Items/</td><td><span class="pill ok">committed</span></td><td class="notes">ItemUseType = Bandage.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_CannedFood</td><td>Consumable</td><td class="type">Items/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Flashlight</td><td>Toggleable tool</td><td class="type">Items/</td><td><span class="pill warn">modified</span></td><td class="notes">bIsToggleable should be true — worth re-confirming in-editor.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_PistolPickup</td><td class="notes">unclear</td><td class="type">Items/</td><td><span class="pill bad">review</span></td><td class="notes">Likely a P2-era test item predating the weapon-as-item integration (B0-T2 Step B) — may be superseded by DA_ZS_WeaponConfig_Pistol. Dev call needed, see <a href="#gaps">§11</a>.</td></tr>
+            <tr><td class="field">DA_Bag</td><td>Equippable gear (bag)</td><td class="type">Items/</td><td><span class="pill bad">new</span></td><td class="notes">Off-convention name (no "ItemConfig_" segment). EquipSlot needs a manual re-check after two enum renames — see <a href="#gaps">§11</a>.</td></tr>
+            <tr><td class="field">BP_ZS_Bag</td><td>Bag Blueprint wrapper</td><td class="type">Items/</td><td><span class="pill bad">new</span></td><td class="notes"></td></tr>
+            <tr><td class="field">DA_ZS_LootTableConfig_Basic</td><td>Loot table</td><td class="type">Items/</td><td><span class="pill warn">modified</span></td><td class="notes">Entries can't be verified from binary — check in-editor.</td></tr>
+            <tr><td class="field">BP_ZS_Container_Test</td><td>Test AZSContainerActor</td><td class="type">Items/</td><td><span class="pill neutral">test asset</span></td><td class="notes"></td></tr>
+            <tr><td class="field">BP_ZS_WorldItem_Test</td><td>Test AZSWorldItemActor</td><td class="type">Items/</td><td><span class="pill neutral">test asset</span></td><td class="notes"></td></tr>
+
+            <tr class="group-row"><td colspan="5">Weapons — Content/ZS/Weapons/&lt;Category&gt;/</td></tr>
+            <tr><td class="field">DA_ZS_WeaponConfig_AssaultRifle</td><td>Ranged weapon</td><td class="type">Weapons/AssaultRifle/</td><td><span class="pill ok">committed</span></td><td class="notes">The reference config — every other weapon's aim-cone default was tuned against this one.</td></tr>
+            <tr><td class="field">DA_ZS_WeaponConfig_Pistol</td><td>Ranged weapon</td><td class="type">Weapons/Pistol/</td><td><span class="pill ok">committed</span></td><td class="notes">Still needs its own aim-cone override (8°→2° per OQ-B0-02) — otherwise inherits the rifle's 5°→1°.</td></tr>
+            <tr><td class="field">DA_ZS_WeaponConfig_Crowbar</td><td>Melee weapon</td><td class="type">Weapons/Melee/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
+
+            <tr class="group-row"><td colspan="5">Ammo — Content/ZS/Weapons/Ammo/</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_556</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill warn">modified</span></td><td class="notes">Rifle caliber.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_762</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes"></td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_9mm</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes">Pistol caliber.</td></tr>
+            <tr><td class="field">DA_ZS_ItemConfig_Ammo_Other</td><td>Ammo</td><td class="type">Weapons/Ammo/</td><td><span class="pill ok">committed</span></td><td class="notes">Catch-all/misc caliber.</td></tr>
+            <tr><td class="field">BP_Ammo</td><td>Ammo Blueprint wrapper</td><td class="type">Weapons/Ammo/</td><td><span class="pill bad">new</span></td><td class="notes"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:13px; color:var(--text-faint); max-width:70ch;">12 item/weapon configs + 1 loot table = 13 data assets. None have a confirmed <code class="mono">AmmoItemConfig</code> cross-reference or loot-table entry yet — both need an in-editor check now that all 4 ammo types exist.</p>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="archetypes" class="wide">
+      <div class="eyebrow">09 · Authoring</div>
+      <h2 class="h">Item Archetypes</h2>
+      <p class="lede">From <a href="Docs/Planning/ItemSetupStandard_2026-08-06.md">ItemSetupStandard_2026-08-06.md</a> (draft, paused pending the inventory rework above). Every archetype fills the same base 6 fields; everything else is archetype-specific.</p>
+
+      <div class="chipline">
+        <span class="chip">DisplayName</span><span class="chip">Icon</span><span class="chip">WorldMesh</span><span class="chip">Weight</span><span class="chip">Rarity</span><span class="chip">ItemSize</span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="wide">
+          <thead><tr><th>Archetype</th><th>Extra required fields</th><th>Example(s)</th></tr></thead>
+          <tbody>
+            <tr><td class="field">Consumable</td><td class="notes">ItemUseType=Consumable, HungerRestore/ThirstRestore, MaxStackSize&gt;1</td><td class="notes">DA_ZS_ItemConfig_CannedFood</td></tr>
+            <tr><td class="field">Medical</td><td class="notes">ItemUseType=Bandage/Disinfectant/Splint, bIsCleanBandage (Bandage), MedicalIncubationDelayGameHours</td><td class="notes">DA_ZS_ItemConfig_Bandage</td></tr>
+            <tr><td class="field">Ammo</td><td class="notes">MaxStackSize in the hundreds, referenced by a weapon's AmmoItemConfig</td><td class="notes">the 4 DA_ZS_ItemConfig_Ammo_* assets</td></tr>
+            <tr><td class="field">Equippable gear (bag)</td><td class="notes">bIsEquippable=true, EquipSlot=Vest/Belt/Backpack/Duffle, CarryCapacityBonus</td><td class="notes">DA_Bag</td></tr>
+            <tr><td class="field">Equippable gear (clothing)</td><td class="notes">bIsEquippable=true, InsulationValue</td><td class="notes"><span class="pill bad">none authored yet</span></td></tr>
+            <tr><td class="field">Toggleable tool</td><td class="notes">bIsToggleable=true</td><td class="notes">DA_ZS_ItemConfig_Flashlight</td></tr>
+            <tr><td class="field">Melee weapon</td><td class="notes">UZSWeaponConfig, AttackType=Melee, MeleeDamage/Range/Interval, MeleeMontage, Handedness</td><td class="notes">DA_ZS_WeaponConfig_Crowbar</td></tr>
+            <tr><td class="field">Ranged weapon</td><td class="notes">UZSWeaponConfig, AttackType=Ranged, FireDamage/Range, AmmoItemConfig, MagazineCapacity, Handedness, aim-cone fields</td><td class="notes">AssaultRifle, Pistol</td></tr>
+            <tr><td class="field">Misc / junk</td><td class="notes">Just the base 6 — no use type, bIsEquippable=false</td><td class="notes"><span class="pill bad">none authored yet</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:13px; color:var(--text-faint);">ItemSize is meaningless for weapons today — they never enter a compartment, only a mount.</p>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="files" class="wide">
+      <div class="eyebrow">10 · Structure</div>
+      <h2 class="h">File &amp; Folder Structure</h2>
+
+      <h4>C++ source — the classes above</h4>
+      <pre class="tree">Source/ZombieShooter/
+├── <span class="dir">Survival/</span>
+│   └── <span class="cxx">ZSItemConfig.h</span>            <span class="note">UZSItemConfig + EZSItemUseType/EZSEquipSlot/EZSItemSize/EZSItemRarity</span>
+├── <span class="dir">Weapons/</span>
+│   ├── <span class="cxx">ZSWeaponConfig.h</span>          <span class="note">UZSWeaponConfig : UZSItemConfig</span>
+│   ├── <span class="cxx">ZSWeaponTypes.h</span>           <span class="note">EZSFireMode / EZSAttackType / EZSWeaponHandedness</span>
+│   ├── <span class="cxx">ZSWeapon.h / .cpp</span>         <span class="note">AZSWeapon — runtime weapon actor</span>
+│   ├── <span class="cxx">ZSMagazine.h / .cpp</span>       <span class="note">AZSMagazine — cosmetic mag prop</span>
+│   └── <span class="cxx">ZSProjectile.h / .cpp</span>     <span class="note">AZSProjectile — opt-in simulated projectile</span>
+└── <span class="dir">Inventory/</span>
+    ├── <span class="cxx">ZSItemInstance.h</span>          <span class="note">FZSItemInstance/Base/State, EZSCarryLocation</span>
+    ├── <span class="cxx">ZSInventoryComponent.h / .cpp</span>  <span class="note">UZSInventoryComponent — carry/equip/mount/compartment logic</span>
+    ├── <span class="cxx">ZSWorldItemActor.h / .cpp</span>     <span class="note">AZSWorldItemActor — world pickup</span>
+    ├── <span class="cxx">ZSContainerActor.h / .cpp</span>     <span class="note">AZSContainerActor — lootable container</span>
+    └── <span class="cxx">ZSLootTableConfig.h / .cpp</span>    <span class="note">UZSLootTableConfig — weighted loot rolls</span></pre>
+
+      <h4>Content — as it exists on disk today</h4>
+      <pre class="tree">Content/ZS/
+├── <span class="dir">Items/</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_Bandage.uasset</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_CannedFood.uasset</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_Flashlight.uasset</span>
+│   ├── <span class="file">DA_ZS_ItemConfig_PistolPickup.uasset</span>  <span class="note">review — see §11</span>
+│   ├── <span class="file">DA_Bag.uasset</span>                        <span class="note">off-convention name</span>
+│   ├── <span class="file">BP_ZS_Bag.uasset</span>
+│   ├── <span class="file">DA_ZS_LootTableConfig_Basic.uasset</span>
+│   ├── <span class="file">BP_ZS_Container_Test.uasset</span>          <span class="note">test asset</span>
+│   └── <span class="file">BP_ZS_WorldItem_Test.uasset</span>          <span class="note">test asset</span>
+│
+└── <span class="dir">Weapons/</span>
+    ├── <span class="dir">AssaultRifle/</span>
+    │   └── <span class="file">DA_ZS_WeaponConfig_AssaultRifle.uasset</span>
+    ├── <span class="dir">Pistol/</span>
+    │   └── <span class="file">DA_ZS_WeaponConfig_Pistol.uasset</span>
+    ├── <span class="dir">Melee/</span>
+    │   └── <span class="file">DA_ZS_WeaponConfig_Crowbar.uasset</span>
+    └── <span class="dir">Ammo/</span>
+        ├── <span class="file">DA_ZS_ItemConfig_Ammo_556.uasset</span>
+        ├── <span class="file">DA_ZS_ItemConfig_Ammo_762.uasset</span>
+        ├── <span class="file">DA_ZS_ItemConfig_Ammo_9mm.uasset</span>
+        ├── <span class="file">DA_ZS_ItemConfig_Ammo_Other.uasset</span>
+        └── <span class="file">BP_Ammo.uasset</span></pre>
+
+      <h4>Proposed reorg — ItemSetupStandard §4a, not yet executed</h4>
+      <pre class="tree">Content/ZS/Items/
+  <span class="dir">Food/</span>        <span class="note">meshes + materials moved from Poly-MegaSurvivalFood, + DA_ZS_ItemConfig_CannedFood</span>
+  <span class="dir">Medical/</span>     <span class="note">+ DA_ZS_ItemConfig_Bandage</span>
+  <span class="dir">Tools/</span>       <span class="note">meshes moved from Mega_Survival_Tools, + DA_ZS_ItemConfig_Flashlight</span>
+  <span class="dir">Containers/</span>  <span class="note">bag/backpack/duffle meshes, + DA_Bag</span>
+  <span class="dir">Misc/</span>        <span class="note">junk/crafting fodder — no items authored yet</span>
+
+Content/ZS/Weapons/    <span class="note">unchanged, already matches this pattern</span>
+  Ammo/ AssaultRifle/ Melee/ Pistol/</pre>
+
+      <h4>Raw source packs — candidate meshes, not yet pulled into any item</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pack</th><th>Assets</th><th>Feeds</th></tr></thead>
+          <tbody>
+            <tr><td class="field">Content/LowPolyWeapons/</td><td class="default num">914</td><td class="notes">Already fully in use — source for all 3 authored weapons.</td></tr>
+            <tr><td class="field">Content/Mega_Survival_Tools/</td><td class="default num">276</td><td class="notes">Tools, batteries, containers, chemicals, junk — candidate for Tools/Misc.</td></tr>
+            <tr><td class="field">Content/Poly-MegaSurvivalFood/</td><td class="default num">242</td><td class="notes">Produce, canned goods, drinks, raw/cooked/rotten meat variants — candidate for Food.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="gaps" class="wide">
+      <div class="eyebrow">11 · Status</div>
+      <h2 class="h">Open Gaps &amp; Decisions Needed</h2>
+      <p class="lede">Nothing below blocks reading this document — they block trusting the system in PIE, or authoring new content against it.</p>
+
+      <div class="gap-list">
+        <div class="gap-item"><span class="pill bad">blocking</span><p><strong>The 2026-08-06 inventory/equip/loadout rework is written but not compiled.</strong> Needs a graceful editor close + full <code class="mono">Build.bat</code> (not Live Coding — this touches headers/enums/new component arrays project-wide). SessionHandoff's #1 priority.</p></div>
+        <div class="gap-item"><span class="pill bad">blocking</span><p><strong>DA_Bag's EquipSlot needs a manual in-editor check</strong> immediately after that rebuild. Two enum renames (Hip→Duffle, then Back→Backpack) risk it silently resolving to None on load.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>No icon has ever been imported.</strong> An icon-generator is being transferred from ShooterGame — output convention (resolution/format/naming) not yet known, needed before §12's checklist step 4 can run for real.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>World-mesh folder convention undecided</strong> — flat Items/ today vs. the proposed Food/Medical/Tools/Containers/Misc reorg (§10). Not yet executed either way.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>ItemSize hierarchical gating (§03)</strong> — direction confirmed, but the Backpack-rejects-Large C++ was folded into the bigger rework above rather than compiled standalone. Unverified until that build lands.</p></div>
+        <div class="gap-item"><span class="pill warn">review</span><p><strong>DA_ZS_ItemConfig_PistolPickup's status is unclear</strong> — may be a stale P2-era test asset superseded by DA_ZS_WeaponConfig_Pistol. Needs a dev call before it's treated as real content.</p></div>
+        <div class="gap-item"><span class="pill neutral">naming</span><p><strong>DA_Bag / BP_ZS_Bag / BP_Ammo don't fully match</strong> the <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> convention (DA_Bag omits the "ItemConfig_" segment) — worth a rename pass once the pattern is locked in.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>No weapon has a confirmed AmmoItemConfig assignment</strong> — can't verify from binary; needs an in-editor check now that all 4 ammo types exist.</p></div>
+        <div class="gap-item"><span class="pill warn">content</span><p><strong>DA_ZS_WeaponConfig_Pistol still inherits the rifle's aim-cone defaults</strong> (5°/1°) instead of its own OQ-B0-02 numbers (8°/2°).</p></div>
+        <div class="gap-item"><span class="pill bad">content</span><p><strong>11 worn-mesh sockets don't exist on the skeleton yet</strong> (SocketHead/Eyes/Mask/Chest/Pelvis/Feet/Waist/Back) — WornMesh content will silently place at a default transform until added.</p></div>
+        <div class="gap-item"><span class="pill neutral">unknown</span><p><strong>Loot table cross-references can't be verified</strong> — which items DA_ZS_LootTableConfig_Basic actually rolls is unreadable from the binary asset.</p></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section id="checklist">
+      <div class="eyebrow">12 · Process</div>
+      <h2 class="h">Add-a-New-Item Checklist</h2>
+      <p class="lede">Proposed standard sequence, from ItemSetupStandard_2026-08-06.md §6 — for review, not yet run as the team's default process.</p>
+      <ol class="checklist">
+        <li>Pick the archetype (§09), confirm which fields are required.</li>
+        <li>Create <code class="mono">DA_ZS_ItemConfig_&lt;Name&gt;</code> (or <code class="mono">DA_ZS_WeaponConfig_&lt;Name&gt;</code>) in Content/ZS/Items/ or Content/ZS/Weapons/&lt;Category&gt;/.</li>
+        <li>Fill the base 6 fields plus whatever the archetype requires.</li>
+        <li>Import/assign Icon — blocked on the icon-generator handoff (§11).</li>
+        <li>Assign WorldMesh, and WornMesh if equippable.</li>
+        <li>Set ItemSize per the hierarchical rubric (§03).</li>
+        <li>Set Rarity — decide if it needs an AZSGameState rarity-pool gate (Rare/VeryRare only).</li>
+        <li>If lootable, add a weighted entry to a UZSLootTableConfig.</li>
+        <li>For pickup testing: extend BP_ZS_WorldItem_Test, or drop into BP_ZS_Container_Test's loot table.</li>
+        <li>PIE test: pick up → icon/stack/condition renders correctly in the inventory grid → move between compartments (if non-weapon) → equip (if applicable).</li>
+      </ol>
+    </section>
+
+    <footer class="doc-foot">
+      ZombieShooter — Item System Manifest · compiled 2026-08-08 from the working tree · planning draft, not yet approved · sources: ZSItemConfig.h, ZSWeaponConfig.h, ZSWeaponTypes.h, ZSItemInstance.h, ZSInventoryComponent.h, ZSWorldItemActor.cpp, ZSContainerActor.h, ZSLootTableConfig.h, ZSWeapon.h, ZSMagazine.h, ZSProjectile.h, Docs/Planning/ItemSetupStandard_2026-08-06.md, Docs/SessionHandoff.md, Docs/TuningReference.md, Docs/GameDevPlan.md, git status
+    </footer>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+    var sections = links.map(function (a) { return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+    if (!('IntersectionObserver' in window) || !sections.length) return;
+
+    var current = null;
+    function setActive(id) {
+      if (id === current) return;
+      current = id;
+      links.forEach(function (a) {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+      });
+    }
+
+    var observer = new IntersectionObserver(function (entries) {
+      var visible = entries.filter(function (e) { return e.isIntersecting; });
+      if (visible.length) {
+        visible.sort(function (a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
+        setActive(visible[0].target.id);
+      }
+    }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function (s) { observer.observe(s); });
+    setActive(sections[0].id);
+  })();
+</script>
