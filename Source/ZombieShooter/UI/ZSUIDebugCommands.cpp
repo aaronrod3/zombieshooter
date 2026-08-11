@@ -8,7 +8,7 @@
 // automation path exists, give the dev a console command instead" reasoning as ZS.SpawnZombies.
 //
 // Where a real production delegate already exists (UZSHealthComponent::OnDeath,
-// AZSPlayerCharacter::OnBlackoutChanged, UZSGameInstance::OnLoadingScreenShouldShow/Hide - all
+// UZSHealthComponent::OnDownedChanged, UZSGameInstance::OnLoadingScreenShouldShow/Hide - all
 // wired and correct, confirmed 2026-08-05), these commands broadcast that SAME delegate rather than
 // reaching into widget internals, so a debug toggle exercises the exact code path a real trigger
 // would. MainMenu/LoadingScreen/DeathScreen/BlackoutOverlay still have no real "create me at match
@@ -141,7 +141,7 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleDeathScreen(
 
 static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleBlackoutOverlay(
 	TEXT("ZS.UI.ToggleBlackoutOverlay"),
-	TEXT("B1 debug: shows/hides WBP_ZS_BlackoutOverlay by broadcasting the local pawn's real OnBlackoutChanged delegate (creates one instance the first time). Cosmetic only - does NOT set bIsBlackedOut itself, so movement/attack stay unaffected; this is a visual/layout check, not a real blackout. Usage: ZS.UI.ToggleBlackoutOverlay"),
+	TEXT("B1 debug: shows/hides WBP_ZS_BlackoutOverlay by broadcasting the local pawn's HealthComponent->OnDownedChanged delegate (creates one instance the first time) - see UZSHealthComponent::IsDowned, the 2026-08-10 replacement for the old blackout mechanic. Cosmetic only - does NOT set bIsDowned itself, so movement/attack stay unaffected; this is a visual/layout check, not a real downed state. Usage: ZS.UI.ToggleBlackoutOverlay"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
 	{
 		static TWeakObjectPtr<UUserWidget> DebugWidget;
@@ -149,7 +149,8 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleBlackoutOverlay(
 
 		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
 		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
-		if (!PC || !Character)
+		UZSHealthComponent* Health = Character ? Character->GetHealthComponent() : nullptr;
+		if (!PC || !Character || !Health)
 		{
 			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.UI.ToggleBlackoutOverlay: no local pawn found"));
 			return;
@@ -171,7 +172,7 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleBlackoutOverlay(
 		}
 
 		bShowing = !bShowing;
-		Character->OnBlackoutChanged.Broadcast(bShowing);
+		Health->OnDownedChanged.Broadcast(bShowing);
 	}));
 
 static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleContainerLoot(

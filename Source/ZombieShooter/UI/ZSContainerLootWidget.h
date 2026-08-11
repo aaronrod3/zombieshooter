@@ -41,6 +41,7 @@ public:
 protected:
 
 	virtual void NativeConstruct() override;
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UWrapBox> Grid_ContainerItems;

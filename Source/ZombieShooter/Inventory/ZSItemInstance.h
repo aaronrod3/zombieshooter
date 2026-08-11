@@ -17,13 +17,23 @@ class UZSItemConfig;
  *  B1-T5.0, 2026-07-30: the old single `Bag` value split into `Backpack`/`Duffle` - the design
  *  session's three-compartment model (Pockets/Backpack/Duffle) needs each to be visually/mechanically
  *  distinct (T5.1), which a shared tag couldn't represent.
+ *
+ *  2026-08-06: added `Vest`/`Belt` alongside the equip-slot expansion (see EZSEquipSlot's own
+ *  comment) - both container-bearing the same way Backpack/Duffle already are. `Pants` deliberately
+ *  does NOT get its own value here - it gates the pre-existing `OnPerson` compartment instead (see
+ *  EZSEquipSlot::Pants's comment for why), so `OnPerson` items can now be genuinely inaccessible
+ *  (not lost - see UZSInventoryComponent::GetSlotsInLocation) if Pants isn't currently equipped.
  */
 UENUM(BlueprintType)
 enum class EZSCarryLocation : uint8
 {
-	/** Pockets/worn - always available, small, no bag required. */
+	/** Pockets/worn - gated on EZSEquipSlot::Pants being equipped (2026-08-06; previously always available with no equipment required at all). */
 	OnPerson,
-	/** Granted by the equipped Back (EZSEquipSlot::Back) UZSItemConfig (CarryCapacityBonus). */
+	/** Granted by the equipped Vest (EZSEquipSlot::Vest) UZSItemConfig (CarryCapacityBonus). */
+	Vest,
+	/** Granted by the equipped Belt (EZSEquipSlot::Belt) UZSItemConfig (CarryCapacityBonus). */
+	Belt,
+	/** Granted by the equipped Backpack (EZSEquipSlot::Backpack) UZSItemConfig (CarryCapacityBonus). */
 	Backpack,
 	/** Granted by the equipped Duffle (EZSEquipSlot::Duffle) UZSItemConfig (CarryCapacityBonus). */
 	Duffle,
@@ -76,6 +86,19 @@ struct FZSItemInstanceBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
 	EZSCarryLocation Location = EZSCarryLocation::OnPerson;
 
+	/** 2026-08-09, dev-confirmed: which grid cell this item currently occupies within its current
+	 *  compartment (Pockets, or whichever bag's ContainedItems it lives in) - 0-based, range is
+	 *  [0, UZSInventoryComponent::GetCompartmentCapacity(Location)). Positions persist (an item stays
+	 *  in "its" slot even as other items are added/removed elsewhere) rather than the old behavior of
+	 *  auto-filling by array order. Assigned to the first free index whenever an item newly lands in
+	 *  a compartment (Server_AddItem/Server_AddItemInstance/Server_StoreInBag/Server_RetrieveFromBag);
+	 *  changed thereafter only by UZSInventoryComponent::Server_MoveToSlot (drag-to-reorganize/swap).
+	 *  INDEX_NONE is the "not yet placed" sentinel - shouldn't be observed once an item is actually
+	 *  resident somewhere, but left un-clamped/unvalidated here since this struct has no owning
+	 *  component to check capacity against. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
+	int32 SlotIndex = INDEX_NONE;
+
 	/** Meaningful only if StackCount == 1 - see the invariant above. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
 	FZSItemInstanceState InstanceState;
@@ -108,7 +131,7 @@ struct FZSItemInstance : public FZSItemInstanceBase
 	/** Rebuilds a top-level instance from a bag-contents entry (Server_RetrieveFromBag) - ContainedItems defaults empty, which is correct: a nested FZSItemInstanceBase never had room for its own contents in the first place. */
 	explicit FZSItemInstance(const FZSItemInstanceBase& InBase) : FZSItemInstanceBase(InBase) {}
 
-	/** B0-T2.9: only meaningful for a bag-type instance (Config->bIsEquippable, EquipSlot Back/Hip) - what UZSInventoryComponent::Server_StoreInBag/Server_RetrieveFromBag moved into it. Empty for everything else. Dev-clarified 2026-07-26: "if a player drops a bag with items in it, the items stay in the bag" - since a bag's contents live *inside* its own FZSItemInstance rather than as separate CarrySlots entries, this holds automatically wherever the bag instance goes (equip, unequip, drop, world pickup) without any special-case code - Server_DropItem/AZSWorldItemActor already move a whole FZSItemInstance verbatim.
+	/** B0-T2.9: only meaningful for a bag-type instance (Config->bIsEquippable, EquipSlot Vest/Belt/Backpack/Duffle - see UZSInventoryComponent::IsContainerBearingSlot) - what UZSInventoryComponent::Server_StoreInBag/Server_RetrieveFromBag moved into it. Empty for everything else. Dev-clarified 2026-07-26: "if a player drops a bag with items in it, the items stay in the bag" - since a bag's contents live *inside* its own FZSItemInstance rather than as separate CarrySlots entries, this holds automatically wherever the bag instance goes (equip, unequip, drop, world pickup) without any special-case code - Server_DropItem/AZSWorldItemActor already move a whole FZSItemInstance verbatim.
 	 *  Typed as FZSItemInstanceBase, not FZSItemInstance, so nesting bottoms out at one level - a bag
 	 *  can hold plain items but not another bag that itself has contents (Server_StoreInBag rejects
 	 *  storing an item whose own ContainedItems is non-empty rather than silently truncating it). */

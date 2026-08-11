@@ -4,6 +4,7 @@
 #include "ZSUIStyleConfig.h"
 #include "ZSUIManager.h"
 #include "ZSNotificationSubsystem.h"
+#include "ZSDragDropPayload.h"
 #include "../Player/ZSPlayerCharacter.h"
 #include "../Combat/ZSHealthComponent.h"
 #include "../Survival/ZSNeedsComponent.h"
@@ -75,6 +76,46 @@ void UZSUserWidgetBase::PopAsModal(FName ModalTag)
 	if (UZSUIManager* Manager = GetUIManager())
 	{
 		Manager->PopModal(ModalTag);
+	}
+}
+
+void UZSUserWidgetBase::ReleaseDragSource(const UZSDragDropPayload* Payload) const
+{
+	if (!Payload)
+	{
+		return;
+	}
+
+	AZSPlayerCharacter* Character = GetOwningZSPlayerCharacter();
+	if (!Character)
+	{
+		return;
+	}
+
+	switch (Payload->SourceKind)
+	{
+	case EZSDragSourceKind::EquipSlot:
+		Character->Server_UnequipSlot(Payload->SourceEquipSlot);
+		break;
+	case EZSDragSourceKind::WeaponMount:
+		Character->Server_UnmountLongGun(Payload->SourceIndex);
+		break;
+	case EZSDragSourceKind::WeaponMountSidearm:
+		Character->Server_UnmountSidearm();
+		break;
+	case EZSDragSourceKind::WeaponMountMelee:
+		Character->Server_UnmountMelee();
+		break;
+	case EZSDragSourceKind::EquipmentSlot:
+		Character->Server_ClearEquipmentSlot();
+		break;
+	case EZSDragSourceKind::SecondaryHand:
+		Character->Server_UnequipSecondaryHand();
+		break;
+	default:
+		// CarrySlot/Container/HotbarSlot - no release step, the item's already a plain, unowned
+		// CarrySlots entry (or, for Container, not the player's own inventory at all).
+		break;
 	}
 }
 

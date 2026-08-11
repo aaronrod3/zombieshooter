@@ -137,8 +137,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSItemInstanceWeightTest, "ZS.Inventory.ItemIn
 
 bool FZSItemInstanceWeightTest::RunTest(const FString& Parameters)
 {
-	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/DA_Bag.DA_Bag"));
-	UZSItemConfig* FoodConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/DA_ZS_ItemConfig_CannedFood.DA_ZS_ItemConfig_CannedFood"));
+	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_Bag.DA_Bag"));
+	UZSItemConfig* FoodConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_ZS_ItemConfig_CannedFood.DA_ZS_ItemConfig_CannedFood"));
 	if (!TestNotNull(TEXT("DA_Bag loaded"), BagConfig) || !TestNotNull(TEXT("DA_ZS_ItemConfig_CannedFood loaded"), FoodConfig))
 	{
 		return false;
@@ -296,8 +296,8 @@ bool FZSInventoryBagTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/DA_Bag.DA_Bag"));
-	UZSItemConfig* FoodConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/DA_ZS_ItemConfig_CannedFood.DA_ZS_ItemConfig_CannedFood"));
+	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_Bag.DA_Bag"));
+	UZSItemConfig* FoodConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_ZS_ItemConfig_CannedFood.DA_ZS_ItemConfig_CannedFood"));
 	if (!TestNotNull(TEXT("DA_Bag loaded"), BagConfig) || !TestNotNull(TEXT("DA_ZS_ItemConfig_CannedFood loaded"), FoodConfig))
 	{
 		return false;
@@ -630,7 +630,7 @@ bool FZSJamChanceBoundsTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSWeaponConfig* Config = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/AssaultRifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	UZSWeaponConfig* Config = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
 	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), Config))
 	{
 		return false;
@@ -724,8 +724,9 @@ bool FZSDownedZombieTest::RunTest(const FString& Parameters)
 // ---------------------------------------------------------------------------------------------
 // ZS.Health.AmputationStateTransition - B0-T7's HealthComponent-level mechanism (bAmputated, wound
 // clearing, bite-infection clearing when the amputated zone was the infection source). Doesn't cover
-// AZSPlayerCharacter::Server_AmputateZone's outer choreography (bIsBusy timer -> EnterBlackout) -
-// that's a real timed RPC wrapper around this, needs a latent test or PIE, not attempted here.
+// AZSPlayerCharacter::Server_AmputateZone's outer choreography (bIsBusy timer -> amputation-shock
+// mobility penalty) - that's a real timed RPC wrapper around this, covered by
+// ZS.Health.AmputationChoreographyAppliesShock instead (a latent test).
 // ---------------------------------------------------------------------------------------------
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSAmputationTest, "ZS.Health.AmputationStateTransition", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
@@ -810,8 +811,8 @@ bool FZSSecondaryHandTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/AssaultRifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
-	UZSItemConfig* FlashlightConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight"));
+	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	UZSItemConfig* FlashlightConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight"));
 	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), RifleConfig) || !TestNotNull(TEXT("DA_ZS_ItemConfig_Flashlight loaded"), FlashlightConfig))
 	{
 		return false;
@@ -1031,7 +1032,7 @@ namespace ZSTest
 		double DeadlineSeconds = 0.0;
 	};
 
-	struct FAmputationBlackoutLatentState
+	struct FAmputationShockLatentState
 	{
 		FAutomationTestBase* Test = nullptr;
 		UWorld* World = nullptr;
@@ -1108,8 +1109,8 @@ bool FZSDownedZombieAutoRecoveryTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FZSCheckAmputationBlackoutCommand, TSharedRef<ZSTest::FAmputationBlackoutLatentState>, State);
-bool FZSCheckAmputationBlackoutCommand::Update()
+DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FZSCheckAmputationShockCommand, TSharedRef<ZSTest::FAmputationShockLatentState>, State);
+bool FZSCheckAmputationShockCommand::Update()
 {
 	if (FPlatformTime::Seconds() < State->DeadlineSeconds)
 	{
@@ -1118,11 +1119,14 @@ bool FZSCheckAmputationBlackoutCommand::Update()
 
 	if (AZSPlayerCharacter* Character = State->Character.Get())
 	{
-		State->Test->TestTrue(TEXT("bIsBlackedOut true once AmputationDurationSeconds' choreography completes"), Character->IsBlackedOut());
+		State->Test->TestTrue(TEXT("bIsAmputationShocked true once AmputationDurationSeconds' choreography completes"), Character->IsAmputationShocked());
+		// 2026-08-10, dev-confirmed: amputation no longer incapacitates at all - the old blackout
+		// system is gone, decoupled entirely from the 0-HP downed/revive state.
+		State->Test->TestFalse(TEXT("Amputation never enters the downed state - decoupled from blackout"), Character->IsDowned());
 	}
 	else
 	{
-		State->Test->AddError(TEXT("Character was garbage-collected mid-wait - can't verify blackout"));
+		State->Test->AddError(TEXT("Character was garbage-collected mid-wait - can't verify amputation shock"));
 	}
 
 	ZSTest::DestroyLatentTestWorld(State->World);
@@ -1130,17 +1134,20 @@ bool FZSCheckAmputationBlackoutCommand::Update()
 }
 
 // ---------------------------------------------------------------------------------------------
-// ZS.Health.AmputationChoreographyEntersBlackout - B0-T7's outer AZSPlayerCharacter::Server_AmputateZone
+// ZS.Health.AmputationChoreographyAppliesShock - B0-T7's outer AZSPlayerCharacter::Server_AmputateZone
 // choreography that ZS.Health.AmputationStateTransition (the HealthComponent-level mechanism only)
-// doesn't cover: the bIsBusy timer -> actual HealthComponent mutation -> EnterBlackout() sequence.
-// Doesn't need a pre-existing infection - amputation has no such precondition (see the game code's
-// own "any zone, solo-capable, no tool-item gate" note) - this exercises the choreography with
-// nothing to clear, on purpose, to isolate it from AmputationStateTransition's infection-clearing
-// coverage.
+// doesn't cover: the bIsBusy timer -> actual HealthComponent mutation -> temporary amputation-shock
+// mobility penalty sequence. 2026-08-10: replaces the old "...EntersBlackout" version of this test -
+// amputation no longer incapacitates at all (blackout removed entirely, see
+// UZSHealthComponent::IsDowned's own comment for the new 0-HP downed/revive design it was replaced
+// by). Doesn't need a pre-existing infection - amputation has no such precondition (see the game
+// code's own "any zone, solo-capable, no tool-item gate" note) - this exercises the choreography
+// with nothing to clear, on purpose, to isolate it from AmputationStateTransition's infection-
+// clearing coverage.
 // ---------------------------------------------------------------------------------------------
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSAmputationBlackoutTest, "ZS.Health.AmputationChoreographyEntersBlackout", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSAmputationShockTest, "ZS.Health.AmputationChoreographyAppliesShock", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FZSAmputationBlackoutTest::RunTest(const FString& Parameters)
+bool FZSAmputationShockTest::RunTest(const FString& Parameters)
 {
 	UWorld* World = ZSTest::CreateLatentTestWorld();
 	if (!TestNotNull(TEXT("Test world created"), World))
@@ -1161,7 +1168,7 @@ bool FZSAmputationBlackoutTest::RunTest(const FString& Parameters)
 		Character->DispatchBeginPlay();
 	}
 
-	if (!TestFalse(TEXT("Not blacked out yet"), Character->IsBlackedOut()))
+	if (!TestFalse(TEXT("Not amputation-shocked yet"), Character->IsAmputationShocked()))
 	{
 		ZSTest::DestroyLatentTestWorld(World);
 		return false;
@@ -1169,15 +1176,15 @@ bool FZSAmputationBlackoutTest::RunTest(const FString& Parameters)
 
 	Character->AmputateZone(EZSBodyZone::Arms);
 	// Should not be instant - bIsBusy-gated over AmputationDurationSeconds (3s default).
-	TestFalse(TEXT("Not blacked out immediately - choreography is timed, not instant"), Character->IsBlackedOut());
+	TestFalse(TEXT("Not amputation-shocked immediately - choreography is timed, not instant"), Character->IsAmputationShocked());
 
-	TSharedRef<ZSTest::FAmputationBlackoutLatentState> State = MakeShared<ZSTest::FAmputationBlackoutLatentState>();
+	TSharedRef<ZSTest::FAmputationShockLatentState> State = MakeShared<ZSTest::FAmputationShockLatentState>();
 	State->Test = this;
 	State->World = World;
 	State->Character = Character;
 	State->DeadlineSeconds = FPlatformTime::Seconds() + 4.0; // AmputationDurationSeconds (3s default) + scheduling slack
 
-	ADD_LATENT_AUTOMATION_COMMAND(FZSCheckAmputationBlackoutCommand(State));
+	ADD_LATENT_AUTOMATION_COMMAND(FZSCheckAmputationShockCommand(State));
 
 	return true;
 }
@@ -1270,13 +1277,24 @@ bool FZSSleepReadyClearedOnDeathTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	// 2026-08-10: 0 HP is downed first, not instant death (see UZSHealthComponent::IsDowned) - this
+	// first hit only enters downed. HandleDownedChanged already cancels sleep-readiness on downed
+	// entry too, not just death, so that part of this test's own intent is provable right here.
 	Health->Server_ApplyDamage(9999.f, EZSBodyZone::Torso, EZSWoundType::Laceration, nullptr, nullptr);
-	if (!TestTrue(TEXT("Dead after lethal damage"), Health->IsDead()))
+	if (!TestTrue(TEXT("Downed after lethal damage"), Health->IsDowned()))
 	{
 		return false;
 	}
+	TestFalse(TEXT("No longer ready to sleep once downed"), Character->IsReadyToSleep());
 
-	TestFalse(TEXT("No longer ready to sleep after dying"), Character->IsReadyToSleep());
+	// A fresh hit while already downed is a finishing blow - reaches real death, matching this test's
+	// original name/intent (dying clears sleep-ready), not just entering downed.
+	Health->Server_ApplyDamage(9999.f, EZSBodyZone::Torso, EZSWoundType::Laceration, nullptr, nullptr);
+	if (!TestTrue(TEXT("Dead after finishing blow"), Health->IsDead()))
+	{
+		return false;
+	}
+	TestFalse(TEXT("Still not ready to sleep after dying"), Character->IsReadyToSleep());
 
 	return true;
 }
@@ -1442,8 +1460,16 @@ bool FZSDeathWritesBackDurabilityTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	// 2026-08-10: 0 HP is downed first, not instant death (see UZSHealthComponent::IsDowned) - a
+	// second hit while already downed is a finishing blow, needed here to actually reach the death
+	// side effects (durability writeback, weapon destruction) this test exists to verify.
 	Health->Server_ApplyDamage(9999.f, EZSBodyZone::Torso, EZSWoundType::Laceration, nullptr, nullptr);
-	if (!TestTrue(TEXT("Dead after lethal damage"), Health->IsDead()))
+	if (!TestTrue(TEXT("Downed after lethal damage"), Health->IsDowned()))
+	{
+		return false;
+	}
+	Health->Server_ApplyDamage(9999.f, EZSBodyZone::Torso, EZSWoundType::Laceration, nullptr, nullptr);
+	if (!TestTrue(TEXT("Dead after finishing blow"), Health->IsDead()))
 	{
 		return false;
 	}
@@ -1525,7 +1551,7 @@ bool FZSFractureClearsBleedTest::RunTest(const FString& Parameters)
 
 // ---------------------------------------------------------------------------------------------
 // ZS.Inventory.StoreInBagRejectsEquippedInstance - Server_StoreInBag never checked whether the
-// instance being stored was currently referenced by EquippedBack/Duffle, silently orphaning the gear
+// instance being stored was currently referenced by EquippedSlots, silently orphaning the gear
 // slot's GUID (it'd resolve to an invalid instance from then on) instead of rejecting the move.
 // Partial fix only: doesn't cover HotbarSlots/SecondaryHandInstanceId, which live on
 // AZSPlayerCharacter, not this component - closing that half needs the character to validate
@@ -1554,7 +1580,7 @@ bool FZSStoreInBagRejectsEquippedTest::RunTest(const FString& Parameters)
 
 	UZSItemConfig* BagConfig = NewObject<UZSItemConfig>();
 	BagConfig->bIsEquippable = true;
-	BagConfig->EquipSlot = EZSEquipSlot::Back;
+	BagConfig->EquipSlot = EZSEquipSlot::Backpack;
 	BagConfig->CarryCapacityBonus = 20.f;
 
 	UZSItemConfig* ClothingConfig = NewObject<UZSItemConfig>();
@@ -1580,11 +1606,15 @@ bool FZSStoreInBagRejectsEquippedTest::RunTest(const FString& Parameters)
 	const FGuid BagId = BagInstance->InstanceId;
 	const FGuid ClothingId = ClothingInstance->InstanceId;
 
-	if (!TestTrue(TEXT("Bag equips to Back"), Inventory->Server_EquipToSlot(EZSEquipSlot::Back, BagId)))
+	// 2026-08-09: Backpack and Duffle are both container-bearing slots, so Server_AddItem already
+	// auto-equipped each of these the instant they were added (see the comment on that feature) - a
+	// redundant explicit Server_EquipToSlot call here would correctly be rejected (already-worn
+	// guard) rather than prove anything. Assert the auto-equip result instead.
+	if (!TestEqual(TEXT("Bag auto-equipped to Backpack"), Inventory->GetEquippedItem(EZSEquipSlot::Backpack).InstanceId, BagId))
 	{
 		return false;
 	}
-	if (!TestTrue(TEXT("Clothing equips to Duffle"), Inventory->Server_EquipToSlot(EZSEquipSlot::Duffle, ClothingId)))
+	if (!TestEqual(TEXT("Clothing auto-equipped to Duffle"), Inventory->GetEquippedItem(EZSEquipSlot::Duffle).InstanceId, ClothingId))
 	{
 		return false;
 	}
@@ -1617,7 +1647,7 @@ bool FZSStoreInBagRejectsSecondaryHandTest::RunTest(const FString& Parameters)
 
 	UZSItemConfig* BagConfig = NewObject<UZSItemConfig>();
 	BagConfig->bIsEquippable = true;
-	BagConfig->EquipSlot = EZSEquipSlot::Back;
+	BagConfig->EquipSlot = EZSEquipSlot::Backpack;
 	BagConfig->CarryCapacityBonus = 20.f;
 
 	UZSItemConfig* FlashlightConfig = NewObject<UZSItemConfig>();
@@ -1660,7 +1690,11 @@ bool FZSStoreInBagRejectsSecondaryHandTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	TestFalse(TEXT("Storing the SecondaryHand-equipped flashlight into the bag is rejected"), Character->Server_StoreInBagChecked(BagId, FlashlightId));
+	// 2026-08-06: Server_StoreInBagChecked is now a real Server RPC (void return, Server RPCs can't
+	// return values) - call it, then check the resulting state instead of a returned bool.
+	Character->Server_StoreInBagChecked(BagId, FlashlightId);
+	TestFalse(TEXT("Storing the SecondaryHand-equipped flashlight into the bag is rejected"),
+		Inventory->GetInstance(BagId).ContainedItems.ContainsByPredicate([FlashlightId](const FZSItemInstanceBase& I) { return I.InstanceId == FlashlightId; }));
 	TestEqual(TEXT("Flashlight still in SecondaryHand, not orphaned"), Character->GetSecondaryHandInstanceId(), FlashlightId);
 
 	// A plain, unequipped item still stores normally through the same checked entry point - the
@@ -1675,7 +1709,11 @@ bool FZSStoreInBagRejectsSecondaryHandTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("Storing an unequipped item succeeds through the checked wrapper"), Character->Server_StoreInBagChecked(BagId, PlainInstance->InstanceId));
+	const FGuid PlainInstanceId = PlainInstance->InstanceId;
+
+	Character->Server_StoreInBagChecked(BagId, PlainInstanceId);
+	TestTrue(TEXT("Storing an unequipped item succeeds through the checked wrapper"),
+		Inventory->GetInstance(BagId).ContainedItems.ContainsByPredicate([PlainInstanceId](const FZSItemInstanceBase& I) { return I.InstanceId == PlainInstanceId; }));
 
 	return true;
 }
@@ -1771,7 +1809,7 @@ bool FZSWeaponDestroyTakesMagazineTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/AssaultRifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
 	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), RifleConfig))
 	{
 		return false;
@@ -1875,9 +1913,9 @@ bool FZSUIModalStackTest::RunTest(const FString& Parameters)
 
 // ---------------------------------------------------------------------------------------------
 // ZS.Loadout.WeaponKeySlotsResolveFromMounts - B1 HUD redesign 2026-08-01 (dev-confirmed): the old
-// free-form 9-slot hotbar (its own manual "assign to slot N" step) is retired in favor of 3 fixed
-// keys mapped directly to the weapon-mount slots (Primary/Pistol/Secondary) plus a 4th Equipment
-// slot (G). A weapon becomes key-selectable purely by being mounted - verifies SelectHotbarSlot
+// free-form 9-slot hotbar (its own manual "assign to slot N" step) is retired in favor of 4 fixed
+// keys mapped directly to the weapon-mount slots (Primary/Pistol/Secondary/Melee, the last added
+// 2026-08-06) plus a 5th Equipment slot (G). A weapon becomes key-selectable purely by being mounted - verifies SelectHotbarSlot
 // accepts a mounted weapon (proving the new ResolveWeaponSlotInstance mount-lookup replaced the
 // removed HotbarSlots array correctly) and rejects an out-of-range index. The actual equip
 // completion is timer-scheduled (CompleteHotbarSwitch, via GetWorldTimerManager - no existing test
@@ -1955,6 +1993,83 @@ bool FZSWeaponKeySlotTest::RunTest(const FString& Parameters)
 	}
 	SecondCharacter->SelectHotbarSlot(9);
 	TestFalse(TEXT("Out-of-range slot index rejected outright"), SecondCharacter->IsBusy());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.MeleeMountGating - 2026-08-06: UZSInventoryComponent::Server_MountMelee gates on
+// Handedness == OneHanded && AttackType == Melee, the exact converse of Server_MountSidearm's own
+// OneHanded+Ranged gate. Verifies it accepts the weapon that gate was actually added to cover (a
+// one-handed melee weapon, e.g. a knife, which previously had no dedicated mount at all) and
+// rejects the two configs that belong in the other two mounts instead (a two-handed weapon
+// regardless of AttackType, which stays long-gun-mount-only; a one-handed ranged weapon, which
+// stays sidearm-only).
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSMeleeMountGatingTest, "ZS.Inventory.MeleeMountGating", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSMeleeMountGatingTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	UZSInventoryComponent* Inventory = Harness->InventoryComponent;
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* KnifeConfig = NewObject<UZSWeaponConfig>();
+	KnifeConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	KnifeConfig->AttackType = EZSAttackType::Melee;
+
+	UZSWeaponConfig* AxeConfig = NewObject<UZSWeaponConfig>();
+	AxeConfig->Handedness = EZSWeaponHandedness::TwoHanded;
+	AxeConfig->AttackType = EZSAttackType::Melee;
+
+	UZSWeaponConfig* PistolConfig = NewObject<UZSWeaponConfig>();
+	PistolConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	PistolConfig->AttackType = EZSAttackType::Ranged;
+
+	if (!TestEqual(TEXT("Knife added"), Inventory->Server_AddItem(KnifeConfig, 1), 1)
+		|| !TestEqual(TEXT("Axe added"), Inventory->Server_AddItem(AxeConfig, 1), 1)
+		|| !TestEqual(TEXT("Pistol added"), Inventory->Server_AddItem(PistolConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* KnifeInstance = Slots.FindByPredicate([KnifeConfig](const FZSItemInstance& I) { return I.Config == KnifeConfig; });
+	const FZSItemInstance* AxeInstance = Slots.FindByPredicate([AxeConfig](const FZSItemInstance& I) { return I.Config == AxeConfig; });
+	const FZSItemInstance* PistolInstance = Slots.FindByPredicate([PistolConfig](const FZSItemInstance& I) { return I.Config == PistolConfig; });
+	if (!TestNotNull(TEXT("Knife instance found"), KnifeInstance) || !TestNotNull(TEXT("Axe instance found"), AxeInstance) || !TestNotNull(TEXT("Pistol instance found"), PistolInstance))
+	{
+		return false;
+	}
+	const FGuid KnifeId = KnifeInstance->InstanceId;
+	const FGuid AxeId = AxeInstance->InstanceId;
+	const FGuid PistolId = PistolInstance->InstanceId;
+
+	TestTrue(TEXT("One-handed melee weapon mounts to the melee slot"), Inventory->Server_MountMelee(KnifeId));
+	TestEqual(TEXT("Melee slot now holds the knife"), Inventory->GetMountedMelee().InstanceId, KnifeId);
+
+	TestFalse(TEXT("Two-handed melee weapon is rejected by the melee slot (belongs in a long-gun mount instead)"), Inventory->Server_MountMelee(AxeId));
+	TestFalse(TEXT("One-handed ranged weapon is rejected by the melee slot (belongs in the sidearm slot instead)"), Inventory->Server_MountMelee(PistolId));
+
+	// Confirm the two-handed melee weapon DOES fit its actual intended home - a long-gun mount only
+	// checks Handedness, not AttackType, so this isn't a regression from adding the melee slot.
+	TestTrue(TEXT("Two-handed melee weapon still mounts as a long gun"), Inventory->Server_MountLongGun(0, AxeId));
+
+	Inventory->Server_UnmountMelee();
+	TestFalse(TEXT("Unmounting clears the melee slot"), Inventory->GetMountedMelee().IsValid());
 
 	return true;
 }
@@ -2064,6 +2179,238 @@ bool FZSSlotsInLocationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("OnPerson compartment has exactly the one item added"), OnPersonSlots.Num(), 1);
 	TestEqual(TEXT("Backpack compartment is empty - nothing stored there"), BackpackSlots.Num(), 0);
 	TestEqual(TEXT("Duffle compartment is empty - nothing stored there"), DuffleSlots.Num(), 0);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.CompartmentCapacityAndStoreRegression - 2026-08-06 inventory/equip rework.
+// Regression test for the confirmed pre-existing bug: GetSlotsInLocation used to only scan flat
+// CarrySlots, so it could never see anything Server_StoreInBag had already nested into a bag's
+// own ContainedItems - Backpack/Duffle compartments rendered empty even when the bag held items.
+// Also covers the new capacity enforcement this rework introduced: a full bag rejects
+// Server_StoreInBag, and a full Pockets compartment rejects a pickup outright.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSCompartmentCapacityRegressionTest, "ZS.Inventory.CompartmentCapacityAndStoreRegression", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSCompartmentCapacityRegressionTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	UZSInventoryComponent* Inventory = Harness->InventoryComponent;
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	// --- GetSlotsInLocation/ContainedItems bug-fix regression ---
+	UZSItemConfig* BackpackConfig = NewObject<UZSItemConfig>();
+	BackpackConfig->bIsEquippable = true;
+	BackpackConfig->EquipSlot = EZSEquipSlot::Backpack;
+	BackpackConfig->CarryCapacityBonus = 20.f;
+
+	UZSItemConfig* PlainItemConfig = NewObject<UZSItemConfig>();
+
+	if (!TestEqual(TEXT("Backpack added to CarrySlots"), Inventory->Server_AddItem(BackpackConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* BackpackInstance = Inventory->GetCarrySlots().FindByPredicate([BackpackConfig](const FZSItemInstance& I) { return I.Config == BackpackConfig; });
+	if (!TestNotNull(TEXT("Backpack instance found"), BackpackInstance))
+	{
+		return false;
+	}
+	const FGuid BackpackId = BackpackInstance->InstanceId;
+
+	// 2026-08-09: Server_AddItem now auto-equips a freshly-carried container-bearing item (Vest/Belt/
+	// Backpack/Duffle) into its slot if that slot is empty - the backpack above is already equipped
+	// by the time this runs, so a redundant explicit Server_EquipToSlot call here would correctly be
+	// rejected (already-worn guard) rather than prove anything. Assert the auto-equip result instead.
+	if (!TestEqual(TEXT("Backpack auto-equipped on add"), Inventory->GetEquippedItem(EZSEquipSlot::Backpack).InstanceId, BackpackId))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("Plain item added to CarrySlots"), Inventory->Server_AddItem(PlainItemConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* PlainInstance = Inventory->GetCarrySlots().FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
+	if (!TestNotNull(TEXT("Plain item instance found"), PlainInstance))
+	{
+		return false;
+	}
+	const FGuid PlainItemId = PlainInstance->InstanceId;
+
+	if (!TestTrue(TEXT("Server_StoreInBag succeeds into the equipped Backpack"), Inventory->Server_StoreInBag(BackpackId, PlainItemId)))
+	{
+		return false;
+	}
+
+	// The actual regression check: before the fix, this always returned empty, because
+	// GetSlotsInLocation only ever scanned CarrySlots and never a bag's own ContainedItems.
+	const TArray<FZSItemInstance> BackpackSlotsAfterStore = Inventory->GetSlotsInLocation(EZSCarryLocation::Backpack);
+	if (!TestEqual(TEXT("GetSlotsInLocation(Backpack) now sees the stored item (regression check)"), BackpackSlotsAfterStore.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("The item GetSlotsInLocation returned is the one actually stored"), BackpackSlotsAfterStore[0].InstanceId, PlainItemId);
+
+	// The equipped Backpack itself must not double-count in Pockets - it's equipped, not loose.
+	TestEqual(TEXT("Equipped Backpack does not also appear in Pockets"), Inventory->GetSlotsInLocation(EZSCarryLocation::OnPerson).Num(), 0);
+
+	// --- Backpack compartment capacity rejection ---
+	// Add-then-immediately-store one filler at a time, so Pockets (capacity 4) never holds more
+	// than one extra item while the Backpack (capacity 20, 4x5 grid) fills up.
+	const int32 BackpackCapacity = UZSInventoryComponent::GetCompartmentCapacity(EZSCarryLocation::Backpack);
+	UZSItemConfig* FillerConfig = NewObject<UZSItemConfig>();
+	for (int32 FillIndex = 1; FillIndex < BackpackCapacity; ++FillIndex)
+	{
+		if (!TestEqual(FString::Printf(TEXT("Filler %d added to Pockets"), FillIndex), Inventory->Server_AddItem(FillerConfig, 1), 1))
+		{
+			return false;
+		}
+		const FZSItemInstance* Filler = Inventory->GetCarrySlots().FindByPredicate([FillerConfig](const FZSItemInstance& I) { return I.Config == FillerConfig; });
+		if (!TestNotNull(FString::Printf(TEXT("Filler %d instance found"), FillIndex), Filler))
+		{
+			return false;
+		}
+		if (!TestTrue(FString::Printf(TEXT("Filler %d stored into Backpack"), FillIndex), Inventory->Server_StoreInBag(BackpackId, Filler->InstanceId)))
+		{
+			return false;
+		}
+	}
+	TestEqual(TEXT("Backpack is now at capacity"), Inventory->GetSlotsInLocation(EZSCarryLocation::Backpack).Num(), BackpackCapacity);
+
+	// One more item, added to Pockets then attempted into the now-full Backpack, must be rejected.
+	if (!TestEqual(TEXT("One more item added to Pockets"), Inventory->Server_AddItem(FillerConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* Overflow = Inventory->GetCarrySlots().FindByPredicate([FillerConfig](const FZSItemInstance& I) { return I.Config == FillerConfig; });
+	if (TestNotNull(TEXT("Overflow instance found"), Overflow))
+	{
+		TestFalse(TEXT("Server_StoreInBag rejects storing into a full Backpack"), Inventory->Server_StoreInBag(BackpackId, Overflow->InstanceId));
+		TestEqual(TEXT("Backpack still at capacity, not overfilled"), Inventory->GetSlotsInLocation(EZSCarryLocation::Backpack).Num(), BackpackCapacity);
+	}
+
+	// --- Pockets (OnPerson) capacity rejection - a full Pockets rejects a pickup outright ---
+	// The overflow filler above is still sitting loose in Pockets (its store attempt was rejected) -
+	// fill the remaining slots up to capacity from there, then confirm one more is rejected.
+	const int32 PocketsCapacity = UZSInventoryComponent::GetCompartmentCapacity(EZSCarryLocation::OnPerson);
+	int32 PocketsCount = Inventory->GetSlotsInLocation(EZSCarryLocation::OnPerson).Num();
+	while (PocketsCount < PocketsCapacity)
+	{
+		if (!TestEqual(FString::Printf(TEXT("Pockets filler %d added"), PocketsCount), Inventory->Server_AddItem(FillerConfig, 1), 1))
+		{
+			return false;
+		}
+		++PocketsCount;
+	}
+	TestEqual(TEXT("Pockets is now at capacity"), Inventory->GetSlotsInLocation(EZSCarryLocation::OnPerson).Num(), PocketsCapacity);
+
+	// The actual capacity-rejection check - this is the mechanism behind
+	// AZSWorldItemActor::HandleInteracted's "reject the pickup, item stays in the world" behavior.
+	FZSItemInstance RejectedInstance;
+	RejectedInstance.InstanceId = FGuid::NewGuid();
+	RejectedInstance.Config = FillerConfig;
+	RejectedInstance.StackCount = 1;
+	TestFalse(TEXT("Server_AddItemInstance rejects a pickup while Pockets is full"), Inventory->Server_AddItemInstance(RejectedInstance));
+	TestEqual(TEXT("Pockets still at capacity, not overfilled"), Inventory->GetSlotsInLocation(EZSCarryLocation::OnPerson).Num(), PocketsCapacity);
+	TestEqual(TEXT("Server_AddItem also rejects (returns 0) while Pockets is full"), Inventory->Server_AddItem(FillerConfig, 1), 0);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.EquipHelmetForceUnequipsHead - 2026-08-06 inventory/equip rework, dev-confirmed
+// rule: equipping into Helmet force-unequips whatever's in Head (one-way only - equipping into
+// Head while Helmet is worn does not reciprocally unequip Helmet).
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSHelmetForceUnequipsHeadTest, "ZS.Inventory.EquipHelmetForceUnequipsHead", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSHelmetForceUnequipsHeadTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	UZSInventoryComponent* Inventory = Harness->InventoryComponent;
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	UZSItemConfig* HeadConfig = NewObject<UZSItemConfig>();
+	HeadConfig->bIsEquippable = true;
+	HeadConfig->EquipSlot = EZSEquipSlot::Head;
+
+	UZSItemConfig* HelmetConfig = NewObject<UZSItemConfig>();
+	HelmetConfig->bIsEquippable = true;
+	HelmetConfig->EquipSlot = EZSEquipSlot::Helmet;
+
+	if (!TestEqual(TEXT("Head item added"), Inventory->Server_AddItem(HeadConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* HeadInstance = Inventory->GetCarrySlots().FindByPredicate([HeadConfig](const FZSItemInstance& I) { return I.Config == HeadConfig; });
+	if (!TestNotNull(TEXT("Head instance found"), HeadInstance))
+	{
+		return false;
+	}
+	const FGuid HeadId = HeadInstance->InstanceId;
+
+	if (!TestTrue(TEXT("Head item equips"), Inventory->Server_EquipToSlot(EZSEquipSlot::Head, HeadId)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("Head slot now holds the head item"), Inventory->GetEquippedItem(EZSEquipSlot::Head).InstanceId, HeadId))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("Helmet item added"), Inventory->Server_AddItem(HelmetConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* HelmetInstance = Inventory->GetCarrySlots().FindByPredicate([HelmetConfig](const FZSItemInstance& I) { return I.Config == HelmetConfig; });
+	if (!TestNotNull(TEXT("Helmet instance found"), HelmetInstance))
+	{
+		return false;
+	}
+	const FGuid HelmetId = HelmetInstance->InstanceId;
+
+	if (!TestTrue(TEXT("Helmet equips"), Inventory->Server_EquipToSlot(EZSEquipSlot::Helmet, HelmetId)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Helmet slot now holds the helmet"), Inventory->GetEquippedItem(EZSEquipSlot::Helmet).InstanceId, HelmetId);
+	TestFalse(TEXT("Equipping Helmet force-unequipped Head"), Inventory->GetEquippedItem(EZSEquipSlot::Head).IsValid());
+
+	// One-way only: re-equipping into Head must not reciprocally unequip Helmet.
+	if (!TestTrue(TEXT("Head item re-equips while Helmet is worn"), Inventory->Server_EquipToSlot(EZSEquipSlot::Head, HeadId)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Head slot holds the head item again"), Inventory->GetEquippedItem(EZSEquipSlot::Head).InstanceId, HeadId);
+	TestEqual(TEXT("Helmet remains equipped - the rule is one-way only"), Inventory->GetEquippedItem(EZSEquipSlot::Helmet).InstanceId, HelmetId);
 
 	return true;
 }

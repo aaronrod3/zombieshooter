@@ -39,30 +39,60 @@ enum class EZSItemUseType : uint8
  *  repurposed the physical hip slot to hold a sidearm weapon instead of a bag/pouch, and weapon
  *  mounting is its own separate system (`UZSInventoryComponent::MountedSidearm`/`MountedLongGuns`,
  *  not this enum - a mount slot only ever holds a `UZSWeaponConfig`, so it doesn't need the general
- *  `bIsEquippable`/`CarryCapacityBonus` machinery this enum's values are validated against). `Duffle`
- *  replaces it as the second bag-capable slot, per the design session's three-compartment model
- *  (Pockets/Backpack/Duffle) - `bIsBusy`-gated when its panel opens, that gate is T5's UI job, not
- *  this data-model layer's.
+ *  `bIsEquippable`/`CarryCapacityBonus` machinery this enum's values are validated against).
+ *
+ *  2026-08-06 (dev-confirmed): expanded from the original two-slot Back/Duffle model to a real
+ *  clothing+gear system - `Back` renamed to `Backpack` (same slot, matches
+ *  `EZSCarryLocation::Backpack`'s existing name), 9 new values added. Two families, laid out on
+ *  opposite sides of the Loadout tab's character model:
+ *  - Clothing (left side): `Head`, `Eyes`, `Mask`, `Shirt`, `Pants`, `Shoes`.
+ *  - Gear (right side): `Helmet`, `Vest`, `Belt`, `Backpack`, `Duffle`.
+ *  Container-bearing slots (their own fixed-grid inventory compartment, gated on being equipped -
+ *  `UZSInventoryComponent::GetCompartmentCapacity`): `Vest`, `Belt`, `Backpack`, `Duffle`. `Pants`
+ *  is a special case - it gates the pre-existing `EZSCarryLocation::OnPerson` (Pockets) compartment
+ *  rather than getting its own new `EZSCarryLocation` value; a character with no `Pants` equipped
+ *  has zero Pockets storage (`UZSCompartmentPanelWidget`'s `GatingSlot`). One cross-slot rule exists
+ *  (`UZSInventoryComponent::Server_EquipToSlot`): equipping `Helmet` force-unequips `Head`
+ *  (one-way only - equipping into `Head` while `Helmet` is worn does not reciprocally unequip it).
  */
 UENUM(BlueprintType)
 enum class EZSEquipSlot : uint8
 {
 	None,
-	/** Large capacity bonus - the Backpack compartment (EZSCarryLocation::Backpack). */
-	Back,
-	/** Largest capacity bonus, adds a movement penalty and can't be opened without stopping - the Duffle compartment (EZSCarryLocation::Duffle). */
+
+	// ---- Clothing - left side of the Loadout tab's character model ----
+	Head,
+	Eyes,
+	Mask,
+	Shirt,
+	/** Gates EZSCarryLocation::OnPerson (Pockets) - see this enum's own class comment for why Pants doesn't get its own EZSCarryLocation value. */
+	Pants,
+	Shoes,
+
+	// ---- Gear - right side ----
+	/** Force-unequips Head when equipped - see this enum's own class comment. */
+	Helmet,
+	/** Container-bearing - EZSCarryLocation::Vest. */
+	Vest,
+	/** Container-bearing - EZSCarryLocation::Belt. */
+	Belt,
+	/** Container-bearing, large capacity bonus - EZSCarryLocation::Backpack. Renamed from Back 2026-08-06 to match EZSCarryLocation::Backpack's existing name - same slot, no behavior change. */
+	Backpack,
+	/** Container-bearing, largest capacity bonus, adds a movement penalty and can't be opened without stopping - EZSCarryLocation::Duffle. */
 	Duffle
 };
 
 /**
- *  B1-T5.0 (Docs/Beta/B1_UI_UX.md, Docs/Planning/B1_UIDesignSession_2026-07-30.md): gates which of
- *  T5's three inventory compartments (Pockets/Backpack/Duffle) can hold this item - Pockets: Small
- *  only, Backpack: Small+Medium, Duffle: everything. The gating check itself isn't implemented yet
- *  (that needs T5.0's other half, the EZSCarryLocation Backpack/Duffle split, still open - see the
- *  Manual setup steps' open-question note) - this is just the per-item data half, added now so
- *  content authoring (T_ContinuousTracks.md T4) isn't blocked waiting on the rest. Meaningless for
- *  a UZSWeaponConfig instance - weapons are excluded from all three compartments entirely and use
- *  dedicated weapon-mount slots instead (also still open, same reason).
+ *  B1-T5.0 (Docs/Beta/B1_UI_UX.md, Docs/Planning/B1_UIDesignSession_2026-07-30.md): gates whether
+ *  an item can be stored into the Backpack compartment specifically - Backpack: Small+Medium only,
+ *  everything else (Duffle, Vest, Belt) currently has no size restriction. Enforced in
+ *  UZSInventoryComponent::Server_StoreInBag (the one place an item's Location actually becomes a
+ *  container-bearing compartment) - a Large item storing into a Backpack-slotted bag is rejected.
+ *  Pockets (OnPerson) is deliberately NOT gated by size - it's the no-bag-required fallback
+ *  (gated by EZSEquipSlot::Pants instead, see that enum's own comment), not something a player
+ *  "stores into" the way a bag is; see Server_StoreInBag's own comment for why. Meaningless for a
+ *  UZSWeaponConfig instance - weapons are excluded from every compartment entirely and use
+ *  dedicated weapon-mount slots instead.
  */
 UENUM(BlueprintType)
 enum class EZSItemSize : uint8
@@ -140,6 +170,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Consumable", meta = (ClampMin = "0", EditCondition = "ItemUseType == EZSItemUseType::Consumable"))
 	float ThirstRestore = 0.f;
 
+	/** 2026-08-09, dev-confirmed (painkillers): only meaningful when ItemUseType == Consumable - adds flat CurrentHealth directly (UZSHealthComponent::Server_RestoreHealth), same "+X on hover" transparency as HungerRestore/ThirstRestore. Deliberately orthogonal to the Bandage/Disinfectant/Splint wound-curing system below - this never touches bleed/dirty/fracture/infection state, it only refills the HP pool, which is *why* it can't meaningfully help a severe case (a critical bleed or advancing infection drains faster than any consumable tops up - no hard-coded severity gate needed, the drain-vs-refill race handles it on its own). 0 = no effect, the default for a plain food/drink item. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Consumable", meta = (ClampMin = "0", EditCondition = "ItemUseType == EZSItemUseType::Consumable"))
+	float HealthRestore = 0.f;
+
 	/** Only meaningful when ItemUseType == Bandage - a clean bandage clears the wound's dirty flag too, a dirty rag stops the bleed but leaves it dirty. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Medical", meta = (EditCondition = "ItemUseType == EZSItemUseType::Bandage"))
 	bool bIsCleanBandage = true;
@@ -179,13 +213,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	EZSItemSize ItemSize = EZSItemSize::Small;
 
-	/** B0-T4.4, 2026-07-26: only meaningful for an equippable item worn as clothing - sums into UZSNeedsComponent's Temperature model while equipped. Proxy scope note: this project has no dedicated clothing equip-slot system yet (only the two general Back/Hip gear slots exist) - whatever's equipped in those two slots is what's summed for now, a real wardrobe system is bigger scope than this pass. */
+	/** B0-T4.4, 2026-07-26: only meaningful for an equippable item worn as clothing - sums into UZSNeedsComponent's Temperature model while equipped. 2026-08-06: UZSNeedsComponent now sums this across all 11 real EZSEquipSlot values (not just the original Back/Duffle pair) now that a real clothing system exists. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (EditCondition = "bIsEquippable"))
 	float InsulationValue = 0.f;
 
 	/** World-space pickup representation - AZSWorldItemActor::InitializeItem assigns this to its PickupMesh. Unset is a no-op (an invisible pickup, same "content not sourced yet" pattern as AZombieCharacter's mesh) rather than an error. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	TObjectPtr<UStaticMesh> WorldMesh;
+
+	/** 2026-08-06: the on-character visual for an equipped clothing/gear item - AZSPlayerCharacter::RefreshWornMeshes attaches this to the socket matching this item's EquipSlot (GetSocketForEquipSlot). Static mesh, not skeletal - matches this project's existing precedent of moving weapon parts off skeletal meshes (see UZSWeaponConfig), and the TopDown-only camera never gets close enough for a static mesh's lack of skeletal deformation to read as wrong. Unset is a no-op (nothing visually attaches), same graceful-if-missing pattern as WorldMesh/Icon above - only meaningful when bIsEquippable is true. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory", meta = (EditCondition = "bIsEquippable"))
+	TObjectPtr<UStaticMesh> WornMesh;
 
 	/** B0-T11.3, 2026-07-26: whether IA_SecondaryAction toggles this item on/off (a flashlight) instead of dispatching an attack when it's the one equipped in SecondaryHand - checked before falling through to weapon-attack dispatch (see AZSPlayerCharacter::Server_HandleSecondaryAction). Only meaningful for an item equipped in SecondaryHand; meaningless for anything else. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")

@@ -15,6 +15,7 @@ class UZSUIManager;
 class UZSNotificationSubsystem;
 class AZSGameState;
 class UZSGameInstance;
+class UZSDragDropPayload;
 
 /**
  *  B1-T2.1/T2.4 (Docs/Beta/B1_UI_UX.md): the one base class every `WBP_ZS_*` screen inherits from.
@@ -102,4 +103,14 @@ protected:
 	 *  call directly (they call the subclass's own OpenAsModal()/CloseAsModal() instead). */
 	void PushAsModal(FName ModalTag);
 	void PopAsModal(FName ModalTag);
+
+	/** 2026-08-09 (drag-out-of-slot support): dispatches on Payload->SourceKind to release a dragged
+	 *  item from wherever it came from - unequip a gear slot, unmount a weapon mount, clear the
+	 *  Equipment/SecondaryHand slot. Every NativeOnDrop across the 5 draggable/droppable widget
+	 *  classes (ItemSlot/EquipSlot/WeaponMountSlot/EquipmentSlot/SecondaryHandSlot) calls this FIRST,
+	 *  before applying its own new placement, so a source type only ever needs its release handling
+	 *  added in this one function. No-op for CarrySlot/Container/HotbarSlot (need no release step -
+	 *  the item's already just a plain, unowned CarrySlots entry) or if Payload/the owning character
+	 *  is unset. */
+	void ReleaseDragSource(const UZSDragDropPayload* Payload) const;
 };

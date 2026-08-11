@@ -15,6 +15,10 @@ UZSInventoryComponent::UZSInventoryComponent()
 	// B1-T5.0: always exactly NumLongGunMounts elements (invalid FGuid = empty mount), same "always
 	// sized, index is the identity" reasoning as AZSPlayerCharacter::HotbarSlots.
 	MountedLongGuns.SetNum(NumLongGunMounts);
+
+	// 2026-08-06: same reasoning, now applied to the 11-value clothing/gear system - index 0
+	// (EZSEquipSlot::None) is never written to.
+	EquippedSlots.SetNum(NumEquipSlots);
 }
 
 void UZSInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -22,10 +26,10 @@ void UZSInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(UZSInventoryComponent, CarrySlots);
-	DOREPLIFETIME(UZSInventoryComponent, EquippedBack);
-	DOREPLIFETIME(UZSInventoryComponent, EquippedDuffle);
+	DOREPLIFETIME(UZSInventoryComponent, EquippedSlots);
 	DOREPLIFETIME(UZSInventoryComponent, MountedLongGuns);
 	DOREPLIFETIME(UZSInventoryComponent, MountedSidearm);
+	DOREPLIFETIME(UZSInventoryComponent, MountedMelee);
 }
 
 float UZSInventoryComponent::GetCurrentWeight() const
@@ -47,11 +51,16 @@ float UZSInventoryComponent::GetMaxCarryWeight() const
 {
 	float MaxWeight = BaseCarryWeight;
 
-	const FZSItemInstance BackInstance = GetInstance(EquippedBack);
-	if (BackInstance.Config) { MaxWeight += BackInstance.Config->CarryCapacityBonus; }
-
-	const FZSItemInstance DuffleInstance = GetInstance(EquippedDuffle);
-	if (DuffleInstance.Config) { MaxWeight += DuffleInstance.Config->CarryCapacityBonus; }
+	// 2026-08-06: generalized from the old hardcoded EquippedBack/EquippedDuffle pair to loop every
+	// real equip slot - plain clothing defaults CarryCapacityBonus to 0, so this is a no-op for them.
+	for (const FGuid& Equipped : EquippedSlots)
+	{
+		const FZSItemInstance Instance = GetInstance(Equipped);
+		if (Instance.Config)
+		{
+			MaxWeight += Instance.Config->CarryCapacityBonus;
+		}
+	}
 
 	return MaxWeight;
 }
@@ -93,12 +102,46 @@ TArray<FZSItemInstance> UZSInventoryComponent::GetSlotsInLocation(EZSCarryLocati
 {
 	TArray<FZSItemInstance> Result;
 
-	for (const FZSItemInstance& Instance : CarrySlots)
+	// Pockets/OnPerson items never leave CarrySlots (Server_StoreInBag only ever moves things INTO a
+	// bag, never into OnPerson from anywhere but a top-level slot) - keep scanning the flat array.
+	// 2026-08-06: excludes anything equipped or weapon-mounted - see this function's header comment
+	// for why (otherwise worn gear/mounted weapons would double-count against Pockets' fixed capacity).
+	if (Location == EZSCarryLocation::OnPerson)
 	{
-		if (Instance.Location == Location)
+		for (const FZSItemInstance& Instance : CarrySlots)
 		{
-			Result.Add(Instance);
+			if (Instance.Location == Location && !EquippedSlots.Contains(Instance.InstanceId) && !IsWeaponMounted(Instance.InstanceId))
+			{
+				Result.Add(Instance);
+			}
 		}
+		return Result;
+	}
+
+	// 2026-08-06 bugfix: Vest/Belt/Backpack/Duffle items live nested inside the equipped bag's own
+	// ContainedItems (Server_StoreInBag moves them there, out of CarrySlots entirely) - this used to
+	// scan CarrySlots for these too, which could never find anything, so these 4 compartments
+	// rendered empty even when the bag genuinely held items. Resolve the equipped bag for this
+	// location instead and read its contents.
+	EZSEquipSlot GatingSlot = EZSEquipSlot::None;
+	switch (Location)
+	{
+	case EZSCarryLocation::Vest:     GatingSlot = EZSEquipSlot::Vest;     break;
+	case EZSCarryLocation::Belt:     GatingSlot = EZSEquipSlot::Belt;     break;
+	case EZSCarryLocation::Backpack: GatingSlot = EZSEquipSlot::Backpack; break;
+	case EZSCarryLocation::Duffle:   GatingSlot = EZSEquipSlot::Duffle;   break;
+	default: return Result; // World/Vehicle - not resolvable through equipped gear.
+	}
+
+	const FZSItemInstance Bag = GetEquippedItem(GatingSlot);
+	if (!Bag.IsValid())
+	{
+		return Result;
+	}
+
+	for (const FZSItemInstanceBase& Contained : Bag.ContainedItems)
+	{
+		Result.Add(FZSItemInstance(Contained));
 	}
 
 	return Result;
@@ -106,12 +149,275 @@ TArray<FZSItemInstance> UZSInventoryComponent::GetSlotsInLocation(EZSCarryLocati
 
 FZSItemInstance UZSInventoryComponent::GetEquippedItem(EZSEquipSlot Slot) const
 {
-	switch (Slot)
+	return EquippedSlots.IsValidIndex((uint8)Slot) ? GetInstance(EquippedSlots[(uint8)Slot]) : FZSItemInstance();
+}
+
+int32 UZSInventoryComponent::GetCompartmentCapacity(EZSCarryLocation Location)
+{
+	switch (Location)
 	{
-	case EZSEquipSlot::Back: return GetInstance(EquippedBack);
-	case EZSEquipSlot::Duffle: return GetInstance(EquippedDuffle);
-	default: return FZSItemInstance();
+	case EZSCarryLocation::OnPerson: return 4;
+	case EZSCarryLocation::Vest:     return 8;
+	case EZSCarryLocation::Belt:     return 8;
+	case EZSCarryLocation::Backpack: return 20; // 2026-08-07: 4x5 grid, was 4x6/24 - shrunk to fit the compartment-stack column's vertical budget
+	case EZSCarryLocation::Duffle:   return 18;
+	default: return 0;
 	}
+}
+
+bool UZSInventoryComponent::IsContainerBearingSlot(EZSEquipSlot Slot)
+{
+	return Slot == EZSEquipSlot::Vest || Slot == EZSEquipSlot::Belt
+		|| Slot == EZSEquipSlot::Backpack || Slot == EZSEquipSlot::Duffle;
+}
+
+int32 UZSInventoryComponent::FindFirstFreeSlotIndex(int32 Capacity, const TArray<int32>& OccupiedIndices)
+{
+	for (int32 Index = 0; Index < Capacity; ++Index)
+	{
+		if (!OccupiedIndices.Contains(Index))
+		{
+			return Index;
+		}
+	}
+	return INDEX_NONE;
+}
+
+int32 UZSInventoryComponent::FindFirstFreeOnPersonSlotIndex() const
+{
+	TArray<int32> Occupied;
+	for (const FZSItemInstance& Instance : CarrySlots)
+	{
+		if (Instance.Location == EZSCarryLocation::OnPerson && !EquippedSlots.Contains(Instance.InstanceId) && !IsWeaponMounted(Instance.InstanceId))
+		{
+			Occupied.Add(Instance.SlotIndex);
+		}
+	}
+	return FindFirstFreeSlotIndex(GetCompartmentCapacity(EZSCarryLocation::OnPerson), Occupied);
+}
+
+int32 UZSInventoryComponent::FindFirstFreeBagSlotIndex(FGuid BagInstanceId) const
+{
+	EZSCarryLocation BagLocation;
+	if (!ResolveBagLocation(BagInstanceId, BagLocation))
+	{
+		return INDEX_NONE;
+	}
+
+	const FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
+	if (!Bag)
+	{
+		return INDEX_NONE;
+	}
+
+	TArray<int32> Occupied;
+	Occupied.Reserve(Bag->ContainedItems.Num());
+	for (const FZSItemInstanceBase& Contained : Bag->ContainedItems)
+	{
+		Occupied.Add(Contained.SlotIndex);
+	}
+	return FindFirstFreeSlotIndex(GetCompartmentCapacity(BagLocation), Occupied);
+}
+
+void UZSInventoryComponent::RefreshOnPersonSlotIndex(FGuid InstanceId)
+{
+	if (FZSItemInstance* Instance = CarrySlots.FindByPredicate([InstanceId](const FZSItemInstance& Item) { return Item.InstanceId == InstanceId; }))
+	{
+		Instance->SlotIndex = FindFirstFreeOnPersonSlotIndex();
+	}
+}
+
+bool UZSInventoryComponent::ResolveBagLocation(FGuid BagInstanceId, EZSCarryLocation& OutLocation) const
+{
+	const FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
+	if (!Bag || !Bag->Config || !Bag->Config->bIsEquippable || !IsContainerBearingSlot(Bag->Config->EquipSlot))
+	{
+		return false;
+	}
+
+	switch (Bag->Config->EquipSlot)
+	{
+	case EZSEquipSlot::Vest:     OutLocation = EZSCarryLocation::Vest;     return true;
+	case EZSEquipSlot::Belt:     OutLocation = EZSCarryLocation::Belt;     return true;
+	case EZSEquipSlot::Backpack: OutLocation = EZSCarryLocation::Backpack; return true;
+	case EZSEquipSlot::Duffle:   OutLocation = EZSCarryLocation::Duffle;   return true;
+	default: return false; // Unreachable - IsContainerBearingSlot already validated EquipSlot above.
+	}
+}
+
+bool UZSInventoryComponent::FindItemAnywhere(FGuid InstanceId, FZSItemInstance& OutItem, FGuid& OutBagInstanceId) const
+{
+	if (const FZSItemInstance* TopLevel = CarrySlots.FindByPredicate([InstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == InstanceId; }))
+	{
+		OutItem = *TopLevel;
+		OutBagInstanceId = FGuid();
+		return true;
+	}
+
+	static const EZSEquipSlot ContainerSlots[] = { EZSEquipSlot::Vest, EZSEquipSlot::Belt, EZSEquipSlot::Backpack, EZSEquipSlot::Duffle };
+	for (EZSEquipSlot Slot : ContainerSlots)
+	{
+		const FZSItemInstance Bag = GetEquippedItem(Slot);
+		if (!Bag.IsValid())
+		{
+			continue;
+		}
+
+		if (const FZSItemInstanceBase* Contained = Bag.ContainedItems.FindByPredicate([InstanceId](const FZSItemInstanceBase& Instance) { return Instance.InstanceId == InstanceId; }))
+		{
+			OutItem = FZSItemInstance(*Contained);
+			OutBagInstanceId = Bag.InstanceId;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UZSInventoryComponent::FindItemAtSlot(FGuid BagInstanceId, int32 SlotIndex, FZSItemInstance& OutItem) const
+{
+	if (!BagInstanceId.IsValid())
+	{
+		for (const FZSItemInstance& Instance : CarrySlots)
+		{
+			if (Instance.Location == EZSCarryLocation::OnPerson && Instance.SlotIndex == SlotIndex
+				&& !EquippedSlots.Contains(Instance.InstanceId) && !IsWeaponMounted(Instance.InstanceId))
+			{
+				OutItem = Instance;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	const FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
+	if (!Bag)
+	{
+		return false;
+	}
+
+	if (const FZSItemInstanceBase* Contained = Bag->ContainedItems.FindByPredicate([SlotIndex](const FZSItemInstanceBase& Instance) { return Instance.SlotIndex == SlotIndex; }))
+	{
+		OutItem = FZSItemInstance(*Contained);
+		return true;
+	}
+
+	return false;
+}
+
+void UZSInventoryComponent::RemoveItemAnywhereById(FGuid InstanceId)
+{
+	const int32 TopLevelIndex = CarrySlots.IndexOfByPredicate([InstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == InstanceId; });
+	if (TopLevelIndex != INDEX_NONE)
+	{
+		CarrySlots.RemoveAt(TopLevelIndex);
+		return;
+	}
+
+	static const EZSEquipSlot ContainerSlots[] = { EZSEquipSlot::Vest, EZSEquipSlot::Belt, EZSEquipSlot::Backpack, EZSEquipSlot::Duffle };
+	for (EZSEquipSlot Slot : ContainerSlots)
+	{
+		const FGuid BagId = EquippedSlots.IsValidIndex((uint8)Slot) ? EquippedSlots[(uint8)Slot] : FGuid();
+		if (!BagId.IsValid())
+		{
+			continue;
+		}
+
+		FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagId; });
+		if (!Bag)
+		{
+			continue;
+		}
+
+		const int32 ContainedIndex = Bag->ContainedItems.IndexOfByPredicate([InstanceId](const FZSItemInstanceBase& Instance) { return Instance.InstanceId == InstanceId; });
+		if (ContainedIndex != INDEX_NONE)
+		{
+			Bag->ContainedItems.RemoveAt(ContainedIndex);
+			return;
+		}
+	}
+}
+
+void UZSInventoryComponent::InsertItemInto(const FZSItemInstance& Item, FGuid BagInstanceId)
+{
+	if (!BagInstanceId.IsValid())
+	{
+		CarrySlots.Add(Item);
+		return;
+	}
+
+	if (FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; }))
+	{
+		Bag->ContainedItems.Add(static_cast<FZSItemInstanceBase>(Item));
+	}
+}
+
+bool UZSInventoryComponent::IsItemLegalForBag(const FZSItemInstance& Item, FGuid BagInstanceId) const
+{
+	if (!BagInstanceId.IsValid())
+	{
+		return true; // Pockets - no type/size gate beyond capacity, checked by the caller.
+	}
+
+	// B1-T5.0: weapons are excluded from every bag - same gate Server_StoreInBag enforces.
+	if (Cast<UZSWeaponConfig>(Item.Config))
+	{
+		return false;
+	}
+
+	// A bag whose own ContainedItems is non-empty can't nest inside another bag.
+	if (Item.ContainedItems.Num() > 0)
+	{
+		return false;
+	}
+
+	// Can't move an item that's currently worn/equipped into a bag - it'd orphan the equip-slot
+	// reference. Same guard Server_StoreInBagChecked applies via the character wrapper.
+	if (EquippedSlots.Contains(Item.InstanceId))
+	{
+		return false;
+	}
+
+	const FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
+	if (Bag && Bag->Config->EquipSlot == EZSEquipSlot::Backpack && Item.Config && Item.Config->ItemSize == EZSItemSize::Large)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool UZSInventoryComponent::CanFitInPockets(const UZSItemConfig* Item, int32 Count) const
+{
+	if (!Item || Count <= 0)
+	{
+		return false;
+	}
+
+	const int32 StackSize = FMath::Max(Item->MaxStackSize, 1);
+
+	// One pass: count how many OnPerson slots are already occupied (same exclusions
+	// GetSlotsInLocation/FindFirstFreeOnPersonSlotIndex apply - equipped/mounted items don't count)
+	// while simultaneously simulating stack absorption, in the same order the real fill loops in
+	// Server_AddItem/Server_AddItemInstance use, so this can never silently drift out of sync with them.
+	int32 OccupiedCount = 0;
+	int32 SimRemaining = Count;
+	for (const FZSItemInstance& Instance : CarrySlots)
+	{
+		if (Instance.Location != EZSCarryLocation::OnPerson || EquippedSlots.Contains(Instance.InstanceId) || IsWeaponMounted(Instance.InstanceId))
+		{
+			continue;
+		}
+
+		++OccupiedCount;
+		if (SimRemaining > 0 && Instance.Config == Item && Instance.StackCount < StackSize)
+		{
+			SimRemaining -= FMath::Min(StackSize - Instance.StackCount, SimRemaining);
+		}
+	}
+
+	const int32 NewSlotsNeeded = (SimRemaining + StackSize - 1) / StackSize;
+	return OccupiedCount + NewSlotsNeeded <= GetCompartmentCapacity(EZSCarryLocation::OnPerson);
 }
 
 FZSItemInstance UZSInventoryComponent::GetMountedLongGun(int32 MountIndex) const
@@ -127,6 +433,16 @@ int32 UZSInventoryComponent::Server_AddItem(UZSItemConfig* Item, int32 Count)
 	}
 
 	const int32 StackSize = FMath::Max(Item->MaxStackSize, 1);
+
+	// 2026-08-06: atomic pre-check - if fully honoring Count would need more new Pockets slots than
+	// are currently free, reject the whole call outright (dev-confirmed: a full Pockets rejects the
+	// add rather than silently losing whatever didn't fit). 2026-08-10: factored into CanFitInPockets,
+	// shared with Server_AddItemInstance - see its own comment.
+	if (!CanFitInPockets(Item, Count))
+	{
+		return 0;
+	}
+
 	int32 Remaining = Count;
 
 	// Fill existing partial stacks first.
@@ -146,6 +462,7 @@ int32 UZSInventoryComponent::Server_AddItem(UZSItemConfig* Item, int32 Count)
 	}
 
 	// New instances for whatever's left - each mints its own GUID (B0-T2.2).
+	FGuid FirstNewInstanceId;
 	while (Remaining > 0)
 	{
 		FZSItemInstance NewInstance;
@@ -153,8 +470,25 @@ int32 UZSInventoryComponent::Server_AddItem(UZSItemConfig* Item, int32 Count)
 		NewInstance.Config = Item;
 		NewInstance.StackCount = FMath::Min(Remaining, StackSize);
 		NewInstance.Location = EZSCarryLocation::OnPerson;
+		NewInstance.SlotIndex = FindFirstFreeOnPersonSlotIndex();
 		CarrySlots.Add(NewInstance);
 		Remaining -= NewInstance.StackCount;
+
+		if (!FirstNewInstanceId.IsValid())
+		{
+			FirstNewInstanceId = NewInstance.InstanceId;
+		}
+	}
+
+	// 2026-08-09, dev-confirmed: a freshly-carried container-bearing gear item (Vest/Belt/Backpack/
+	// Duffle) auto-equips itself if that slot is currently empty - "pick up a backpack, it's
+	// immediately worn and its compartment opens," no separate manual-equip step. Only the first
+	// newly-minted instance is considered (equipping is a one-item action) and only if the slot isn't
+	// already occupied - never bumps something already worn there.
+	if (FirstNewInstanceId.IsValid() && Item->bIsEquippable && IsContainerBearingSlot(Item->EquipSlot)
+		&& !GetEquippedItem(Item->EquipSlot).IsValid())
+	{
+		Server_EquipToSlot(Item->EquipSlot, FirstNewInstanceId);
 	}
 
 	OnRep_InventoryState();
@@ -175,6 +509,15 @@ bool UZSInventoryComponent::Server_AddItemInstance(FZSItemInstance Instance)
 	}
 
 	const int32 StackSize = FMath::Max(Instance.Config->MaxStackSize, 1);
+
+	// 2026-08-06: same atomic capacity pre-check as Server_AddItem - see its comment. This is the
+	// mechanism behind AZSWorldItemActor::HandleInteracted's "reject the pickup, item stays in the
+	// world" behavior when Pockets is full. 2026-08-10: factored into CanFitInPockets, shared with
+	// Server_AddItem - see its own comment.
+	if (!CanFitInPockets(Instance.Config, Instance.StackCount))
+	{
+		return false;
+	}
 
 	if (StackSize > 1)
 	{
@@ -204,6 +547,7 @@ bool UZSInventoryComponent::Server_AddItemInstance(FZSItemInstance Instance)
 			NewInstance.Config = Instance.Config;
 			NewInstance.StackCount = FMath::Min(Remaining, StackSize);
 			NewInstance.Location = EZSCarryLocation::OnPerson;
+			NewInstance.SlotIndex = FindFirstFreeOnPersonSlotIndex();
 			CarrySlots.Add(NewInstance);
 			Remaining -= NewInstance.StackCount;
 		}
@@ -211,9 +555,23 @@ bool UZSInventoryComponent::Server_AddItemInstance(FZSItemInstance Instance)
 	else
 	{
 		// Non-stackable: the instance keeps its own identity intact - this is what makes a dropped
-		// weapon's durability survive being picked back up (B0-T2's headline fix).
+		// weapon's durability survive being picked back up (B0-T2's headline fix). SlotIndex is NOT
+		// preserved the same way, though - wherever it sat before (a different compartment, possibly
+		// even a now-invalid index) has no bearing on where it's landing now, so it's freshly assigned
+		// here same as everything else that lands in Pockets.
 		Instance.Location = EZSCarryLocation::OnPerson;
+		Instance.SlotIndex = FindFirstFreeOnPersonSlotIndex();
 		CarrySlots.Add(Instance);
+
+		// 2026-08-09: same auto-equip-on-pickup as Server_AddItem (see its comment) - this is the path
+		// a real world-item pickup (AZSWorldItemActor::HandleInteracted) and container loot transfers
+		// actually go through, so this is where "pick up a backpack, it's immediately worn" happens
+		// for the case that matters most.
+		if (Instance.Config->bIsEquippable && IsContainerBearingSlot(Instance.Config->EquipSlot)
+			&& !GetEquippedItem(Instance.Config->EquipSlot).IsValid())
+		{
+			Server_EquipToSlot(Instance.Config->EquipSlot, Instance.InstanceId);
+		}
 	}
 
 	OnRep_InventoryState();
@@ -299,6 +657,31 @@ bool UZSInventoryComponent::Server_RemoveInstanceById(FGuid InstanceId, FZSItemI
 	return false;
 }
 
+bool UZSInventoryComponent::Server_RemoveInstanceByIdAnywhere(FGuid InstanceId, FZSItemInstance& OutRemoved)
+{
+	OutRemoved = FZSItemInstance();
+
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !InstanceId.IsValid())
+	{
+		return false;
+	}
+
+	if (EquippedSlots.Contains(InstanceId) || IsWeaponMounted(InstanceId))
+	{
+		return false;
+	}
+
+	FGuid BagInstanceId;
+	if (!FindItemAnywhere(InstanceId, OutRemoved, BagInstanceId))
+	{
+		return false;
+	}
+
+	RemoveItemAnywhereById(InstanceId);
+	OnRep_InventoryState();
+	return true;
+}
+
 bool UZSInventoryComponent::Server_UpdateInstanceState(FGuid InstanceId, const FZSItemInstanceState& NewState)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority() || !InstanceId.IsValid())
@@ -325,9 +708,15 @@ bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid Instance
 		return false;
 	}
 
-	if (InstanceId == EquippedBack || InstanceId == EquippedDuffle)
+	if (!EquippedSlots.IsValidIndex((uint8)Slot))
 	{
-		// Already worn in the other gear slot - can't equip the same physical bag twice at once.
+		return false;
+	}
+
+	if (EquippedSlots.Contains(InstanceId))
+	{
+		// Already worn in some other gear slot (generalized 2026-08-06 from the old Back-vs-Duffle-
+		// only check) - can't equip the same physical item twice at once.
 		return false;
 	}
 
@@ -337,10 +726,20 @@ bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid Instance
 		return false;
 	}
 
+	// Dev-confirmed, one-way only: equipping into Helmet force-unequips whatever's in Head.
+	// Equipping into Head while Helmet is worn does not reciprocally unequip Helmet.
+	// 2026-08-10: this bypassed Server_UnequipSlot, so it never called RefreshOnPersonSlotIndex on the
+	// outgoing Head item - reproducing exactly the stale-SlotIndex collision RefreshOnPersonSlotIndex
+	// exists to prevent everywhere else an item goes from invisible-to-Pockets back to visible.
+	if (Slot == EZSEquipSlot::Helmet && EquippedSlots[(uint8)EZSEquipSlot::Head].IsValid())
+	{
+		RefreshOnPersonSlotIndex(EquippedSlots[(uint8)EZSEquipSlot::Head]);
+		EquippedSlots[(uint8)EZSEquipSlot::Head] = FGuid();
+	}
+
 	// Nothing is removed from CarrySlots - equipping just points the slot at an instance that's
 	// still (and stays) resident there. See the header comment on this function.
-	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedDuffle;
-	TargetRef = InstanceId;
+	EquippedSlots[(uint8)Slot] = InstanceId;
 
 	OnRep_InventoryState();
 	return true;
@@ -348,18 +747,20 @@ bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid Instance
 
 void UZSInventoryComponent::Server_UnequipSlot(EZSEquipSlot Slot)
 {
-	if (!GetOwner() || !GetOwner()->HasAuthority() || Slot == EZSEquipSlot::None)
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !EquippedSlots.IsValidIndex((uint8)Slot))
 	{
 		return;
 	}
 
-	FGuid& TargetRef = (Slot == EZSEquipSlot::Back) ? EquippedBack : EquippedDuffle;
-	if (!TargetRef.IsValid())
+	if (!EquippedSlots[(uint8)Slot].IsValid())
 	{
 		return;
 	}
 
-	TargetRef = FGuid();
+	// 2026-08-09: the unequipped item becomes a visible Pockets item again - give it a fresh slot
+	// rather than reusing its stale one, see RefreshOnPersonSlotIndex's own comment for why.
+	RefreshOnPersonSlotIndex(EquippedSlots[(uint8)Slot]);
+	EquippedSlots[(uint8)Slot] = FGuid();
 
 	OnRep_InventoryState();
 }
@@ -372,11 +773,11 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 	}
 
 	FZSItemInstance* Bag = CarrySlots.FindByPredicate([BagInstanceId](const FZSItemInstance& Instance) { return Instance.InstanceId == BagInstanceId; });
-	// B1-T5.0: EquipSlot must actually be Back or Duffle, not just bIsEquippable - a mounted sidearm
-	// (bIsEquippable + EquipSlot == None, since weapon mounts don't use this enum at all) or any
-	// other future equippable-but-not-a-bag item shouldn't be treated as storage.
-	if (!Bag || !Bag->Config || !Bag->Config->bIsEquippable
-		|| (Bag->Config->EquipSlot != EZSEquipSlot::Back && Bag->Config->EquipSlot != EZSEquipSlot::Duffle))
+	// B1-T5.0: EquipSlot must actually be a container-bearing slot, not just bIsEquippable - a
+	// mounted sidearm (bIsEquippable + EquipSlot == None, since weapon mounts don't use this enum at
+	// all) or a plain clothing item shouldn't be treated as storage. Generalized 2026-08-06 from the
+	// old Back/Duffle-only check to all 4 container-bearing slots (IsContainerBearingSlot).
+	if (!Bag || !Bag->Config || !Bag->Config->bIsEquippable || !IsContainerBearingSlot(Bag->Config->EquipSlot))
 	{
 		return false;
 	}
@@ -395,15 +796,47 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 		return false;
 	}
 
+	// 2026-08-06: compartment-size privilege (EZSItemSize's own comment, Docs/Planning/
+	// B1_UIDesignSession_2026-07-30.md) - Backpack only accepts Small/Medium; Vest/Belt/Duffle accept
+	// everything (Duffle: "largest capacity bonus" per EZSEquipSlot::Duffle's own comment). Pockets
+	// (OnPerson) is deliberately NOT gated anywhere - it's the always-available fallback, not
+	// something a player "stores into" the way a bag is: a fresh pickup
+	// (Server_AddItem/Server_AddItemInstance) always defaults to OnPerson regardless of size, and
+	// Server_RetrieveFromBag below always lands an item back on OnPerson unconditionally too.
+	if (Bag->Config->EquipSlot == EZSEquipSlot::Backpack
+		&& CarrySlots[ItemIndex].Config && CarrySlots[ItemIndex].Config->ItemSize == EZSItemSize::Large)
+	{
+		return false;
+	}
+
+	// Map the bag's EquipSlot to the FZSItemInstance::Location value it grants storage under - the
+	// two enums deliberately share names (Vest/Belt/Backpack/Duffle) for exactly this 1:1 mapping.
+	EZSCarryLocation TargetLocation;
+	switch (Bag->Config->EquipSlot)
+	{
+	case EZSEquipSlot::Vest:     TargetLocation = EZSCarryLocation::Vest;     break;
+	case EZSEquipSlot::Belt:     TargetLocation = EZSCarryLocation::Belt;     break;
+	case EZSEquipSlot::Backpack: TargetLocation = EZSCarryLocation::Backpack; break;
+	case EZSEquipSlot::Duffle:   TargetLocation = EZSCarryLocation::Duffle;   break;
+	default: return false; // Unreachable - IsContainerBearingSlot already validated EquipSlot above.
+	}
+
+	// 2026-08-06: capacity check that didn't exist before this rework - a container-bearing bag's
+	// fixed-grid compartment (GetCompartmentCapacity) can't accept more than it holds.
+	if (Bag->ContainedItems.Num() >= GetCompartmentCapacity(TargetLocation))
+	{
+		return false;
+	}
+
 	// Reject storing an instance currently equipped to a gear slot - GetInstance()/GetEquippedItem()
-	// only resolve top-level CarrySlots, so nesting it here would silently orphan EquippedBack/Duffle's
-	// GUID reference (it'd resolve to an invalid instance from then on) instead of clearing it.
+	// only resolve top-level CarrySlots, so nesting it here would silently orphan that slot's GUID
+	// reference (it'd resolve to an invalid instance from then on) instead of clearing it.
 	// Note: this doesn't cover HotbarSlots/SecondaryHandInstanceId/weapon mounts, which live on the
 	// owning AZSPlayerCharacter or are checked above - Closed 2026-07-30 via
 	// AZSPlayerCharacter::Server_StoreInBagChecked, which validates against that character-side state
 	// before calling this function - callers should go through that wrapper, not this function
 	// directly, wherever a character is available.
-	if (ItemInstanceId == EquippedBack || ItemInstanceId == EquippedDuffle)
+	if (EquippedSlots.Contains(ItemInstanceId))
 	{
 		return false;
 	}
@@ -417,7 +850,8 @@ bool UZSInventoryComponent::Server_StoreInBag(FGuid BagInstanceId, FGuid ItemIns
 	}
 
 	FZSItemInstance MovedItem = CarrySlots[ItemIndex];
-	MovedItem.Location = (Bag->Config->EquipSlot == EZSEquipSlot::Duffle) ? EZSCarryLocation::Duffle : EZSCarryLocation::Backpack;
+	MovedItem.Location = TargetLocation;
+	MovedItem.SlotIndex = FindFirstFreeBagSlotIndex(BagInstanceId);
 	CarrySlots.RemoveAt(ItemIndex);
 
 	// Re-find Bag - CarrySlots.RemoveAt above may have reallocated/shifted the array, invalidating
@@ -456,11 +890,123 @@ bool UZSInventoryComponent::Server_RetrieveFromBag(FGuid BagInstanceId, FGuid It
 		return false;
 	}
 
+	// 2026-08-09: pre-existing gap - retrieving into an already-full Pockets used to silently add a
+	// 5th+ CarrySlots entry the fixed 4-slot grid would never render (SlotWidgets.Num() caps the
+	// display loop), a "phantom carried but invisible" item. Reject outright instead, same atomic
+	// capacity gate every other Pockets-landing path (Server_AddItem/Server_AddItemInstance) already
+	// enforces - the item stays in the bag rather than becoming untrackable.
+	if (GetSlotsInLocation(EZSCarryLocation::OnPerson).Num() >= GetCompartmentCapacity(EZSCarryLocation::OnPerson))
+	{
+		return false;
+	}
+
 	FZSItemInstance MovedItem(Bag->ContainedItems[ItemIndex]);
 	MovedItem.Location = EZSCarryLocation::OnPerson;
+	MovedItem.SlotIndex = FindFirstFreeOnPersonSlotIndex();
 	Bag->ContainedItems.RemoveAt(ItemIndex);
 
 	CarrySlots.Add(MovedItem);
+
+	OnRep_InventoryState();
+	return true;
+}
+
+bool UZSInventoryComponent::Server_RetrieveFromAnyEquippedBag(FGuid ItemInstanceId)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !ItemInstanceId.IsValid())
+	{
+		return false;
+	}
+
+	// Only the 4 container-bearing slots (Vest/Belt/Backpack/Duffle) can hold nested items at all.
+	static const EZSEquipSlot ContainerSlots[] = { EZSEquipSlot::Vest, EZSEquipSlot::Belt, EZSEquipSlot::Backpack, EZSEquipSlot::Duffle };
+	for (EZSEquipSlot Slot : ContainerSlots)
+	{
+		const FZSItemInstance Bag = GetEquippedItem(Slot);
+		if (!Bag.IsValid())
+		{
+			continue;
+		}
+
+		if (Bag.ContainedItems.ContainsByPredicate([ItemInstanceId](const FZSItemInstanceBase& Instance) { return Instance.InstanceId == ItemInstanceId; }))
+		{
+			return Server_RetrieveFromBag(Bag.InstanceId, ItemInstanceId);
+		}
+	}
+
+	return false;
+}
+
+bool UZSInventoryComponent::Server_MoveToSlot(FGuid ItemInstanceId, FGuid TargetBagInstanceId, int32 TargetSlotIndex)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !ItemInstanceId.IsValid() || TargetSlotIndex < 0)
+	{
+		return false;
+	}
+
+	// Resolve the target compartment and its capacity.
+	EZSCarryLocation TargetLocation = EZSCarryLocation::OnPerson;
+	if (TargetBagInstanceId.IsValid() && !ResolveBagLocation(TargetBagInstanceId, TargetLocation))
+	{
+		return false;
+	}
+	if (TargetSlotIndex >= GetCompartmentCapacity(TargetLocation))
+	{
+		return false;
+	}
+
+	// Locate and copy out the moving item - nothing is mutated yet, everything below validates
+	// first so a rejected swap leaves both items exactly where they started.
+	FZSItemInstance MovingItem;
+	FGuid OriginBagInstanceId;
+	if (!FindItemAnywhere(ItemInstanceId, MovingItem, OriginBagInstanceId))
+	{
+		return false;
+	}
+
+	const int32 OriginSlotIndex = MovingItem.SlotIndex;
+	if (OriginBagInstanceId == TargetBagInstanceId && OriginSlotIndex == TargetSlotIndex)
+	{
+		return false; // Dropped back onto its own current slot - no-op.
+	}
+
+	if (!IsItemLegalForBag(MovingItem, TargetBagInstanceId))
+	{
+		return false;
+	}
+
+	// Whatever currently occupies the target slot, if anything, needs to swap into MovingItem's old
+	// spot rather than being displaced - validate that placement is legal too before touching
+	// anything, so a swap either fully succeeds or nothing moves at all.
+	FZSItemInstance Occupant;
+	const bool bHasOccupant = FindItemAtSlot(TargetBagInstanceId, TargetSlotIndex, Occupant);
+	if (bHasOccupant && !IsItemLegalForBag(Occupant, OriginBagInstanceId))
+	{
+		return false;
+	}
+
+	// --- Validated - mutate now. ---
+	RemoveItemAnywhereById(ItemInstanceId);
+	if (bHasOccupant)
+	{
+		RemoveItemAnywhereById(Occupant.InstanceId);
+	}
+
+	MovingItem.Location = TargetLocation;
+	MovingItem.SlotIndex = TargetSlotIndex;
+	InsertItemInto(MovingItem, TargetBagInstanceId);
+
+	if (bHasOccupant)
+	{
+		EZSCarryLocation OriginLocation = EZSCarryLocation::OnPerson;
+		if (OriginBagInstanceId.IsValid())
+		{
+			ResolveBagLocation(OriginBagInstanceId, OriginLocation); // Already validated above via IsItemLegalForBag's caller context.
+		}
+		Occupant.Location = OriginLocation;
+		Occupant.SlotIndex = OriginSlotIndex;
+		InsertItemInto(Occupant, OriginBagInstanceId);
+	}
 
 	OnRep_InventoryState();
 	return true;
@@ -533,8 +1079,10 @@ void UZSInventoryComponent::Server_DropAllItems(FVector DropLocation)
 	}
 
 	CarrySlots.Empty();
-	EquippedBack = FGuid();
-	EquippedDuffle = FGuid();
+	for (FGuid& EquippedSlot : EquippedSlots)
+	{
+		EquippedSlot = FGuid();
+	}
 	// B1-T5.0: mounted weapons are just CarrySlots instances too (dropped in the loop above) - their
 	// mount-slot GUID references need clearing the same way EquippedBack/Duffle's do.
 	for (FGuid& MountSlot : MountedLongGuns)
@@ -542,6 +1090,41 @@ void UZSInventoryComponent::Server_DropAllItems(FVector DropLocation)
 		MountSlot = FGuid();
 	}
 	MountedSidearm = FGuid();
+	MountedMelee = FGuid();
+	OnRep_InventoryState();
+}
+
+bool UZSInventoryComponent::Server_MountMelee(FGuid InstanceId)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return false;
+	}
+
+	const UZSWeaponConfig* WeaponConfig = ResolveMountableWeapon(InstanceId);
+	// OneHanded + Melee only - the exact converse of Server_MountSidearm's gate, see the header
+	// comment on this function for why.
+	if (!WeaponConfig || WeaponConfig->Handedness != EZSWeaponHandedness::OneHanded || WeaponConfig->AttackType != EZSAttackType::Melee)
+	{
+		return false;
+	}
+
+	MountedMelee = InstanceId;
+	OnRep_InventoryState();
+	return true;
+}
+
+void UZSInventoryComponent::Server_UnmountMelee()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !MountedMelee.IsValid())
+	{
+		return;
+	}
+
+	// 2026-08-09: the unmounted weapon becomes a visible Pockets item again - see
+	// RefreshOnPersonSlotIndex's own comment for why it needs a fresh slot, not its stale one.
+	RefreshOnPersonSlotIndex(MountedMelee);
+	MountedMelee = FGuid();
 	OnRep_InventoryState();
 }
 
@@ -551,12 +1134,12 @@ bool UZSInventoryComponent::IsWeaponMounted(FGuid InstanceId) const
 	{
 		return false;
 	}
-	return MountedSidearm == InstanceId || MountedLongGuns.Contains(InstanceId);
+	return MountedSidearm == InstanceId || MountedMelee == InstanceId || MountedLongGuns.Contains(InstanceId);
 }
 
 const UZSWeaponConfig* UZSInventoryComponent::ResolveMountableWeapon(FGuid InstanceId) const
 {
-	if (!InstanceId.IsValid() || IsWeaponMounted(InstanceId) || InstanceId == EquippedBack || InstanceId == EquippedDuffle)
+	if (!InstanceId.IsValid() || IsWeaponMounted(InstanceId) || EquippedSlots.Contains(InstanceId))
 	{
 		return nullptr;
 	}
@@ -590,6 +1173,9 @@ void UZSInventoryComponent::Server_UnmountLongGun(int32 MountIndex)
 		return;
 	}
 
+	// 2026-08-09: the unmounted weapon becomes a visible Pockets item again - see
+	// RefreshOnPersonSlotIndex's own comment for why it needs a fresh slot, not its stale one.
+	RefreshOnPersonSlotIndex(MountedLongGuns[MountIndex]);
 	MountedLongGuns[MountIndex] = FGuid();
 	OnRep_InventoryState();
 }
@@ -621,6 +1207,9 @@ void UZSInventoryComponent::Server_UnmountSidearm()
 		return;
 	}
 
+	// 2026-08-09: the unmounted weapon becomes a visible Pockets item again - see
+	// RefreshOnPersonSlotIndex's own comment for why it needs a fresh slot, not its stale one.
+	RefreshOnPersonSlotIndex(MountedSidearm);
 	MountedSidearm = FGuid();
 	OnRep_InventoryState();
 }

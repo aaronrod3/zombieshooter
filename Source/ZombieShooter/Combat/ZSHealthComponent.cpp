@@ -2,6 +2,7 @@
 
 #include "ZSHealthComponent.h"
 #include "ZSHealthConfig.h"
+#include "../Survival/ZSItemConfig.h"
 #include "ZombieShooter/Framework/ZSGameState.h"
 #include "Net/UnrealNetwork.h"
 #include "ZombieShooter.h"
@@ -28,6 +29,7 @@ void UZSHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UZSHealthComponent, BodyZones);
 	DOREPLIFETIME(UZSHealthComponent, InfectionStage);
 	DOREPLIFETIME(UZSHealthComponent, bIsDead);
+	DOREPLIFETIME(UZSHealthComponent, bIsDowned);
 	DOREPLIFETIME(UZSHealthComponent, LastDeathInfo);
 }
 
@@ -150,23 +152,25 @@ float UZSHealthComponent::GetReloadSpeedMultiplier() const
 
 float UZSHealthComponent::GetAccuracySpreadMultiplier() const
 {
-	if (!HealthConfig)
+	float BaseMultiplier = 1.f;
+
+	if (const FZSBodyZoneWound* Arms = HealthConfig ? FindZone(EZSBodyZone::Arms) : nullptr)
 	{
-		return 1.f;
+		if (Arms->bAmputated)
+		{
+			BaseMultiplier = HealthConfig->ArmAmputatedAccuracySpreadMultiplier;
+		}
+		else if (Arms->WoundType != EZSWoundType::None)
+		{
+			BaseMultiplier = HealthConfig->ArmWoundedAccuracySpreadMultiplier;
+		}
 	}
 
-	const FZSBodyZoneWound* Arms = FindZone(EZSBodyZone::Arms);
-	if (!Arms)
-	{
-		return 1.f;
-	}
-
-	if (Arms->bAmputated)
-	{
-		return HealthConfig->ArmAmputatedAccuracySpreadMultiplier;
-	}
-
-	return Arms->WoundType != EZSWoundType::None ? HealthConfig->ArmWoundedAccuracySpreadMultiplier : 1.f;
+	// 2026-08-10, dev-confirmed: "can shoot enemies [while downed], but will have lower accuracy" -
+	// stacks multiplicatively with the Arms-wound penalty above rather than overriding it (a downed
+	// AND arm-wounded player is worse off than either alone). 1 = no penalty and HIGHER is worse,
+	// same convention this whole accessor already uses.
+	return bIsDowned ? BaseMultiplier * DownedAccuracySpreadMultiplier : BaseMultiplier;
 }
 
 EZSWoundDisplayCondition UZSHealthComponent::GetWoundDisplayCondition(const FZSBodyZoneWound& Wound) const
@@ -212,6 +216,112 @@ bool UZSHealthComponent::HasAnyGameplayAffectingCondition() const
 		}
 	}
 	return GetInfectionStage() != EZSInfectionStage::None;
+}
+
+bool UZSHealthComponent::FindAutoTargetZone(EZSItemUseType UseType, EZSBodyZone& OutZone) const
+{
+	static const EZSBodyZone ZoneOrder[] = { EZSBodyZone::Head, EZSBodyZone::Torso, EZSBodyZone::Arms, EZSBodyZone::Legs };
+
+	int32 BestSeverity = -1;
+	EZSBodyZone BestZone = EZSBodyZone::Torso;
+	bool bFound = false;
+
+	for (EZSBodyZone Zone : ZoneOrder)
+	{
+		const FZSBodyZoneWound* Wound = FindZone(Zone);
+		if (!Wound || Wound->bAmputated)
+		{
+			continue;
+		}
+
+		int32 Severity = -1;
+		switch (UseType)
+		{
+		case EZSItemUseType::Bandage:
+			if (Wound->bCriticalBleed) { Severity = 2; }
+			else if (Wound->bBleeding) { Severity = 1; }
+			break;
+		case EZSItemUseType::Disinfectant:
+			if (Wound->WoundInfectionState == EZSWoundInfectionState::Infected) { Severity = 2; }
+			else if (!Wound->bClean) { Severity = 1; }
+			break;
+		case EZSItemUseType::Splint:
+			if (Wound->WoundType == EZSWoundType::Fracture && !Wound->bSplinted) { Severity = 1; }
+			break;
+		default:
+			break;
+		}
+
+		// Strictly greater only - the first zone encountered at a given severity (ZoneOrder's own
+		// sequence) wins ties, which is exactly the Head > Torso > Arms > Legs tiebreak rule.
+		if (Severity > BestSeverity)
+		{
+			BestSeverity = Severity;
+			BestZone = Zone;
+			bFound = true;
+		}
+	}
+
+	if (bFound)
+	{
+		OutZone = BestZone;
+	}
+	return bFound;
+}
+
+void UZSHealthComponent::Server_RestoreHealth(float Amount)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDead || Amount <= 0.f)
+	{
+		return;
+	}
+
+	CurrentHealth = FMath::Clamp(CurrentHealth + Amount, 0.f, GetMaxHealth());
+	OnRep_CurrentHealth();
+
+	// 2026-08-10, dev-confirmed (self-heal while downed): a HealthRestore item is the "certain items"
+	// self-revive path - if it brought CurrentHealth back above 0 while downed, that's the trigger to
+	// stand back up, no teammate required. Server_ExitDowned no-ops harmlessly if not currently downed.
+	if (bIsDowned && CurrentHealth > 0.f)
+	{
+		Server_ExitDowned();
+	}
+
+	if (CurrentHealth >= GetMaxHealth())
+	{
+		ClearScratchWoundsAtFullHealth();
+	}
+}
+
+void UZSHealthComponent::Server_ReviveDowned()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !bIsDowned)
+	{
+		return;
+	}
+
+	CurrentHealth = FMath::Max(CurrentHealth, ReviveHealthAmount);
+	OnRep_CurrentHealth();
+
+	Server_ExitDowned();
+}
+
+void UZSHealthComponent::ClearScratchWoundsAtFullHealth()
+{
+	bool bChanged = false;
+	for (FZSBodyZoneWound& Wound : BodyZones)
+	{
+		if (Wound.WoundType == EZSWoundType::Scratch)
+		{
+			Wound.WoundType = EZSWoundType::None;
+			bChanged = true;
+		}
+	}
+
+	if (bChanged)
+	{
+		OnRep_BodyZones();
+	}
 }
 
 void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone, EZSWoundType WoundType, AController* EventInstigator, AActor* DamageCauser)
@@ -276,7 +386,10 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 		// bBleeding=true on a zone the code otherwise treats as never-bleeding (TickBleed has no case
 		// for Fracture). Also explicitly clears any bleed flags inherited from a wound type this hit
 		// just upgraded past, rather than leaving them stale on a zone now tracked as Fracture.
-		if (ZoneWound->WoundType != EZSWoundType::Fracture)
+		// 2026-08-09, dev-confirmed: Scratch gets the same never-bleeds exemption as Fracture - it's
+		// one-time damage only, self-resolving at full health (ClearScratchWoundsAtFullHealth) rather
+		// than needing an active bandage like every other bleeding wound type.
+		if (ZoneWound->WoundType != EZSWoundType::Fracture && ZoneWound->WoundType != EZSWoundType::Scratch)
 		{
 			ZoneWound->bBleeding = true;
 
@@ -302,7 +415,7 @@ void UZSHealthComponent::Server_ApplyDamage(float DamageAmount, EZSBodyZone Zone
 
 	if (CurrentHealth <= 0.f)
 	{
-		Die();
+		HandleHealthDepleted();
 	}
 }
 
@@ -456,7 +569,10 @@ int32 UZSHealthComponent::GetWoundSeverity(EZSWoundType Type)
 
 void UZSHealthComponent::TickBleed(float DeltaTime)
 {
-	if (!HealthConfig || bIsDead)
+	// 2026-08-10: paused while downed, same as the other 3 Tick* systems below - see bIsDowned's own
+	// header comment for why (the DownedDurationSeconds revive window would otherwise be racing an
+	// unrelated bleed-out clock).
+	if (!HealthConfig || bIsDead || bIsDowned)
 	{
 		return;
 	}
@@ -511,13 +627,13 @@ void UZSHealthComponent::TickBleed(float DeltaTime)
 
 	if (CurrentHealth <= 0.f)
 	{
-		Die();
+		HandleHealthDepleted();
 	}
 }
 
 void UZSHealthComponent::TickInfection(float DeltaTime)
 {
-	if (!HealthConfig || InfectionStage == EZSInfectionStage::None || bIsDead)
+	if (!HealthConfig || InfectionStage == EZSInfectionStage::None || bIsDead || bIsDowned)
 	{
 		return;
 	}
@@ -581,7 +697,7 @@ void UZSHealthComponent::TickInfection(float DeltaTime)
 
 void UZSHealthComponent::TickFractureRecovery(float DeltaTime)
 {
-	if (!HealthConfig)
+	if (!HealthConfig || bIsDowned)
 	{
 		return;
 	}
@@ -636,7 +752,7 @@ void UZSHealthComponent::TickFractureRecovery(float DeltaTime)
 
 void UZSHealthComponent::TickWoundInfection(float DeltaTime)
 {
-	if (!HealthConfig)
+	if (!HealthConfig || bIsDowned)
 	{
 		return;
 	}
@@ -757,8 +873,85 @@ void UZSHealthComponent::Die()
 		return;
 	}
 
+	// A corpse should never stay flagged downed - same "clear the flag on death" fix already applied
+	// to AZombieCharacter::Die() (see ZS.Combat.ZombieDeathWhileDownedClearsDownedFlag).
+	if (bIsDowned)
+	{
+		bIsDowned = false;
+		if (GetWorld())
+		{
+			GetWorld()->GetTimerManager().ClearTimer(DownedTimerHandle);
+		}
+		OnRep_IsDowned();
+	}
+
 	bIsDead = true;
 	OnRep_IsDead();
+}
+
+void UZSHealthComponent::HandleHealthDepleted()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDead)
+	{
+		return;
+	}
+
+	// 2026-08-10, dev-confirmed: already downed and CurrentHealth hit 0 again - a fresh hit landing on
+	// a player mid-revive-window is a finishing blow, not a second countdown. Die() outright.
+	if (bIsDowned)
+	{
+		Die();
+		return;
+	}
+
+	// 2026-08-10, dev-confirmed: unconditional, solo included - "player can still be downed if no
+	// other players in the lobby, but just a lower chance at surviving a horde." A solo player still
+	// gets the fight/self-heal/wait-it-out window, just with nobody able to Server_ReviveDowned them.
+	Server_EnterDowned();
+}
+
+void UZSHealthComponent::Server_EnterDowned()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || bIsDowned || bIsDead)
+	{
+		return;
+	}
+
+	bIsDowned = true;
+	OnRep_IsDowned();
+
+	FTimerDelegate ExpireDelegate = FTimerDelegate::CreateUObject(this, &UZSHealthComponent::HandleDownedTimerExpired);
+	GetWorld()->GetTimerManager().SetTimer(DownedTimerHandle, ExpireDelegate, FMath::Max(DownedDurationSeconds, 0.01f), false);
+}
+
+void UZSHealthComponent::Server_ExitDowned()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || !bIsDowned)
+	{
+		return;
+	}
+
+	bIsDowned = false;
+	OnRep_IsDowned();
+
+	GetWorld()->GetTimerManager().ClearTimer(DownedTimerHandle);
+}
+
+void UZSHealthComponent::HandleDownedTimerExpired()
+{
+	if (!bIsDowned)
+	{
+		// Already exited (revived/self-healed) - the timer should have been cleared, but a stray
+		// already-queued callback firing on the same frame as an exit shouldn't re-kill anyone.
+		return;
+	}
+
+	Die();
+}
+
+void UZSHealthComponent::OnRep_IsDowned()
+{
+	OnDownedChanged.Broadcast(bIsDowned);
 }
 
 void UZSHealthComponent::OnRep_CurrentHealth()

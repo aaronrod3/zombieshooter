@@ -28,6 +28,9 @@ class USkeletalMesh;
 class UZSInventoryComponent;
 class AZombieCharacter;
 class USpotLightComponent;
+class UStaticMeshComponent;
+class USceneCaptureComponent2D;
+class UTextureRenderTarget2D;
 class UZSUIManager;
 class AZSContainerActor;
 class UZSInventoryScreenWidget;
@@ -242,11 +245,14 @@ protected:
 
 	// =====================================================================
 	// P5/B1 - Loadout: key-mapped weapon slots (GameDevPlan.md P5, redesigned 2026-08-01 dev-
-	// confirmed away from a free-form 9-slot hotbar). 4 fixed slots, each key-bound directly:
+	// confirmed away from a free-form 9-slot hotbar). 5 fixed slots, each key-bound directly:
 	// index 0 (key 1, "Primary") resolves live to UZSInventoryComponent::GetMountedLongGun(0);
 	// index 1 (key 2, "Pistol") resolves to GetMountedSidearm(); index 2 (key 3, "Secondary")
-	// resolves to GetMountedLongGun(1); index 3 (key G) resolves to this class's own
-	// EquipmentSlotInstanceId (see the Equipment-slot section further below). A weapon becomes
+	// resolves to GetMountedLongGun(1); index 3 (key 4, "Melee", 2026-08-06 addition) resolves to
+	// GetMountedMelee(); index 4 (key G) resolves to this class's own EquipmentSlotInstanceId (see
+	// the Equipment-slot section further below). Key 4 needed no new Input Action/IMC content - the
+	// dev-authored IMC already maps Digit1..Digit9 generically onto HotbarSelectAction (see its own
+	// UPROPERTY comment); only NumMountKeySlots below needed to grow to actually consume it. A weapon becomes
 	// key-selectable purely by being mounted - there is no separate "assign to slot N" step
 	// anymore, mounting IS the assignment. Switching slots isn't instant - Server_SelectHotbarSlot
 	// schedules the actual EquipWeapon call after the target config's EquipTimeSeconds (or
@@ -264,11 +270,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
 	int32 GetActiveHotbarIndex() const { return ActiveHotbarIndex; }
 
-	/** B1, 2026-08-02: the on-screen key label for a weapon-key slot index (0/1 = the 2 long-gun mounts, 2 = sidearm mount, EquipmentSlotIndex = Equipment) - single source of truth for the "1 = Primary, 2 = Pistol, 3 = Secondary, G = Equipment" mapping, so WBP_ZS_EquippedItemIndicator doesn't need to replicate it in a Blueprint Switch. Returns an empty FText for anything outside 0..NumWeaponSlots-1. */
+	/** B1, 2026-08-02 (2026-08-06: extended to 5 slots for the melee mount): the on-screen key label for a weapon-key slot index (0/1/2 = the 2 long-gun + sidearm mounts, 3 = the melee mount, EquipmentSlotIndex = Equipment) - single source of truth for the "1 = Primary, 2 = Pistol, 3 = Secondary, 4 = Melee, G = Equipment" mapping, so WBP_ZS_EquippedItemIndicator doesn't need to replicate it in a Blueprint Switch. Returns an empty FText for anything outside 0..NumWeaponSlots-1. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Loadout")
 	FText GetKeyLabelForHotbarIndex(int32 Index) const;
 
-	/** Client-callable entry point, bound to HotbarSelectAction (keys 1-3) or EquipItemAction (G, always slot 3 - see HandleEquipmentSelect). SlotIndex is already 0-based. No-op if mid-switch (CanSwitchLoadout) or out of range. */
+	/** Client-callable entry point, bound to HotbarSelectAction (keys 1-4) or EquipItemAction (G, always EquipmentSlotIndex - see HandleEquipmentSelect). SlotIndex is already 0-based. No-op if mid-switch (CanSwitchLoadout) or out of range. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Loadout")
 	void SelectHotbarSlot(int32 SlotIndex);
 
@@ -277,14 +283,14 @@ public:
 
 protected:
 
-	/** The 3 keys (1/2/3) that map directly to a weapon-mount slot - Primary/Pistol/Secondary. */
-	static constexpr int32 NumMountKeySlots = 3;
+	/** The 4 keys (1/2/3/4) that map directly to a weapon-mount slot - Primary/Pistol/Secondary/Melee. 2026-08-06: was 3, grew by 1 for the new melee mount - see UZSInventoryComponent::MountedMelee. */
+	static constexpr int32 NumMountKeySlots = 4;
 
-	/** The 4th weapon-key slot (G) - resolves to EquipmentSlotInstanceId instead of a mount. */
-	static constexpr int32 EquipmentSlotIndex = 3;
+	/** The 5th weapon-key slot (G) - resolves to EquipmentSlotInstanceId instead of a mount. */
+	static constexpr int32 EquipmentSlotIndex = 4;
 
 	/** Total valid range for ActiveHotbarIndex/Server_SelectHotbarSlot - NumMountKeySlots + the Equipment slot. */
-	static constexpr int32 NumWeaponSlots = 4;
+	static constexpr int32 NumWeaponSlots = 5;
 
 	/** Starting weapons, authored on the character/BP. At BeginPlay each is minted into CarrySlots and auto-mounted (TwoHanded -> next free long-gun mount, OneHanded+Ranged -> sidearm mount) so it's immediately key-selectable - no separate hotbar-seeding step exists anymore, mounting is the only carry/selectability mechanism. */
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loadout")
@@ -309,16 +315,47 @@ protected:
 	/** The write side of ResolveWeaponSlotInstance - clears whichever underlying reference SlotIndex currently resolves to (unmounts the mount, or nulls EquipmentSlotInstanceId), without touching CurrentWeapon/ActiveHotbarIndex - callers that also need those cleared (e.g. a weapon breaking) do that themselves alongside this call. */
 	void ClearWeaponSlot(int32 SlotIndex);
 
+	/** 2026-08-09: the last real two-handed (long-gun-mountable) weapon actively wielded - kept
+	 *  updated by WriteBackCurrentWeaponDurability every time CurrentWeapon changes away from one, so
+	 *  it's still known even while currently unarmed/holding something else. The one thing
+	 *  Server_TryAutoMountWeapon needs that ResolveWeaponSlotInstance(ActiveHotbarIndex) can't give it
+	 *  once the player's gone bare-fist (ActiveHotbarIndex is INDEX_NONE by then). Not replicated -
+	 *  server-only bookkeeping, never read by any client-side UI. */
+	FGuid LastEquippedWeaponInstanceId;
+
+public:
+
+	/** 2026-08-09, dev-confirmed: called after a world pickup successfully lands a weapon in Pockets -
+	 *  auto-mounts it into whichever mount type it belongs to (long-gun/sidearm/melee, inferred from
+	 *  Handedness/AttackType same as the 3 weapon-mount slots already gate on). If that mount type's
+	 *  slot(s) are already full: for the two long-gun mounts specifically, bumps whichever one holds
+	 *  the currently-equipped weapon (CurrentWeapon, if actively wielding a long gun right now) or the
+	 *  last-equipped one (LastEquippedWeaponInstanceId, if currently unarmed/holding something else) -
+	 *  falls back to mount index 0 if neither resolves to an actually-occupied long-gun mount. Sidearm/
+	 *  Melee each have only one possible occupant, so a full slot there just swaps that occupant out
+	 *  directly, no disambiguation needed. The bumped weapon is left as a loose, unmounted CarrySlots
+	 *  item (still carried, just no longer key-selectable) - this is the world-pickup path only,
+	 *  deliberately NOT called from container-take (AZSContainerActor::Server_TakeItem/
+	 *  Server_TakeAllItems), which stays drag-and-drop only per dev direction. Server-only, no-op if
+	 *  InstanceId isn't a carried weapon or called off a non-authoritative machine. Public rather than
+	 *  a real UFUNCTION Server RPC - plain C++ call is fine since its only caller (AZSWorldItemActor::
+	 *  HandleInteracted) already runs exclusively on the server, per Server_Interact's own
+	 *  server-authoritative contract - but it still needs public access since AZSWorldItemActor isn't
+	 *  a subclass of AZSPlayerCharacter. */
+	void Server_TryAutoMountWeapon(FGuid InstanceId);
+
+protected:
+
 	/** B0-T2 Step B: writes CurrentWeapon's live durability back into the CarrySlots instance ActiveHotbarIndex currently resolves to (via ResolveWeaponSlotInstance), before that AZSWeapon actor gets destroyed - the actual fix for durability resetting on unequip/re-equip. No-op if there's no current weapon, no valid active slot, or GetInventoryComponent() is unset. Not called from the weapon-breaking path (T2.8 removes the instance instead of preserving it). */
 	void WriteBackCurrentWeaponDurability();
 
 	/** Shared no-op guard for SelectHotbarSlot's input handler and Server_SelectHotbarSlot itself - same bIsBusy gate CanAttack()/CanFire()/CanReload() already use, so a weapon-key switch can't be started mid-swing, mid-shot, or mid-reload, and a second switch can't be started mid-switch. */
 	bool CanSwitchLoadout() const;
 
-	/** Bound to HotbarSelectAction (keys 1-3 only, via a 1-3 Axis1D value) - converts to a 0-based NumMountKeySlots-range index. Key 4+ isn't mapped to this action at all (the 4th slot, Equipment, has its own dedicated key/action - see HandleEquipmentSelect). */
+	/** Bound to HotbarSelectAction (keys 1-4 only, via a 1-4 Axis1D value - grew from 1-3 on 2026-08-06 for the new melee mount) - converts to a 0-based NumMountKeySlots-range index. Key 5+ isn't mapped to this action at all (the Equipment slot has its own dedicated key/action - see HandleEquipmentSelect). */
 	void HandleHotbarSelect(const FInputActionValue& Value);
 
-	/** Bound to EquipItemAction (G) - always targets EquipmentSlotIndex (3), same toggle behavior (re-pressing while already equipped unequips) as the numbered weapon keys. */
+	/** Bound to EquipItemAction (G) - always targets EquipmentSlotIndex, same toggle behavior (re-pressing while already equipped unequips) as the numbered weapon keys. */
 	void HandleEquipmentSelect(const FInputActionValue& Value);
 
 	/** Flat fallback used when CompleteHotbarSwitch has no destination config to read EquipTimeSeconds from (switching to bare-fist has no UZSWeaponConfig involved). */
@@ -374,7 +411,7 @@ protected:
 	// =====================================================================
 	// B0-T11 - SecondaryHand & activatable items (Docs/Planning/InventoryLoadoutEquipping_Plan.md
 	// §6). SecondaryHandInstanceId is a GUID into GetInventoryComponent()'s CarrySlots, same
-	// "never physically removed, just referenced" model the weapon-mount slots/EquippedBack/Duffle already use.
+	// "never physically removed, just referenced" model the weapon-mount slots/EquippedSlots already use.
 	// Legal contents: (a) a UZSWeaponConfig with Handedness == OneHanded && bUsableInSecondaryHand
 	// (offhand pistol), or (b) any UZSItemConfig with bIsToggleable (a flashlight) - a TwoHanded
 	// primary blocks the slot entirely either way. IA_SecondaryAction (T) dispatches on whichever
@@ -675,7 +712,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
 	float GetRespawnDelaySeconds() const { return RespawnDelaySeconds; }
 
-	/** Client-callable entry point - GameDevPlan.md P3's "simplest version first" amputation: any zone context, solo-capable, no tool-item requirement enforced here (open questions on tool/timing/co-op-assist are refinements in GameDevPlan.md §7, not blockers). Routes through Server_AmputateZone, which now runs the real B0-T7.1 choreography (bIsBusy + montage + real duration) before HealthComponent->Server_AmputateZone actually mutates anything - HealthComponent stays the authority on whether it's valid (Arms/Legs only, not already amputated), this class only owns the timing/blackout consequences layered on top. */
+	/** Client-callable entry point - GameDevPlan.md P3's "simplest version first" amputation: any zone context, solo-capable, no tool-item requirement enforced here (open questions on tool/timing/co-op-assist are refinements in GameDevPlan.md §7, not blockers). Routes through Server_AmputateZone, which now runs the real B0-T7.1 choreography (bIsBusy + montage + real duration) before HealthComponent->Server_AmputateZone actually mutates anything - HealthComponent stays the authority on whether it's valid (Arms/Legs only, not already amputated), this class only owns the timing/mobility consequences layered on top. */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Health")
 	void AmputateZone(EZSBodyZone Zone);
 
@@ -691,7 +728,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0"))
 	float AmputationDurationSeconds = 3.f;
 
-	/** Timer callback for Server_AmputateZone's choreography window - actually mutates HealthComponent, clears bIsBusy, then enters blackout (EnterBlackout). Server-only. */
+	/** Timer callback for Server_AmputateZone's choreography window - actually mutates HealthComponent, clears bIsBusy, then applies the temporary amputation-shock mobility penalty below. Server-only. */
 	void CompleteAmputation(EZSBodyZone Zone);
 
 	FTimerHandle AmputationTimerHandle;
@@ -699,47 +736,78 @@ protected:
 public:
 
 	// =====================================================================
-	// B0-T7.2-T7.4 - Blackout (incapacitated-after-amputation state, not death, not normal play)
+	// B0-T7.2 - Amputation shock (temporary mobility penalty, decoupled from downed/death)
 	// =====================================================================
 
+	/** 2026-08-10, dev-confirmed: amputation no longer incapacitates at all (the old blackout system is gone entirely - see UZSHealthComponent::IsDowned for its 0-HP replacement). "If the player amputates then they are temporarily very limited in mobility" - this is that: a steep, timed extra multiplier layered on top of whatever HealthComponent::GetMobilityMultiplier() already permanently returns for the amputated zone (that permanent penalty is unchanged). Player stays fully in control (can move, fight, use items) throughout, just slowly. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Health")
-	bool IsBlackedOut() const { return bIsBlackedOut; }
-
-	/** Reuses the existing generic bool-change delegate rather than declaring a single-purpose one. */
-	UPROPERTY(BlueprintAssignable, Category = "ZS|Health")
-	FZSOnBoolStateChanged OnBlackoutChanged;
+	bool IsAmputationShocked() const { return bIsAmputationShocked; }
 
 protected:
 
-	/** Not death - collision/damageability stay on throughout (an incapacitated player is still a valid target, per T7.3's "enemies can find and kill" requirement), only movement/input are suspended. Not normal play either - movement is fully disabled for the duration. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_IsBlackedOut, Category = "ZS|Health")
-	bool bIsBlackedOut = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_IsAmputationShocked, Category = "ZS|Health")
+	bool bIsAmputationShocked = false;
 
 	UFUNCTION()
-	void OnRep_IsBlackedOut();
+	void OnRep_IsAmputationShocked();
 
-	/** Server-only: sets bIsBlackedOut, disables movement, flips ReviveInteractable on, and jumps the world clock forward by BlackoutTimeSkipGameHours via AZSGameState::Server_AdvanceTimeByGameHours - a single lump-sum jump (matching the existing sleep/time-skip mechanism) rather than a sustained per-player clock-rate multiplier, since the world clock is shared across every connected player and can't run at two speeds at once. Schedules automatic recovery after BlackoutDurationSeconds of real time unless revived first. No-op if already blacked out or off a non-authoritative machine. Called from CompleteAmputation. */
-	void EnterBlackout();
-
-	/** Server-only: clears bIsBlackedOut, re-enables movement, flips ReviveInteractable off, clears the auto-recovery timer. bWasRevived is cosmetic/logging only - a revive (B0-T7.4) just calls this early rather than modeling a separate reduced-duration timer (no revive montage/channeled-action content exists yet to justify one - v1 simplification). */
-	void ExitBlackout(bool bWasRevived);
-
-	/** B0-T7.3: how many game-hours the world clock jumps forward the instant blackout begins - "you were unconscious and time passed you by." Dev's stated figure: ~12. */
+	/** Real-time seconds a fresh amputation stays at AmputationShockMobilityMultiplier before settling to HealthComponent's permanent (lesser) zone penalty alone. Code default, not dev-specified - retune freely. */
 	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0"))
-	float BlackoutTimeSkipGameHours = 12.f;
+	float AmputationShockDurationSeconds = 45.f;
 
-	/** B0-T7.3: real-time seconds the player stays incapacitated/vulnerable before automatically recovering if nobody revives them first. Code default, not dev-specified - retune freely. */
-	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0"))
-	float BlackoutDurationSeconds = 60.f;
+	/** Multiplies straight into UpdateMovementSpeed alongside HealthComponent::GetMobilityMultiplier() - stacks with, doesn't replace, the permanent zone penalty. 1 = no extra penalty, lower = more limited. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0", ClampMax = "1"))
+	float AmputationShockMobilityMultiplier = 0.3f;
 
-	FTimerHandle BlackoutTimerHandle;
+	FTimerHandle AmputationShockTimerHandle;
 
-	/** B0-T7.4: only interactable while bIsBlackedOut (bIsInteractable toggled in Enter/ExitBlackout) - lets a teammate revive a downed player, ending their blackout early. UpdateNearestInteractable's overlap scan was widened to also query ECC_Pawn this session specifically so this is findable (players were never Pawn-object-queried before, since no interactable had ever lived on a Pawn). "Move the downed body" (the other half of T7.4) isn't built - a real drag/carry system is bigger scope than this pass, revive-shortens-blackout is the concrete, testable mechanic. */
+	/** Server-only timer callback: ends the temporary shock window, leaving only HealthComponent's permanent zone penalty. */
+	void ClearAmputationShock();
+
+public:
+
+	// =====================================================================
+	// B0-T7.4 - Revive (teammate interact while downed - see UZSHealthComponent::IsDowned)
+	// =====================================================================
+
+	/** 2026-08-10: proxies HealthComponent's own replicated state rather than mirroring a second bool here - HealthComponent is the single source of truth for "is this player downed" (see its own header comment for the full 0-HP/revive-window/finishing-blow design). Defined in the .cpp, not inline here - UZSHealthComponent is only forward-declared in this header, calling a member function on it needs the complete type. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Health")
+	bool IsDowned() const;
+
+protected:
+
+	/** Bound to HealthComponent->OnDownedChanged in BeginPlay - the movement/interactable/sleep-ready consequences that don't belong on HealthComponent itself (same split as HandleDeath reacting to HealthComponent->OnDeath). Runs on every machine (OnRep fires everywhere); the CancelSleepReady() RPC call is explicitly HasAuthority()-gated, same pattern HandleDeath already uses. */
+	UFUNCTION()
+	void HandleDownedChanged(bool bNewIsDowned);
+
+	/** Only interactable while downed (bIsInteractable toggled in HandleDownedChanged) - lets a teammate revive a downed player via UZSHealthComponent::Server_ReviveDowned. UpdateNearestInteractable's overlap scan was widened to also query ECC_Pawn specifically so this is findable (players were never Pawn-object-queried before, since no interactable had ever lived on a Pawn). "Move the downed body" isn't built - a real drag/carry system is bigger scope than this pass. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UZSInteractableComponent> ReviveInteractable;
 
 	UFUNCTION()
 	void HandleReviveInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor);
+
+	/** 2026-08-10, dev-confirmed: "slower actions (reload, swap weapons, etc.)" while downed - one general multiplier rather than a separate field per action, applied at each action's own timing call site (BeginBusyAction's BusyDuration covers reload/jam-clear/every other busy-action montage uniformly; Server_SelectHotbarSlot_Implementation's SwitchDelay covers weapon-swap). 1 = no penalty, lower = slower. */
+	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0.01", ClampMax = "1"))
+	float DownedActionSpeedMultiplier = 0.5f;
+
+	/** 2026-08-10, dev-confirmed: "player having a slower movement speed after getting back up, for a small amount of time" - starts the instant HandleDownedChanged(false) fires (self-heal or teammate revive alike), decoupled from AmputationShock's own timer/multiplier pair even though the mechanism is identical. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_IsPostReviveSlowed, Category = "ZS|Health")
+	bool bIsPostReviveSlowed = false;
+
+	UFUNCTION()
+	void OnRep_IsPostReviveSlowed();
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0"))
+	float PostReviveSlowDurationSeconds = 10.f;
+
+	UPROPERTY(EditAnywhere, Category = "ZS|Health", meta = (ClampMin = "0", ClampMax = "1"))
+	float PostReviveSlowMovementMultiplier = 0.5f;
+
+	FTimerHandle PostReviveSlowTimerHandle;
+
+	/** Server-only timer callback: ends the temporary post-revive movement penalty. */
+	void ClearPostReviveSlow();
 
 public:
 
@@ -788,19 +856,21 @@ protected:
 	static EZSWoundType WoundTypeFromDamageTypeClass(TSubclassOf<UDamageType> DamageTypeClass);
 
 	// ---- P3: item use dispatch - one entry point for both P2's eat/drink and P3's medical items,
-	// per UZSItemConfig::EZSItemUseType. TargetZone is ignored for Consumable items. No inventory
-	// yet (P6) - the caller (a future UI/hotbar) is expected to already hold a valid UZSItemConfig
-	// reference, not look one up by name/slot. ----
+	// per UZSItemConfig::EZSItemUseType. No inventory yet (P6) - the caller (a future UI/hotbar) is
+	// expected to already hold a valid UZSItemConfig reference, not look one up by name/slot.
+	// 2026-08-09: no longer takes a TargetZone parameter - Bandage/Disinfectant/Splint now auto-target
+	// via UZSHealthComponent::FindAutoTargetZone instead of a player-chosen zone; Consumable never
+	// used the parameter to begin with. ----
 
 public:
 
 	UFUNCTION(BlueprintCallable, Category = "ZS|Item")
-	void UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone);
+	void UseItem(UZSItemConfig* Item);
 
 protected:
 
 	UFUNCTION(Server, Reliable, Category = "ZS|Item")
-	void Server_UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone);
+	void Server_UseItem(UZSItemConfig* Item);
 
 	// =====================================================================
 	// P6 - Inventory (GameDevPlan.md P6, Docs/Phases/P6_InventoryLoot.md)
@@ -816,12 +886,25 @@ public:
 	 * and SecondaryHandInstanceId live here on the character - mirrors Server_SelectHotbarSlot_Implementation's
 	 * existing pattern of the character validating against a sibling system's state before calling
 	 * into it, rather than giving UZSInventoryComponent an upward dependency on this class. Rejects
-	 * (returns false, no-op) if ItemInstanceId is currently in the Equipment slot or SecondaryHand -
+	 * (no-op) if ItemInstanceId is currently in the Equipment slot or SecondaryHand -
 	 * a mounted weapon needs no separate check here, UZSInventoryComponent::Server_StoreInBag already
 	 * rejects any UZSWeaponConfig instance outright regardless of mount state. Otherwise delegates to
-	 * UZSInventoryComponent::Server_StoreInBag for the checks it already owns. */
-	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
-	bool Server_StoreInBagChecked(FGuid BagInstanceId, FGuid ItemInstanceId);
+	 * UZSInventoryComponent::Server_StoreInBag for the checks it already owns. 2026-08-06: converted
+	 * to a real Server RPC (was a plain BlueprintCallable HasAuthority()-gated call, silently a no-op
+	 * when invoked from a client-owned widget) - UZSItemSlotWidget::NativeOnDrop now calls this
+	 * directly for a drop onto a compartment slot, same reasoning as Server_EquipToSlot below. Server
+	 * RPCs must return void, so the old bool success return is gone - callers read the resulting
+	 * state (e.g. via OnInventoryChanged) rather than a return value. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_StoreInBagChecked(FGuid BagInstanceId, FGuid ItemInstanceId);
+
+	/** 2026-08-06: real RPC wrapper straight to UZSInventoryComponent::Server_RetrieveFromAnyEquippedBag - no character-side check needed here (unlike Server_StoreInBagChecked above), since an item living inside a bag's ContainedItems was never reachable by SecondaryHandInstanceId/EquipmentSlotInstanceId in the first place. UZSItemSlotWidget::NativeOnDrop calls this for a drop onto the Pockets compartment. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_RetrieveFromAnyEquippedBag(FGuid ItemInstanceId);
+
+	/** 2026-08-09 (position-persistence): real RPC wrapper straight to UZSInventoryComponent::Server_MoveToSlot - the general compartment drag-drop target (same-compartment reorder, cross-compartment move, or swap if the target slot is already occupied). Same Equipment-slot/SecondaryHand guard as Server_StoreInBagChecked above, and for the same reason - those two character-side references aren't visible to UZSInventoryComponent itself. UZSItemSlotWidget::NativeOnDrop calls this for every compartment-to-compartment drop (Pockets included, TargetBagInstanceId just invalid there). */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_MoveToSlot(FGuid ItemInstanceId, FGuid TargetBagInstanceId, int32 TargetSlotIndex);
 
 	/** B1-T6.2: real RPC wrapper (unlike AZSContainerActor::Server_TakeItem/UZSInventoryComponent's own Server_-named functions, which are plain HasAuthority()-gated calls, not RPCs, and so only work when invoked from already-server-authoritative code) - a client's T6 loot-screen widget calls this directly, same pattern Server_SelectHotbarSlot already establishes for weapon-key selection. */
 	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
@@ -831,20 +914,81 @@ public:
 	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
 	void Server_TakeAllContainerItems(AZSContainerActor* Container);
 
+	/** 2026-08-09 (container deposit system): real RPC wrapper straight to AZSContainerActor::Server_DepositItem - same reasoning as Server_TakeContainerItem above, just the reverse direction. A client's ContainerLoot-screen widget calls this when an inventory item is dropped onto the container view. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_DepositContainerItem(AZSContainerActor* Container, FGuid ItemInstanceId);
+
+	/** 2026-08-09 (weapon mount swap-drop rules): real RPC wrapper straight to UZSInventoryComponent::Server_DropItem - never had one before now because nothing in the UI dropped an item this way; a weapon-mount swap bumping an inventory-sourced occupant is the first caller. Same "plain HasAuthority()-gated call, silently no-ops from a client widget" gap as every other wrapper in this section. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_DropItem(UZSItemConfig* Item, int32 Count);
+
 	/** B1, 2026-08-02: real RPC wrappers, same reasoning as Server_TakeContainerItem above - UZSInventoryComponent::Server_EquipToSlot/Server_MountLongGun/Server_MountSidearm are plain HasAuthority()-gated calls, not RPCs, so a client-owned drop-target widget calling them directly would silently no-op on anyone but the host. Found and fixed while converting T5's drop-target widgets to C++ - the same gap existed in this doc's own prior Blueprint instructions for those widgets, not just the new C++ path. */
 	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
 	void Server_EquipToSlot(EZSEquipSlot Slot, FGuid InstanceId);
 
+	/** 2026-08-09 (drag-out-of-slot support): real RPC wrapper straight to UZSInventoryComponent::Server_UnequipSlot - same "plain HasAuthority()-gated call, silently no-ops from a client widget" gap as Server_EquipToSlot had, just never needed a wrapper before now because nothing in the UI could drag *out* of an equip slot. UZSEquipSlotWidget::NativeOnDragDetected + the shared release-drag-source helper call this. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_UnequipSlot(EZSEquipSlot Slot);
+
 	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
 	void Server_MountLongGun(int32 MountIndex, FGuid InstanceId);
 
+	/** 2026-08-09 (drag-out-of-slot support): same reasoning as Server_UnequipSlot above - UZSInventoryComponent::Server_UnmountLongGun never had a wrapper because nothing could drag out of a long-gun mount before now. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_UnmountLongGun(int32 MountIndex);
+
 	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
 	void Server_MountSidearm(FGuid InstanceId);
+
+	/** 2026-08-09 (drag-out-of-slot support): same reasoning as Server_UnequipSlot above. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_UnmountSidearm();
+
+	/** 2026-08-06: same real-RPC-wrapper reasoning as the 3 above - UZSInventoryComponent::Server_MountMelee/Server_UnmountMelee are plain HasAuthority()-gated calls, and the new melee WBP_ZS_WeaponMountSlot instance (bIsMelee) calls these directly from a client-owned widget. */
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_MountMelee(FGuid InstanceId);
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Inventory")
+	void Server_UnmountMelee();
 
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UZSInventoryComponent> InventoryComponent;
+
+	// =====================================================================
+	// 2026-08-06 - Worn-mesh visual attachment (Loadout tab clothing/gear, EZSEquipSlot)
+	// =====================================================================
+
+	/** One UStaticMeshComponent per real EZSEquipSlot value, index-matched to UZSInventoryComponent::EquippedSlots/NumEquipSlots (index 0 / EZSEquipSlot::None is always null, never used) - created in the constructor, assigned/attached/shown/hidden by RefreshWornMeshes as equipped items change. Static, not skeletal - see UZSItemConfig::WornMesh's own comment for why. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TArray<TObjectPtr<UStaticMeshComponent>> WornMeshComponents;
+
+	/** Bound to InventoryComponent->OnInventoryChanged in BeginPlay (and called once immediately after, to reflect whatever's equipped at spawn). Loops WornMeshComponents: a slot whose equipped item has no WornMesh assigned gets hidden; otherwise SetStaticMesh + AttachToComponent(GetMesh(), ..., GetSocketForEquipSlot(Slot)) + shown. Mirrors AttachWeaponToBodyMesh's exact existing pattern above, generalized from one weapon to all 11 equip slots. Also kicks off the 3D preview capture (GetPreviewRenderTarget) at the end, so a preview always reflects the *post*-refresh mesh state. */
+	void RefreshWornMeshes();
+
+	/** The one canonical clothing/gear socket mapping - e.g. GetSocketForEquipSlot(EZSEquipSlot::Head) => "SocketHead". A slot with no matching socket on the current skeleton silently attaches at the component's default relative transform rather than erroring (same graceful-if-content-not-authored-yet precedent as everywhere else in this project) - see CLAUDE.md's Manual setup steps for the actual socket names to add to the skeleton. */
+	static FName GetSocketForEquipSlot(EZSEquipSlot Slot);
+
+	// =====================================================================
+	// 2026-08-06 - 3D character preview (Loadout tab's player-model panel)
+	// =====================================================================
+
+public:
+
+	/** The live-captured preview texture, wired once in BeginPlay - UZSCharacterPreviewWidget binds Image_Preview to this once and never needs to re-bind, since the same texture object is redrawn in place on every capture. Only ever non-null for the locally controlled player - see PreviewRenderTarget's own comment for why a remote proxy never gets one. */
+	UFUNCTION(BlueprintPure, Category = "ZS|UI")
+	UTextureRenderTarget2D* GetPreviewRenderTarget() const { return PreviewRenderTarget; }
+
+protected:
+
+	/** Captures only the character's own meshes (GetMesh() + WornMeshComponents, via PrimitiveRenderMode = PRM_UseShowOnlyList, configured in BeginPlay) into PreviewRenderTarget - not the surrounding level. bCaptureEveryFrame/bCaptureOnMovement both false; CaptureScene() is instead called explicitly, once, at the end of RefreshWornMeshes(), so the preview always reflects the *post*-refresh mesh state rather than racing it. Accepted v1 tradeoff, flagged not hidden: preview lighting varies with wherever the player currently stands in the world, since this captures the live character rather than a dedicated lit stage - a consistent studio-lit "dressing room" is real added scope beyond what was asked, revisit later if wanted. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USceneCaptureComponent2D> PreviewCapture;
+
+	/** 2026-08-06: created dynamically per-instance in BeginPlay (UKismetRenderingLibrary::CreateRenderTarget2D), deliberately NOT an EditDefaultsOnly asset reference - a shared/asset-referenced render target would mean every connected player's equip change stomps the same texture on every other client's screen. Gated on IsLocallyControlled(): only the locally controlled player's own character ever creates one; a remote proxy's PreviewCapture/PreviewRenderTarget both stay unused (nobody ever looks at a remote proxy's own Loadout tab). */
+	UPROPERTY()
+	TObjectPtr<UTextureRenderTarget2D> PreviewRenderTarget;
 
 	// =====================================================================
 	// Phase 2 - Action State

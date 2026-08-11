@@ -6,6 +6,9 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Kismet/KismetRenderingLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/SpotLightComponent.h"
@@ -435,11 +438,13 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugSetTimeCompression(
 // Temporary B0-T6 test hook - UseItem doesn't check CarrySlots ownership at all (the real UI/hotbar
 // caller is trusted to already hold a valid config), so this just loads a UZSItemConfig by path and
 // applies it directly - no need to actually carry the item first. Usage:
-// ZS.DebugUseItem /Game/ZS/Items/DA_ZS_ItemConfig_Bandage.DA_ZS_ItemConfig_Bandage 1 (Zone: 0=Head
-// 1=Torso 2=Arms 3=Legs). Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+// ZS.DebugUseItem /Game/ZS/Items/DA_ZS_ItemConfig_Bandage.DA_ZS_ItemConfig_Bandage. Host-only, same
+// authority reasoning as ZS.DebugDropFirstItem. 2026-08-09: dropped the Zone argument -
+// Bandage/Disinfectant/Splint now auto-target via UZSHealthComponent::FindAutoTargetZone instead of
+// a caller-supplied zone.
 static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugUseItem(
 	TEXT("ZS.DebugUseItem"),
-	TEXT("Applies a UZSItemConfig (bandage/disinfectant/splint/consumable) to the local (host) player. Usage: ZS.DebugUseItem <object path> <Zone 0=Head 1=Torso 2=Arms 3=Legs>"),
+	TEXT("Applies a UZSItemConfig (bandage/disinfectant/splint/consumable) to the local (host) player - zone-targeted treatments auto-pick the zone. Usage: ZS.DebugUseItem <object path>"),
 	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
 	{
 		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
@@ -451,7 +456,7 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugUseItem(
 		}
 		if (Args.Num() == 0)
 		{
-			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugUseItem: usage - ZS.DebugUseItem <ItemConfig object path> [Zone 0-3, default 1/Torso]"));
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugUseItem: usage - ZS.DebugUseItem <ItemConfig object path>"));
 			return;
 		}
 
@@ -462,14 +467,9 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugUseItem(
 			return;
 		}
 
-		EZSBodyZone Zone = EZSBodyZone::Torso;
-		if (Args.Num() > 1 && !ParseZSBodyZoneArg(Args[1], Zone))
-		{
-			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugUseItem: '%s' isn't a valid Zone - use Head/Torso/Arms/Legs or 0-3. Defaulting to Torso this time."), *Args[1]);
-		}
-		Character->UseItem(Config, Zone);
-		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugUseItem: applied %s (ItemUseType=%s) to %s"),
-			*GetNameSafe(Config), *UEnum::GetValueAsString(Config->ItemUseType), *UEnum::GetValueAsString(Zone));
+		Character->UseItem(Config);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugUseItem: applied %s (ItemUseType=%s)"),
+			*GetNameSafe(Config), *UEnum::GetValueAsString(Config->ItemUseType));
 	}));
 
 // Temporary B0-T7 test hook - no dedicated amputation prompt exists yet. AmputateZone is public and
@@ -683,6 +683,47 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	InventoryComponent = CreateDefaultSubobject<UZSInventoryComponent>(TEXT("InventoryComponent"));
 	CameraDirector = CreateDefaultSubobject<UZSCameraDirector>(TEXT("CameraDirector"));
 
+	// 2026-08-06: one UStaticMeshComponent per real EZSEquipSlot value, index-matched to
+	// UZSInventoryComponent::EquippedSlots/NumEquipSlots - index 0 (EZSEquipSlot::None) is left
+	// null, never used. NoCollision for the same reason as every other cosmetic attachment rigidly
+	// stuck to the character mesh (CLAUDE.md's "cosmetic attachments must be NoCollision" rule) -
+	// left at a blocking profile it'd fight CharacterMovementComponent's penetration resolution
+	// every tick. Hidden until RefreshWornMeshes assigns a real WornMesh and shows it.
+	WornMeshComponents.SetNum(UZSInventoryComponent::NumEquipSlots);
+	for (uint8 SlotIndex = 1; SlotIndex < UZSInventoryComponent::NumEquipSlots; ++SlotIndex)
+	{
+		const FName ComponentName = *FString::Printf(TEXT("WornMesh_%s"), *UEnum::GetValueAsString((EZSEquipSlot)SlotIndex));
+		UStaticMeshComponent* WornMesh = CreateDefaultSubobject<UStaticMeshComponent>(ComponentName);
+		WornMesh->SetupAttachment(GetMesh());
+		WornMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WornMesh->SetVisibility(false);
+		WornMeshComponents[SlotIndex] = WornMesh;
+	}
+
+	// 2026-08-06: 3D Loadout-tab preview capture - frames the character from the front. Relative to
+	// the capsule (not GetMesh()), since the mesh asset's own local rotation (the standard mannequin
+	// retarget offset) isn't guaranteed to line up with the actor's actual forward vector - attaching
+	// to the mesh made this face sideways in PIE (2026-08-08). The capsule has no such offset: its
+	// forward is always the actor's forward. TextureTarget/ShowOnlyComponents are both wired up in
+	// BeginPlay (per-instance render target, IsLocallyControlled()-gated - see PreviewRenderTarget's
+	// own header comment for why), not here.
+	PreviewCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("PreviewCapture"));
+	PreviewCapture->SetupAttachment(GetCapsuleComponent());
+	PreviewCapture->SetRelativeLocation(FVector(200.f, 0.f, 0.f));
+	PreviewCapture->SetRelativeRotation(FRotator(0.f, 180.f, 0.f));
+	PreviewCapture->ProjectionType = ECameraProjectionMode::Perspective;
+	PreviewCapture->FOVAngle = 40.f;
+	PreviewCapture->bCaptureEveryFrame = false;
+	PreviewCapture->bCaptureOnMovement = false;
+	PreviewCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
+	// Single-shot capture (bCaptureEveryFrame=false) never gives eye-adaptation time to converge, so
+	// the default auto-exposure reads as a near-black silhouette - force manual (camera-settings-based)
+	// exposure instead, which is correct on the very first CaptureScene() call.
+	PreviewCapture->PostProcessSettings.bOverride_AutoExposureMethod = true;
+	PreviewCapture->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+	PreviewCapture->PostProcessSettings.bOverride_AutoExposureBias = true;
+	PreviewCapture->PostProcessSettings.AutoExposureBias = 1.0f;
+
 	// B0-T11.4: a real light source, not delegated to unauthored Blueprint content - see the header
 	// comment on FlashlightComponent for the positioning/perf caveats.
 	FlashlightComponent = CreateDefaultSubobject<USpotLightComponent>(TEXT("FlashlightComponent"));
@@ -695,8 +736,8 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 	FlashlightComponent->SetCastShadows(false);
 	FlashlightComponent->SetVisibility(false);
 
-	// B0-T7.4: only interactable while blacked out (bIsInteractable toggled in Enter/ExitBlackout) -
-	// see the header comment for why UpdateNearestInteractable needed widening to find this.
+	// Only interactable while downed (bIsInteractable toggled in HandleDownedChanged) - see the
+	// header comment for why UpdateNearestInteractable needed widening to find this.
 	ReviveInteractable = CreateDefaultSubobject<UZSInteractableComponent>(TEXT("ReviveInteractable"));
 	ReviveInteractable->SetupAttachment(RootComponent);
 	ReviveInteractable->InteractionVerb = FText::FromString(TEXT("Revive"));
@@ -810,7 +851,8 @@ void AZSPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(AZSPlayerCharacter, bIsAiming);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsSprinting);
 	DOREPLIFETIME(AZSPlayerCharacter, bIsReadyToSleep);
-	DOREPLIFETIME(AZSPlayerCharacter, bIsBlackedOut);
+	DOREPLIFETIME(AZSPlayerCharacter, bIsAmputationShocked);
+	DOREPLIFETIME(AZSPlayerCharacter, bIsPostReviveSlowed);
 	DOREPLIFETIME(AZSPlayerCharacter, SecondaryHandInstanceId);
 	DOREPLIFETIME(AZSPlayerCharacter, bSecondaryItemActive);
 	DOREPLIFETIME(AZSPlayerCharacter, SecondaryWeapon);
@@ -881,6 +923,7 @@ void AZSPlayerCharacter::BeginPlay()
 	{
 		HealthComponent->OnDeath.AddDynamic(this, &AZSPlayerCharacter::HandleDeath);
 		HealthComponent->OnBodyZonesChanged.AddDynamic(this, &AZSPlayerCharacter::HandleBodyZonesChanged);
+		HealthComponent->OnDownedChanged.AddDynamic(this, &AZSPlayerCharacter::HandleDownedChanged);
 	}
 
 	// P6: encumbrance (InventoryComponent->GetEncumbranceMultiplier()) folds into the same
@@ -890,6 +933,33 @@ void AZSPlayerCharacter::BeginPlay()
 	{
 		InventoryComponent->OnInventoryChanged.AddDynamic(this, &AZSPlayerCharacter::HandleInventoryChanged);
 	}
+
+	// 2026-08-06: 3D Loadout-tab preview - locally controlled only (see PreviewRenderTarget's own
+	// header comment for why a remote proxy never gets one). Must run before the RefreshWornMeshes()
+	// call below, since that's what actually triggers the first CaptureScene().
+	if (IsLocallyControlled() && PreviewCapture)
+	{
+		PreviewRenderTarget = UKismetRenderingLibrary::CreateRenderTarget2D(this, 512, 512);
+		PreviewCapture->TextureTarget = PreviewRenderTarget;
+
+		PreviewCapture->ShowOnlyComponents.Reset();
+		if (USkeletalMeshComponent* BodyMesh = GetMesh())
+		{
+			PreviewCapture->ShowOnlyComponents.Add(BodyMesh);
+		}
+		for (UStaticMeshComponent* WornMeshComp : WornMeshComponents)
+		{
+			if (WornMeshComp)
+			{
+				PreviewCapture->ShowOnlyComponents.Add(WornMeshComp);
+			}
+		}
+	}
+
+	// 2026-08-06: reflect whatever's already equipped at spawn (relevant for a respawned/persisted
+	// character more than a fresh one, but cheap and correct either way) - OnInventoryChanged above
+	// only fires on future changes, not for pre-existing state. Also fires the first preview capture.
+	RefreshWornMeshes();
 }
 
 void AZSPlayerCharacter::Tick(float DeltaSeconds)
@@ -1022,9 +1092,10 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 		if (HotbarSelectAction)
 		{
-			// Started, not Triggered - digit keys are digital presses (mapped to a 1-3 Axis1D value
-			// via per-key Scalar modifiers, keys 1/2/3 only now - see NumMountKeySlots), same
-			// "fire once per press" intent as CrouchAction/SprintAction.
+			// Started, not Triggered - digit keys are digital presses (mapped to a single Axis1D
+			// value via per-key Scalar modifiers; HandleHotbarSelect only consumes 1..NumMountKeySlots
+			// of the full Digit1..Digit9 range the IMC maps), same "fire once per press" intent as
+			// CrouchAction/SprintAction.
 			EnhancedInputComponent->BindAction(HotbarSelectAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::HandleHotbarSelect);
 		}
 
@@ -1246,8 +1317,12 @@ FText AZSPlayerCharacter::GetKeyLabelForHotbarIndex(int32 Index) const
 	switch (Index)
 	{
 	case 0: return FText::FromString(TEXT("1"));
-	case 1: return FText::FromString(TEXT("3"));
-	case 2: return FText::FromString(TEXT("2"));
+	// 2026-08-06: fixed a pre-existing label bug found while adding case 3 below - index 1
+	// (GetMountedSidearm, key "2" per HandleHotbarSelect/ResolveWeaponSlotInstance) was labeled
+	// "3", and index 2 (GetMountedLongGun(1), key "3") was labeled "2" - the two were swapped.
+	case 1: return FText::FromString(TEXT("2"));
+	case 2: return FText::FromString(TEXT("3"));
+	case 3: return FText::FromString(TEXT("4"));
 	default: return FText::GetEmpty();
 	}
 }
@@ -1266,8 +1341,10 @@ bool AZSPlayerCharacter::CanSwitchLoadout() const
 {
 	// Same bIsBusy gate CanAttack()/CanFire()/CanReload() already use - blocks starting a switch
 	// mid-swing/mid-shot/mid-reload, and (since CompleteHotbarSwitch's own window also sets
-	// bIsBusy) blocks starting a second switch mid-switch. B0-T7.2: also blocked while blacked out.
-	return !bIsBusy && !bIsBlackedOut;
+	// bIsBusy) blocks starting a second switch mid-switch. 2026-08-10, dev-confirmed: no longer
+	// blocked while downed - allowed but slower, see DownedActionSpeedMultiplier's own use in
+	// Server_SelectHotbarSlot_Implementation.
+	return !bIsBusy;
 }
 
 void AZSPlayerCharacter::HandleHotbarSelect(const FInputActionValue& Value)
@@ -1295,7 +1372,8 @@ FGuid AZSPlayerCharacter::ResolveWeaponSlotInstance(int32 SlotIndex) const
 	case 0: return Inventory ? Inventory->GetMountedLongGun(0).InstanceId : FGuid();
 	case 1: return Inventory ? Inventory->GetMountedSidearm().InstanceId : FGuid();
 	case 2: return Inventory ? Inventory->GetMountedLongGun(1).InstanceId : FGuid();
-	case 3: return EquipmentSlotInstanceId;
+	case 3: return Inventory ? Inventory->GetMountedMelee().InstanceId : FGuid();
+	case 4: return EquipmentSlotInstanceId;
 	default: return FGuid();
 	}
 }
@@ -1316,6 +1394,9 @@ void AZSPlayerCharacter::ClearWeaponSlot(int32 SlotIndex)
 		if (Inventory) { Inventory->Server_UnmountLongGun(1); }
 		break;
 	case 3:
+		if (Inventory) { Inventory->Server_UnmountMelee(); }
+		break;
+	case 4:
 		EquipmentSlotInstanceId = FGuid();
 		OnRep_EquipmentSlotInstanceId();
 		break;
@@ -1363,6 +1444,13 @@ void AZSPlayerCharacter::Server_SelectHotbarSlot_Implementation(int32 SlotIndex)
 
 	const int32 PendingIndex = bUnequipping ? INDEX_NONE : SlotIndex;
 
+	// 2026-08-10, dev-confirmed: "slower actions (reload, swap weapons, etc.)" while downed - the
+	// "swap weapons" half (BeginBusyAction's own BusyDuration covers reload/jam-clear/etc.).
+	if (IsDowned())
+	{
+		SwitchDelay /= FMath::Max(DownedActionSpeedMultiplier, 0.01f);
+	}
+
 	SetBusy(true);
 
 	FTimerDelegate SwitchDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::CompleteHotbarSwitch, PendingIndex);
@@ -1384,26 +1472,134 @@ void AZSPlayerCharacter::WriteBackCurrentWeaponDurability()
 
 	if (UZSInventoryComponent* Inventory = GetInventoryComponent())
 	{
+		const FZSItemInstance Instance = Inventory->GetInstance(InstanceId);
+
+		// 2026-08-09: remember this as "the last two-handed weapon actively wielded" before it's
+		// potentially unmounted/replaced - see LastEquippedWeaponInstanceId's own comment. Only
+		// meaningful for an actual long-gun-mountable weapon, not an Equipment-slot item (which can
+		// also be a UZSWeaponConfig, e.g. a grenade, but was never mounted as a long gun to begin with).
+		if (const UZSWeaponConfig* WeaponConfig = Cast<UZSWeaponConfig>(Instance.Config))
+		{
+			if (WeaponConfig->Handedness == EZSWeaponHandedness::TwoHanded)
+			{
+				LastEquippedWeaponInstanceId = InstanceId;
+			}
+		}
+
 		// Preserve ConditionQuality, only the durability actually changed during use.
-		FZSItemInstanceState NewState = Inventory->GetInstance(InstanceId).InstanceState;
+		FZSItemInstanceState NewState = Instance.InstanceState;
 		NewState.CurrentDurability = CurrentWeapon->GetCurrentDurability();
 		Inventory->Server_UpdateInstanceState(InstanceId, NewState);
 	}
 }
 
-bool AZSPlayerCharacter::Server_StoreInBagChecked(FGuid BagInstanceId, FGuid ItemInstanceId)
+void AZSPlayerCharacter::Server_TryAutoMountWeapon(FGuid InstanceId)
+{
+	UZSInventoryComponent* Inventory = GetInventoryComponent();
+	if (!HasAuthority() || !Inventory)
+	{
+		return;
+	}
+
+	const FZSItemInstance Instance = Inventory->GetInstance(InstanceId);
+	const UZSWeaponConfig* WeaponConfig = Instance.IsValid() ? Cast<UZSWeaponConfig>(Instance.Config) : nullptr;
+	if (!WeaponConfig)
+	{
+		return;
+	}
+
+	if (WeaponConfig->Handedness == EZSWeaponHandedness::TwoHanded)
+	{
+		for (int32 MountIndex = 0; MountIndex < UZSInventoryComponent::NumLongGunMounts; ++MountIndex)
+		{
+			if (!Inventory->GetMountedLongGun(MountIndex).IsValid())
+			{
+				Inventory->Server_MountLongGun(MountIndex, InstanceId);
+				return;
+			}
+		}
+
+		// Both long-gun mounts are full - bump whichever one holds the currently-equipped weapon, or
+		// (if currently unarmed/holding something else) the last-equipped one. Falls back to mount 0
+		// if neither actually resolves to an occupied long-gun mount right now (e.g. LastEquippedWeaponInstanceId
+		// pointing at something that's since been dropped/consumed).
+		FGuid BumpInstanceId;
+		if (CurrentWeapon)
+		{
+			const FGuid ActiveInstanceId = ResolveWeaponSlotInstance(ActiveHotbarIndex);
+			if (Inventory->GetMountedLongGun(0).InstanceId == ActiveInstanceId || Inventory->GetMountedLongGun(1).InstanceId == ActiveInstanceId)
+			{
+				BumpInstanceId = ActiveInstanceId;
+			}
+		}
+		if (!BumpInstanceId.IsValid() && LastEquippedWeaponInstanceId.IsValid()
+			&& (Inventory->GetMountedLongGun(0).InstanceId == LastEquippedWeaponInstanceId || Inventory->GetMountedLongGun(1).InstanceId == LastEquippedWeaponInstanceId))
+		{
+			BumpInstanceId = LastEquippedWeaponInstanceId;
+		}
+
+		const int32 MountIndexToBump = (BumpInstanceId.IsValid() && Inventory->GetMountedLongGun(1).InstanceId == BumpInstanceId) ? 1 : 0;
+		Inventory->Server_UnmountLongGun(MountIndexToBump);
+		Inventory->Server_MountLongGun(MountIndexToBump, InstanceId);
+	}
+	else if (WeaponConfig->Handedness == EZSWeaponHandedness::OneHanded && WeaponConfig->AttackType == EZSAttackType::Ranged)
+	{
+		if (Inventory->GetMountedSidearm().IsValid())
+		{
+			Inventory->Server_UnmountSidearm();
+		}
+		Inventory->Server_MountSidearm(InstanceId);
+	}
+	else if (WeaponConfig->Handedness == EZSWeaponHandedness::OneHanded && WeaponConfig->AttackType == EZSAttackType::Melee)
+	{
+		if (Inventory->GetMountedMelee().IsValid())
+		{
+			Inventory->Server_UnmountMelee();
+		}
+		Inventory->Server_MountMelee(InstanceId);
+	}
+	// A two-handed melee weapon (e.g. an axe) is already covered by the TwoHanded branch above - it
+	// mounts via the long-gun path same as any other TwoHanded weapon ("long gun" is a naming holdover).
+}
+
+void AZSPlayerCharacter::Server_StoreInBagChecked_Implementation(FGuid BagInstanceId, FGuid ItemInstanceId)
 {
 	if (!HasAuthority() || !GetInventoryComponent())
 	{
-		return false;
+		return;
 	}
 
 	if (SecondaryHandInstanceId == ItemInstanceId || EquipmentSlotInstanceId == ItemInstanceId)
 	{
-		return false;
+		return;
 	}
 
-	return GetInventoryComponent()->Server_StoreInBag(BagInstanceId, ItemInstanceId);
+	GetInventoryComponent()->Server_StoreInBag(BagInstanceId, ItemInstanceId);
+}
+
+void AZSPlayerCharacter::Server_RetrieveFromAnyEquippedBag_Implementation(FGuid ItemInstanceId)
+{
+	if (!HasAuthority() || !GetInventoryComponent())
+	{
+		return;
+	}
+
+	GetInventoryComponent()->Server_RetrieveFromAnyEquippedBag(ItemInstanceId);
+}
+
+void AZSPlayerCharacter::Server_MoveToSlot_Implementation(FGuid ItemInstanceId, FGuid TargetBagInstanceId, int32 TargetSlotIndex)
+{
+	if (!HasAuthority() || !GetInventoryComponent())
+	{
+		return;
+	}
+
+	if (SecondaryHandInstanceId == ItemInstanceId || EquipmentSlotInstanceId == ItemInstanceId)
+	{
+		return;
+	}
+
+	GetInventoryComponent()->Server_MoveToSlot(ItemInstanceId, TargetBagInstanceId, TargetSlotIndex);
 }
 
 void AZSPlayerCharacter::Server_TakeContainerItem_Implementation(AZSContainerActor* Container, FGuid InstanceId)
@@ -1426,6 +1622,26 @@ void AZSPlayerCharacter::Server_TakeAllContainerItems_Implementation(AZSContaine
 	Container->Server_TakeAllItems(this);
 }
 
+void AZSPlayerCharacter::Server_DepositContainerItem_Implementation(AZSContainerActor* Container, FGuid ItemInstanceId)
+{
+	if (!HasAuthority() || !Container)
+	{
+		return;
+	}
+
+	Container->Server_DepositItem(ItemInstanceId, this);
+}
+
+void AZSPlayerCharacter::Server_DropItem_Implementation(UZSItemConfig* Item, int32 Count)
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_DropItem(Item, Count);
+}
+
 void AZSPlayerCharacter::Server_EquipToSlot_Implementation(EZSEquipSlot Slot, FGuid InstanceId)
 {
 	if (!HasAuthority() || !InventoryComponent)
@@ -1434,6 +1650,16 @@ void AZSPlayerCharacter::Server_EquipToSlot_Implementation(EZSEquipSlot Slot, FG
 	}
 
 	InventoryComponent->Server_EquipToSlot(Slot, InstanceId);
+}
+
+void AZSPlayerCharacter::Server_UnequipSlot_Implementation(EZSEquipSlot Slot)
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_UnequipSlot(Slot);
 }
 
 void AZSPlayerCharacter::Server_MountLongGun_Implementation(int32 MountIndex, FGuid InstanceId)
@@ -1446,6 +1672,16 @@ void AZSPlayerCharacter::Server_MountLongGun_Implementation(int32 MountIndex, FG
 	InventoryComponent->Server_MountLongGun(MountIndex, InstanceId);
 }
 
+void AZSPlayerCharacter::Server_UnmountLongGun_Implementation(int32 MountIndex)
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_UnmountLongGun(MountIndex);
+}
+
 void AZSPlayerCharacter::Server_MountSidearm_Implementation(FGuid InstanceId)
 {
 	if (!HasAuthority() || !InventoryComponent)
@@ -1454,6 +1690,36 @@ void AZSPlayerCharacter::Server_MountSidearm_Implementation(FGuid InstanceId)
 	}
 
 	InventoryComponent->Server_MountSidearm(InstanceId);
+}
+
+void AZSPlayerCharacter::Server_UnmountSidearm_Implementation()
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_UnmountSidearm();
+}
+
+void AZSPlayerCharacter::Server_MountMelee_Implementation(FGuid InstanceId)
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_MountMelee(InstanceId);
+}
+
+void AZSPlayerCharacter::Server_UnmountMelee_Implementation()
+{
+	if (!HasAuthority() || !InventoryComponent)
+	{
+		return;
+	}
+
+	InventoryComponent->Server_UnmountMelee();
 }
 
 void AZSPlayerCharacter::CompleteHotbarSwitch(int32 PendingIndex)
@@ -1554,6 +1820,64 @@ void AZSPlayerCharacter::AttachWeaponToBodyMesh()
 	}
 
 	CurrentWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, CurrentWeapon->GetConfig()->SocketGunAttachment);
+}
+
+FName AZSPlayerCharacter::GetSocketForEquipSlot(EZSEquipSlot Slot)
+{
+	switch (Slot)
+	{
+	case EZSEquipSlot::Head:     return TEXT("SocketHead");
+	case EZSEquipSlot::Eyes:     return TEXT("SocketEyes");
+	case EZSEquipSlot::Mask:     return TEXT("SocketMask");
+	case EZSEquipSlot::Shirt:    return TEXT("SocketChest");
+	case EZSEquipSlot::Pants:    return TEXT("SocketPelvis");
+	case EZSEquipSlot::Shoes:    return TEXT("SocketFeet");
+	case EZSEquipSlot::Helmet:   return TEXT("SocketHead");
+	case EZSEquipSlot::Vest:     return TEXT("SocketChest");
+	case EZSEquipSlot::Belt:     return TEXT("SocketWaist");
+	case EZSEquipSlot::Backpack: return TEXT("SocketBack");
+	case EZSEquipSlot::Duffle:   return TEXT("SocketBack");
+	default:                     return NAME_None;
+	}
+}
+
+void AZSPlayerCharacter::RefreshWornMeshes()
+{
+	if (!InventoryComponent || !GetMesh())
+	{
+		return;
+	}
+
+	// Index 0 (EZSEquipSlot::None) is always null - see the constructor's comment.
+	for (uint8 SlotIndex = 1; SlotIndex < WornMeshComponents.Num(); ++SlotIndex)
+	{
+		UStaticMeshComponent* WornMeshComp = WornMeshComponents[SlotIndex];
+		if (!WornMeshComp)
+		{
+			continue;
+		}
+
+		const FZSItemInstance Equipped = InventoryComponent->GetEquippedItem((EZSEquipSlot)SlotIndex);
+		UStaticMesh* WornMesh = (Equipped.IsValid() && Equipped.Config) ? Equipped.Config->WornMesh.Get() : nullptr;
+
+		if (!WornMesh)
+		{
+			WornMeshComp->SetVisibility(false);
+			continue;
+		}
+
+		WornMeshComp->SetStaticMesh(WornMesh);
+		WornMeshComp->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, GetSocketForEquipSlot((EZSEquipSlot)SlotIndex));
+		WornMeshComp->SetVisibility(true);
+	}
+
+	// 2026-08-06: recapture the 3D Loadout-tab preview so it reflects the mesh state that was just
+	// assigned above - only ever set up (non-null) for the locally controlled player, see
+	// PreviewRenderTarget's own header comment.
+	if (PreviewCapture && PreviewRenderTarget)
+	{
+		PreviewCapture->CaptureScene();
+	}
 }
 
 void AZSPlayerCharacter::UpdateCameraTick(float DeltaTime)
@@ -2122,13 +2446,20 @@ void AZSPlayerCharacter::HandleBodyZonesChanged()
 void AZSPlayerCharacter::HandleInventoryChanged()
 {
 	UpdateMovementSpeed();
+	RefreshWornMeshes();
 }
 
 void AZSPlayerCharacter::UpdateMovementSpeed()
 {
 	const float MobilityMultiplier = HealthComponent ? HealthComponent->GetMobilityMultiplier() : 1.f;
 	const float EncumbranceMultiplier = InventoryComponent ? InventoryComponent->GetEncumbranceMultiplier() : 1.f;
-	GetCharacterMovement()->MaxWalkSpeed = (bIsSprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * MobilityMultiplier * EncumbranceMultiplier;
+	// 2026-08-10: stacks with, doesn't replace, HealthComponent's own permanent zone penalty above -
+	// see bIsAmputationShocked's own header comment.
+	const float AmputationShockMultiplier = bIsAmputationShocked ? AmputationShockMobilityMultiplier : 1.f;
+	// 2026-08-10: "slower movement speed after getting back up, for a small amount of time" - see
+	// bIsPostReviveSlowed's own header comment.
+	const float PostReviveSlowMultiplier = bIsPostReviveSlowed ? PostReviveSlowMovementMultiplier : 1.f;
+	GetCharacterMovement()->MaxWalkSpeed = (bIsSprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * MobilityMultiplier * EncumbranceMultiplier * AmputationShockMultiplier * PostReviveSlowMultiplier;
 }
 
 EZSBodyZone AZSPlayerCharacter::BodyZoneFromBoneName(FName BoneName)
@@ -2211,96 +2542,107 @@ void AZSPlayerCharacter::CompleteAmputation(EZSBodyZone Zone)
 	if (!HealthComponent || !HealthComponent->Server_AmputateZone(Zone))
 	{
 		// Invalid target (Head/Torso, already amputated) - HealthComponent already validated and
-		// rejected it; don't enter blackout over a no-op amputation.
+		// rejected it; don't apply shock over a no-op amputation.
 		return;
 	}
 
-	// B0-T7.2/T7.3: enter blackout after the amputation itself actually succeeds.
-	EnterBlackout();
+	// 2026-08-10, dev-confirmed: amputation no longer incapacitates (blackout removed entirely) -
+	// just a temporary heavy mobility penalty on top of HealthComponent's own permanent zone penalty.
+	bIsAmputationShocked = true;
+	OnRep_IsAmputationShocked();
+
+	GetWorldTimerManager().SetTimer(AmputationShockTimerHandle, this, &AZSPlayerCharacter::ClearAmputationShock, FMath::Max(AmputationShockDurationSeconds, 0.01f), false);
 }
 
-void AZSPlayerCharacter::EnterBlackout()
+void AZSPlayerCharacter::ClearAmputationShock()
 {
-	if (!HasAuthority() || bIsBlackedOut)
+	if (!HasAuthority() || !bIsAmputationShocked)
 	{
 		return;
 	}
 
-	bIsBlackedOut = true;
-	OnRep_IsBlackedOut();
+	bIsAmputationShocked = false;
+	OnRep_IsAmputationShocked();
+}
 
-	// Same reasoning as HandleDeath - an incapacitated player shouldn't keep counting as sleep-ready.
-	if (bIsReadyToSleep)
+void AZSPlayerCharacter::OnRep_IsAmputationShocked()
+{
+	UpdateMovementSpeed();
+}
+
+void AZSPlayerCharacter::HandleDownedChanged(bool bNewIsDowned)
+{
+	if (bNewIsDowned)
 	{
-		CancelSleepReady();
-	}
+		GetCharacterMovement()->DisableMovement();
 
-	GetCharacterMovement()->DisableMovement();
+		// Same reasoning as HandleDeath - a downed player shouldn't keep counting as sleep-ready.
+		// HasAuthority()-gated like HandleDeath's own call to this, since CancelSleepReady() issues a
+		// Server RPC that only the owning client/server should ever actually fire (this callback runs
+		// on every machine, driven by HealthComponent's OnRep_IsDowned).
+		if (HasAuthority() && bIsReadyToSleep)
+		{
+			CancelSleepReady();
+		}
+	}
+	else
+	{
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+
+		// 2026-08-10, dev-confirmed: "slower movement speed after getting back up, for a small amount
+		// of time" - starts the instant downed ends, self-heal or teammate revive alike. HasAuthority()-
+		// gated like the CancelSleepReady() call above, same reasoning (this runs on every machine).
+		if (HasAuthority())
+		{
+			bIsPostReviveSlowed = true;
+			OnRep_IsPostReviveSlowed();
+			GetWorldTimerManager().SetTimer(PostReviveSlowTimerHandle, this, &AZSPlayerCharacter::ClearPostReviveSlow, FMath::Max(PostReviveSlowDurationSeconds, 0.01f), false);
+		}
+	}
 
 	if (ReviveInteractable)
 	{
-		ReviveInteractable->bIsInteractable = true;
+		ReviveInteractable->bIsInteractable = bNewIsDowned;
 	}
-
-	// B0-T7.3 (solo and co-op alike): a single lump-sum jump (matching AZSGameState's existing
-	// sleep/time-skip mechanism), not a sustained per-player clock-rate multiplier - the world clock
-	// is shared across every connected player and can't run at two speeds for one incapacitated
-	// player without affecting everyone else's real-time experience too.
-	if (AZSGameState* GameState = GetWorld()->GetGameState<AZSGameState>())
-	{
-		GameState->Server_AdvanceTimeByGameHours(BlackoutTimeSkipGameHours);
-	}
-
-	FTimerDelegate RecoverDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::ExitBlackout, false);
-	GetWorldTimerManager().SetTimer(BlackoutTimerHandle, RecoverDelegate, FMath::Max(BlackoutDurationSeconds, 0.01f), false);
 }
 
-void AZSPlayerCharacter::ExitBlackout(bool bWasRevived)
+void AZSPlayerCharacter::ClearPostReviveSlow()
 {
-	if (!HasAuthority() || !bIsBlackedOut)
+	if (!HasAuthority() || !bIsPostReviveSlowed)
 	{
 		return;
 	}
 
-	bIsBlackedOut = false;
-	OnRep_IsBlackedOut();
-
-	GetWorldTimerManager().ClearTimer(BlackoutTimerHandle);
-
-	if (ReviveInteractable)
-	{
-		ReviveInteractable->bIsInteractable = false;
-	}
-
-	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-
-	UE_LOG(LogZombieShooter, Log, TEXT("%s: blackout ended (%s)"), *GetName(), bWasRevived ? TEXT("revived") : TEXT("recovered naturally"));
+	bIsPostReviveSlowed = false;
+	OnRep_IsPostReviveSlowed();
 }
 
-void AZSPlayerCharacter::OnRep_IsBlackedOut()
+void AZSPlayerCharacter::OnRep_IsPostReviveSlowed()
 {
-	OnBlackoutChanged.Broadcast(bIsBlackedOut);
+	UpdateMovementSpeed();
 }
 
 void AZSPlayerCharacter::HandleReviveInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor)
 {
-	if (!HasAuthority() || !Interactor || !bIsBlackedOut)
+	if (!HasAuthority() || !Interactor || !HealthComponent || !HealthComponent->IsDowned())
 	{
 		return;
 	}
 
-	// B0-T7.4: a revive shortens the blackout - ends it immediately rather than modeling a separate
-	// reduced-duration timer, since there's no revive montage/channeled-action content yet to
-	// justify a real "revive takes time" mechanic (v1 simplification).
-	ExitBlackout(true);
+	HealthComponent->Server_ReviveDowned();
 }
 
-void AZSPlayerCharacter::UseItem(UZSItemConfig* Item, EZSBodyZone TargetZone)
+bool AZSPlayerCharacter::IsDowned() const
 {
-	Server_UseItem(Item, TargetZone);
+	return HealthComponent && HealthComponent->IsDowned();
 }
 
-void AZSPlayerCharacter::Server_UseItem_Implementation(UZSItemConfig* Item, EZSBodyZone TargetZone)
+void AZSPlayerCharacter::UseItem(UZSItemConfig* Item)
+{
+	Server_UseItem(Item);
+}
+
+void AZSPlayerCharacter::Server_UseItem_Implementation(UZSItemConfig* Item)
 {
 	if (!HasAuthority() || !Item)
 	{
@@ -2314,28 +2656,49 @@ void AZSPlayerCharacter::Server_UseItem_Implementation(UZSItemConfig* Item, EZSB
 		{
 			NeedsComponent->Server_ConsumeItem(Item);
 		}
+		// 2026-08-09, dev-confirmed (painkillers): a flat HP top-up, orthogonal to the zone-targeted
+		// treatments below - see UZSItemConfig::HealthRestore's own comment. 0 (a plain food/drink
+		// item) is a no-op inside Server_RestoreHealth itself.
+		if (HealthComponent)
+		{
+			HealthComponent->Server_RestoreHealth(Item->HealthRestore);
+		}
 		break;
 	case EZSItemUseType::Bandage:
 		if (HealthComponent)
 		{
-			HealthComponent->Server_ApplyBandage(TargetZone, Item->bIsCleanBandage);
-			// B0-T6.5: a "better" medical tier's MedicalIncubationDelayGameHours extends the
-			// amputation decision window - no-op (0) for a basic bandage, and a no-op entirely
-			// unless TargetZone actually is the bite-infection source.
-			HealthComponent->Server_DelayInfection(TargetZone, Item->MedicalIncubationDelayGameHours);
+			EZSBodyZone TargetZone;
+			if (HealthComponent->FindAutoTargetZone(EZSItemUseType::Bandage, TargetZone))
+			{
+				HealthComponent->Server_ApplyBandage(TargetZone, Item->bIsCleanBandage);
+				// B0-T6.5: a "better" medical tier's MedicalIncubationDelayGameHours extends the
+				// amputation decision window - no-op (0) for a basic bandage, and a no-op entirely
+				// unless TargetZone actually is the bite-infection source.
+				HealthComponent->Server_DelayInfection(TargetZone, Item->MedicalIncubationDelayGameHours);
+			}
+			// No zone currently needs a bandage - nothing to do, the item isn't consumed (the
+			// inventory-side consume call is a separate step this function doesn't own).
 		}
 		break;
 	case EZSItemUseType::Disinfectant:
 		if (HealthComponent)
 		{
-			HealthComponent->Server_Disinfect(TargetZone);
-			HealthComponent->Server_DelayInfection(TargetZone, Item->MedicalIncubationDelayGameHours);
+			EZSBodyZone TargetZone;
+			if (HealthComponent->FindAutoTargetZone(EZSItemUseType::Disinfectant, TargetZone))
+			{
+				HealthComponent->Server_Disinfect(TargetZone);
+				HealthComponent->Server_DelayInfection(TargetZone, Item->MedicalIncubationDelayGameHours);
+			}
 		}
 		break;
 	case EZSItemUseType::Splint:
 		if (HealthComponent)
 		{
-			HealthComponent->Server_Splint(TargetZone);
+			EZSBodyZone TargetZone;
+			if (HealthComponent->FindAutoTargetZone(EZSItemUseType::Splint, TargetZone))
+			{
+				HealthComponent->Server_Splint(TargetZone);
+			}
 		}
 		break;
 	}
@@ -2405,7 +2768,10 @@ void AZSPlayerCharacter::Server_ForceStopAiming_Implementation()
 
 bool AZSPlayerCharacter::CanFire() const
 {
-	return !bIsSprinting && !bIsBusy && !bIsBlackedOut && CurrentWeapon && CurrentWeapon->CanFire();
+	// 2026-08-10, dev-confirmed: "can shoot enemies [while downed], but will have lower accuracy" -
+	// no longer blocked here, see UZSHealthComponent::GetAccuracySpreadMultiplier/DownedAccuracySpreadMultiplier
+	// for the penalty instead.
+	return !bIsSprinting && !bIsBusy && CurrentWeapon && CurrentWeapon->CanFire();
 }
 
 void AZSPlayerCharacter::HandleFireStarted()
@@ -2580,8 +2946,9 @@ void AZSPlayerCharacter::FireWeapon(AZSWeapon* Weapon)
 
 bool AZSPlayerCharacter::CanAttack() const
 {
-	// B0-T7.2: "not normal play" while blacked out - can't fire/melee lying incapacitated.
-	return !bIsSprinting && !bIsBusy && !bIsBlackedOut;
+	// 2026-08-10, dev-confirmed: downed no longer blocks attacking (fire or melee) - just penalized,
+	// same reversal as CanFire()/CanSwitchLoadout() above.
+	return !bIsSprinting && !bIsBusy;
 }
 
 UZSUIManager* AZSPlayerCharacter::GetUIManager() const
@@ -3354,6 +3721,15 @@ void AZSPlayerCharacter::BeginBusyAction(UAnimMontage* TPMontage)
 	if (TPMontage && FindNotifyTriggerTime(TPMontage, UAN_ZS_UnlockActions::StaticClass(), NotifyTriggerTime))
 	{
 		BusyDuration = NotifyTriggerTime;
+	}
+
+	// 2026-08-10, dev-confirmed: "slower actions (reload, swap weapons, etc.)" while downed - this is
+	// the "reload, etc." half (every busy-action montage routes through here: reload, jam-clear, ...),
+	// the hotbar-switch half lives in Server_SelectHotbarSlot_Implementation instead (its own timer,
+	// not montage-driven).
+	if (IsDowned())
+	{
+		BusyDuration /= FMath::Max(DownedActionSpeedMultiplier, 0.01f);
 	}
 
 	FTimerDelegate ClearBusyDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::SetBusy, false);

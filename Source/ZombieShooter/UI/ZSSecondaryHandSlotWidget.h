@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "ZSUserWidgetBase.h"
+#include "Styling/SlateBrush.h"
 #include "ZSSecondaryHandSlotWidget.generated.h"
 
 class UImage;
@@ -18,6 +19,7 @@ class UZSSecondaryHandSlotWidget : public UZSUserWidgetBase
 protected:
 
 	virtual void NativeConstruct() override;
+	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
 	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 	UPROPERTY(meta = (BindWidget))
@@ -27,4 +29,7 @@ private:
 
 	UFUNCTION()
 	void RefreshSecondaryHandIcon();
+
+	/** 2026-08-09: Image_Icon's Designer-tab default brush (e.g. an "unoccupied slot" placeholder texture), cached once in NativeConstruct before RefreshSecondaryHandIcon ever runs - restored whenever the slot is empty (or the equipped item has no Icon authored yet) instead of clearing to a blank brush, so a dev-authored empty-slot placeholder survives. */
+	FSlateBrush DefaultIconBrush;
 };

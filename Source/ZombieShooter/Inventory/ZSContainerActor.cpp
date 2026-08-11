@@ -80,9 +80,15 @@ bool AZSContainerActor::Server_TakeItem(FGuid InstanceId, AZSPlayerCharacter* Re
 		return false;
 	}
 
-	const FZSItemInstance TakenInstance = ContainerSlots[Index];
+	// 2026-08-06: don't remove from ContainerSlots until the transfer into the requester's own
+	// Pockets actually succeeds - Server_AddItemInstance now rejects a full-Pockets add outright, and
+	// removing first would silently destroy the item rather than leaving it in the container.
+	if (!Inventory->Server_AddItemInstance(ContainerSlots[Index]))
+	{
+		return false;
+	}
+
 	ContainerSlots.RemoveAt(Index);
-	Inventory->Server_AddItemInstance(TakenInstance);
 	OnRep_ContainerSlots();
 
 	return true;
@@ -102,19 +108,23 @@ void AZSContainerActor::Server_TakeAllItems(AZSPlayerCharacter* Requester)
 		return;
 	}
 
+	// 2026-08-06: only remove what actually transferred - Server_AddItemInstance now rejects a
+	// full-Pockets add outright, and removing unconditionally would silently destroy whatever didn't
+	// fit instead of leaving it behind, still lootable. Iterates back-to-front so RemoveAt doesn't
+	// invalidate the indices still to be visited.
 	int32 ItemsTransferred = 0;
-	for (const FZSItemInstance& Instance : ContainerSlots)
+	for (int32 Index = ContainerSlots.Num() - 1; Index >= 0; --Index)
 	{
-		if (Instance.IsValid() && Instance.StackCount > 0)
+		const FZSItemInstance& Instance = ContainerSlots[Index];
+		if (Instance.IsValid() && Instance.StackCount > 0 && Inventory->Server_AddItemInstance(Instance))
 		{
-			Inventory->Server_AddItemInstance(Instance);
+			ContainerSlots.RemoveAt(Index);
 			++ItemsTransferred;
 		}
 	}
 
 	UE_LOG(LogZombieShooter, Log, TEXT("%s: take-all transferred %d slot(s) to %s"), *GetName(), ItemsTransferred, *Requester->GetName());
 
-	ContainerSlots.Empty();
 	OnRep_ContainerSlots();
 }
 
@@ -128,6 +138,30 @@ bool AZSContainerActor::Server_AddItemToContainer(FZSItemInstance Instance)
 	ContainerSlots.Add(Instance);
 	OnRep_ContainerSlots();
 
+	return true;
+}
+
+bool AZSContainerActor::Server_DepositItem(FGuid ItemInstanceId, AZSPlayerCharacter* Depositor)
+{
+	if (!HasAuthority() || !Depositor || !ItemInstanceId.IsValid())
+	{
+		return false;
+	}
+
+	UZSInventoryComponent* Inventory = Depositor->GetInventoryComponent();
+	if (!Inventory)
+	{
+		return false;
+	}
+
+	FZSItemInstance Removed;
+	if (!Inventory->Server_RemoveInstanceByIdAnywhere(ItemInstanceId, Removed))
+	{
+		return false;
+	}
+
+	ContainerSlots.Add(Removed);
+	OnRep_ContainerSlots();
 	return true;
 }
 

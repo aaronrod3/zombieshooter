@@ -101,11 +101,24 @@ void AZSWorldItemActor::HandleInteracted(UZSInteractableComponent* Interactable,
 
 	if (UZSInventoryComponent* Inventory = Interactor->GetInventoryComponent())
 	{
-		Inventory->Server_AddItemInstance(ItemInstance);
+		// 2026-08-06, dev-confirmed: a full Pockets (OnPerson) compartment rejects the pickup outright
+		// - Server_AddItemInstance returns false and mutates nothing, so the world item must stay put
+		// rather than being destroyed out from under a pickup that never actually happened.
+		if (!Inventory->Server_AddItemInstance(ItemInstance))
+		{
+			UE_LOG(LogZombieShooter, Log, TEXT("%s: pickup rejected - %s's Pockets are full"), *Interactor->GetName(), *ItemInstance.Config->DisplayName.ToString());
+			return;
+		}
+
 		// InstanceId logged here (B0-T2 Checkpoint A) so a dropped-then-repicked-up item's GUID can
 		// be diffed against the one Server_DropItem logged when it was dropped.
 		UE_LOG(LogZombieShooter, Log, TEXT("%s: picked up %s x%d, InstanceId %s"),
 			*Interactor->GetName(), *ItemInstance.Config->DisplayName.ToString(), ItemInstance.StackCount, *ItemInstance.InstanceId.ToString());
+
+		// 2026-08-09, dev-confirmed: a picked-up weapon auto-mounts, same "no separate manual-equip
+		// step" spirit as the container-bearing-gear auto-equip above it. World-pickup path only,
+		// deliberately - a container-loot take stays drag-and-drop only. No-op for a non-weapon item.
+		Interactor->Server_TryAutoMountWeapon(ItemInstance.InstanceId);
 	}
 
 	Destroy();

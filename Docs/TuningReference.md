@@ -164,6 +164,20 @@ No tunables documented yet — Stage A locomotion (Idle/Move state machine, crou
 | `WoundInfectionBleedMultiplier` | 1.3 | B0-T6.1: additional bleed-rate multiplier while Infected, stacks with `DirtyWoundBleedMultiplier` |
 | `WoundInfectionFractureRecoverySlowMultiplier` | 0.5 | B0-T6.1: fracture recovery accrues at this fraction of normal speed while the zone is wound-infected |
 
+## Downed / Revive & Amputation Shock (`UZSHealthComponent`/`AZSPlayerCharacter`) — 2026-08-10, replaces the old blackout system
+| Property | Default | Effect |
+|---|---|---|
+| `UZSHealthComponent::DownedDurationSeconds` | 120 | Real-time seconds a downed player has to be revived or self-heal before `HandleDownedTimerExpired` calls `Die()` for real - starts unconditionally, solo included |
+| `UZSHealthComponent::ReviveHealthAmount` | 20 | `CurrentHealth` floor (never lowered, only raised) applied on a teammate revive (`Server_ReviveDowned`) - a self-heal doesn't use this, crossing above 0 HP is what triggers that exit |
+| `UZSHealthComponent::DownedAccuracySpreadMultiplier` | 2.5 | Extra multiplier folded into `GetAccuracySpreadMultiplier()` while downed - 1 = no penalty, HIGHER is worse (widens the fire cone), stacks with the Arms-wound penalty |
+| `AZSPlayerCharacter::DownedActionSpeedMultiplier` | 0.5 | Slows every busy-action montage (`BeginBusyAction` - reload, jam-clear, etc.) and the hotbar weapon-swap timer (`Server_SelectHotbarSlot_Implementation`) while downed - 1 = no penalty, lower = slower |
+| `AZSPlayerCharacter::PostReviveSlowDurationSeconds` | 10 | Real-time seconds of the extra movement penalty below after getting back up (self-heal or teammate revive alike) |
+| `AZSPlayerCharacter::PostReviveSlowMovementMultiplier` | 0.5 | Move-speed multiplier for the duration above - independent of, and stacks with, `AmputationShockMobilityMultiplier` |
+| `AZSPlayerCharacter::AmputationShockDurationSeconds` | 45 | Real-time seconds a fresh amputation stays at the steep extra mobility penalty below before settling to `UZSHealthConfig::AmputatedZoneMultiplier` alone |
+| `AZSPlayerCharacter::AmputationShockMobilityMultiplier` | 0.3 | Extra move-speed multiplier for the duration above - stacks with (doesn't replace) the permanent `AmputatedZoneMultiplier` penalty |
+
+Downed is unconditional, solo included, 2026-08-10 dev-confirmed reversal of the original design - "player can still be downed if no other players in the lobby, but just a lower chance at surviving a horde." A fresh hit landing on an already-downed player is a finishing blow (instant `Die()`, no second countdown). A downed player can still fight - fire, melee, reload, and swap weapons are all allowed, just penalized (see the multipliers above) rather than blocked. Amputation no longer incapacitates at all - the shock penalty above is its only consequence, fully decoupled from downed/death.
+
 ## Zombies (`UZSZombieConfig` — e.g. `DA_ZS_ZombieConfig_Shambler`, read by `AZombieCharacter`/`AZombieAIController`)
 | Field | Default | Effect |
 |---|---|---|
