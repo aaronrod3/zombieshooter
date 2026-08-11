@@ -25,6 +25,7 @@
 #include "Animation/AnimNotifies/AnimNotifyState.h"
 #include "Net/UnrealNetwork.h"
 #include "ZSWeapon.h"
+#include "ZSMagazineConfig.h"
 #include "ZSProjectile.h"
 #include "AN_ZS_UnlockActions.h"
 #include "ANS_ZS_BlockADS.h"
@@ -296,13 +297,31 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugListCarrySlots(
 
 		for (const FZSItemInstance& Instance : Inventory->GetCarrySlots())
 		{
-			UE_LOG(LogZombieShooter, Log, TEXT("  %s x%d, InstanceId %s, Weight %.2f"),
-				*GetNameSafe(Instance.Config), Instance.StackCount, *Instance.InstanceId.ToString(), Instance.GetTotalWeight());
+			// 2026-08-11: magazines show their resolved ammo count too - -1 (uninitialised) resolves
+			// to full capacity, same lazy-resolve pattern as durability.
+			FString AmmoSuffix;
+			if (const UZSMagazineConfig* MagazineConfig = Cast<UZSMagazineConfig>(Instance.Config))
+			{
+				const int32 ResolvedAmmo = Instance.InstanceState.CurrentAmmoCount >= 0
+					? Instance.InstanceState.CurrentAmmoCount : MagazineConfig->MagazineCapacity;
+				AmmoSuffix = FString::Printf(TEXT(", Ammo %d/%d"), ResolvedAmmo, MagazineConfig->MagazineCapacity);
+			}
+
+			UE_LOG(LogZombieShooter, Log, TEXT("  %s x%d, InstanceId %s, Weight %.2f%s"),
+				*GetNameSafe(Instance.Config), Instance.StackCount, *Instance.InstanceId.ToString(), Instance.GetTotalWeight(), *AmmoSuffix);
 			for (const FZSItemInstanceBase& Contained : Instance.ContainedItems)
 			{
 				UE_LOG(LogZombieShooter, Log, TEXT("    contains: %s x%d, InstanceId %s"),
 					*GetNameSafe(Contained.Config), Contained.StackCount, *Contained.InstanceId.ToString());
 			}
+		}
+
+		if (Character->GetCurrentWeapon())
+		{
+			UE_LOG(LogZombieShooter, Log, TEXT("  [loaded magazine] InstanceId %s, %d rounds in %s"),
+				*Character->GetCurrentWeapon()->GetCurrentMagazineInstanceId().ToString(),
+				Character->GetCurrentWeapon()->GetCurrentMagazineAmmo(),
+				*GetNameSafe(Character->GetCurrentWeapon()->GetConfig()));
 		}
 	}));
 
@@ -526,6 +545,30 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugKillSelf(
 		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugKillSelf: applied lethal Bite damage"));
 	}));
 
+// 2026-08-11 test hook - stands in for a HealthRestore-flagged item (painkiller-style self-heal,
+// including the self-revive-while-downed path) while no such item is authored in content yet.
+// Calls the same Server_RestoreHealth a real item's Server_UseItem would, so this exercises the
+// exact downed-exit logic a real item will later trigger, not a separate shortcut path. Host-only,
+// same authority reasoning as ZS.DebugDropFirstItem. Remove once a real HealthRestore item exists.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugRestoreHealth(
+	TEXT("ZS.DebugRestoreHealth"),
+	TEXT("Restores Amount (default 50) HP on the local (host) player via the same path a HealthRestore item uses - crosses back above 0 exits Downed. Usage: ZS.DebugRestoreHealth <amount>"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		UZSHealthComponent* Health = Character ? Character->GetHealthComponent() : nullptr;
+		if (!Health)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugRestoreHealth: no local pawn/health component found"));
+			return;
+		}
+
+		const float Amount = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 50.f;
+		Health->Server_RestoreHealth(Amount);
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugRestoreHealth: restored %.1f HP (IsDowned now %d)"), Amount, Health->IsDowned());
+	}));
+
 // Temporary B0-T10 test hook - a pristine weapon's ~1% base jam chance makes reliably reaching a
 // jammed state impractical to test Rack Firearm against. Calls the weapon's own Server_ForceJam
 // (added alongside this command) rather than looping Server_RollForJam waiting for a lucky roll.
@@ -608,6 +651,26 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugTriggerSecondaryAction(
 
 		Character->HandleSecondaryAction();
 		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugTriggerSecondaryAction: requested"));
+	}));
+
+// 2026-08-11 test hook - IA_QuickReload doesn't exist yet (content gap). Calls the same public entry
+// point a real Q press would (StartQuickReload) - real CanReload()/CanFitInPockets-on-stow gating
+// still applies, this doesn't bypass it. Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugStartQuickReload(
+	TEXT("ZS.DebugStartQuickReload"),
+	TEXT("Quick-reloads the local (host) player's current weapon (discards whatever's left in the loaded magazine) - Magazines testing only."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& /*Args*/, UWorld* World)
+	{
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
+		if (!Character)
+		{
+			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.DebugStartQuickReload: no local pawn found"));
+			return;
+		}
+
+		Character->StartQuickReload();
+		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugStartQuickReload: requested (no-op if CanReload() is false - check a compatible magazine is carried)"));
 	}));
 
 // Temporary B0-T4.10 test hook - IA_Sleep doesn't exist yet (content gap). Calls the same public
@@ -769,6 +832,10 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReloadActionFinder(TEXT("/Game/ZS/Input/IA_Reload.IA_Reload"));
 	if (ReloadActionFinder.Succeeded()) { ReloadAction = ReloadActionFinder.Object; }
+
+	// 2026-08-11 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
+	static ConstructorHelpers::FObjectFinder<UInputAction> QuickReloadActionFinder(TEXT("/Game/ZS/Input/IA_QuickReload.IA_QuickReload"));
+	if (QuickReloadActionFinder.Succeeded()) { QuickReloadAction = QuickReloadActionFinder.Object; }
 
 	// B0-T10.1 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
 	static ConstructorHelpers::FObjectFinder<UInputAction> RackActionFinder(TEXT("/Game/ZS/Input/IA_Rack.IA_Rack"));
@@ -1021,6 +1088,11 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		if (ReloadAction)
 		{
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartReload);
+		}
+
+		if (QuickReloadAction)
+		{
+			EnhancedInputComponent->BindAction(QuickReloadAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartQuickReload);
 		}
 
 		if (RackAction)
@@ -1502,9 +1574,18 @@ void AZSPlayerCharacter::Server_TryAutoMountWeapon(FGuid InstanceId)
 	}
 
 	const FZSItemInstance Instance = Inventory->GetInstance(InstanceId);
-	const UZSWeaponConfig* WeaponConfig = Instance.IsValid() ? Cast<UZSWeaponConfig>(Instance.Config) : nullptr;
+	if (!Instance.IsValid())
+	{
+		UE_LOG(LogZombieShooter, Warning, TEXT("%s: Server_TryAutoMountWeapon - InstanceId %s isn't a carried instance, nothing to mount"),
+			*GetName(), *InstanceId.ToString());
+		return;
+	}
+
+	const UZSWeaponConfig* WeaponConfig = Cast<UZSWeaponConfig>(Instance.Config);
 	if (!WeaponConfig)
 	{
+		UE_LOG(LogZombieShooter, Warning, TEXT("%s: Server_TryAutoMountWeapon - %s isn't a UZSWeaponConfig, nothing to mount"),
+			*GetName(), *GetNameSafe(Instance.Config));
 		return;
 	}
 
@@ -1514,7 +1595,9 @@ void AZSPlayerCharacter::Server_TryAutoMountWeapon(FGuid InstanceId)
 		{
 			if (!Inventory->GetMountedLongGun(MountIndex).IsValid())
 			{
-				Inventory->Server_MountLongGun(MountIndex, InstanceId);
+				const bool bMounted = Inventory->Server_MountLongGun(MountIndex, InstanceId);
+				UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_TryAutoMountWeapon - %s auto-mount to long-gun slot %d %s"),
+					*GetName(), *WeaponConfig->GetName(), MountIndex, bMounted ? TEXT("SUCCEEDED") : TEXT("REJECTED by Server_MountLongGun"));
 				return;
 			}
 		}
@@ -1540,7 +1623,9 @@ void AZSPlayerCharacter::Server_TryAutoMountWeapon(FGuid InstanceId)
 
 		const int32 MountIndexToBump = (BumpInstanceId.IsValid() && Inventory->GetMountedLongGun(1).InstanceId == BumpInstanceId) ? 1 : 0;
 		Inventory->Server_UnmountLongGun(MountIndexToBump);
-		Inventory->Server_MountLongGun(MountIndexToBump, InstanceId);
+		const bool bMounted = Inventory->Server_MountLongGun(MountIndexToBump, InstanceId);
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_TryAutoMountWeapon - %s auto-mount bumped long-gun slot %d, %s"),
+			*GetName(), *WeaponConfig->GetName(), MountIndexToBump, bMounted ? TEXT("SUCCEEDED") : TEXT("REJECTED by Server_MountLongGun"));
 	}
 	else if (WeaponConfig->Handedness == EZSWeaponHandedness::OneHanded && WeaponConfig->AttackType == EZSAttackType::Ranged)
 	{
@@ -1548,7 +1633,9 @@ void AZSPlayerCharacter::Server_TryAutoMountWeapon(FGuid InstanceId)
 		{
 			Inventory->Server_UnmountSidearm();
 		}
-		Inventory->Server_MountSidearm(InstanceId);
+		const bool bMounted = Inventory->Server_MountSidearm(InstanceId);
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_TryAutoMountWeapon - %s auto-mount to sidearm %s"),
+			*GetName(), *WeaponConfig->GetName(), bMounted ? TEXT("SUCCEEDED") : TEXT("REJECTED by Server_MountSidearm"));
 	}
 	else if (WeaponConfig->Handedness == EZSWeaponHandedness::OneHanded && WeaponConfig->AttackType == EZSAttackType::Melee)
 	{
@@ -1556,7 +1643,17 @@ void AZSPlayerCharacter::Server_TryAutoMountWeapon(FGuid InstanceId)
 		{
 			Inventory->Server_UnmountMelee();
 		}
-		Inventory->Server_MountMelee(InstanceId);
+		const bool bMounted = Inventory->Server_MountMelee(InstanceId);
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_TryAutoMountWeapon - %s auto-mount to melee %s"),
+			*GetName(), *WeaponConfig->GetName(), bMounted ? TEXT("SUCCEEDED") : TEXT("REJECTED by Server_MountMelee"));
+	}
+	else
+	{
+		// No Handedness/AttackType combination matched any mount slot - most likely an unset/misconfigured
+		// weapon config field. Was a silent no-op before this logging pass; see the 2026-08-11 PIE test
+		// session's rifle-auto-mount investigation for why this needed to be loud.
+		UE_LOG(LogZombieShooter, Warning, TEXT("%s: Server_TryAutoMountWeapon - %s has no matching mount slot for Handedness=%s AttackType=%s, nothing mounted"),
+			*GetName(), *WeaponConfig->GetName(), *UEnum::GetValueAsString(WeaponConfig->Handedness), *UEnum::GetValueAsString(WeaponConfig->AttackType));
 	}
 	// A two-handed melee weapon (e.g. an axe) is already covered by the TwoHanded branch above - it
 	// mounts via the long-gun path same as any other TwoHanded weapon ("long gun" is a naming holdover).
@@ -3750,6 +3847,24 @@ void AZSPlayerCharacter::BeginBusyAction(UAnimMontage* TPMontage)
 	}
 }
 
+void AZSPlayerCharacter::BeginTimedBusyAction(float Duration)
+{
+	SetBusy(true);
+
+	float BusyDuration = Duration;
+
+	// Same "slower actions while downed" rule BeginBusyAction applies to montage-derived durations.
+	if (IsDowned())
+	{
+		BusyDuration /= FMath::Max(DownedActionSpeedMultiplier, 0.01f);
+	}
+
+	// Shares BusyClearTimerHandle with BeginBusyAction - safe, since CanReload()'s !bIsBusy gate
+	// (and every other busy-action entry point's own) already makes these mutually exclusive.
+	FTimerDelegate ClearBusyDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::SetBusy, false);
+	GetWorldTimerManager().SetTimer(BusyClearTimerHandle, ClearBusyDelegate, FMath::Max(BusyDuration, 0.01f), false);
+}
+
 bool AZSPlayerCharacter::CanReload() const
 {
 	return !bIsBusy && CurrentWeapon && CurrentWeapon->CanReload();
@@ -3765,6 +3880,16 @@ void AZSPlayerCharacter::StartReload_Implementation()
 	Server_StartReload();
 }
 
+void AZSPlayerCharacter::StartQuickReload_Implementation()
+{
+	if (!CanReload())
+	{
+		return;
+	}
+
+	Server_StartQuickReload();
+}
+
 void AZSPlayerCharacter::Server_StartReload_Implementation()
 {
 	if (!HasAuthority() || !CanReload())
@@ -3772,12 +3897,80 @@ void AZSPlayerCharacter::Server_StartReload_Implementation()
 		return;
 	}
 
-	CurrentWeapon->PerformReload();
+	PerformMagazineReload(false);
 
 	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
 	{
 		Multicast_PlayTPActionMontage(Config->TP_Reload);
-		BeginBusyAction(Config->TP_Reload);
+		BeginTimedBusyAction(Config->NormalReloadTimeSeconds);
+	}
+}
+
+void AZSPlayerCharacter::Server_StartQuickReload_Implementation()
+{
+	if (!HasAuthority() || !CanReload())
+	{
+		return;
+	}
+
+	PerformMagazineReload(true);
+
+	if (const UZSWeaponConfig* Config = CurrentWeapon->GetConfig())
+	{
+		Multicast_PlayTPActionMontage(Config->TP_Reload);
+		BeginTimedBusyAction(Config->QuickReloadTimeSeconds);
+	}
+}
+
+void AZSPlayerCharacter::PerformMagazineReload(bool bQuickReload)
+{
+	if (!HasAuthority() || !CurrentWeapon || !CurrentWeapon->CanReload())
+	{
+		return;
+	}
+
+	UZSInventoryComponent* Inventory = GetInventoryComponent();
+	if (!Inventory)
+	{
+		return;
+	}
+
+	FGuid NewMagazineId;
+	int32 NewAmmoCount = 0;
+	if (!CurrentWeapon->FindBestCompatibleMagazine(NewMagazineId, NewAmmoCount))
+	{
+		return;
+	}
+
+	FZSItemInstance NewMagazineInstance;
+	if (!Inventory->Server_RemoveInstanceByIdAnywhere(NewMagazineId, NewMagazineInstance))
+	{
+		// Should be unreachable - FindBestCompatibleMagazine just resolved this InstanceId out of
+		// the same CarrySlots array - but the whole load is aborted rather than partially applied
+		// if it somehow isn't there anymore (e.g. a race this project's single-threaded server
+		// model shouldn't actually allow, defended anyway per this codebase's general caution).
+		return;
+	}
+
+	FGuid OldMagazineId;
+	UZSItemConfig* OldMagazineConfig = nullptr;
+	int32 OldAmmoRemaining = 0;
+	CurrentWeapon->Server_EjectCurrentMagazine(OldMagazineId, OldMagazineConfig, OldAmmoRemaining);
+
+	CurrentWeapon->Server_LoadMagazine(NewMagazineInstance.InstanceId, NewMagazineInstance.Config, NewAmmoCount);
+
+	// OldMagazineId is invalid for a weapon's very first reload (InitializeFromConfig seeds
+	// CurrentMagazineAmmo directly, no real instance behind it) - nothing to stow or discard either
+	// way. Quick reload discards a real ejected magazine outright (the whole point of choosing quick
+	// over tactical); normal reload stows it back into inventory with whatever rounds it had left.
+	if (OldMagazineId.IsValid() && !bQuickReload)
+	{
+		FZSItemInstance StowedMagazine;
+		StowedMagazine.InstanceId = OldMagazineId;
+		StowedMagazine.Config = OldMagazineConfig;
+		StowedMagazine.StackCount = 1;
+		StowedMagazine.InstanceState.CurrentAmmoCount = OldAmmoRemaining;
+		Inventory->Server_AddItemInstance(StowedMagazine);
 	}
 }
 

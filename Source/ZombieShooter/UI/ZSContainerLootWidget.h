@@ -6,7 +6,7 @@
 #include "ZSUserWidgetBase.h"
 #include "ZSContainerLootWidget.generated.h"
 
-class UWrapBox;
+class UUniformGridPanel;
 class UButton;
 class AZSContainerActor;
 class UZSItemSlotWidget;
@@ -17,6 +17,13 @@ class UZSItemSlotWidget;
  *  mirroring the player's own inventory) is placed directly in the Designer tab - those widgets are
  *  self-sufficient (bind to the player's own UZSInventoryComponent automatically), nothing here
  *  needs to reference them.
+ *
+ *  2026-08-11: Grid_ContainerItems reworked from UWrapBox to UUniformGridPanel, same fixed-grid/
+ *  reused-widgets treatment UZSCompartmentPanelWidget already has - a container's contents now keep
+ *  their own SlotIndex-driven cell instead of the old destroy-and-rebuild-every-mutation behavior,
+ *  which visibly reshuffled every remaining item on screen after any single take/deposit.
+ *  **Manual step required**: WBP_ZS_ContainerLoot's Designer-tab Grid_ContainerItems needs to be
+ *  swapped from a Wrap Box to a Uniform Grid Panel (same name) or this BindWidget fails to compile.
  */
 UCLASS()
 class UZSContainerLootWidget : public UZSUserWidgetBase
@@ -44,7 +51,7 @@ protected:
 	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UWrapBox> Grid_ContainerItems;
+	TObjectPtr<UUniformGridPanel> Grid_ContainerItems;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> Btn_TakeAll;
@@ -55,6 +62,9 @@ protected:
 
 private:
 
+	/** Builds the fixed grid of persistent slot widgets, sized to Container->GetContainerCapacity() - called once, the first time RefreshContainerGrid runs after SetContainer (Container isn't known any earlier). */
+	void BuildGrid();
+
 	UFUNCTION()
 	void RefreshContainerGrid();
 
@@ -63,4 +73,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<AZSContainerActor> Container;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UZSItemSlotWidget>> SlotWidgets;
 };

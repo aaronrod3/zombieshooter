@@ -3,7 +3,8 @@
 #include "ZSContainerLootWidget.h"
 #include "ZSItemSlotWidget.h"
 #include "ZSDragDropPayload.h"
-#include "Components/WrapBox.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Components/Button.h"
 #include "../Player/ZSPlayerCharacter.h"
 #include "../Inventory/ZSContainerActor.h"
@@ -67,25 +68,66 @@ void UZSContainerLootWidget::CloseAsModal()
 	RemoveFromParent();
 }
 
-void UZSContainerLootWidget::RefreshContainerGrid()
+void UZSContainerLootWidget::BuildGrid()
 {
-	if (!Grid_ContainerItems || !Container || !ItemSlotClass)
+	if (!Grid_ContainerItems || !ItemSlotClass || !Container)
 	{
 		return;
 	}
 
 	Grid_ContainerItems->ClearChildren();
+	SlotWidgets.Reset();
 
+	const int32 Columns = FMath::Max(Container->GetGridColumns(), 1);
+	const int32 SlotCount = Container->GetContainerCapacity();
+	for (int32 Index = 0; Index < SlotCount; ++Index)
+	{
+		UZSItemSlotWidget* SlotWidget = CreateWidget<UZSItemSlotWidget>(this, ItemSlotClass);
+		if (!SlotWidget)
+		{
+			continue;
+		}
+
+		SlotWidget->SourceKind = EZSDragSourceKind::Container;
+		SlotWidget->SourceContainer = Container;
+		Grid_ContainerItems->AddChildToUniformGrid(SlotWidget, Index / Columns, Index % Columns);
+		SlotWidgets.Add(SlotWidget);
+	}
+}
+
+void UZSContainerLootWidget::RefreshContainerGrid()
+{
+	if (!Container)
+	{
+		return;
+	}
+
+	// 2026-08-11: built once, on the first refresh after SetContainer - the grid is sized off
+	// Container's own GetContainerCapacity(), which isn't known any earlier.
+	if (SlotWidgets.Num() == 0)
+	{
+		BuildGrid();
+	}
+
+	// Same "index by SlotIndex once, not an O(slots x items) scan per cell" pattern as
+	// UZSCompartmentPanelWidget::RefreshCompartment.
+	TMap<int32, FZSItemInstance> ItemsBySlot;
 	for (const FZSItemInstance& Item : Container->GetContainerSlots())
 	{
-		if (UZSItemSlotWidget* ItemSlotWidget = CreateWidget<UZSItemSlotWidget>(this, ItemSlotClass))
+		ItemsBySlot.Add(Item.SlotIndex, Item);
+	}
+
+	for (int32 Index = 0; Index < SlotWidgets.Num(); ++Index)
+	{
+		UZSItemSlotWidget* SlotWidget = SlotWidgets[Index];
+		if (!SlotWidget)
 		{
-			ItemSlotWidget->Instance = Item;
-			ItemSlotWidget->SourceKind = EZSDragSourceKind::Container;
-			ItemSlotWidget->SourceContainer = Container;
-			ItemSlotWidget->RefreshFromInstance();
-			Grid_ContainerItems->AddChildToWrapBox(ItemSlotWidget);
+			continue;
 		}
+
+		const FZSItemInstance* Found = ItemsBySlot.Find(Index);
+		SlotWidget->Instance = Found ? *Found : FZSItemInstance();
+		SlotWidget->RefreshFromInstance();
 	}
 }
 

@@ -22,7 +22,8 @@
 | Aim | Right Mouse Button (toggle **and** hold both work) |
 | Fire / Attack | Left Mouse Button |
 | Melee Shove / Stomp / Mount / Climb | Space |
-| Reload Weapon | R |
+| Reload Weapon (tactical - stows the partial magazine) | R |
+| Quick Reload (discards the partial magazine) | Q (proposed, unused today - added 2026-08-11 for the real magazine-swap system, `IA_QuickReload` not yet created as a `.uasset`) |
 | Rack Firearm (chamber / clear jam) | Alt + R |
 🔧 **B0-T10.1/T10.2/T10.6 implemented 2026-07-26**: only the confirmed halves — clear-jam (`AZSPlayerCharacter::RackAction`/`StartRackFirearm`) and the finisher (`FinisherAction`/`HandleFinisher`, stomp/weapon-strike over a downed zombie only). Shove and Mount/Climb (bundled on the same Space input) remain unimplemented — genuinely undesigned, not an oversight. Both `IA_Rack`/`IA_Finisher` still need manual creation in-editor as `.uasset`s.
 | Toggle Safety (multiplayer PvP) | X |
@@ -64,6 +65,8 @@ Escape's dual role above ("Main Menu" and "UI Cancel" are the same key) is handl
 |---|---|
 | Hotbar Slots 1–9 | 1–9 |
 | Equip / Toggle Light Source | `T` (assignable) — 🔧 implemented 2026-07-26 as `AZSPlayerCharacter::SecondaryAction`/`HandleSecondaryAction` (B0-T11.2) |
+
+🔧 **2026-08-06 implemented**: the "4 fixed weapon-key slots" scheme (see the `WeaponKeySlotsResolveFromMounts` note elsewhere in this repo) grew from 3 mount keys + Equipment to 4 mount keys + Equipment — `1` Primary / `2` Pistol / `3` Secondary / **`4` Melee** (new) / `G` Equipment. No new Input Action or `IMC_ZS_Default` content was needed — the dev-authored IMC already maps `Digit1`..`Digit9` generically onto `HotbarSelectAction`; only the C++ range (`AZSPlayerCharacter::NumMountKeySlots`, 3→4) needed to grow to actually consume key 4. The melee mount (`UZSInventoryComponent::MountedMelee`) accepts a one-handed melee weapon (e.g. a knife) — the exact converse of the sidearm mount's one-handed-ranged gate. A two-handed melee weapon (e.g. an axe) still mounts via a long-gun slot instead, unaffected by this addition.
 
 ## Vehicles (`BV` phase — first pass at this keymap, vehicles not built yet)
 

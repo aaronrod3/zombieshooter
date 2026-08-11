@@ -10,6 +10,7 @@
 class UStaticMeshComponent;
 class UStaticMesh;
 class UZSWeaponConfig;
+class UZSItemConfig;
 class AZSMagazine;
 
 /** Broadcast by every Phase 3 OnRep_X on this class - lets Blueprint/UI/AnimGraph bind to state changes instead of polling, per CLAUDE.md's replication convention. */
@@ -56,9 +57,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
 	bool Server_ConsumeAmmoRound();
 
-	/** B0-T2.11: true only if the magazine isn't already full, CurrentConfig->AmmoItemConfig is set, and the owning character's UZSInventoryComponent actually carries at least one unit of it - checking real inventory state instead of a flat CurrentReserveAmmo > 0. */
+	/** 2026-08-11: true only if the magazine isn't already full, CurrentConfig->AmmoItemConfig is set, and the owning character's UZSInventoryComponent carries at least one compatible UZSMagazineConfig instance (CompatibleAmmoConfig == CurrentConfig->AmmoItemConfig) with rounds in it, other than whatever's already loaded. Checks real carried magazine instances now, not a flat reserve-ammo stack - see CurrentMagazineInstanceId's own comment for why reload changed shape. */
 	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
 	bool CanReload() const;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	int32 GetCurrentMagazineAmmo() const { return CurrentMagazineAmmo; }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	bool HasMagazineLoaded() const { return CurrentMagazineInstanceId.IsValid(); }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	FGuid GetCurrentMagazineInstanceId() const { return CurrentMagazineInstanceId; }
+
+	/** 2026-08-11: sets the currently-loaded magazine directly - called by AZSPlayerCharacter's reload orchestration (PerformMagazineReload) once it has already resolved a compatible carried magazine instance and removed it from CarrySlots (same "consumed into the gun, not tracked as carried while loaded" semantics the old flat reserve-ammo pull already had). Server-only. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	void Server_LoadMagazine(FGuid NewMagazineInstanceId, UZSItemConfig* NewMagazineConfig, int32 NewAmmoCount);
+
+	/** 2026-08-11: clears the currently-loaded magazine and hands back what it was, so the caller can decide whether to stow it (tactical/normal reload) or let it go (quick reload). OutMagazineInstanceId is invalid/OutMagazineConfig is null if nothing was loaded - true for a weapon's very first reload, since InitializeFromConfig seeds CurrentMagazineAmmo directly with no real magazine instance behind it. Server-only. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
+	void Server_EjectCurrentMagazine(FGuid& OutMagazineInstanceId, UZSItemConfig*& OutMagazineConfig, int32& OutAmmoRemaining);
+
+	/** 2026-08-11: called by both CanReload() and AZSPlayerCharacter::PerformMagazineReload - scans the owning character's CarrySlots for the fullest carried UZSMagazineConfig instance compatible with CurrentConfig->AmmoItemConfig, excluding whatever's already loaded. False (outputs untouched) if none found. */
+	UFUNCTION(BlueprintPure, Category = "ZS|Weapon")
+	bool FindBestCompatibleMagazine(FGuid& OutInstanceId, int32& OutAmmoCount) const;
 
 	/** P5: durability-lite ("melee breaks, no repair sim v1" - GameDevPlan.md). Decrements CurrentDurability by one landed hit; returns true if that hit broke it (reached 0). No-op / always returns false for an unbreakable weapon (CurrentConfig->MaxDurabilityHits == 0, e.g. every gun) or off a non-authoritative machine. Called by AZSPlayerCharacter::Server_WeaponMeleeAttack after a landed swing - this class only tracks the number, the caller decides what "broken" means for the loadout (auto-unequip). */
 	UFUNCTION(BlueprintCallable, Category = "ZS|Weapon")
@@ -96,10 +118,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Weapon")
 	FZSOnJamStateChanged OnJamStateChanged;
 
-	/** B0-T2.11: removes up to (MagazineCapacity - CurrentMagazineAmmo) units of CurrentConfig->AmmoItemConfig from the owning character's UZSInventoryComponent::CarrySlots and adds whatever was actually available to CurrentMagazineAmmo - reserve ammo is real inventory now, not a flat counter on this actor. Synchronous; the reload montage that follows is purely cosmetic (see CoreLoopPlan.md Phase 2 "Key architecture decisions"). Gameplay execution point - overridable per-weapon. */
-	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
-	void PerformReload();
-
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Weapon")
 	void CycleFireMode();
 
@@ -134,6 +152,14 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentMagazineAmmo, Category = "ZS|Weapon")
 	int32 CurrentMagazineAmmo = 0;
+
+	/** 2026-08-11: which specific carried UZSMagazineConfig instance is currently loaded - invalid means either nothing loaded (CurrentMagazineAmmo == 0) or the weapon's original "phantom" starting ammo from InitializeFromConfig, which has no real instance behind it. Not itself ReplicatedUsing - always set alongside CurrentMagazineAmmo in the same function (Server_LoadMagazine/Server_EjectCurrentMagazine), same reasoning as CurrentConditionQuality below. */
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "ZS|Weapon")
+	FGuid CurrentMagazineInstanceId;
+
+	/** Config of whatever CurrentMagazineInstanceId refers to - kept alongside the InstanceId (rather than re-resolved from inventory, which no longer carries it while loaded) so Server_EjectCurrentMagazine can hand the caller enough to rebuild a real FZSItemInstance if the ejected magazine is being stowed rather than discarded. */
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "ZS|Weapon")
+	TObjectPtr<UZSItemConfig> CurrentMagazineConfig;
 
 	/** P5: seeded from CurrentConfig->MaxDurabilityHits in InitializeFromConfig. Stays at 0 (and Server_ConsumeDurabilityHit stays a no-op) for an unbreakable weapon. ReplicatedUsing added B1-T3.4 audit (2026-07-30) - a hotbar durability indicator is coming, the old "no UI yet" reasoning no longer holds. */
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Durability, Category = "ZS|Weapon")

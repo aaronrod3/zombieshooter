@@ -40,7 +40,9 @@ The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content r
 | Field | AR default | Effect |
 |---|---|---|
 | `MagazineCapacity` | 30 | Rounds per magazine |
-| `AmmoItemConfig` | unset | B0-T2.11, 2026-07-26: which `UZSItemConfig` this weapon's magazine reloads from - reserve ammo is a real, lootable, stackable inventory item now, not a flat counter (`StartingReserveAmmo`/`MaxReserveAmmo` removed entirely). Unset means the weapon can never reload. Needs a real `DA_ZS_ItemConfig_Ammo_<Caliber>` instance authored and assigned per weapon - content task, not done yet for AR/Pistol. |
+| `AmmoItemConfig` | unset | 2026-08-11: no longer consumed directly - it's the **compatibility key** a carried `UZSMagazineConfig` instance's own `CompatibleAmmoConfig` must match to be loadable into this weapon (`AZSWeapon::FindBestCompatibleMagazine`). Unset means the weapon can never reload. Needs a real `DA_ZS_ItemConfig_Ammo_<Caliber>` instance authored and assigned per weapon, plus a matching `DA_ZS_MagazineConfig_<Caliber>` pointing at it - content task, not done yet for AR/Pistol. |
+| `QuickReloadTimeSeconds` | 1.2s | 2026-08-11: swaps in the fullest compatible carried magazine fast, but discards whatever's left in the one currently loaded |
+| `NormalReloadTimeSeconds` | 2.2s | Same swap, slower - the ejected (partial) magazine is stowed back into inventory instead of discarded |
 | `SupportedFireModes` | `[Semi, Auto]` | Which fire modes `CycleFireMode` cycles through |
 | `RoundsPerMinute` | 600 | Fire rate |
 | `RecoilPitchRange` | (0.5, 1.5) | Per-shot recoil pitch kick, randomized within this range |

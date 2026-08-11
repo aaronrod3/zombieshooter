@@ -59,6 +59,10 @@ struct FZSItemInstanceState
 	/** P6-R2 loot condition variance - 0..1 multiplier rolled within the rarity tier's band at spawn. Scales effective durability and jam chance (P5-R1). Not yet rolled anywhere (T2.10/Step C) - defaults to full condition until then. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory", meta = (ClampMin = "0", ClampMax = "1"))
 	float ConditionQuality = 1.0f;
+
+	/** 2026-08-11: -1 = uninitialised, same lazy-resolve pattern as CurrentDurability above - resolve to Config->MagazineCapacity (a UZSMagazineConfig-cast) on first read for a freshly-created magazine instance, not at construction. Only meaningful for a magazine; every other item type ignores this field entirely. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ZS|Inventory")
+	int32 CurrentAmmoCount = -1;
 };
 
 /**

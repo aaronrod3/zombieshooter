@@ -27,6 +27,7 @@
 #include "ZSInventoryComponent.h"
 #include "ZSWeapon.h"
 #include "ZSWeaponConfig.h"
+#include "ZSMagazineConfig.h"
 #include "ZSMagazine.h"
 #include "ZSWorldItemActor.h"
 #include "ZSGameState.h"
@@ -1714,6 +1715,203 @@ bool FZSStoreInBagRejectsSecondaryHandTest::RunTest(const FString& Parameters)
 	Character->Server_StoreInBagChecked(BagId, PlainInstanceId);
 	TestTrue(TEXT("Storing an unequipped item succeeds through the checked wrapper"),
 		Inventory->GetInstance(BagId).ContainedItems.ContainsByPredicate([PlainInstanceId](const FZSItemInstanceBase& I) { return I.InstanceId == PlainInstanceId; }));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.MoveToSlotRejectsEquippedOrMountedInstance - 2026-08-11 code-review finding closed.
+// Server_MoveToSlot's FindItemAnywhere never checked whether the resolved item was currently
+// equipped or weapon-mounted before allowing it to relocate - unreachable through the normal UI
+// flow (GetSlotsInLocation already excludes both from ever populating a draggable slot widget, and
+// NativeOnDrop releases the drag source first anyway), but a raw RPC call bypassing the UI wasn't
+// caught server-side, which would silently orphan the EquippedSlots/mount-array GUID reference the
+// same way the already-fixed Server_StoreInBag bug (see StoreInBagRejectsEquippedInstance above)
+// used to.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSMoveToSlotRejectsEquippedOrMountedTest, "ZS.Inventory.MoveToSlotRejectsEquippedOrMountedInstance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSMoveToSlotRejectsEquippedOrMountedTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	UZSInventoryComponent* Inventory = Harness->InventoryComponent;
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	UZSItemConfig* BagConfig = NewObject<UZSItemConfig>();
+	BagConfig->bIsEquippable = true;
+	BagConfig->EquipSlot = EZSEquipSlot::Backpack;
+	BagConfig->CarryCapacityBonus = 20.f;
+
+	UZSWeaponConfig* RifleConfig = NewObject<UZSWeaponConfig>();
+	RifleConfig->Handedness = EZSWeaponHandedness::TwoHanded;
+
+	if (!TestEqual(TEXT("Bag added to CarrySlots"), Inventory->Server_AddItem(BagConfig, 1), 1)
+		|| !TestEqual(TEXT("Rifle added to CarrySlots"), Inventory->Server_AddItem(RifleConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> Slots = Inventory->GetCarrySlots();
+	const FZSItemInstance* BagInstance = Slots.FindByPredicate([BagConfig](const FZSItemInstance& I) { return I.Config == BagConfig; });
+	const FZSItemInstance* RifleInstance = Slots.FindByPredicate([RifleConfig](const FZSItemInstance& I) { return I.Config == RifleConfig; });
+	if (!TestNotNull(TEXT("Bag instance found"), BagInstance) || !TestNotNull(TEXT("Rifle instance found"), RifleInstance))
+	{
+		return false;
+	}
+	const FGuid BagId = BagInstance->InstanceId;
+	const FGuid RifleId = RifleInstance->InstanceId;
+
+	// Bag auto-equips on add (2026-08-09 feature) - confirm before relying on it below.
+	if (!TestEqual(TEXT("Bag auto-equipped to Backpack"), Inventory->GetEquippedItem(EZSEquipSlot::Backpack).InstanceId, BagId))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("Rifle mounts to long-gun slot 0"), Inventory->Server_MountLongGun(0, RifleId)))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("Server_MoveToSlot rejects the equipped bag"), Inventory->Server_MoveToSlot(BagId, FGuid(), 0));
+	TestEqual(TEXT("Bag still equipped to Backpack, not orphaned"), Inventory->GetEquippedItem(EZSEquipSlot::Backpack).InstanceId, BagId);
+
+	TestFalse(TEXT("Server_MoveToSlot rejects the mounted rifle"), Inventory->Server_MoveToSlot(RifleId, FGuid(), 1));
+	TestEqual(TEXT("Rifle still mounted to long-gun slot 0, not orphaned"), Inventory->GetMountedLongGun(0).InstanceId, RifleId);
+
+	// Sanity: a plain unequipped/unmounted item still moves normally - the guard only blocks
+	// equipped/mounted instances, not the common case.
+	UZSItemConfig* PlainItemConfig = NewObject<UZSItemConfig>();
+	if (!TestEqual(TEXT("Plain item added to CarrySlots"), Inventory->Server_AddItem(PlainItemConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* PlainInstance = Inventory->GetCarrySlots().FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
+	if (!TestNotNull(TEXT("Plain item instance found"), PlainInstance))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Server_MoveToSlot succeeds for a plain unequipped item"), Inventory->Server_MoveToSlot(PlainInstance->InstanceId, FGuid(), 3));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Weapons.MagazineReloadSwapsInstance - 2026-08-11, Magazines: ammo tracking + quick/normal
+// reload. Verifies the core swap mechanic both reload variants share: a carried UZSMagazineConfig
+// instance is removed from CarrySlots and loaded into the weapon (AZSWeapon::CurrentMagazineAmmo/
+// CurrentMagazineInstanceId), and whatever was previously loaded is stowed back into inventory with
+// its remaining round count on a normal/tactical reload, but discarded outright on a quick one.
+// Calls AZSPlayerCharacter::PerformMagazineReload directly (public specifically so it's testable
+// without the busy-state/montage-timing layer StartReload/StartQuickReload sit on top of - those
+// two would block a second reload within one synchronous test, since their busy-clear timer never
+// fires without the world actually ticking).
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSMagazineReloadTest, "ZS.Weapons.MagazineReloadSwapsInstance", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSMagazineReloadTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSItemConfig* AmmoConfig = NewObject<UZSItemConfig>();
+
+	UZSWeaponConfig* RifleConfig = NewObject<UZSWeaponConfig>();
+	RifleConfig->Handedness = EZSWeaponHandedness::TwoHanded;
+	RifleConfig->AmmoItemConfig = AmmoConfig;
+	RifleConfig->MagazineCapacity = 30;
+
+	UZSMagazineConfig* MagazineConfig = NewObject<UZSMagazineConfig>();
+	MagazineConfig->CompatibleAmmoConfig = AmmoConfig;
+	MagazineConfig->MagazineCapacity = 30;
+
+	AZSPlayerCharacter* Character = TestWorld.World->SpawnActor<AZSPlayerCharacter>();
+	if (!TestNotNull(TEXT("Player character spawned"), Character))
+	{
+		return false;
+	}
+	UZSInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	Character->EquipWeapon(RifleConfig);
+	if (!TestNotNull(TEXT("Rifle equipped as CurrentWeapon"), Character->GetCurrentWeapon()))
+	{
+		return false;
+	}
+
+	// First magazine, full - nothing loaded yet, so this exercises the "phantom starting ammo,
+	// nothing to stow or discard" branch too.
+	if (!TestEqual(TEXT("First magazine added to CarrySlots"), Inventory->Server_AddItem(MagazineConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* FirstMagInstance = Inventory->GetCarrySlots().FindByPredicate([MagazineConfig](const FZSItemInstance& I) { return I.Config == MagazineConfig; });
+	if (!TestNotNull(TEXT("First magazine instance found"), FirstMagInstance))
+	{
+		return false;
+	}
+	const FGuid FirstMagId = FirstMagInstance->InstanceId;
+
+	Character->PerformMagazineReload(false);
+	TestEqual(TEXT("First magazine loaded into weapon"), Character->GetCurrentWeapon()->GetCurrentMagazineInstanceId(), FirstMagId);
+	TestEqual(TEXT("Weapon ammo matches magazine capacity"), Character->GetCurrentWeapon()->GetCurrentMagazineAmmo(), 30);
+	TestFalse(TEXT("First magazine removed from CarrySlots while loaded"), Inventory->GetInstance(FirstMagId).IsValid());
+
+	// Fire a couple rounds so the loaded magazine's remaining count is meaningfully non-full.
+	Character->GetCurrentWeapon()->Server_ConsumeAmmoRound();
+	Character->GetCurrentWeapon()->Server_ConsumeAmmoRound();
+	if (!TestEqual(TEXT("Two rounds consumed"), Character->GetCurrentWeapon()->GetCurrentMagazineAmmo(), 28))
+	{
+		return false;
+	}
+
+	// Second magazine, also full - reload tactically this time, which should stow the partial first one.
+	if (!TestEqual(TEXT("Second magazine added to CarrySlots"), Inventory->Server_AddItem(MagazineConfig, 1), 1))
+	{
+		return false;
+	}
+	const FZSItemInstance* SecondMagInstance = Inventory->GetCarrySlots().FindByPredicate(
+		[MagazineConfig, FirstMagId](const FZSItemInstance& I) { return I.Config == MagazineConfig && I.InstanceId != FirstMagId; });
+	if (!TestNotNull(TEXT("Second magazine instance found"), SecondMagInstance))
+	{
+		return false;
+	}
+	const FGuid SecondMagId = SecondMagInstance->InstanceId;
+
+	Character->PerformMagazineReload(false);
+	TestEqual(TEXT("Second magazine now loaded into weapon"), Character->GetCurrentWeapon()->GetCurrentMagazineInstanceId(), SecondMagId);
+	TestEqual(TEXT("Weapon ammo reset to the fresh magazine's full count"), Character->GetCurrentWeapon()->GetCurrentMagazineAmmo(), 30);
+
+	const FZSItemInstance StowedFirstMag = Inventory->GetInstance(FirstMagId);
+	if (!TestTrue(TEXT("First (partial) magazine stowed back into inventory on tactical reload"), StowedFirstMag.IsValid()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Stowed magazine kept its remaining round count"), StowedFirstMag.InstanceState.CurrentAmmoCount, 28);
+
+	// Fire the second magazine down a bit too, then quick-reload with the (now-restocked) first one -
+	// this time it should be discarded, not stowed.
+	Character->GetCurrentWeapon()->Server_ConsumeAmmoRound();
+	Character->PerformMagazineReload(true);
+	TestEqual(TEXT("First magazine reloaded again (only compatible candidate left)"), Character->GetCurrentWeapon()->GetCurrentMagazineInstanceId(), FirstMagId);
+	TestFalse(TEXT("Second (partial) magazine discarded, not stowed, after a quick reload"), Inventory->GetInstance(SecondMagId).IsValid());
 
 	return true;
 }

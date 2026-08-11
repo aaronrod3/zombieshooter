@@ -43,10 +43,50 @@ void AZSContainerActor::BeginPlay()
 	{
 		ContainerSlots = LootTable->RollLoot(GetWorld());
 
+		// 2026-08-11: RollLoot doesn't know about grid capacity (it's a UZSLootTableConfig concern-free
+		// roll), so slots are assigned here - sequential, since the container starts genuinely empty.
+		// A NumRolls that exceeds GetContainerCapacity() leaves the overflow at INDEX_NONE (won't
+		// render, won't crash) rather than silently dropping loot - logged so it reads as a content
+		// mistake (NumRolls too high for this archetype's grid) rather than a mystery.
+		const int32 Capacity = GetContainerCapacity();
+		for (int32 Index = 0; Index < ContainerSlots.Num(); ++Index)
+		{
+			if (Index < Capacity)
+			{
+				ContainerSlots[Index].SlotIndex = Index;
+			}
+			else
+			{
+				UE_LOG(LogZombieShooter, Warning, TEXT("%s: BeginPlay rolled %d item(s) but the grid only holds %d - %d won't display, raise GridColumns/GridRows or LootTable->NumRolls"),
+					*GetName(), ContainerSlots.Num(), Capacity, ContainerSlots.Num() - Capacity);
+				break;
+			}
+		}
+
 		// OnRep_X never fires on the machine that has authority - apply directly here too, same
 		// pattern as every other config-driven actor in this project.
 		OnRep_ContainerSlots();
 	}
+}
+
+int32 AZSContainerActor::FindFirstFreeSlotIndex() const
+{
+	TArray<int32> Occupied;
+	Occupied.Reserve(ContainerSlots.Num());
+	for (const FZSItemInstance& Instance : ContainerSlots)
+	{
+		Occupied.Add(Instance.SlotIndex);
+	}
+
+	const int32 Capacity = GetContainerCapacity();
+	for (int32 Index = 0; Index < Capacity; ++Index)
+	{
+		if (!Occupied.Contains(Index))
+		{
+			return Index;
+		}
+	}
+	return INDEX_NONE;
 }
 
 void AZSContainerActor::OnRep_ContainerSlots()
@@ -135,6 +175,13 @@ bool AZSContainerActor::Server_AddItemToContainer(FZSItemInstance Instance)
 		return false;
 	}
 
+	const int32 FreeIndex = FindFirstFreeSlotIndex();
+	if (FreeIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	Instance.SlotIndex = FreeIndex;
 	ContainerSlots.Add(Instance);
 	OnRep_ContainerSlots();
 
@@ -154,12 +201,22 @@ bool AZSContainerActor::Server_DepositItem(FGuid ItemInstanceId, AZSPlayerCharac
 		return false;
 	}
 
+	// 2026-08-11: capacity checked before anything is removed from the depositor's own inventory -
+	// same atomic-reject pattern as Server_AddItemInstance's Pockets check. Removing first and only
+	// then discovering the container's full would strand the item in neither place.
+	const int32 FreeIndex = FindFirstFreeSlotIndex();
+	if (FreeIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
 	FZSItemInstance Removed;
 	if (!Inventory->Server_RemoveInstanceByIdAnywhere(ItemInstanceId, Removed))
 	{
 		return false;
 	}
 
+	Removed.SlotIndex = FreeIndex;
 	ContainerSlots.Add(Removed);
 	OnRep_ContainerSlots();
 	return true;

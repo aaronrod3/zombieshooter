@@ -2,6 +2,7 @@
 
 #include "ZSWeapon.h"
 #include "ZSWeaponConfig.h"
+#include "ZSMagazineConfig.h"
 #include "ZSPlayerCharacter.h"
 #include "ZSMagazine.h"
 #include "../Inventory/ZSInventoryComponent.h"
@@ -37,6 +38,8 @@ void AZSWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	DOREPLIFETIME(AZSWeapon, CurrentConfig);
 	DOREPLIFETIME(AZSWeapon, CurrentFireMode);
 	DOREPLIFETIME(AZSWeapon, CurrentMagazineAmmo);
+	DOREPLIFETIME(AZSWeapon, CurrentMagazineInstanceId);
+	DOREPLIFETIME(AZSWeapon, CurrentMagazineConfig);
 	DOREPLIFETIME(AZSWeapon, CurrentDurability);
 	DOREPLIFETIME(AZSWeapon, CurrentConditionQuality);
 	DOREPLIFETIME(AZSWeapon, bIsJammed);
@@ -207,9 +210,9 @@ bool AZSWeapon::Server_ConsumeAmmoRound()
 	return true;
 }
 
-bool AZSWeapon::CanReload() const
+bool AZSWeapon::FindBestCompatibleMagazine(FGuid& OutInstanceId, int32& OutAmmoCount) const
 {
-	if (!CurrentConfig || !CurrentConfig->AmmoItemConfig || CurrentMagazineAmmo >= CurrentConfig->MagazineCapacity)
+	if (!CurrentConfig || !CurrentConfig->AmmoItemConfig)
 	{
 		return false;
 	}
@@ -221,40 +224,92 @@ bool AZSWeapon::CanReload() const
 		return false;
 	}
 
+	// 2026-08-11: picks the fullest compatible carried magazine, not just the first one found - a
+	// minor quality-of-life over "first match" that costs nothing extra (already iterating every
+	// CarrySlots entry regardless). Excludes whatever's already loaded, which per Server_LoadMagazine's
+	// own comment is never itself sitting in CarrySlots while loaded - so that exclusion is
+	// belt-and-suspenders, not load-bearing, but cheap to keep in case that invariant ever changes.
+	bool bFound = false;
+	int32 BestAmmoCount = -1;
+	FGuid BestInstanceId;
 	for (const FZSItemInstance& Instance : Inventory->GetCarrySlots())
 	{
-		if (Instance.Config == CurrentConfig->AmmoItemConfig && Instance.StackCount > 0)
+		if (Instance.InstanceId == CurrentMagazineInstanceId)
 		{
-			return true;
+			continue;
+		}
+
+		const UZSMagazineConfig* MagazineConfig = Cast<UZSMagazineConfig>(Instance.Config);
+		if (!MagazineConfig || MagazineConfig->CompatibleAmmoConfig != CurrentConfig->AmmoItemConfig)
+		{
+			continue;
+		}
+
+		// -1 = uninitialised (a freshly-looted/granted magazine never explicitly filled) - resolves
+		// to full capacity, same lazy-resolve pattern as CurrentDurability elsewhere in this project.
+		const int32 ResolvedAmmo = Instance.InstanceState.CurrentAmmoCount >= 0
+			? Instance.InstanceState.CurrentAmmoCount
+			: MagazineConfig->MagazineCapacity;
+
+		if (ResolvedAmmo > 0 && ResolvedAmmo > BestAmmoCount)
+		{
+			bFound = true;
+			BestAmmoCount = ResolvedAmmo;
+			BestInstanceId = Instance.InstanceId;
 		}
 	}
-	return false;
+
+	if (bFound)
+	{
+		OutInstanceId = BestInstanceId;
+		OutAmmoCount = BestAmmoCount;
+	}
+	return bFound;
 }
 
-void AZSWeapon::PerformReload_Implementation()
+bool AZSWeapon::CanReload() const
 {
-	if (!HasAuthority() || !CanReload())
+	if (!CurrentConfig || !CurrentConfig->AmmoItemConfig || CurrentMagazineAmmo >= CurrentConfig->MagazineCapacity)
+	{
+		return false;
+	}
+
+	FGuid UnusedInstanceId;
+	int32 UnusedAmmoCount;
+	return FindBestCompatibleMagazine(UnusedInstanceId, UnusedAmmoCount);
+}
+
+void AZSWeapon::Server_LoadMagazine(FGuid NewMagazineInstanceId, UZSItemConfig* NewMagazineConfig, int32 NewAmmoCount)
+{
+	if (!HasAuthority())
 	{
 		return;
 	}
 
-	AZSPlayerCharacter* OwningCharacter = GetOwner<AZSPlayerCharacter>();
-	UZSInventoryComponent* Inventory = OwningCharacter ? OwningCharacter->GetInventoryComponent() : nullptr;
-	if (!Inventory)
+	CurrentMagazineInstanceId = NewMagazineInstanceId;
+	CurrentMagazineConfig = NewMagazineConfig;
+	CurrentMagazineAmmo = FMath::Max(NewAmmoCount, 0);
+
+	// OnRep_X never fires on the machine that has authority - same pattern as every other
+	// server-authored mutation in this class.
+	OnRep_CurrentMagazineAmmo();
+}
+
+void AZSWeapon::Server_EjectCurrentMagazine(FGuid& OutMagazineInstanceId, UZSItemConfig*& OutMagazineConfig, int32& OutAmmoRemaining)
+{
+	OutMagazineInstanceId = CurrentMagazineInstanceId;
+	OutMagazineConfig = CurrentMagazineConfig;
+	OutAmmoRemaining = CurrentMagazineAmmo;
+
+	if (!HasAuthority())
 	{
 		return;
 	}
 
-	const int32 AmmoNeeded = CurrentConfig->MagazineCapacity - CurrentMagazineAmmo;
-	const TArray<FZSItemInstance> Removed = Inventory->Server_RemoveItem(CurrentConfig->AmmoItemConfig, AmmoNeeded);
+	CurrentMagazineInstanceId = FGuid();
+	CurrentMagazineConfig = nullptr;
+	CurrentMagazineAmmo = 0;
 
-	int32 AmmoAvailable = 0;
-	for (const FZSItemInstance& Instance : Removed)
-	{
-		AmmoAvailable += Instance.StackCount;
-	}
-
-	CurrentMagazineAmmo += AmmoAvailable;
 	OnRep_CurrentMagazineAmmo();
 }
 

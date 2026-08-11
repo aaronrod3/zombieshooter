@@ -703,13 +703,22 @@ bool UZSInventoryComponent::Server_UpdateInstanceState(FGuid InstanceId, const F
 
 bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid InstanceId)
 {
+	// 2026-08-11: logged on every rejection path - this function has been implicated in two
+	// unexplained automation failures (CompartmentCapacityAndStoreRegression's Backpack auto-equip,
+	// EquipHelmetForceUnequipsHead) that both read correct by inspection. Silent no-ops made both
+	// undiagnosable from a log; this doesn't fix either, but the next run will say exactly which
+	// guard clause rejected the call instead of leaving it a mystery.
 	if (!GetOwner() || !GetOwner()->HasAuthority() || Slot == EZSEquipSlot::None || !InstanceId.IsValid())
 	{
+		UE_LOG(LogZombieShooter, Warning, TEXT("Server_EquipToSlot(%s, %s) REJECTED - no owner/authority, Slot==None, or invalid InstanceId"),
+			*UEnum::GetValueAsString(Slot), *InstanceId.ToString());
 		return false;
 	}
 
 	if (!EquippedSlots.IsValidIndex((uint8)Slot))
 	{
+		UE_LOG(LogZombieShooter, Warning, TEXT("Server_EquipToSlot(%s, %s) REJECTED - Slot index %d not valid in EquippedSlots (Num=%d)"),
+			*UEnum::GetValueAsString(Slot), *InstanceId.ToString(), (int32)Slot, EquippedSlots.Num());
 		return false;
 	}
 
@@ -717,12 +726,18 @@ bool UZSInventoryComponent::Server_EquipToSlot(EZSEquipSlot Slot, FGuid Instance
 	{
 		// Already worn in some other gear slot (generalized 2026-08-06 from the old Back-vs-Duffle-
 		// only check) - can't equip the same physical item twice at once.
+		UE_LOG(LogZombieShooter, Warning, TEXT("Server_EquipToSlot(%s, %s) REJECTED - InstanceId already occupies some EquippedSlots entry"),
+			*UEnum::GetValueAsString(Slot), *InstanceId.ToString());
 		return false;
 	}
 
 	const FZSItemInstance Instance = GetInstance(InstanceId);
 	if (!Instance.IsValid() || !Instance.Config->bIsEquippable || Instance.Config->EquipSlot != Slot)
 	{
+		UE_LOG(LogZombieShooter, Warning, TEXT("Server_EquipToSlot(%s, %s) REJECTED - Instance.IsValid=%d bIsEquippable=%d Config's own EquipSlot=%s"),
+			*UEnum::GetValueAsString(Slot), *InstanceId.ToString(), Instance.IsValid(),
+			Instance.IsValid() && Instance.Config ? Instance.Config->bIsEquippable : false,
+			Instance.IsValid() && Instance.Config ? *UEnum::GetValueAsString(Instance.Config->EquipSlot) : TEXT("N/A"));
 		return false;
 	}
 
@@ -940,6 +955,16 @@ bool UZSInventoryComponent::Server_RetrieveFromAnyEquippedBag(FGuid ItemInstance
 bool UZSInventoryComponent::Server_MoveToSlot(FGuid ItemInstanceId, FGuid TargetBagInstanceId, int32 TargetSlotIndex)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority() || !ItemInstanceId.IsValid() || TargetSlotIndex < 0)
+	{
+		return false;
+	}
+
+	// 2026-08-11: reject a currently-equipped or weapon-mounted instance outright - unreachable
+	// through the normal UI flow (GetSlotsInLocation already excludes both from ever populating a
+	// draggable UZSItemSlotWidget), but a raw RPC call bypassing the UI previously wasn't caught
+	// server-side, which would silently orphan the EquippedSlots/mount-array GUID reference the same
+	// way the fixed Server_StoreInBag bug used to. Same combined check as ResolveMountableWeapon.
+	if (IsWeaponMounted(ItemInstanceId) || EquippedSlots.Contains(ItemInstanceId))
 	{
 		return false;
 	}

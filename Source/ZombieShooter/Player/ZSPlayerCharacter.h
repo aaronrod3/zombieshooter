@@ -104,6 +104,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> ReloadAction;
 
+	/** 2026-08-11: quick-reload variant - Docs/InputBindings.md needs a key assigned (proposed: Q, currently unused). Not yet created as a .uasset - needs manual creation in-editor, same graceful-if-missing pattern as every other action here. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> QuickReloadAction;
+
 	/** B0-T10.1: "Rack Firearm," Alt+R per Docs/InputBindings.md - clears a weapon jam. Not yet created as a .uasset - needs manual creation in-editor, same graceful-if-missing pattern as every other action here. */
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> RackAction;
@@ -1155,8 +1159,16 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void StartReload();
 
+	/** 2026-08-11: quick-reload variant - same magazine swap as StartReload, but discards whatever's left in the currently-loaded magazine instead of stowing it. See PerformMagazineReload's own comment for the shared implementation both funnel into. */
+	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
+	void StartQuickReload();
+
 	UFUNCTION(BlueprintPure, Category = "ZS|Combat")
 	bool CanReload() const;
+
+	/** 2026-08-11: the actual reload mechanism, public (like Server_StoreInBagChecked) so it's directly testable without the busy-state/montage-timing layer StartReload/StartQuickReload sit on top of. Resolves the fullest compatible carried magazine (AZSWeapon::FindBestCompatibleMagazine), removes it from CarrySlots, ejects whatever was previously loaded, loads the new one, and either stows the ejected magazine back into inventory (bQuickReload false) or lets it go (bQuickReload true). No-op if CanReload() is false. Server-authoritative logic, but not itself a Server RPC - callers that need the real network hop go through Server_StartReload/Server_StartQuickReload instead. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Combat")
+	void PerformMagazineReload(bool bQuickReload);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "ZS|Combat")
 	void CycleFireMode();
@@ -1172,6 +1184,9 @@ protected:
 
 	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
 	void Server_StartReload();
+
+	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
+	void Server_StartQuickReload();
 
 	UFUNCTION(Server, Reliable, Category = "ZS|Combat")
 	void Server_CycleFireMode();
@@ -1191,6 +1206,9 @@ protected:
 	 *  found, no window is scheduled at all (fails open; aim just isn't blocked, unlike the busy
 	 *  fallback which must fail closed to avoid a permanent softlock). */
 	void BeginBusyAction(UAnimMontage* TPMontage);
+
+	/** 2026-08-11: same SetBusy(true)-then-scheduled-clear shape as BeginBusyAction, for a busy action with an explicit numeric duration instead of a montage to derive one from (quick/normal reload's QuickReloadTimeSeconds/NormalReloadTimeSeconds) - same downed-state scaling, same shared BusyClearTimerHandle (safe: CanReload()'s !bIsBusy gate already makes every busy-action entry point mutually exclusive), just no montage-notify-driven aim-block window since there's no montage to read one from. */
+	void BeginTimedBusyAction(float Duration);
 
 	/** Walks Montage->Notifies for a one-shot UAnimNotify of NotifyClass, returning its authored trigger time. Reads authored placement data off the asset directly - unrelated to whether anything is actually playing/ticking the montage right now. */
 	static bool FindNotifyTriggerTime(const UAnimMontage* Montage, TSubclassOf<UAnimNotify> NotifyClass, float& OutTriggerTime);

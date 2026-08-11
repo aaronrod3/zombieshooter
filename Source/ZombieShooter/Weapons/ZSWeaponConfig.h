@@ -61,8 +61,7 @@ public:
 	 *  Which AZSWeapon (sub)class AZSPlayerCharacter::EquipWeapon spawns for this config. Left
 	 *  unset by default (falls back to plain AZSWeapon) - only needs setting if a specific
 	 *  weapon wants its own Blueprint child overriding one of AZSWeapon's BlueprintNativeEvent
-	 *  functions (PerformReload, CycleFireMode) without touching C++. See CLAUDE.md's tech
-	 *  stack convention.
+	 *  functions (CycleFireMode) without touching C++. See CLAUDE.md's tech stack convention.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Class")
 	TSubclassOf<AZSWeapon> WeaponClass;
@@ -156,9 +155,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo", meta = (ClampMin = "1"))
 	int32 MagazineCapacity = 30;
 
-	/** Which UZSItemConfig this weapon's magazine reloads from - AZSWeapon::PerformReload removes up to (MagazineCapacity - CurrentMagazineAmmo) units of this from the owning player's UZSInventoryComponent::CarrySlots. Unset means this weapon can never reload (CanReload() stays false) - fine for a starting/placeholder config, but every real ranged weapon needs one set. Author a stackable (MaxStackSize in the hundreds) DA_ZS_ItemConfig_Ammo_<Caliber> instance and point this at it - a content task, not yet done for any weapon. */
+	/** Which UZSItemConfig this weapon's magazines are chambered for - a carried UZSMagazineConfig instance is legal to reload with iff its own CompatibleAmmoConfig equals this. Unset means this weapon can never reload (CanReload() stays false) - fine for a starting/placeholder config, but every real ranged weapon needs one set. Author a DA_ZS_ItemConfig_Ammo_<Caliber> instance (used only as the compatibility key now, not consumed directly - see MagazineCapacity/QuickReloadTimeSeconds below) and point both this and the matching DA_ZS_MagazineConfig_<Caliber>'s own CompatibleAmmoConfig at it. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo")
 	TObjectPtr<UZSItemConfig> AmmoItemConfig;
+
+	/** 2026-08-11: how long a quick reload takes - swaps in the fullest compatible carried magazine fast, but discards whatever's left in the one currently loaded (AZSPlayerCharacter::PerformMagazineReload). Deliberately faster than NormalReloadTimeSeconds - the speed is the entire point of choosing quick over tactical. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo", meta = (ClampMin = "0"))
+	float QuickReloadTimeSeconds = 1.2f;
+
+	/** Tactical/normal reload - same magazine swap as quick reload, but the ejected magazine (with whatever rounds it had left) is stowed back into the player's own inventory instead of discarded. Slower, since stowing is the whole point. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo", meta = (ClampMin = "0"))
+	float NormalReloadTimeSeconds = 2.2f;
 
 	// ---- Attack dispatch (P5) ----
 

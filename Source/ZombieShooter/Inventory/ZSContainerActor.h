@@ -65,6 +65,26 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Inventory")
 	FZSOnContainerSlotsChanged OnContainerSlotsChanged;
 
+	/** 2026-08-11: fixed grid dimensions for this container's loot display - EditDefaultsOnly so a
+	 *  per-archetype Blueprint (BP_ZS_Container_Kitchen, etc.) can size its own container differently,
+	 *  same "per-instance data asset/Blueprint, not a C++ branch" spirit as everything else in this
+	 *  project. Mirrors UZSInventoryComponent::GetCompartmentCapacity's fixed-capacity pattern, just
+	 *  per-actor-instance instead of per-EZSCarryLocation since a container has only one storage area. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|Inventory")
+	int32 GridColumns = 6;
+
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|Inventory")
+	int32 GridRows = 4;
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	int32 GetGridColumns() const { return GridColumns; }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	int32 GetGridRows() const { return GridRows; }
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Inventory")
+	int32 GetContainerCapacity() const { return FMath::Max(GridColumns * GridRows, 0); }
+
 protected:
 
 	virtual void BeginPlay() override;
@@ -88,4 +108,9 @@ protected:
 	/** Bound to InteractableComponent->OnInteracted in BeginPlay - calls Server_TakeAllItems(Interactor). Only meaningfully runs server-side - OnInteract itself only ever fires there, see AZSWorldItemActor::HandleInteracted for the same reasoning. */
 	UFUNCTION()
 	void HandleInteracted(UZSInteractableComponent* Interactable, AZSPlayerCharacter* Interactor);
+
+private:
+
+	/** 2026-08-11: first free grid cell in [0, GetContainerCapacity()), or INDEX_NONE if full - same pattern as UZSInventoryComponent::FindFirstFreeSlotIndex, kept separate rather than shared since the two classes have no common base to hang a shared helper off. */
+	int32 FindFirstFreeSlotIndex() const;
 };
