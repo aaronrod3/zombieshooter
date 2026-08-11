@@ -71,6 +71,9 @@ The keybind list includes a weapon-safety toggle scoped explicitly to PvP — bu
 ### OQ-B0-02 — Aim-cone and headshot-weighting values ✅ RESOLVED 2026-07-26
 **Tight cones, big hip/aim delta** (pistol 8°→2°, rifle 5°→1° starting values) — "about right." Headshot weighting ~5% hip-fire / 25% aimed. Both still tune from real playtesting, but they're dev-approved starting numbers, not guesses.
 
+### OQ-B0-14 — Damage feedback model: headshot-instakill + no on-screen numbers ✅ RESOLVED 2026-08-09
+**Body shots stay multi-hit (unchanged); a headshot is an instant kill unconditionally** — no per-weapon exception, no per-zombie-type resistance, flat universal rule regardless of what dealt the hit. No on-screen numeric damage feedback — relies on `UZSHealthComponent::OnDamageImpact` (already exists as a VFX/SFX hook) plus zombie reaction/stagger/death animation for player-facing feedback, matching the already-planned removal of the temporary debug hit-confirmation text. Reuses the existing bone→zone hit detection and headshot-weighting fields as-is, no new systems needed.
+
 ### OQ-B0-03 — Downed-zombie state and the finisher ✅ RESOLVED 2026-07-26
 **KEEP the downed state.** Finisher stays contextual on `IA_Attack`, but branches on loadout: bare-handed over a downed target → stomp; melee weapon equipped → a downward swing/strike instead. That equipped-dependent branch — not one universal finisher animation regardless of loadout — is the deliberate difference from a direct PZ port.
 

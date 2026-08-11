@@ -250,21 +250,21 @@ void UZSNeedsComponent::TickTemperature(float GameHours)
 		return;
 	}
 
-	// B0-T4.4: proxy for "equipped clothing" - sums whatever's in the two general Back/Duffle gear
-	// slots, since no dedicated clothing-slot system exists yet (see UZSItemConfig::InsulationValue).
-	// B1-T5.0, 2026-07-30: was Back/Hip - Hip is now a weapon-only sidearm mount (no InsulationValue
-	// contribution makes sense there), Duffle is its replacement as the second bag slot. A carried
-	// duffle bag "keeping you warm" is an increasingly rough proxy - fine to drop this term entirely
-	// later if it feels wrong, it's a one-line change.
+	// B0-T4.4: proxy for "equipped clothing" - sums InsulationValue across every real equip slot
+	// (see UZSItemConfig::InsulationValue). 2026-08-06: generalized from the original hardcoded
+	// Back/Duffle-only pair (a placeholder from before a real clothing system existed) to loop all
+	// UZSInventoryComponent::NumEquipSlots - a shirt/pants/helmet/etc. now genuinely contributes
+	// warmth instead of only the two bag slots doing so.
 	float InsulationSum = 0.f;
 	if (const AZSPlayerCharacter* Character = Cast<AZSPlayerCharacter>(GetOwner()))
 	{
 		if (const UZSInventoryComponent* Inventory = Character->GetInventoryComponent())
 		{
-			const FZSItemInstance BackItem = Inventory->GetEquippedItem(EZSEquipSlot::Back);
-			const FZSItemInstance DuffleItem = Inventory->GetEquippedItem(EZSEquipSlot::Duffle);
-			InsulationSum += BackItem.Config ? BackItem.Config->InsulationValue : 0.f;
-			InsulationSum += DuffleItem.Config ? DuffleItem.Config->InsulationValue : 0.f;
+			for (uint8 SlotIndex = 0; SlotIndex < UZSInventoryComponent::NumEquipSlots; ++SlotIndex)
+			{
+				const FZSItemInstance Equipped = Inventory->GetEquippedItem((EZSEquipSlot)SlotIndex);
+				InsulationSum += Equipped.Config ? Equipped.Config->InsulationValue : 0.f;
+			}
 		}
 	}
 
