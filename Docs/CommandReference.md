@@ -60,6 +60,28 @@ Longer explanation if needed.
 git push
 ```
 
+## Local Gitea server + backup mirror
+
+Check the local git server is running (auto-starts on boot, NSSM restarts it on crash — this should rarely be needed):
+
+```powershell
+Get-Service Gitea
+```
+
+Web UI: `http://localhost:3000` (localhost only, not reachable elsewhere on the network).
+
+`git push` (no remote arg) targets Gitea (`origin`) by default — GitHub (`github` remote) stays in sync automatically via Gitea's push mirror. Push to GitHub directly only if there's a specific reason to bypass the mirror:
+
+```powershell
+git push github
+```
+
+Run the working-tree safety-net backup manually (also runs automatically nightly at 3 AM via the "ZS Nightly Backup" scheduled task — catches up on next login if the PC was off):
+
+```powershell
+& "C:\Users\aaron\Documents\Unreal Projects\ZombieShooter\Scripts\Backup-Project.ps1"
+```
+
 ## Typical end-of-session sequence
 
 1. Check nothing's locking the build (above).

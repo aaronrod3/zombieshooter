@@ -84,11 +84,15 @@ Scope rule: animation only earns inclusion if readable at gameplay cam distance 
 ## Development Order
 `Docs/GameDevPlan.md` §4's P0-P10 phase narrative is now historical — outcomes are captured in `Docs/Beta/01_RevisionRegister_P0-P6.md`. **`Docs/Beta/` is the live production plan** (phases B0-B12, PIE-verified exit criteria per phase) — start at `Docs/Beta/README.md`, current phase and next step live in `Docs/SessionHandoff.md`. Zombie AI uses classic Behavior Trees + Blackboard (not StateTree — standing decision, reconsider later).
 
-## GitHub Workflow
-Repo: github.com/aaronrod3/zombieshooter — public (since 2026-07-12, for secret scanning). LFS budget/Actions spend cap = $0 (fail-safe). Branch protection available but not enabled. Never force-push main.
+## Local Git Infrastructure (Gitea) + GitHub
+**Gitea is the primary remote as of 2026-08-12** — a self-hosted git server running locally (`D:\Dev\Gitea`, Windows service `Gitea` via NSSM, web UI at `http://localhost:3000`, SQLite DB, repo+LFS storage on D: so large binaries no longer count against GitHub's free-tier LFS budget). Local remotes: `origin` = Gitea (`http://localhost:3000/aaronrod/zombieshooter.git`), `github` = the original GitHub remote (renamed from `origin`). Day-to-day `git push` targets Gitea only — GitHub stays in sync automatically via a configured Push Mirror (repo Settings → Mirror Settings: "Sync when commits are pushed" + an 8h interval fallback), so it keeps receiving everything as a secondary/off-site backup without a second manual push. Service run-as-account is `LocalSystem` (NSSM default, never overridden to a limited account — acceptable on a single-user personal machine, revisit if that changes).
+
+Repo: github.com/aaronrod3/zombieshooter — public (since 2026-07-12, for secret scanning). LFS budget/Actions spend cap = $0 (fail-safe) — **not yet confirmed whether Gitea's push mirror relays LFS objects to GitHub or just git history**; verify next time a commit touching LFS-tracked content pushes through, and update this note either way. Branch protection available but not enabled. Never force-push main.
 `gh` CLI installed, authenticated as `aaronrod3`. On Windows use full path `/c/Program Files/GitHub CLI/gh.exe` if not on PATH.
 Secret scanning requires public repo for personal accounts (private needs GitHub Enterprise) — this is why repo is public; now enabled along with push protection.
-Labels `phase-0`–`phase-6` + Projects board ("ZombieShooter Core Loop") set up.
+Labels `phase-0`–`phase-6` + Projects board ("ZombieShooter Core Loop") set up on GitHub — not mirrored to Gitea, which only carries git history/LFS content, not GitHub-side metadata.
+
+**Local safety-net mirror**: `Scripts/Backup-Project.ps1` robocopy-mirrors the live working tree (including anything not yet committed) to `D:\Dev\Backups\ZombieShooter\Live`, excluding regeneratable build/IDE junk (`.git`, `Binaries`, `Intermediate`, etc. — full exclude list in the script). Run it manually anytime, or it fires automatically via the "ZS Nightly Backup" Task Scheduler job (3 AM daily, catches up on next login if the PC was off that night). Logs to `D:\Dev\Backups\ZombieShooter\Logs`.
 
 ## Reference Docs
 - `Docs/Beta/README.md` — production plan to beta, start here for what's next (phases B0-B12, open questions, dependency map).
