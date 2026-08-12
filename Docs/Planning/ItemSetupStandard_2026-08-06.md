@@ -3,6 +3,8 @@
 > **Status: DRAFT, PAUSED (not abandoned).** Written 2026-08-06 at the dev's request ("start setting up items to pick up and move around in the inventory/equip on the play... standardize a setup for items — icons, meshes, compartment privileges"). Paused the same day once the dev asked for a much larger inventory/equip rework first (11 clothing/gear slots, dedicated fixed-grid compartment WBPs, worn-mesh visuals, a live 3D character preview) — see `C:\Users\aaron\.claude\plans\encapsulated-herding-tide.md`. Everything in this doc is still a valid proposal, just blocked on that larger rework landing underneath it first (the compartment/equip-slot architecture this doc's §3/§4 assumes is about to change shape). §5's `Server_StoreInBag` size-rejection C++ change (written, never compiled) gets folded into that rework's generalized version rather than lost. Resume this doc once the rework above is compiled and stable. See §7 for the compressed list of what actually needs a yes/no before content authoring resumes.
 >
 > This is a **different** document from `Docs/Planning/InventoryLoadoutEquipping_Plan.md` (2026-07-22) — that one designed the `FZSItemInstance` data-model refactor, which is now built and live (confirmed by re-reading the current source, not from memory). This doc is the next layer up: given that architecture already exists, what's the standardized way to actually *author* a new item so it works correctly end-to-end (world pickup → inventory UI → compartment placement → equip)?
+>
+> **Resumed 2026-08-12.** The inventory/equip rework this was blocked on shipped and has been PIE-iterated on heavily since (2026-08-06 through 2026-08-11 — see `Docs/SessionHandoff.md`); the compartment/equip-slot architecture §3/§4 assume is stable now. Picking this back up specifically to support **art production**: dev is starting hands-on Blender modeling — low-poly, with detail carried by the UV-mapped texture rather than geometry, a deliberate choice since the game's camera is fixed top-down/isometric and never gets close — via Claude Desktop's own Blender MCP connector (a separate app from the Claude Code session maintaining this doc; this session has no direct Blender or live-Unreal-editor tool access, so treat anything here as plan/tracking, not an executed-and-verified state). §4b (new) sets low-poly/texture conventions for that work; §9 (new) is a running item-production tracker. §5's compartment-size-enforcement change is still unconfirmed-compiled since the original pause — worth a quick check before relying on it, not re-verified as part of this update.
 
 ## 1. What already exists (grounded in the current source, not assumed)
 
@@ -101,3 +103,54 @@ Only move what's actually being kept (per your plan to clean up unused packs lat
 ## 8. What I'm explicitly not touching
 
 No changes to the `FZSItemInstance`/equip/mount architecture — that's settled and working, per `InventoryLoadoutEquipping_Plan.md`'s now-mostly-resolved status. This plan is purely: authoring convention + (if approved) the one missing enforcement rule.
+
+---
+
+## 4b. Blender low-poly pipeline conventions (added 2026-08-12)
+
+Dev's direction: model low-poly, put detail in the UV-mapped texture rather than geometry. Correct call for a fixed top-down/isometric camera that never gets close, and it cuts both modeling time and runtime cost. **Nothing below is enforced by code or measured yet** — starting points only, same "propose, don't guess-and-lock" spirit as the rest of this doc. Revisit after the first few real items go through the pipeline once, and again if B2-T3 (still parked, per `Docs/Beta/B2_ArtPipeline.md`) ever formally sets project-wide LOD/material budgets that should supersede these.
+
+**Triangle budget, by class:**
+
+| Class | Budget | Examples |
+|---|---|---|
+| Small handheld/pickup | 100–400 tris | food, meds, ammo boxes, small tools |
+| Worn gear, small | 300–800 tris | helmet, belt |
+| Worn gear, large | 500–1200 tris | backpack, duffle, vest |
+| Weapons | 600–1500 tris | roughly matches the density of the already-owned LowPolyWeapons pack parts |
+
+**Texture/material convention — one shared master material + per-item instance, not an atlas:**
+- One master material (e.g. `M_ZS_Item`, doesn't exist yet) with a `MI_<ItemName>` instance per item, per B2-T3.2's already-decided "master materials + instances only" rule. This keeps material count (the real draw-call lever) flat no matter how many items exist, without the ongoing overhead of packing/repacking a shared atlas every time an item is added — a category atlas was considered and rejected here specifically because repacking is *more* authoring friction over time, not less, which cuts against the "reduce time spent" goal.
+- **BaseColor texture only**, by default — the UV/texture is meant to carry the detail, but that doesn't mean a full PBR texture set. Skip Normal maps entirely unless one specific item actually needs the extra read at gameplay zoom; low-poly + a camera that's always far away means they're very unlikely to earn their cost. Roughness/Metallic as flat scalar parameters on the Material Instance, not texture maps, unless an item genuinely mixes materials (e.g. a metal-buckled cloth backpack) — call that per item, not by rule.
+- Texture size: 256×256 default, 128×128 for small/simple clutter (ammo, food). Power-of-two, matches UE compression expectations.
+- Naming matches what's already sitting in the project (`Content/FirstAidCabinet/Textures/`'s own convention, already precedent, not invented here): mesh `SM_<ItemName>`, texture `T_<ItemName>_BaseColor`, material instance `MI_<ItemName>`.
+
+**Blender → UE export checklist:**
+1. Apply all transforms before export (`Ctrl+A` → All Transforms) — an un-applied rotation/scale is the most common cause of a mesh importing rotated or at the wrong size.
+2. Origin placement matters most for `WornMesh` items — they attach straight to a character socket with no manual per-item offset step in code (`AZSPlayerCharacter::RefreshWornMeshes` / `GetSocketForEquipSlot`), so the mesh's own origin needs to already sit where it should relative to that socket. `WorldMesh` (ground pickup) origin is less critical, just needs to look right sitting on the floor.
+3. FBX export: Blender's default Forward/Up (`-Z Forward`, `Y Up`) is the likely-correct starting point, **unverified** — `Docs/BlenderNotes.md` §3 (added 2026-08-12) is the canonical source going forward, including the exact empirical test to confirm scale/axis before trusting any exported asset dimensionally. Update this line to match once that test's actually run.
+4. Collision: don't spend Blender time hand-building collision hulls for `WornMesh` or weapon-attachment meshes. Confirmed by reading the source (`ZSPlayerCharacter.cpp`): every `WornMeshComponents` entry gets `SetCollisionEnabled(ECollisionEnabled::NoCollision)` at creation, unconditionally, regardless of what the imported mesh carries — same rule `AZSWeapon::AssignNewStaticMesh` already applies to weapon attachments, per `CLAUDE.md`'s "Cosmetic attachments must be `NoCollision`" convention. `WorldMesh` pickups can keep simple auto-generated collision (or none) — interaction is a separate sphere-overlap component (`UZSInteractableComponent`), not mesh collision.
+5. Import into the folder matching §4a's layout above.
+
+---
+
+## 9. Item production tracker (added 2026-08-12)
+
+Category-level, not per-mesh — the source packs alone are 1,400+ files, a per-asset table isn't useful. Update the Status/Gap columns as categories move through the pipeline. "DA" = `DA_ZS_ItemConfig_*`/`DA_ZS_WeaponConfig_*` data asset actually authored and wired up, not just "a mesh exists somewhere."
+
+| Category | Assets on hand | Real gap | Blender need |
+|---|---|---|---|
+| Medical | `Content/FirstAidCabinet/` pack, 128 assets — bandages ×3, alcohol, spray, medicine box, scissors, syringe, iodine, plus aspirin/multivitamin/painkiller textures | Only Bandage has a DA; Disinfectant/Splint/Painkiller (`HealthRestore`) archetypes don't yet, despite the meshes/textures already existing | Low — mostly a DA-authoring pass over an already-owned pack |
+| Food | `Content/Poly-MegaSurvivalFood/` pack, 242 assets — raw/cooked/rotten produce, canned goods, drinks, burger/pizza/sandwich modular kits, bread/cheese/crackers | Only CannedFood has a DA — a tiny fraction of a large pack is turned into real items | Very low — same as Medical, DA-authoring not modeling |
+| Ammo | 1 generic DA (`DA_ZS_ItemConfig_Ammo_Other`) exists | **Magazines are a real gap**: `UZSMagazineConfig` (the 2026-08-11 per-instance-magazine rework, see `CLAUDE.md`) needs its own loose, pickable-up `WorldMesh` distinct from a weapon's cosmetic `MagazineMesh` prop — no `DA_ZS_MagazineConfig_*` exists yet, flagged in `CLAUDE.md` itself as a content gap | Possible — check `Content/Mega_Survival_Tools/` (273 assets: tools/batteries/containers/chemicals per this doc's §4a) for a usable magazine/box prop before modeling one |
+| Weapons — ranged | `LowPolyWeapons` pack, 914 assets, already fully in use — AssaultRifle alone has 900+ mesh parts under `Content/ZS/Items/Weapons/Meshes/` | AssaultRifle + Pistol DAs exist | Very low — assemble from the pack; only model new if you want a specific gun the pack doesn't have |
+| Weapons — melee | Same pack | Crowbar DA exists | Very low, same reasoning |
+| Weapon attachments (Muzzle/Handguard/Grip/Optic) | Coverage from the LowPolyWeapons pack unconfirmed this pass | No attachment DAs/content authored yet | Check the pack first |
+| **Gear — worn** (Helmet/Vest/Belt/Backpack/Duffle) | `DA_Bag` exists, but its mesh sourcing and its `EquipSlot` enum value are both still flagged unconfirmed since the `Back`→`Backpack` rename (§ above, "Real content risk" in `Docs/SessionHandoff.md`) | Helmet/Vest/Belt have no DA at all | **Best first Blender target.** These need real volumetric bulk (a backpack's actual shape, a helmet's silhouette) that the food/medical packs can't supply — see [[project_clothing_texture_vs_gear_mesh]] — and they're worn on-screen continuously, so hand-modeling time pays off more here than on a can of beans |
+| Clothing (Head/Eyes/Mask/Shirt/Pants/Shoes) | N/A | N/A | **None at all.** Stated future direction is a texture/material swap on the base skin mesh, not a separate attached mesh ([[project_clothing_texture_vs_gear_mesh]]) — don't spend Blender time here |
+| World containers (crates/cabinets) | FirstAidCabinet pack includes a full cabinet (`SM_Cabinet`/`SM_Cabinet_door`) | `BP_ZS_Container_Test` is the only container BP so far — no per-archetype container (e.g. a medical cabinet) built yet | Low — the cabinet mesh alone could back a first real `BP_ZS_Container_Medical` |
+| Tools/misc/junk | `Content/Mega_Survival_Tools/`, 273 assets — not inventoried in detail this pass | Flashlight DA exists; rest unauthored | Unknown until the pack's actually surveyed |
+
+**Good first Blender targets, in order:** worn gear (backpack → helmet → vest → belt) — least existing coverage, most on-screen visibility, and the one category the food/medical packs structurally can't fill in for.
+
+**Active as of 2026-08-12: Backpack.** Full spec (socket, budget, texture, scale reference, destination folder) is in `Docs/BlenderNotes.md` §7 — that file is the one to keep current as this moves through modeling, not this tracker's per-row text.

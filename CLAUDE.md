@@ -101,6 +101,7 @@ Labels `phase-0`–`phase-6` + Projects board ("ZombieShooter Core Loop") set up
 - `Docs/SystemsReference.md` — living "how it actually works" explainer, started 2026-08-11. Read this before `CLAUDE.md`'s Architecture bullets if you need the "why," not just the "what."
 - `Docs/ProjectZomboid_DesignReference.md` + `Docs/DevMarkupNotes.md` — PZ systems breakdown + dev markup this project's design was built against.
 - `Docs/TuningReference.md` — gameplay tunables, update when new tunables added.
+- `Docs/BlenderNotes.md` — living memory bridge for Blender item-modeling sessions (naming, export settings, collision, folder destinations) — the Blender MCP connector runs in a separate app (Claude Desktop) with no cross-session memory of its own, so this file carries that context instead. Companion to `Docs/Planning/ItemSetupStandard_2026-08-06.md` (archetypes/tracker).
 - `Docs/InputBindings.md` — the dev's target keymap, update when a binding changes or a new action is added. Not yet implemented against — Enhanced Input mapping contexts should track this, not the other way around.
 - `Docs/Testing/` — verification runbooks for completed systems.
 - `Docs/Infima Pack - Official Implementation Guide/` — Infima's own docs; still actively relevant (skeleton/animation source of record, not a placeholder).
