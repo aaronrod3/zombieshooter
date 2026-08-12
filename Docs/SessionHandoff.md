@@ -10,18 +10,19 @@
 
 **B0 → B1 transition confirmed by dev, 2026-07-30.** Two companion docs for B1: `Docs/Beta/B1_UI_UX.md` (task breakdown, entry/exit criteria) and `Docs/Planning/B1_UIDesignSession_2026-07-30.md` (the actual UI design — HUD philosophy, Tab-menu structure, inventory compartments — decided ahead of implementation, read this before touching any layout work).
 
-## B1 progress — 2026-08-11 (frozen-idle animation bug root-caused and fixed, content reorg committed)
+## B1 progress — 2026-08-11
 
-**T-pose/frozen-idle bug (open since before this session) root-caused and fixed.** Not actually a T-pose — `unreal-mcp` reconnected this session and confirmed via direct property/compile/graph inspection that `AnimClass`/`AnimationMode`/skeleton compatibility/AnimGraph connectivity were all correct the whole time (a visual-verification detour into `EditorAppToolset.StartPIE`/`CaptureViewport` turned out to render the editor world, not the live PIE world — see `CLAUDE.md`'s MCP tooling lessons, don't trust those tools for visual bugs). Dev's own PIE testing narrowed it to "moves fine, but frozen on idle (or rifle-idle if armed), no walk/run ever plays." Real cause: `ABP_ZS_ThirdPerson`'s two `BlendSpacePlayer` nodes had `groundSpeed`/`direction` wired to the wrong axes relative to each blend space's own `blendParameters` — `BS_ZS_Unarmed_Idle_Walk_Run` is `[X=Direction, Y=Speed]` but had `groundSpeed→X`/`direction→Y`; `BS_ZS_UnequippedCrouchWalk` is a direction-only in-place stepping blend but had `groundSpeed` on its sole X pin instead of `direction`. Straight-forward movement (`direction≈0`) landed in the Speed slot as 0, permanently selecting Idle regardless of real speed. Fixed via `break_pins`/`connect_pins`, compiled clean, saved — **dev-confirmed working in PIE**. Diagnostic pattern documented in `CLAUDE.md` for any future "wrong locomotion pose plays" bug.
+**Frozen-idle animation bug fixed, dev-confirmed working in PIE** — was a `BlendSpacePlayer` X/Y axis-wiring bug in `ABP_ZS_ThirdPerson`, not a T-pose. Diagnosis/fix pattern: `CLAUDE.md`'s MCP tooling lessons. Commit `635136a`.
 
-**Large content commit landed** (`352ccb2`, 145 files): `Content/ZS/Items` split from a flat layout into per-category folders (`Containers`/`Food`/`ItemBlueprints`/`ItemDataAssets`/`Medical`/`Textures`/`Weapons`), the full B1 UI widget rebuild (`Content/ZS/UI`) committed, new Enhanced Input assets (equip/inventory/pause-menu/UI-nav) committed. **Deliberately excluded from git/LFS** (dev instruction: skip large 3D-model-asset packs): `Content/FirstAidCabinet/` (752MB), `Content/Poly-MegaSurvivalFood/` (23MB), `Content/ZS/Items/Weapons/Meshes/` (33MB modular weapon mesh pack — the small `DA_ZS_WeaponConfig_*`/`BP_Ammo` configs alongside it *did* get committed and reference meshes in that excluded folder, same "works locally, doesn't travel with the repo" situation as the already-gitignored `Content/InfimaGames/`).
+**Content reorg committed** (`352ccb2`, 145 files) — see the commit itself for what moved; large third-party asset packs deliberately excluded from git/LFS, same pattern as `Content/InfimaGames/`.
 
-**Three unrelated bugs surfaced via log inspection while diagnosing the animation issue, not yet fixed, still open:**
-1. `AZSPlayerCharacter`'s constructor errors every construction on `Failed to find /Game/ZS/Input/IA_QuickReload.IA_QuickReload` — this is the already-documented content gap (magazine reload system shipped ahead of the manually-authored Input Action).
-2. `AZSGameMode`'s constructor errors on `Failed to find /Game/ZS/Framework/BP_ZS_HUD.BP_ZS_HUD_C` — **not** a previously-known gap, likely a stale reference from the B1 UI rebuild (HUD widget probably moved/renamed and the C++ `ConstructorHelpers::FClassFinder` was never updated).
-3. `WBP_ZS_ContainerLoot` fails to compile: missing required widget binding `Grid_ContainerItems` (Uniform Grid Panel) — Designer-tab hierarchy and C++ `BindWidget` have drifted apart, likely during the same UI reorg.
+**3 bugs found while diagnosing the animation issue, all now fixed**: `BP_ZS_HUD` (dev-fixed, verified), `WBP_ZS_ContainerLoot` (mis-named widget, renamed), quick reload (redesigned per dev request as double-tap R instead of a separate key — mechanism/tunable documented in `Docs/InputBindings.md` and `Docs/TuningReference.md`'s Input section).
 
-**New bug reported, not yet investigated — next step:** camera shake / partial rotation occurs when clicking to fire or entering ADS, at the moment the player snaps to face that direction. Not root-caused yet, flagged by dev to pick up another session.
+**Downed-state overlay removed entirely** per dev instruction (not renamed) — see `ZSHUD.h`'s header comment. Downed state currently has no dedicated UI.
+
+**Written, not yet compiled**: the reload redesign + overlay removal are both header changes, same pending rebuild covers both. Needs a fresh PIE pass after — see `Docs/Beta/B1_UI_UX.md`'s new "Outstanding testing, and why each item is still open" section for the full B1 testing backlog, this is one entry in it.
+
+**Next step**: camera shake / partial rotation when clicking to fire or entering ADS, at the moment the player snaps to face that direction. Not root-caused yet.
 
 ## B1 progress — 2026-08-10 (drag-and-drop backlog + blackout removal/downed-revive redesign, now compiled and automation-tested)
 

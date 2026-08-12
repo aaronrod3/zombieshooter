@@ -34,6 +34,9 @@ Zoom distance/bounds moved off the character entirely — see **Camera Director*
 - `SprintNoiseRadius` (default `1200`) — one noise event on sprint start (`Server_StartSprint`), not per-tick.
 - `WetFootstepNoiseRadius`/`WetFootstepNoiseIntervalSeconds` (default `600` / `0.6s`) — B0-T4.2, 2026-07-26: while `NeedsComponent->IsWet()` and actually moving (not sprinting — sprint's own report already covers that case), reports a noise event on a walking cadence via `TickWetFootstepNoise`. Dry footsteps report nothing at all (no footstep-audio-cue system exists to key off of), so this is what makes a wet player "audibly distinct," per the sub-task's definition of done.
 
+## Input (`AZSPlayerCharacter`, Category `ZS|Input`) — 2026-08-11
+- `QuickReloadDoubleTapWindowSeconds` (default `0.25s`) — quick reload has no dedicated bound action; it's a double-tap of `IA_Reload` (R). Every single R press is held for this long before committing to a normal reload, since `PerformMagazineReload` mutates inventory/weapon state immediately and can't be cleanly reversed if a second tap arrives — so this window is a real latency cost on every normal reload, not just a debounce. Lower it for snappier single-reloads at the cost of a tighter double-tap window, or raise it for a more forgiving double-tap at the cost of more normal-reload delay.
+
 ## Per-Weapon Config (`UZSWeaponConfig` — e.g. `DA_ZS_WeaponConfig_AssaultRifle`)
 The gameplay-feel-relevant numeric fields (meshes/montages/sockets are content references, not tuning, and are omitted here). **Every field here is per-weapon** — a new weapon gets its own `DA_ZS_WeaponConfig_<Name>` instance with its own values, never a C++ branch (see `CLAUDE.md`'s multi-weapon rule). Config was slimmed from ~90 to ~22 fields in the P0 de-scope (cosmetic/FP-only fields removed).
 

@@ -114,7 +114,7 @@ The first modal screen; the real test of T1.
 |---|---|---|
 | T7.1 | Death screen — non-interactive, shows cause of death. Decision on a death-recap screen is `GameDevPlan` §7 P9 Q2 → OQ-B6-07. | — |
 | T7.2 | Respawn-as-new-character flow surfaced clearly, including the co-op case. | P3-R11 |
-| T7.3 | **Amputation blackout state** has its own visual treatment (B0-T7.2) — the player must understand they are incapacitated and vulnerable, not dead. | P3-R7 |
+| T7.3 | ⚑ **Superseded 2026-08-10, then CUT 2026-08-11 (both dev-confirmed).** The blackout mechanic this task was written for is gone — amputation is now just a temporary mobility penalty (`bIsAmputationShocked`), decoupled from any incapacitated state, and 0 HP enters the new downed/revive state instead (`UZSHealthComponent::bIsDowned`). A downed-state overlay (`WBP_ZS_BlackoutOverlay`/`UZSBlackoutOverlayWidget`) briefly existed for this on 2026-08-05/06 but was removed entirely 2026-08-11 per dev instruction — **downed state currently has no dedicated visual treatment at all.** Revisit as its own task if that's wanted before B1 exit. | P3-R7 |
 | T7.4 | Sleep/time-skip prompt showing per-player readiness across `PlayerArray`, plus `IsSafeToSleep()`'s answer **before** the player commits. | P2-R7 |
 
 ### B1-T8 — Main menu & pause · **S (2 sessions)** · *depends on T1*
@@ -136,6 +136,42 @@ The first modal screen; the real test of T1.
 | **PT2** | End of T3 | **HUD readability run.** 20 minutes at both zoom extremes, letting needs decay into severe tiers and taking wounds in all 4 zones including a critical head bleed. | Every state is readable without the console. Critical head bleed is impossible to miss. **A naive tester immediately knows they've been bitten and can name which infection tier they're in** — per T3.3/CR-06's reversal, legible is correct, ambiguous is the bug. |
 | **PT3** | End of T6 | **Full scavenge loop, 2-client** — P6's actual exit criterion, reachable for the first time. Run out, loot under threat, haul back, stash. Both players loot the same container simultaneously. | No dupes. Weight pressure creates real decisions. Looting while threatened feels tense because the game doesn't pause. |
 | **PT4** | B1 exit | **30-minute unscripted co-op session with no developer narration.** | A second person can play without being told what anything means. |
+
+---
+
+## Outstanding testing, and why each item is still open
+
+Written 2026-08-11 as a single reference point for what's genuinely untested before B1 can formally close, grouped by *why* it's still open — the blocker is almost always structural (needs 2 people, needs a feature that doesn't exist yet, needs sustained play to reach a rare state), not neglect. Cross-check against `SessionHandoff.md` for anything that's moved since this was written.
+
+### Blocked on 2 simultaneous PIE clients + a person driving each
+No PIE-input-automation path exists for this project — simulated input doesn't reliably reach a pawn, and `unreal-mcp` can't drive a second real client either — so this whole category needs two humans (or one dev alternating hands-on-keyboard) at once, which is why it's been carried forward, session after session, rather than actually run.
+- **PT1's 2-client half** — fire/reload/aim/sprint/crouch/hotbar/melee/loot/drop from both clients, confirming the modal stack (T1) genuinely doesn't cross-talk between them.
+- **T5.7 / Exit criterion "two clients, no UI cross-talk"** — player A's drop updates player B's world view; neither player's own UI reflects the other's.
+- **T6.3 / PT3's dupe check** — two players looting the *same* container at the same instant, confirmed no duplicate item. `ZS.Inventory.ContainerTakeItemIsDupeSafe` covers the server-logic half in isolation; a live 2-client contest is a different, still-open test.
+- Everything the B0→B1 carry-forward note (Exit criteria section above) bundles in: PT6 (full stage sweep A–G under 2 clients + a 30-minute unscripted session), bag-nesting replication, cross-player ammo pickup/reload, respawn-loadout co-op parity, PT4 scenario (e) simultaneous-fire noise events.
+
+### Blocked on a genuinely naive second player
+- **PT4** — "30-minute unscripted co-op session with no developer narration." By definition this can't be the dev or an AI walking through known systems — it needs someone who's never seen the UI before, a real scheduling ask rather than a quick PIE pass.
+
+### Blocked on sustained play to reach a specific, sometimes-rare state
+Not spot-checkable — these need real time in-game deliberately chasing a state:
+- **PT2** — HUD readability at both zoom extremes over 20 minutes, letting needs decay into severe tiers and taking wounds in all 4 body zones *including* a critical head bleed (`bCriticalBleed` is a rare roll on a fresh Head bleed, not guaranteed). Whether "every stat is readable without opening the console" actually holds is a judgment call a human has to make while playing, not something a compile or unit test can answer.
+
+### Blocked on a feature that isn't built yet — not testable until it exists
+- **T5.3 / Exit criterion "no mouse-only interaction"** — T2.4 built generic keyboard focus-navigation, but the keyboard/gamepad equivalent for *drag-and-drop itself* (moving an item between compartments, equipping from a slot) was flagged back on 2026-08-02 as still undecided and never picked back up. This blocks the exit criterion outright, independent of any test — there's nothing to test yet.
+- **T3.11** (save/autosave indicator) — blocked on B3's save system existing at all; nothing to bind to.
+- 4 optional UMG animations across T3/T5 (`CriticalBleedFlash`, `FadeInOut`, `SeverityPulse`, `Spin`) — none built. All `BindWidgetAnimOptional`, so nothing is broken by their absence, just less polish than a real PT2 pass will eventually want.
+
+### Blocked only on the dev's own solo PIE session — no special setup needed
+Lower-stakes than the above, just hasn't happened yet:
+- **2026-08-11's reload change** — single R still reloads normally (now with a ~0.25s hold before it commits), double-tap R discards and quick-reloads instead. Needs a rebuild + a few R presses to confirm the timing feels right.
+- **2026-08-11's `BP_ZS_HUD` fix** — `DeathScreenClass` is now correctly assigned (verified via a property read, not PIE), but nobody has actually died in PIE since the fix to confirm the screen itself displays.
+- The general backlog of "no PIE testing done on this widget yet" notes scattered through the per-task sections above (written at the time each widget was built) — several have since been spot-confirmed in later sessions (compartment reshape, melee mount, pause menu, container loot), but a single pass across every B1 screen in one sitting has never happened.
+
+### Already solo-verified — only the 2-client half is missing
+Listed separately so it's clear these aren't fully untested, just not multiplayer-verified yet:
+- T1 (input-mode switching, modal stack, no-pause-while-modal) — PT1 solo pass passed clean 2026-08-01.
+- Full loot loop (open → inspect → take → manage weight → close) — functionally confirmed working solo, including today's container-loot fix, but PT3's 2-client no-dupe sweep specifically hasn't run.
 
 ---
 
@@ -336,7 +372,7 @@ Every `WBP_ZS_*` screen built this session (22 widgets, MCP-driven Blueprint hie
 1. **Required manual step, not yet done: create 2 new Input Actions and bind them in `IMC_ZS_Default`** - `IA_ToggleInventory` (Digital bool, Tab, Pressed) and `IA_TogglePauseMenu` (Digital bool, Escape, Pressed). Same graceful-if-missing pattern as every other Input Action in this project - the C++ finders are already in place and no-op safely until these exist. Deliberately in `IMC_ZS_Default`, not `IMC_ZS_UI` - see the header comment on `TogglePauseMenuAction` in `ZSPlayerCharacter.h` for why.
 2. **Required manual step, not yet done: assign Class Defaults across 3 Blueprints:**
    - `BP_ZS_PlayerCharacter`: `InventoryScreenClass` → `WBP_ZS_Inventory`, `PauseMenuScreenClass` → `WBP_ZS_PauseMenu`, `SleepPromptScreenClass` → `WBP_ZS_SleepPrompt`, `ContainerLootScreenClass` → `WBP_ZS_ContainerLoot`.
-   - **New Blueprint needed**: `BP_ZS_HUD` (parent `AZSHUD`, in `/Game/ZS/Framework/` to match the `ConstructorHelpers::FClassFinder` path in `AZSGameMode`'s constructor) - assign `DeathScreenClass` → `WBP_ZS_DeathScreen`, `BlackoutOverlayClass` → `WBP_ZS_BlackoutOverlay`. Without this Blueprint, `AZSGameMode` falls back to the raw `AZSHUD` class, which has both `TSubclassOf`s unset - `BeginPlay()` just skips creating either widget, no crash, but neither screen exists.
+   - **New Blueprint needed**: `BP_ZS_HUD` (parent `AZSHUD`, in `/Game/ZS/Framework/` to match the `ConstructorHelpers::FClassFinder` path in `AZSGameMode`'s constructor) - assign `DeathScreenClass` → `WBP_ZS_DeathScreen`. Without this Blueprint, `AZSGameMode` falls back to the raw `AZSHUD` class, which has `DeathScreenClass` unset - `BeginPlay()` just skips creating the widget, no crash, but the screen doesn't exist. (`BlackoutOverlayClass`/`WBP_ZS_BlackoutOverlay` no longer exist - the downed-state overlay was removed entirely 2026-08-11 per dev instruction, not renamed; see `SessionHandoff.md`.)
    - `BP_ZS_GameInstance` (or wherever `GameInstanceClass` ends up pointing, per T8's still-open manual step below) - assign `LoadingScreenClass` → `WBP_ZS_LoadingScreen`, `MainMenuScreenClass` → `WBP_ZS_MainMenu`.
 3. **Still required, unchanged from T8's own Next steps above: set `GameInstanceClass` to `ZSGameInstance`** (Project Settings → Maps & Modes) - none of the `Init()` widget-creation above runs without this either.
-4. **First PIE pass on all of the above** - confirm Tab/Escape/Sleep toggle their screens, a real container interact opens `WBP_ZS_ContainerLoot` (not the old auto-loot), MainMenu shows at boot and hides on Host/Join, LoadingScreen shows during a level transition, and Death/Blackout actually display on a real death/blackout. Spot-check the 5 debug commands too. Nothing above has been PIE-tested yet - away-session ceiling is "compiles clean," not "verified working" (`AsyncSessionProtocol.md`).
+4. **First PIE pass on all of the above** - confirm Tab/Escape/Sleep toggle their screens, a real container interact opens `WBP_ZS_ContainerLoot` (not the old auto-loot), MainMenu shows at boot and hides on Host/Join, LoadingScreen shows during a level transition, and the Death Screen actually displays on a real death. Spot-check the remaining debug commands too. Nothing above has been PIE-tested yet - away-session ceiling is "compiles clean," not "verified working" (`AsyncSessionProtocol.md`).
