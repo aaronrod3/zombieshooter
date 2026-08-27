@@ -154,3 +154,47 @@ Category-level, not per-mesh — the source packs alone are 1,400+ files, a per-
 **Good first Blender targets, in order:** worn gear (backpack → helmet → vest → belt) — least existing coverage, most on-screen visibility, and the one category the food/medical packs structurally can't fill in for.
 
 **Active as of 2026-08-12: Backpack.** Full spec (socket, budget, texture, scale reference, destination folder) is in `Docs/BlenderNotes.md` §7 — that file is the one to keep current as this moves through modeling, not this tracker's per-row text.
+
+### Baseline Blender checklist — "get some gameplay going" (added 2026-08-12)
+
+Scoped narrower than the tracker table above: only real, confirmed gaps that are actually Blender-appropriate static props (not data-authoring tasks, not things a pack already covers, not full building/environment content — that's blocked on a B2 kit decision, a sourcing task not a modeling one). Check items off in place; don't append a duplicate list below when one's done.
+
+**Gear (proves the equip-visual loop end to end — nothing worn exists yet):**
+- [ ] Backpack — **in progress**, spec in `Docs/BlenderNotes.md` §7
+- [ ] Helmet
+- [ ] Vest
+- [ ] Belt
+- Duffle deliberately not listed — shares `Backpack`'s socket (`SocketBack`), low value to model a second item for the same slot this early
+
+**Weapons (mechanical blocker, not just cosmetic — neither existing gun can currently reload at all, per `Docs/TuningReference.md`'s Per-Weapon Config section, no `DA_ZS_MagazineConfig_*` exists yet):**
+- [ ] AR Magazine (loose, carryable `WorldMesh`) — **check first** whether `SM_AR_Magazine` (the cosmetic mesh already on the gun) can just be reused before modeling a new one
+- [ ] Pistol Magazine (loose, carryable `WorldMesh`) — same check first; Pistol's own mesh sourcing was never confirmed this pass
+
+**Optional / lower priority — don't block on these:**
+- [ ] Projectile/bullet mesh — purely cosmetic (`ProjectileMesh` currently falls back to an engine placeholder Sphere), trivial geometry, decent quick pipeline-test if wanted
+- [ ] Zombie mesh + skin — **the single biggest content gap overall** (confirmed still true: animations imported, no mesh ever sourced, `BP_Zombie_*`/`DeathZombieClass`/`StressTestZombieClass` all still unset per `Docs/TuningReference.md`). Listed last specifically because it's a **different pipeline** than everything else here — a rigged/skinned character plus an animation retarget onto (or matching) `SKEL_TFA_Mannequin`, not a static low-poly prop. Probably better sourced from a pack (matches B2's "mostly free/cheap" direction) than hand-modeled from scratch — include here only if the dev specifically wants to build one.
+
+**Expanded 2026-08-12** at dev request to also include Food/Medical, World Containers, and Weapon Attachments — these were originally left off as "pack already covers it," but the dev wants some of these hand-modeled too (style consistency with everything else in this pipeline, and reps on the process), not just wired up from the source packs.
+
+**Food (keep genuinely simple — single/near-single-mesh items, not the pack's modular multi-part kits like the burger/pizza/sandwich assemblies, which don't need remaking):**
+- [ ] Generic unlabeled can — reusable across several canned-goods items via texture swap alone, good first example of the UV-does-the-work philosophy paying off
+- [ ] Water bottle
+- [ ] Wrapped snack/candy bar
+- [ ] Bread loaf
+
+**Medical (simple; several of these already exist in `Content/FirstAidCabinet/` — model your own only if you want it style-matched to everything else, otherwise just reuse the pack mesh and skip):**
+- [ ] Splint — genuinely not covered by the pack (nothing splint-shaped in the FirstAidCabinet inventory), real gap
+- [ ] Pill bottle (painkillers — `HealthRestore` archetype has no DA yet either, pairs with this)
+- [ ] Antiseptic wipes packet — small, flat, easy
+
+**World containers (simple loot props, generic enough to reuse across many building types):**
+- [ ] Wooden crate
+- [ ] Footlocker
+
+**Weapon attachments (one simple pass per `UZSWeaponConfig` attachment slot):**
+- [ ] Muzzle (suppressor or compensator)
+- [ ] Handguard-mounted flashlight
+- [ ] Grip
+- [ ] Optic (red dot or basic scope)
+
+**The full, longer-horizon item list for the whole game** (not just this near-term Blender queue) is now tracked separately in `Docs/Planning/ItemCatalog_2026-08-12.md` — this section stays scoped to "what's actually next," that doc is the fuller picture.

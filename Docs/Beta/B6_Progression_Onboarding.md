@@ -104,7 +104,7 @@ OPEN FOR EXPLORATION per Consolidated §9 → OQ-B6-02.
 
 | ID | When | What is tested | Pass condition |
 |---|---|---|---|
-| **PT1** | End of T2 | **Progression feel** over a long session — is levelling visible and satisfying without being grindy? | Skills rise from normal play at a rate that feels earned. Level-ups are noticed without a popup demanding attention. |
+| **PT1** | End of T2 | **Progression feel** over a session of focused play (~90 minutes on one skill's associated activity). | At least 1 visible level-up in the focused skill within the session — if zero, the curve is too slow to feel earned in a real sitting, retune before shipping the numbers untested. **Level-up notification uses the existing toast/notification system** (`GetNotificationSubsystem`, same pattern as every other B1 alert) — never a modal requiring dismissal, which is what "without demanding attention" actually meant. |
 | **PT2** | End of T3 | **Anti-grind test.** Deliberately try to grind each skill the cheapest way possible. | The cheap way is worse than playing. If any skill has a dominant grind, retune before shipping it. |
 | **PT3** | End of T4 | **Background differentiation** — play the same opening with 3 different backgrounds. | They feel meaningfully different from minute one, from proficiency and spawn location alone. |
 | **PT4** | B6 exit | **⚑ THE STRANGER TEST.** Someone who has never seen the game plays for 30 minutes with **no narration from you at all.** | They survive 30 minutes without a wiki, and when they die they understand why. This is the single best onboarding signal available and it must be run with a real person, not imagined. |

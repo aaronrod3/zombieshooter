@@ -82,7 +82,7 @@ Doing triple duty: tutorial, mission-giver, and narrative delivery.
 |---|---|
 | T5.1 | Objective wrappers around events — "invitations with stakes, never mandatory" (`GameDevPlan` P8). |
 | T5.2 | Objectives surface through the radio and the journal, never as a floating quest marker — that would break the diegetic framing the rest of the phase is built on. |
-| T5.3 | Ignoring an objective has no penalty. Completing one has a real reward. |
+| T5.3 | Ignoring an objective has no penalty. Completing one has a real reward — defined as at least one of: guaranteed Rare/VeryRare-tier loot beyond passive-looting odds, a skill-XP grant clearly above normal play's per-hour baseline, or a persistent world-state change (an unlocked location, a permanently safer/upgraded site). Lore/flavor text alone does not satisfy this. |
 | T5.4 | Objectives scale with `DayCount` per T1.4. |
 
 ---
@@ -91,7 +91,7 @@ Doing triple duty: tutorial, mission-giver, and narrative delivery.
 
 | ID | When | What is tested | Pass condition |
 |---|---|---|---|
-| **PT1** | End of T2 | **Event variety over a long session.** Play 3+ in-game days and log every event fired. | Events feel varied, not on a visible timer. Repeatable events recur without feeling scripted. Each is survivable but consequential. |
+| **PT1** | End of T2 | **Event variety over a long session.** Play 3+ in-game days and log every event: type, timestamp, and outcome. | **Varied**: at least 5 of the roster's distinct event types fire at least once across the session, and no single type accounts for more than 40% of all events logged. **Not on a visible timer**: no two consecutive event gaps land within 20% of each other — if the next event's timing is predictable from the last one, retune T1.4's weighting. **Survivable but consequential**: every event type encountered head-on costs the player something measurable (a Need severity tier, a wound, a resource spend, or a lasting world-state change) without requiring outside help to survive it. |
 | **PT2** | End of T3 | **Radio arc, days 1–7**, played fresh. | The arc teaches the game without a tutorial popup. Warned events feel different from unwarned ones — having a radio is clearly worth the scavenge. |
 | **PT3** | End of T4 | **Full arc playthrough** across at least 3 world seeds. | No clue is unreachable in any seed. The arc is followable without a wiki. Co-op progress is genuinely shared. |
 | **PT4** | B5 exit | **Two separate co-op sessions on the same map**, compared side by side — old P8's exit criterion. | They play out differently. The capstone lands and the world continues afterward. |
@@ -101,3 +101,14 @@ Doing triple duty: tutorial, mission-giver, and narrative delivery.
 - **OQ-B5-01 (the plot) is the biggest content-authoring dependency in the plan** and the one most likely to expand. It is a writing task, not an engineering one, and it can be done during B4 while blocked on other things — do it there.
 - **Voice acting is not assumed.** Text-only radio transcripts and notes are the scope-safe default consistent with the 1/3-depth pillar. OQ-B5-05 can overturn it, but it adds cost and a dependency on external talent.
 - **NPC survivors and factions remain POST-BETA.** Hostile human roamers are the first post-v1 addition (Decision 5) and reuse P4's AI architecture cheaply. Nothing in B5 should require them.
+
+### Candidate additional event types (2026-08-12, not yet chosen)
+
+T2.1–T2.6 above are 6 of the 8–10 Gate-2 requires (`99_DefinitionOfBetaReady.md`). Raw material for OQ-B5-04's live session, not a decision — pick, rename, cut, or replace freely. All six are threat/pressure-adding; #6 below deliberately isn't, since a session that only ever escalates has no rhythm.
+
+1. **Utilities failure spike** — reuses the already-built utilities-shutoff timer (`MinUtilitiesShutoffDay`/`MaxUtilitiesShutoffDay`, `TuningReference.md`) rather than adding a system: a specific zone's water/power fails early or fails harder, changing its Temperature/looting dynamics for a while. Cheapest of these to build.
+2. **Repopulation surge** — an early/heavier wave of OQ-B4-05's already-resolved migration-based zombie repopulation hits a zone the player just cleared. Reuses the zone system directly, no new mechanic.
+3. **Distress call** — radio-delivered (reuses T3), points to a location with real reward and real ambush risk. No live NPC required — the location itself (a fresh scene, notes, a body) is the content, keeping it cheap and consistent with NPCs staying post-beta.
+4. **Roadblock/checkpoint gone wrong** — radio-warned (reuses T3.4's per-event warning treatment), temporarily raises zombie density along a specific travel corridor, forcing a reroute. Distinct from Horde Migration (T2.4) in shape: a corridor problem, not a moving mass.
+5. **Structural hazard** (collapse or fire) — a building becomes temporarily unsafe or actively burning; loot-it-before-it's-gone urgency, no new system required beyond a timer and a blocked-nav volume.
+6. **Quiet window** — the inverse of every event above: a period of measurably lower zombie activity/noise sensitivity in a zone, rewarding a riskier looting push. The only pressure-release event in the list; worth keeping at least one of these in the final roster on pacing grounds alone, independent of which specific one ships.

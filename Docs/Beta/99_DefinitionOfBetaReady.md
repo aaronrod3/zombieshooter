@@ -5,6 +5,8 @@ Two gates, two checklists. Every item is **concrete and testable** — if you ca
 **`[INTERNAL]`** — a closed tester group can play unsupervised for a full session with no developer present.
 **`[PUBLIC]`** — strangers can obtain it, play it, and you can survive the resulting support load.
 
+> **Scope principle (added 2026-08-12, dev-stated):** this is a beta, not an MVP. Gate 2's content-completeness bar exists so a stranger's first hours read as a real, substantial game, not a tech demo with a promise attached — players shouldn't bounce off it for feeling too simple. Where a Gate-2 item below names a specific count (8–10 event types, the full weapon roster, loot tiers per zone), read that count as a floor for "doesn't feel thin," not a ceiling to stop at the moment it's technically satisfied.
+
 ---
 
 # Gate 1 — Internal Beta Ready

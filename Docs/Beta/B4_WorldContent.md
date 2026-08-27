@@ -42,7 +42,7 @@
 |---|---|
 | T1.1 | Whole region blocked out in graybox at final scale per OQ-B4-01: one dense area + rural fringe (`GameDevPlan` §3). |
 | T1.2 | Named locations placed per OQ-B4-02, with the investigation arc's needs in mind — B5 needs specific places to hide clues. |
-| T1.3 | **Traversal pass**: walk/run/sprint the whole region. Distances must feel right *without vehicles* (CR-02). This is where an over-ambitious map scale gets caught, while it is still free to fix. |
+| T1.3 | **Traversal pass**: walk/run/sprint the whole region, timed and logged. Target **10–18 minutes sprint, corner-to-corner across the full blocked-out region**, *without vehicles* (CR-02) — a starting anchor tied to "feels like a real world, not a corridor or a slog," not a hard law; retune once OQ-B4-01's actual multi-biome district count is known, but write the measured number down before deciding it needs retuning, don't eyeball it. This is where an over-ambitious map scale gets caught, while it is still free to fix. |
 | T1.4 | Streaming cells laid out against the blockout; B3's cell size validated against real geometry distribution. |
 | T1.5 | Zone boundaries defined — the zone system P4-R7 and P6-R7 both need and neither could build. **One definition, used by zombie population, loot quality tiers, and ambient audio.** |
 

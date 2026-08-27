@@ -164,7 +164,7 @@ Not spot-checkable — these need real time in-game deliberately chasing a state
 
 ### Blocked only on the dev's own solo PIE session — no special setup needed
 Lower-stakes than the above, just hasn't happened yet:
-- **2026-08-11's reload change** — single R still reloads normally (now with a ~0.25s hold before it commits), double-tap R discards and quick-reloads instead. Needs a rebuild + a few R presses to confirm the timing feels right.
+- **2026-08-11's reload change** — single R still reloads normally (now with a ~0.25s hold before it commits), double-tap R discards and quick-reloads instead. Needs a rebuild + a boundary test, not a feel check: a single R press followed by a pause **longer** than `QuickReloadDoubleTapWindowSeconds` (0.25s default, `TuningReference.md`) must always commit normal reload, never quick; R-R **within** that window must always commit quick reload, never normal. If either miscategorizes at the boundary, retune the tunable — this is an input-classification correctness check, not a subjective feel pass.
 - **2026-08-11's `BP_ZS_HUD` fix** — `DeathScreenClass` is now correctly assigned (verified via a property read, not PIE), but nobody has actually died in PIE since the fix to confirm the screen itself displays.
 - The general backlog of "no PIE testing done on this widget yet" notes scattered through the per-task sections above (written at the time each widget was built) — several have since been spot-confirmed in later sessions (compartment reshape, melee mount, pause menu, container loot), but a single pass across every B1 screen in one sitting has never happened.
 
