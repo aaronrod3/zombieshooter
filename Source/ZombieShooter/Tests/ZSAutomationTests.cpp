@@ -13,6 +13,7 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/DamageEvents.h"
 #include "EngineUtils.h"
@@ -39,6 +40,7 @@
 #include "ZSUIManager.h"
 #include "ZSNotificationSubsystem.h"
 #include "ZSContainerActor.h"
+#include "ZSHubSubsystem.h"
 
 namespace ZSTest
 {
@@ -138,7 +140,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSItemInstanceWeightTest, "ZS.Inventory.ItemIn
 
 bool FZSItemInstanceWeightTest::RunTest(const FString& Parameters)
 {
-	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_Bag.DA_Bag"));
+	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/Containers/DataAssets/DA_Bag.DA_Bag"));
 	UZSItemConfig* FoodConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_ZS_ItemConfig_CannedFood.DA_ZS_ItemConfig_CannedFood"));
 	if (!TestNotNull(TEXT("DA_Bag loaded"), BagConfig) || !TestNotNull(TEXT("DA_ZS_ItemConfig_CannedFood loaded"), FoodConfig))
 	{
@@ -224,7 +226,7 @@ bool FZSWeaponDurabilityTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSWeaponConfig* CrowbarConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/Melee/DA_ZS_WeaponConfig_Crowbar.DA_ZS_WeaponConfig_Crowbar"));
+	UZSWeaponConfig* CrowbarConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Items/Weapons/Melee/DA_ZS_WeaponConfig_Crowbar.DA_ZS_WeaponConfig_Crowbar"));
 	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_Crowbar loaded"), CrowbarConfig))
 	{
 		return false;
@@ -297,7 +299,7 @@ bool FZSInventoryBagTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_Bag.DA_Bag"));
+	UZSItemConfig* BagConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/Containers/DataAssets/DA_Bag.DA_Bag"));
 	UZSItemConfig* FoodConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_ZS_ItemConfig_CannedFood.DA_ZS_ItemConfig_CannedFood"));
 	if (!TestNotNull(TEXT("DA_Bag loaded"), BagConfig) || !TestNotNull(TEXT("DA_ZS_ItemConfig_CannedFood loaded"), FoodConfig))
 	{
@@ -631,7 +633,7 @@ bool FZSJamChanceBoundsTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSWeaponConfig* Config = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	UZSWeaponConfig* Config = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Items/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
 	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), Config))
 	{
 		return false;
@@ -812,7 +814,7 @@ bool FZSSecondaryHandTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Items/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
 	UZSItemConfig* FlashlightConfig = LoadObject<UZSItemConfig>(nullptr, TEXT("/Game/ZS/Items/ItemDataAssets/DA_ZS_ItemConfig_Flashlight.DA_ZS_ItemConfig_Flashlight"));
 	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), RifleConfig) || !TestNotNull(TEXT("DA_ZS_ItemConfig_Flashlight loaded"), FlashlightConfig))
 	{
@@ -2007,7 +2009,7 @@ bool FZSWeaponDestroyTakesMagazineTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
+	UZSWeaponConfig* RifleConfig = LoadObject<UZSWeaponConfig>(nullptr, TEXT("/Game/ZS/Items/Weapons/Rifle/DA_ZS_WeaponConfig_AssaultRifle.DA_ZS_WeaponConfig_AssaultRifle"));
 	if (!TestNotNull(TEXT("DA_ZS_WeaponConfig_AssaultRifle loaded"), RifleConfig))
 	{
 		return false;
@@ -2829,6 +2831,133 @@ bool FZSSleepReadyCountsTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("No players connected - zero ready"), ReadyCount, 0);
 	TestEqual(TEXT("No players connected - zero total"), TotalCount, 0);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Inventory.ExtractAllItemsClearsAndReturns - BR (Docs/Beta/00_MasterPlan.md CR-13, extraction
+// pivot 2026-08-27). Server_ExtractAllItems is Server_DropAllItems' extraction counterpart - same
+// full clear (CarrySlots/EquippedSlots/mounts), but hands the removed instances back instead of
+// spawning AZSWorldItemActors. Verifies both halves: the returned array actually contains what was
+// carried (mounted weapons included, since equipping/mounting never removes from CarrySlots - see
+// UZSInventoryComponent's own class comment), and CarrySlots/mounts end up genuinely empty after.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSExtractAllItemsTest, "ZS.Inventory.ExtractAllItemsClearsAndReturns", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSExtractAllItemsTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSTestHarnessActor* Harness = TestWorld.World->SpawnActor<AZSTestHarnessActor>();
+	if (!TestNotNull(TEXT("Harness actor spawned"), Harness))
+	{
+		return false;
+	}
+	UZSInventoryComponent* Inventory = Harness->InventoryComponent;
+	if (!TestNotNull(TEXT("Inventory component exists"), Inventory))
+	{
+		return false;
+	}
+
+	UZSWeaponConfig* KnifeConfig = NewObject<UZSWeaponConfig>();
+	KnifeConfig->Handedness = EZSWeaponHandedness::OneHanded;
+	KnifeConfig->AttackType = EZSAttackType::Melee;
+
+	UZSItemConfig* FoodConfig = NewObject<UZSItemConfig>();
+
+	if (!TestEqual(TEXT("Knife added"), Inventory->Server_AddItem(KnifeConfig, 1), 1))
+	{
+		return false;
+	}
+
+	// GetCarrySlots() returns by value (its own header comment explains why) - held in a named
+	// local so FindByPredicate's returned pointer stays valid, not run directly on the temporary.
+	const TArray<FZSItemInstance> SlotsAfterKnifeAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* KnifeInstance = SlotsAfterKnifeAdded.FindByPredicate([KnifeConfig](const FZSItemInstance& I) { return I.Config == KnifeConfig; });
+	if (!TestNotNull(TEXT("Knife instance found"), KnifeInstance))
+	{
+		return false;
+	}
+	const FGuid KnifeId = KnifeInstance->InstanceId;
+
+	if (!TestTrue(TEXT("Knife mounted"), Inventory->Server_MountMelee(KnifeId)))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("Food added"), Inventory->Server_AddItem(FoodConfig, 1), 1))
+	{
+		return false;
+	}
+
+	const TArray<FZSItemInstance> Extracted = Inventory->Server_ExtractAllItems();
+
+	TestEqual(TEXT("Both instances extracted"), Extracted.Num(), 2);
+	TestTrue(TEXT("Extracted set includes the mounted knife"), Extracted.ContainsByPredicate([KnifeId](const FZSItemInstance& I) { return I.InstanceId == KnifeId; }));
+	TestEqual(TEXT("CarrySlots empty after extraction"), Inventory->GetCarrySlots().Num(), 0);
+	TestFalse(TEXT("Melee mount cleared after extraction"), Inventory->GetMountedMelee().IsValid());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Hub.StashDepositWithdrawAndCurrency - BH (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot
+// 2026-08-27). UZSHubSubsystem has no GetWorld()/GetGameInstance() dependency in its own logic (by
+// design - see its own header comment on why it's a plain GameInstanceSubsystem with no world-
+// scoped state), so it's tested via a bare NewObject rather than FScopedTestWorld/a real
+// GameInstance - this suite's minimal offline UWorld (ZSTest::FScopedTestWorld) doesn't wire up a
+// GameInstance at all, and doesn't need to for this subsystem's own logic to be verified.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSHubSubsystemTest, "ZS.Hub.StashDepositWithdrawAndCurrency", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSHubSubsystemTest::RunTest(const FString& Parameters)
+{
+	// UGameInstanceSubsystem declares ClassWithin=UGameInstance (engine-enforced) - a bare
+	// NewObject<UZSHubSubsystem>() with no Outer fails that check, so this gives it a throwaway
+	// UGameInstance Outer rather than going through the real subsystem-creation lifecycle (Init(),
+	// which this suite's minimal offline UWorld/FScopedTestWorld doesn't wire up at all - see this
+	// test's own header comment). Fine for exercising the subsystem's own logic directly.
+	UGameInstance* DummyGameInstance = NewObject<UGameInstance>();
+	UZSHubSubsystem* Hub = NewObject<UZSHubSubsystem>(DummyGameInstance);
+	if (!TestNotNull(TEXT("Hub subsystem created"), Hub))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("Starts with zero currency"), Hub->GetCurrency(), (int64)0);
+
+	Hub->AddCurrency(100);
+	TestEqual(TEXT("Currency after add"), Hub->GetCurrency(), (int64)100);
+
+	TestFalse(TEXT("Spending more than available fails"), Hub->TrySpendCurrency(101));
+	TestEqual(TEXT("Currency unchanged after failed spend"), Hub->GetCurrency(), (int64)100);
+
+	TestTrue(TEXT("Spending within balance succeeds"), Hub->TrySpendCurrency(40));
+	TestEqual(TEXT("Currency after successful spend"), Hub->GetCurrency(), (int64)60);
+
+	UZSItemConfig* FoodConfig = NewObject<UZSItemConfig>();
+	FZSItemInstance FoodInstance;
+	FoodInstance.InstanceId = FGuid::NewGuid();
+	FoodInstance.Config = FoodConfig;
+
+	Hub->DepositItemsToStash({ FoodInstance });
+	TestEqual(TEXT("Stash holds the deposited item"), Hub->GetStashContents().Num(), 1);
+
+	FZSItemInstance WithdrawnItem;
+	if (!TestTrue(TEXT("Withdraw finds the deposited item"), Hub->WithdrawFromStash(FoodInstance.InstanceId, WithdrawnItem)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Withdrawn instance matches what was deposited"), WithdrawnItem.InstanceId, FoodInstance.InstanceId);
+	TestEqual(TEXT("Stash empty after withdrawal"), Hub->GetStashContents().Num(), 0);
+
+	FZSItemInstance UnusedOut;
+	TestFalse(TEXT("Withdrawing an already-withdrawn item fails"), Hub->WithdrawFromStash(FoodInstance.InstanceId, UnusedOut));
 
 	return true;
 }

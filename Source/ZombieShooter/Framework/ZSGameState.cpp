@@ -38,6 +38,7 @@ void AZSGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(AZSGameState, bSleepRequestPending);
 	DOREPLIFETIME(AZSGameState, PendingSleepHours);
 	DOREPLIFETIME(AZSGameState, PlayerListVersion);
+	DOREPLIFETIME(AZSGameState, bRaidUtilitiesHazardActive);
 }
 
 void AZSGameState::BeginPlay()
@@ -47,6 +48,10 @@ void AZSGameState::BeginPlay()
 	if (HasAuthority())
 	{
 		UtilitiesShutoffDay = FMath::RandRange(MinUtilitiesShutoffDay, MaxUtilitiesShutoffDay);
+
+		// BR, Decision 11: captured before anything can consume a slot, so Server_StartRaidReseed
+		// has an untouched authored default to restore RarityPoolEntries from later.
+		RarityPoolEntriesDefault = RarityPoolEntries;
 	}
 }
 
@@ -272,6 +277,26 @@ void AZSGameState::NotifyPlayerListChanged()
 void AZSGameState::OnRep_PlayerListVersion()
 {
 	OnPlayerListChanged.Broadcast();
+}
+
+void AZSGameState::Server_StartRaidReseed()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	RarityPoolEntries = RarityPoolEntriesDefault;
+
+	bRaidUtilitiesHazardActive = FMath::FRand() < UtilitiesHazardChance;
+	// OnRep never fires on the authoring machine itself (this project's standing replication
+	// convention) - this manual call is also what broadcasts OnRaidReseedApplied, on every machine.
+	OnRep_RaidUtilitiesHazardActive();
+}
+
+void AZSGameState::OnRep_RaidUtilitiesHazardActive()
+{
+	OnRaidReseedApplied.Broadcast();
 }
 
 void AZSGameState::Multicast_ShowToast_Implementation(const FText& Message, EZSToastType Type)

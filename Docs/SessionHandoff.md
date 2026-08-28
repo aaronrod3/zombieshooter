@@ -6,6 +6,8 @@
 >
 > **Away session?** Read `Docs/AsyncSessionProtocol.md` once now and follow it for the rest of the session without re-reading it.
 
+> **⚑ Design pivot, 2026-08-27 — extraction/mercenary rework.** The core premise changed from persistent-open-world survival to a hub-and-raid extraction loop (mercenary raids a reseeded quarantine zone from a persistent hub; death loses the character/skills/carried gear but not hub stash/vendor unlocks/currency). Full detail: `Docs/GameDevPlan.md` §1/§3/§3.1 (rewritten) and `Docs/Beta/00_MasterPlan.md` CR-13 (new phases `BH`/`BR`/`BF`). **This does not change what's being worked on right now** — B0/B1 verification work below is still valid (nearly everything already built carries over into "what a raid feels like" unchanged) and finishes under the pre-pivot framing before the first pivot-native phase (`BH`) opens, per CR-13's sequencing note.
+
 ## Current phase: B1 — UI/UX Foundation, HUD & Input Modes
 
 **B0 → B1 transition confirmed by dev, 2026-07-30.** Two companion docs for B1: `Docs/Beta/B1_UI_UX.md` (task breakdown, entry/exit criteria) and `Docs/Planning/B1_UIDesignSession_2026-07-30.md` (the actual UI design — HUD philosophy, Tab-menu structure, inventory compartments — decided ahead of implementation, read this before touching any layout work).

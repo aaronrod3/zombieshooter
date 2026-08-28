@@ -33,7 +33,9 @@
 #include "../Interaction/ZSInteractableComponent.h"
 #include "../Survival/ZSNeedsComponent.h"
 #include "../Framework/ZSGameState.h"
+#include "../Framework/ZSGameMode.h"
 #include "../Framework/ZSElevationSubsystem.h"
+#include "../Hub/ZSHubSubsystem.h"
 #include "../Combat/ZSHealthComponent.h"
 #include "../Combat/ZSDamageTypes.h"
 #include "../Survival/ZSItemConfig.h"
@@ -653,9 +655,11 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugTriggerSecondaryAction(
 		UE_LOG(LogZombieShooter, Log, TEXT("ZS.DebugTriggerSecondaryAction: requested"));
 	}));
 
-// 2026-08-11 test hook - IA_QuickReload doesn't exist yet (content gap). Calls the same public entry
-// point a real Q press would (StartQuickReload) - real CanReload()/CanFitInPockets-on-stow gating
-// still applies, this doesn't bypass it. Host-only, same authority reasoning as ZS.DebugDropFirstItem.
+// 2026-08-11 test hook - quick reload has no dedicated bound action of its own, it's a double-tap
+// of R (see StartReload_Implementation), so this bypasses the timing gesture and calls the same
+// public entry point a real double-tap would (StartQuickReload) - real CanReload()/
+// CanFitInPockets-on-stow gating still applies, this doesn't bypass it. Host-only, same authority
+// reasoning as ZS.DebugDropFirstItem.
 static FAutoConsoleCommandWithWorldAndArgs CVarZSDebugStartQuickReload(
 	TEXT("ZS.DebugStartQuickReload"),
 	TEXT("Quick-reloads the local (host) player's current weapon (discards whatever's left in the loaded magazine) - Magazines testing only."),
@@ -832,10 +836,6 @@ AZSPlayerCharacter::AZSPlayerCharacter()
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReloadActionFinder(TEXT("/Game/ZS/Input/IA_Reload.IA_Reload"));
 	if (ReloadActionFinder.Succeeded()) { ReloadAction = ReloadActionFinder.Object; }
-
-	// 2026-08-11 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
-	static ConstructorHelpers::FObjectFinder<UInputAction> QuickReloadActionFinder(TEXT("/Game/ZS/Input/IA_QuickReload.IA_QuickReload"));
-	if (QuickReloadActionFinder.Succeeded()) { QuickReloadAction = QuickReloadActionFinder.Object; }
 
 	// B0-T10.1 - same graceful-if-missing pattern as above; doesn't exist yet as of this commit.
 	static ConstructorHelpers::FObjectFinder<UInputAction> RackActionFinder(TEXT("/Game/ZS/Input/IA_Rack.IA_Rack"));
@@ -1088,11 +1088,6 @@ void AZSPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 		if (ReloadAction)
 		{
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartReload);
-		}
-
-		if (QuickReloadAction)
-		{
-			EnhancedInputComponent->BindAction(QuickReloadAction, ETriggerEvent::Started, this, &AZSPlayerCharacter::StartQuickReload);
 		}
 
 		if (RackAction)
@@ -2519,19 +2514,61 @@ void AZSPlayerCharacter::Server_RespawnAsNewCharacter()
 		return;
 	}
 
+	// Loot is already dropped by now (Server_HandleDeathLootAndZombie, called from HandleDeath
+	// before RespawnTimerHandle was even started) - this is just the shared "leave the raid" half.
+	Server_LeaveRaidAndReturnToHub(false);
+}
+
+void AZSPlayerCharacter::Server_RequestExtraction()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (!HealthComponent || HealthComponent->IsDead() || HealthComponent->IsDowned() || bIsBusy)
+	{
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: Server_RequestExtraction rejected - dead, downed, or busy"), *GetName());
+		return;
+	}
+
+	// Banks to the hub stash BEFORE Server_LeaveRaidAndReturnToHub destroys this pawn below -
+	// UZSHubSubsystem::DepositItemsToStash is what makes "extract" mean something different from
+	// "die" (Server_HandleDeathLootAndZombie drops the same CarrySlots contents into the zone
+	// instead, see that function's own comment).
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UZSHubSubsystem* Hub = GI->GetSubsystem<UZSHubSubsystem>())
+		{
+			const TArray<FZSItemInstance> ExtractedItems = InventoryComponent ? InventoryComponent->Server_ExtractAllItems() : TArray<FZSItemInstance>();
+			Hub->DepositItemsToStash(ExtractedItems);
+			UE_LOG(LogZombieShooter, Log, TEXT("%s: extraction successful, %d item(s) banked to hub stash"), *GetName(), ExtractedItems.Num());
+		}
+	}
+
+	Server_LeaveRaidAndReturnToHub(true);
+}
+
+void AZSPlayerCharacter::Server_LeaveRaidAndReturnToHub(bool bWasExtraction)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
 	AController* PlayerController = GetController();
-	AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+	AZSGameMode* GameMode = GetWorld()->GetAuthGameMode<AZSGameMode>();
 
 	// Genuinely destroyed, not healed-and-reused - AActor::Destroyed() auto-unpossesses
-	// PlayerController, so RestartPlayer below spawns and possesses a fresh pawn (fresh
-	// Needs/Health state) via the standard DefaultPawnClass/PlayerStart flow. This is the
-	// "respawn as a new character" half of permadeath - deeper persistence (carried-over
-	// world/loot state) is P7, not built here.
+	// PlayerController, so whatever AZSGameMode does next spawns/possesses a fresh pawn (fresh
+	// Needs/Health/Inventory state either way - a new mercenary, not the same one healed). Deeper
+	// persistence of what that fresh mercenary starts with (stash withdrawal, hub-side character
+	// creation) is BH/BR's own scoping-pass job, not built here.
 	Destroy();
 
 	if (GameMode && PlayerController)
 	{
-		GameMode->RestartPlayer(PlayerController);
+		GameMode->Server_ReturnPlayerToHub(PlayerController, bWasExtraction);
 	}
 }
 
@@ -3877,7 +3914,17 @@ void AZSPlayerCharacter::StartReload_Implementation()
 		return;
 	}
 
-	Server_StartReload();
+	if (GetWorldTimerManager().IsTimerActive(PendingNormalReloadTimerHandle))
+	{
+		// Second R press within the window - upgrade to quick reload, drop the pending normal one.
+		GetWorldTimerManager().ClearTimer(PendingNormalReloadTimerHandle);
+		StartQuickReload();
+		return;
+	}
+
+	// First press - hold it for QuickReloadDoubleTapWindowSeconds in case a second one arrives.
+	FTimerDelegate CommitNormalReloadDelegate = FTimerDelegate::CreateUObject(this, &AZSPlayerCharacter::Server_StartReload);
+	GetWorldTimerManager().SetTimer(PendingNormalReloadTimerHandle, CommitNormalReloadDelegate, QuickReloadDoubleTapWindowSeconds, false);
 }
 
 void AZSPlayerCharacter::StartQuickReload_Implementation()

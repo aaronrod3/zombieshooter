@@ -8,7 +8,9 @@
 #include "ZSHUD.h"
 #include "UObject/ConstructorHelpers.h"
 #include "GameFramework/PlayerState.h"
+#include "GameFramework/PlayerController.h"
 #include "Internationalization/Text.h"
+#include "ZombieShooter.h"
 
 AZSGameMode::AZSGameMode()
 {
@@ -32,8 +34,8 @@ AZSGameMode::AZSGameMode()
 	}
 
 	// B1, 2026-08-05: same graceful Blueprint-preferred pattern as DefaultPawnClass above -
-	// BP_ZS_HUD is where DeathScreenClass/BlackoutOverlayClass actually get assigned (AZSHUD itself
-	// has no Blueprint child yet, same content gap as every other not-yet-authored default here).
+	// BP_ZS_HUD is where DeathScreenClass actually gets assigned (AZSHUD itself has no Blueprint
+	// child yet, same content gap as every other not-yet-authored default here).
 	static ConstructorHelpers::FClassFinder<AZSHUD> HUDBPClass(TEXT("/Game/ZS/Framework/BP_ZS_HUD"));
 	if (HUDBPClass.Succeeded())
 	{
@@ -74,4 +76,26 @@ void AZSGameMode::Logout(AController* Exiting)
 	}
 
 	Super::Logout(Exiting);
+}
+
+void AZSGameMode::Server_ReturnPlayerToHub(AController* PlayerController, bool bWasExtraction)
+{
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	// BR content gap: sending just one departing player to a real separate hub space, while the
+	// raid keeps running for whoever's left, isn't a plain engine travel call the way the old
+	// single-player-world RestartPlayer flow was - ServerTravel would move every connected player,
+	// not just this one, and no hub level/PlayerStart exists to travel to yet regardless. That's a
+	// real BH/BR design question (a genuinely separate per-player session? a level-streamed private
+	// sub-area of the same persistent level? something else?), not guessed here. Until it's
+	// resolved, this falls back to the exact pre-pivot behavior (respawn a fresh pawn at a
+	// PlayerStart in the same raid zone via RestartPlayer) for both death and extraction alike, so a
+	// raid never leaves a connected player with no pawn at all. This is the one call site that
+	// needs to change once a real hub exists.
+	UE_LOG(LogZombieShooter, Log, TEXT("Server_ReturnPlayerToHub: %s (bWasExtraction=%s) - no hub content yet, falling back to in-zone respawn"), *PlayerController->GetName(), bWasExtraction ? TEXT("true") : TEXT("false"));
+
+	RestartPlayer(PlayerController);
 }

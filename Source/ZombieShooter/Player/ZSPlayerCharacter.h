@@ -104,9 +104,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> ReloadAction;
 
-	/** 2026-08-11: quick-reload variant - Docs/InputBindings.md needs a key assigned (proposed: Q, currently unused). Not yet created as a .uasset - needs manual creation in-editor, same graceful-if-missing pattern as every other action here. */
+	/** 2026-08-11: quick reload has no separate bound action - it's a double-tap of ReloadAction (R), detected in StartReload_Implementation. A single tap can't commit to a normal reload immediately and then get upgraded if a second tap follows, since PerformMagazineReload mutates inventory/weapon state the instant it runs and can't be cleanly reversed - so every single-press reload is held for this window before it commits, to leave room for a second tap. */
 	UPROPERTY(EditAnywhere, Category="Input")
-	TObjectPtr<UInputAction> QuickReloadAction;
+	float QuickReloadDoubleTapWindowSeconds = 0.25f;
 
 	/** B0-T10.1: "Rack Firearm," Alt+R per Docs/InputBindings.md - clears a weapon jam. Not yet created as a .uasset - needs manual creation in-editor, same graceful-if-missing pattern as every other action here. */
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -838,8 +838,25 @@ protected:
 	/** Shared by OnRep_IsSprinting, HandleBodyZonesChanged, and HandleInventoryChanged - MaxWalkSpeed = (sprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * HealthComponent->GetMobilityMultiplier() * InventoryComponent->GetEncumbranceMultiplier(). */
 	void UpdateMovementSpeed();
 
-	/** Server-only, fired by RespawnTimerHandle after RespawnDelaySeconds. Destroys this (dead) pawn - AActor::Destroyed() auto-unpossesses the controller - then calls AGameModeBase::RestartPlayer, the engine's standard respawn flow (spawns a fresh AZSPlayerCharacter at a PlayerStart via DefaultPawnClass). A genuinely fresh character (new Needs/Health state), not the same one healed - matches the permadeath framing; deeper persistence (carried-over world/loot state) is P7, not this. */
+	/** Server-only, fired by RespawnTimerHandle after RespawnDelaySeconds. A genuinely fresh character (new Needs/Health state), not the same one healed - matches the permadeath framing. Loot is already dropped by then (Server_HandleDeathLootAndZombie, called from HandleDeath before this timer starts) - this just does the actual "leave the raid" mechanics via Server_LeaveRaidAndReturnToHub(false), same shared hub-transition hook Server_RequestExtraction's success path below uses with true. */
 	void Server_RespawnAsNewCharacter();
+
+	// =====================================================================
+	// BR (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27) - Extraction: the other
+	// way a raid ends, alongside death above. Banks carried loot to the hub's persistent stash
+	// instead of dropping it in the zone.
+	// =====================================================================
+
+public:
+
+	/** Server-only entry point, called from AZSExtractionPointActor::HandleInteracted (which itself only ever fires server-side, same "OnInteract only meaningfully runs on the server" reasoning AZSContainerActor's own interact handler documents). No-op if already dead/downed or currently mid-action - can't extract out of a fight or a busy animation. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Raid")
+	void Server_RequestExtraction();
+
+protected:
+
+	/** Shared by Server_RequestExtraction and Server_RespawnAsNewCharacter (the death path) above - the actual "leave this raid" mechanics: destroys this pawn (AActor::Destroyed() auto-unpossesses the controller, same as the pre-pivot respawn flow this replaces) then hands the vacated controller to AZSGameMode::Server_ReturnPlayerToHub, the one hook point for what happens next. bWasExtraction is passed through untouched for that hook's own use (logging/future hub-side bookkeeping) - both paths currently resolve identically once GameMode gets there, see that function's own comment for the real hub-map content gap this is standing in for. */
+	void Server_LeaveRaidAndReturnToHub(bool bWasExtraction);
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Health")
 	float RespawnDelaySeconds = 5.f;
@@ -1220,6 +1237,8 @@ protected:
 	FTimerHandle BusyClearTimerHandle;
 	FTimerHandle AimBlockBeginTimerHandle;
 	FTimerHandle AimBlockEndTimerHandle;
+	/** Set while a single R press is waiting to see if a second one arrives (see QuickReloadDoubleTapWindowSeconds). */
+	FTimerHandle PendingNormalReloadTimerHandle;
 
 	// =====================================================================
 	// B1-T1 - UI Manager integration (Docs/Beta/B1_UI_UX.md) - GetUIManager() is the one lookup

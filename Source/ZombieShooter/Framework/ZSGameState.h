@@ -17,6 +17,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnUtilitiesShutoff);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FZSOnSleepRequestStateChanged, bool, bRequestPending, float, RequestedSleepHours);
 /** B1-T3.9: AGameStateBase::PlayerArray itself has no OnRep of its own - a scoreboard widget binds this instead of polling PlayerArray every tick, then re-reads PlayerArray fresh (same "re-read rather than diff params" pattern as FZSOnBodyZonesChanged). */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnPlayerListChanged);
+/** BR (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27, Decision 11): fired by Server_StartRaidReseed once the rarity-pool reset and utilities-hazard roll are both applied - a future raid-intro/loading-screen widget binds this instead of polling. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FZSOnRaidReseedApplied);
 
 /**
  *  P6: authored per-session budget for one Rare/VeryRare UZSItemConfig - GameDevPlan.md §7 P6,
@@ -151,6 +153,26 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Players")
 	FZSOnPlayerListChanged OnPlayerListChanged;
 
+	// ---- BR (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27, Decision 11): raid
+	// reseed - rerolls what a fresh raid entry should reroll (the finite loot-rarity budget above,
+	// plus a per-raid utilities hazard) while leaving player-dropped world state (corpses, dropped
+	// loot) untouched - that's AZSWorldItemActor's own persistence, not this class's concern.
+	// Zombie-density/human-hostile placement reseed needs real spawn-volume content that doesn't
+	// exist yet (B4X's job) - not faked here, this is the hook point for it once that content
+	// exists. Not yet wired to anything - no formal "a raid just started" event exists until BR's
+	// own session-lifecycle work lands (AZSGameMode::Server_ReturnPlayerToHub's own comment covers
+	// the matching "a raid just ended for this player" half of that same gap). ----
+
+	/** Server-only: restores every RarityPoolEntries entry's RemainingCount to its authored default (cached in BeginPlay, since Server_TryConsumeRarityPoolSlot mutates RarityPoolEntries in place - "no restock in v1" described a single continuous world, not a reseeded-per-raid one) and rolls a fresh bRaidUtilitiesHazardActive per UtilitiesHazardChance. This is a roll, not the old MinUtilitiesShutoffDay/MaxUtilitiesShutoffDay countdown below (kept as-is, unused by this path, until a future pass reconciles or removes it - see this section's own header note and Decision 11). No-op off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Raid")
+	void Server_StartRaidReseed();
+
+	UFUNCTION(BlueprintPure, Category = "ZS|Raid")
+	bool IsRaidUtilitiesHazardActive() const { return bRaidUtilitiesHazardActive; }
+
+	UPROPERTY(BlueprintAssignable, Category = "ZS|Raid")
+	FZSOnRaidReseedApplied OnRaidReseedApplied;
+
 	// ---- B1-T3.10: toast/notification dispatch ----
 
 	/** Server -> every client toast trigger - routes into the receiving client's own UZSNotificationSubsystem (a ULocalPlayerSubsystem, so this multicast just forwards into local queue state; the queue itself is never replicated). Wired so far only from AZSGameMode::PostLogin/Logout (player joined/left) - pickup confirmation and horde-approaching wiring are still open, see B1_UI_UX.md's Manual setup steps. */
@@ -161,6 +183,19 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loot")
 	TArray<FZSRarityPoolEntry> RarityPoolEntries;
+
+	/** BR, Decision 11: cached from RarityPoolEntries in BeginPlay, before anything can consume a slot - Server_StartRaidReseed restores from this rather than RarityPoolEntries itself, which Server_TryConsumeRarityPoolSlot mutates in place at runtime. */
+	TArray<FZSRarityPoolEntry> RarityPoolEntriesDefault;
+
+	/** BR, Decision 11: 0-1 chance Server_StartRaidReseed rolls for bRaidUtilitiesHazardActive - "sometimes power's already out, sometimes not," per-raid, replacing (not yet removing - see this section's own header note) the permanent MinUtilitiesShutoffDay/MaxUtilitiesShutoffDay ratchet below. */
+	UPROPERTY(EditDefaultsOnly, Category = "ZS|Raid", meta = (ClampMin = "0", ClampMax = "1"))
+	float UtilitiesHazardChance = 0.35f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_RaidUtilitiesHazardActive, Category = "ZS|Raid")
+	bool bRaidUtilitiesHazardActive = false;
+
+	UFUNCTION()
+	void OnRep_RaidUtilitiesHazardActive();
 
 	/** B0-T2.10: indexed by EZSItemRarity (Common/Uncommon/Rare/VeryRare, 4 entries) - sized and defaulted in the constructor so every tier always has a band, no missing-key fallback needed. */
 	UPROPERTY(EditDefaultsOnly, Category = "ZS|Loot")

@@ -1119,6 +1119,35 @@ void UZSInventoryComponent::Server_DropAllItems(FVector DropLocation)
 	OnRep_InventoryState();
 }
 
+TArray<FZSItemInstance> UZSInventoryComponent::Server_ExtractAllItems()
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor || !OwnerActor->HasAuthority())
+	{
+		return TArray<FZSItemInstance>();
+	}
+
+	// Same instances Server_DropAllItems above would otherwise scatter into the world as
+	// AZSWorldItemActors - here they're handed back verbatim (identity/InstanceState intact) for
+	// the caller to bank into UZSHubSubsystem's stash instead.
+	TArray<FZSItemInstance> ExtractedItems = CarrySlots;
+
+	CarrySlots.Empty();
+	for (FGuid& EquippedSlot : EquippedSlots)
+	{
+		EquippedSlot = FGuid();
+	}
+	for (FGuid& MountSlot : MountedLongGuns)
+	{
+		MountSlot = FGuid();
+	}
+	MountedSidearm = FGuid();
+	MountedMelee = FGuid();
+	OnRep_InventoryState();
+
+	return ExtractedItems;
+}
+
 bool UZSInventoryComponent::Server_MountMelee(FGuid InstanceId)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())

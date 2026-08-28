@@ -203,6 +203,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
 	void Server_DropAllItems(FVector DropLocation);
 
+	/** BR (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27): the extraction counterpart to Server_DropAllItems above - same "every top-level CarrySlots instance already covers hotbar/equipped/mounted" reasoning and the same full clear (CarrySlots/EquippedSlots/MountedLongGuns/MountedSidearm/MountedMelee), but returns the removed instances instead of spawning AZSWorldItemActors in the world. Called from AZSPlayerCharacter::Server_RequestExtraction, which hands the result to UZSHubSubsystem::DepositItemsToStash - "loot survives at the hub" instead of "loot stays at the death location." Returns an empty array (nothing mutated) if called off a non-authoritative machine. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Inventory")
+	TArray<FZSItemInstance> Server_ExtractAllItems();
+
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Inventory")
 	FZSOnInventoryChanged OnInventoryChanged;
 

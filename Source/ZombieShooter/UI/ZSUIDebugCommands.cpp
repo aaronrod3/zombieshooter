@@ -11,9 +11,11 @@
 // UZSHealthComponent::OnDownedChanged, UZSGameInstance::OnLoadingScreenShouldShow/Hide - all
 // wired and correct, confirmed 2026-08-05), these commands broadcast that SAME delegate rather than
 // reaching into widget internals, so a debug toggle exercises the exact code path a real trigger
-// would. MainMenu/LoadingScreen/DeathScreen/BlackoutOverlay still have no real "create me at match
-// start" call site anywhere (the missing HUD-root-widget/GameInstance-owned-singleton piece,
-// flagged in SessionHandoff.md) - that's separate, larger production wiring, not built here.
+// would.
+//
+// 2026-08-11: ZS.UI.ToggleBlackoutOverlay removed along with WBP_ZS_BlackoutOverlay/
+// UZSBlackoutOverlayWidget - the downed-state overlay was removed entirely per dev instruction,
+// not renamed. Downed state currently has no dedicated UI feedback.
 //
 // ContainerLoot's own real trigger (2026-08-05): interacting with a real AZSContainerActor now
 // opens this same screen (AZSPlayerCharacter::Client_OpenContainerLoot) instead of auto-looting -
@@ -137,42 +139,6 @@ static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleDeathScreen(
 		}
 
 		Health->OnDeath.Broadcast();
-	}));
-
-static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleBlackoutOverlay(
-	TEXT("ZS.UI.ToggleBlackoutOverlay"),
-	TEXT("B1 debug: shows/hides WBP_ZS_BlackoutOverlay by broadcasting the local pawn's HealthComponent->OnDownedChanged delegate (creates one instance the first time) - see UZSHealthComponent::IsDowned, the 2026-08-10 replacement for the old blackout mechanic. Cosmetic only - does NOT set bIsDowned itself, so movement/attack stay unaffected; this is a visual/layout check, not a real downed state. Usage: ZS.UI.ToggleBlackoutOverlay"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
-	{
-		static TWeakObjectPtr<UUserWidget> DebugWidget;
-		static bool bShowing = false;
-
-		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
-		AZSPlayerCharacter* Character = PC ? Cast<AZSPlayerCharacter>(PC->GetPawn()) : nullptr;
-		UZSHealthComponent* Health = Character ? Character->GetHealthComponent() : nullptr;
-		if (!PC || !Character || !Health)
-		{
-			UE_LOG(LogZombieShooter, Warning, TEXT("ZS.UI.ToggleBlackoutOverlay: no local pawn found"));
-			return;
-		}
-
-		if (!DebugWidget.IsValid())
-		{
-			UClass* WidgetClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/ZS/UI/DeathRespawnSleep/WBP_ZS_BlackoutOverlay.WBP_ZS_BlackoutOverlay_C"));
-			if (!WidgetClass)
-			{
-				UE_LOG(LogZombieShooter, Warning, TEXT("ZS.UI.ToggleBlackoutOverlay: WBP_ZS_BlackoutOverlay not found at /Game/ZS/UI/DeathRespawnSleep/ - has it been built/moved?"));
-				return;
-			}
-			DebugWidget = CreateWidget<UUserWidget>(PC, WidgetClass);
-			// Unlike DeathScreen/LoadingScreen, BlackoutOverlay never calls AddToViewport() itself -
-			// by design it's meant to live as a permanently-present nested child of a HUD root widget
-			// that doesn't exist yet (see file header comment), so this debug command adds it directly.
-			DebugWidget->AddToViewport();
-		}
-
-		bShowing = !bShowing;
-		Health->OnDownedChanged.Broadcast(bShowing);
 	}));
 
 static FAutoConsoleCommandWithWorldAndArgs CVarZSUIToggleContainerLoot(
