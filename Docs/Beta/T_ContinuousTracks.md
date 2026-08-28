@@ -113,6 +113,7 @@ CONFIRMED requirement: profile early, don't retrofit. A single fixed stress-test
 | `Docs/SessionHandoff.md` | **Verification status only** — compiled? PIE-tested? what's next | Rewritten every session, never appended |
 | `Docs/GameDevPlan.md` | Design plan of record — pillars, scope contract §3, decisions §7 | Amended when a decision changes |
 | `Docs/Beta/00_MasterPlan.md` | Production plan — phases, dependencies, contradiction register | Amended when a phase is restructured |
+| `Docs/Beta/02_MasterWorkflow.md` | Execution procedure — how to run any phase (per-phase/per-sub-task loop, efficiency doctrine, phase-specific notes) | Amended when the loop itself changes, or a phase-specific note goes stale |
 | `Docs/Beta/90_OpenQuestions.md` | Every undecided item | Updated as questions resolve; **record the answer and the date, don't delete the question** |
 | `Docs/Beta/B<N>_*.md` | Per-phase tasks and status | Checked off as tasks complete |
 | `Docs/TuningReference.md` | Every gameplay tunable | Same session the tunable is added |

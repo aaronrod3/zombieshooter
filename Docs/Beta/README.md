@@ -14,7 +14,9 @@
 
 **Every session:** `Docs/SessionHandoff.md` → the `B<N>_*.md` file for the phase you are working.
 
-**Coming to this plan fresh:** `00_MasterPlan.md` §1 (executive summary) → §2 (contradictions — three need your call) → §3 (phase list) → §4 (dependency map).
+**Coming to this plan fresh:** `00_MasterPlan.md` §1 (executive summary) → §2 (contradictions — three need your call) → §3 (phase list) → §4 (dependency map) → `02_MasterWorkflow.md` (how to actually execute any of it, session to session).
+
+**Want the execution procedure, not just the plan:** `02_MasterWorkflow.md` — the repeatable per-phase/per-sub-task loop, efficiency doctrine, and phase-specific gotchas. Read once, then reference its §9/§10 per phase.
 
 **Before starting any phase:** that phase's entry criteria, then its BLOCKING questions in `90_OpenQuestions.md` §Summary. Batch a phase's blocking set into one design session rather than hitting them one at a time mid-implementation.
 
@@ -30,6 +32,7 @@ Any `B<N>_*.md` task that needs a dev-only, non-scriptable step (content asset c
 |---|---|
 | `00_MasterPlan.md` | Assumptions · executive summary · **Contradiction Register** · revised master phase list with IN/OUT scope and sizes · dependency map · risk register |
 | `01_RevisionRegister_P0-P6.md` | Every delta the confirmed decisions force onto already-built P1–P6 work. All of it feeds B0. |
+| `02_MasterWorkflow.md` | **The execution manual** — the repeatable per-phase and per-sub-task procedure, efficiency doctrine, testing/git/documentation quick-reference, and short phase-by-phase sequencing notes. How to actually run any phase above, not what's in it. |
 | `B0_Stabilization.md` | Verification debt · item-instance refactor · camera/needs/health/combat revisions · profiling baseline |
 | `B1_UI_UX.md` | Input modes · HUD · inventory · containers · death/sleep screens · menus |
 | `B2_ArtPipeline.md` | Art direction lock · kit selection · pipeline standards · reference room |
