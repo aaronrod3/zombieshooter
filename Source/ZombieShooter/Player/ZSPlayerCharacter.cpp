@@ -2835,6 +2835,24 @@ void AZSPlayerCharacter::Server_UseItem_Implementation(UZSItemConfig* Item)
 			}
 		}
 		break;
+	case EZSItemUseType::SupportStrike:
+		// BH-T2.4/BR (Docs/Beta/00_MasterPlan.md CR-13): a fixed distance in front of the caller,
+		// not the cursor-ground-location a client-side aim would use - Server_UseItem_Implementation
+		// runs on the server, where GetCursorGroundLocation's "local player controller" assumption
+		// only holds for the host's own pawn, not a remote client's (see that function's own
+		// comment). A server-authoritative offset from the pawn's own transform is correct for
+		// every player, host or remote, with no special-casing needed.
+		if (Item->SupportStrikeActorClass)
+		{
+			const FVector SpawnLocation = GetActorLocation() + GetActorForwardVector() * Item->SupportStrikeCallInDistance;
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this;
+			SpawnParams.Instigator = this;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			GetWorld()->SpawnActor<AActor>(Item->SupportStrikeActorClass, SpawnLocation, GetActorRotation(), SpawnParams);
+		}
+		break;
 	}
 }
 

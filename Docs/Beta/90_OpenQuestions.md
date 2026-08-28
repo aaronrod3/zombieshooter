@@ -152,6 +152,32 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 
 ---
 
+## BH — Hub/Hideout & Economy *(new, CR-13, extraction pivot 2026-08-27)*
+
+### OQ-BH-01 — Walkable hub or menu-driven screen flow? 🔴
+Full option tables and reasoning: `BH_HubHideoutEconomy.md` Entry criteria. **No rec yet** — determines whether `BH-T6` is a content task or doesn't exist at all, and what `AZSGameMode::Server_ReturnPlayerToHub` actually transitions to.
+
+### OQ-BH-02 — Per-player or shared stash in a hosted co-op world? 🔴
+`UZSHubSubsystem`'s own header comment already flags this — today every caller on one game instance shares the one stash, correct for a solo host, not yet correct for multiple remote players wanting their own. **No rec yet.**
+
+### OQ-BH-03 — Starting currency and first vendor's price scale 🟡
+**Rec:** pick a provisional number once `BH-T2`'s vendor catalog exists, tune from there — not blocking `BH-T1`/`T2`'s construction, only their content.
+
+---
+
+## BR — Raid Lifecycle & Extraction *(new, CR-13, extraction pivot 2026-08-27)*
+
+### OQ-BR-01 — Can one player leave a shared raid without ending it for teammates? 🔴
+`AZSGameMode::Server_ReturnPlayerToHub`'s own code comment already flags this as genuinely undecided at the architecture level (a separate per-player session? a level-streamed private sub-area? something else?), not just unbuilt. **No rec yet — needs its own design session, not an assumption.**
+
+### OQ-BR-02 — Should extraction have a delay/channel time? 🟡
+**Rec: yes, a short interruptible channel** (broken by taking damage) — an instant, uninterruptible extract undermines the genre's "the last moments of a raid are the tensest" pattern. Needs a real decision, not an assumption either way.
+
+### OQ-BR-03 — Does entering the zone reload the level, or does it stay persistently loaded? 🔴
+**The single highest-leverage open question in the whole `BR`/`B3`/`B4X` cluster.** A level-reload model reseeds loot/zombie state for free but requires dropped-loot persistence to survive across reloads via real save data (a `B3` dependency, sooner than `B3` otherwise needs to exist). A persistently-loaded zone needs an explicit re-roll entry point built into every reseeded system (`AZSContainerActor` included) instead. **No rec yet — resolve in the same session as `OQ-BR-01`, not separately, since both shape the same underlying session-lifecycle architecture.**
+
+---
+
 ## B2 — Art & Pipeline
 
 ### OQ-B2-01 — Asset budget ✅ RESOLVED 2026-07-26 — leans opposite the original rec
@@ -211,6 +237,22 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 
 ### OQ-B4-12 — Zombie AI depth pass: PZ-style behavioral fidelity 🟡 partially resolved
 **Scope confirmed: a dedicated design+implementation pass at the start of B4, before B4-T7** (S–M, 2–3 sessions) — covering `BTTask_ClearLastKnownLocation` wiring, crowd-following/migration (feeds OQ-B7-01), sandbox-style per-world tunables (feeds OQ-B9-02), and door/obstacle destruction (feeds B4-T5.2). **New scope added 2026-07-26:** a zombie **"freshness" mechanic** — recently-turned zombies faster/stronger, degrading toward slower/weaker over time, likely a per-type curve on `UZSZombieConfig`. Confirmed zombie feel: "PZ style, but newer zombies are faster, zombies degrade slowly and slow down, don't do as much damage." Genuine large hordes (100+) confirmed important, not a cuttable stretch goal — see CR-08. The pass itself still needs to actually run.
+
+---
+
+## BF — Human Hostile AI Faction *(new, CR-13, extraction pivot 2026-08-27 — promotes `GameDevPlan.md` Decision 5 from deferred to core)*
+
+### OQ-BF-01 — What does "guard" behavior actually mean? 🔴 *(blocking `BF-T2`, not `BF-T1`)*
+Hold a fixed point and never move? Patrol a short route? Investigate noise like a zombie does? Needs its own design+implementation pass, the same shape as `OQ-B4-12`'s zombie-behavior session. **No rec yet.**
+
+### OQ-BF-02 — One hostile archetype for beta, or roster variety? 🟡
+Mirrors `OQ-B7-03`'s zombie-roster question. **Rec: start with one, add a second (heavier heist-guard variant) only if content time allows** — the multi-config rule makes a second archetype cheap once the first is proven.
+
+### OQ-BF-03 — Do hostiles drop loot on death? 🟡
+**Rec: yes** — at minimum their weapon/ammo, reusing `UZSLootTableConfig::RollLoot` the same way `AZSContainerActor` already does at `BeginPlay`. Matches the "guarded loot" framing directly; confirm rather than assume, since it changes `BF-T3`'s scope.
+
+### OQ-BF-04 — Do hostiles and zombies fight each other? 🟡
+**No rec yet.** A genuine three-way fight (player/zombie/hostile) is a more interesting heist scenario than two separate one-sided threats, but both `AZombieAIController` and `AZSHostileAIController` currently detect "Friendlies/Neutrals/Hostiles" equally (the existing v1 simplification) — saying yes means real faction-affiliation work on both classes, not a flag flip.
 
 ---
 
@@ -468,15 +510,18 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 | **OQ-B6-04** Background roster | Confirmed: generic, data-driven system, build now (`B6-Sys`). | The actual roster/names — dev's own list, later (`B6-Content`). |
 | **OQ-B10-04** Disconnect handling | Dev's goals stated (safe exit/respawn, no combat-log exploit); a proposal is drafted above. | Needs a go/no-go on the proposed anti-exploit design. |
 
-**🔴 Still BLOCKING (4)** — resolve before the named phase starts.
+**🔴 Still BLOCKING (10)** — resolve before the named phase starts.
 
 | Phase | Questions |
 |---|---|
+| Before `BH` full implementation | `OQ-BH-01` (walkable hub vs. menu flow), `OQ-BH-02` (per-player vs. shared stash) |
+| Before `BR` full implementation | `OQ-BR-01` (can a player leave a shared raid solo?), `OQ-BR-03` (level-reload vs. persistently-loaded zone) |
+| Before `BF-T2` | `OQ-BF-01` (what "guard" behavior means) — does not block `BF-T1`'s character/controller/combat skeleton |
 | Before B5 | OQ-B5-04 (event roster count — genuinely still open, tone also open) |
 | Before B7 | OQ-B7-01 (horde-coordination *approach* — still gated on profiling measurements, ambition is confirmed but the technical answer isn't) |
 | Before B8 | OQ-B8-01, OQ-B8-02 (budget numbers — re-baselined for 4+ players, but still pending actual measurement) |
 
-**🟡 SEQUENCEABLE (~31)** — decide in parallel with early implementation on that phase. Includes three new items from `Docs/InputBindings.md` (OQ-X-09 Run/Sprint tiers, OQ-X-10 Toggle Safety/PvP, OQ-X-11 chat/voice).
+**🟡 SEQUENCEABLE (~36)** — decide in parallel with early implementation on that phase. Includes three items from `Docs/InputBindings.md` (OQ-X-09 Run/Sprint tiers, OQ-X-10 Toggle Safety/PvP, OQ-X-11 chat/voice) and five new CR-13 items (`OQ-BH-03`, `OQ-BR-02`, `OQ-BF-02`, `OQ-BF-03`, `OQ-BF-04`).
 
 **🟢 LATE (10)** — OQ-X-05, OQ-X-08, OQ-B6-03, OQ-B6-07, OQ-B6-08, OQ-B10-05, OQ-B10-09, OQ-B12-03, OQ-B12-04, OQ-B12-05.
 

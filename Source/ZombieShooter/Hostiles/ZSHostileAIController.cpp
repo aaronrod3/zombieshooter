@@ -12,7 +12,8 @@
 
 AZSHostileAIController::AZSHostileAIController()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = 0.2f;
 
 	PerceptionComponent = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("PerceptionComponent"));
 
@@ -87,6 +88,16 @@ void AZSHostileAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAISti
 	{
 		BB->ClearValue(ZSHostileBlackboardKeys::TargetActor);
 	}
+}
+
+void AZSHostileAIController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Only meaningfully fires once a target is actually perceived - HandleTargetPerceptionUpdated is
+	// what writes/clears the TargetActor key this reads via TriggerRangedAttack, and
+	// AZSHostileCharacter::Server_RangedAttack's own range check no-ops a target that's too far away.
+	TriggerRangedAttack();
 }
 
 void AZSHostileAIController::TriggerRangedAttack()

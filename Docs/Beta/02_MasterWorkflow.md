@@ -204,14 +204,14 @@ Short, not a restatement of each file's task table — just the sequencing gotch
 
 - **B0** — Verification debt is the actual bottleneck right now, not missing code. First move: work the outstanding Checkpoint B/C/D items in `B0-T2`, `B0-T3`, `B0-T4` — most of what's left is "code complete, needs a PIE pass," not "needs to be written."
 - **B1** — Current phase. First move per its own file: resume `WBP_ZS_Inventory`'s open/close-toggle build step, then run the "Outstanding testing" backlog as a deliberately scheduled multi-hour, 2-human PIE session — several items are blocked purely on needing two people, not on missing code.
-- **BH** — Needs its own scoping pass (§3 Step 3) before more code lands. Seed it from `00_MasterPlan.md` §3.3's `BH` row. First code (`UZSHubSubsystem`) is deliberately minimal and doesn't presuppose the scoping answers (no disk persistence yet, no per-player-vs-shared-stash decision made).
-- **BR** — Same: needs scoping. The one open architecture question worth resolving in that same session: *can one player leave a shared listen-server raid without disrupting the teammates still playing?* `AZSGameMode::Server_ReturnPlayerToHub`'s own code comment flags this as genuinely undecided — it's the one call site that changes once it's answered.
+- **BH** — Scoped (`BH_HubHideoutEconomy.md`, 2026-08-27). Two BLOCKING questions (`OQ-BH-01` walkable-vs-menu hub, `OQ-BH-02` per-player-vs-shared stash) need a batched design session before `BH-T2` onward. `BH-T1`'s backend (`UZSHubSubsystem`) doesn't need either answer and is already built.
+- **BR** — Scoped (`BR_RaidLifecycleExtraction.md`, 2026-08-27). `OQ-BR-03` (does raiding mean a level reload or a persistently-loaded zone?) is the load-bearing question in this whole cluster — resolve it in the same session as `OQ-BR-01` (can a player leave a shared raid solo?), since both shape the same session-lifecycle architecture and a wrong guess here ripples into `B3` and `B4X`.
 - **B3** — Don't start until `BH`/`BR`'s save-shape needs are known. The save-payload inventory in `B3_Persistence.md` already reserves schema slots for future systems (B5/B6) — the pivot adds a hub-save/character-save/zone-save three-way split to that same pattern, not a new architecture.
 - **B4** — Stage 1 systems only, on the small graybox test area. If real region geometry starts appearing here, that's `B4X`'s job leaking in early — a scope violation, not progress.
 - **B6-Sys** — Narrower post-pivot: no persistent-perk-track plumbing to build (Decision 8 confirmed full reset on death, no exception). Cheaper than the original estimate.
 - **B2** — Parallel-safe with B1/B3, any time after B0. Kit selection and pipeline standards are the dev's own taste/research work — Claude Code's role here is mostly file-triage (deleting `Content/LyraAnims/`) and writing down what's decided, not deciding it.
 - **B4X** — Continuous track, one unit at a time (§5 rule 11). Start only once B4's Stage-1 systems are PIE-verified on the graybox area.
-- **BF** — Needs scoping. First code landed (`AZSHostileCharacter`/`AZSHostileAIController`/`UZSHostileConfig`). No `BT_Hostile` content exists — same graceful no-op pattern `BT_Zombie` used before it existed; perception/damage work today independent of any tree.
+- **BF** — Scoped (`BF_HumanHostileFaction.md`, 2026-08-27). `OQ-BF-01` (what "guard" behavior means) blocks `BF-T2` only — `BF-T1`'s character/controller/combat skeleton and its native stationary-defense fallback don't need it and can proceed now. No `BT_Hostile` content exists — same graceful no-op pattern `BT_Zombie` used before it existed.
 - **B5** — `OQ-B5-04` (contract/event roster count and tone) is BLOCKING and is explicitly a writing task, not an engineering one — the phase's own file recommends doing it during `B4`'s downtime, live with the dev, not solo.
 - **B6-Content** — Waits on `B4X` (real spawn locations) and `B0` (every system XP hooks into must be final).
 - **BV** — Explicitly deferred; needs its own scoping pass once Stage 1 exits, same treatment `B4` got before its own rescope.
@@ -229,10 +229,9 @@ Concrete, as of this writing:
 
 1. **Finish B1's outstanding PIE verification backlog** (`B1_UI_UX.md`'s "Outstanding testing" section is the exact list) — this is the real current bottleneck, not new feature work.
 2. **Schedule the 2-client PIE sessions** several of those items need — they're blocked on needing two people, not on missing code, so they won't resolve by continuing to write more C++.
-3. **Run `BH`'s scoping session** before writing more `BH` code — produce `Docs/Beta/BH_HubHideoutEconomy.md` per §3 Step 3.
-4. **Resolve the per-raid hub-transition question** (can one player leave a shared raid without ending it for teammates?) as part of `BR`'s scoping session — it's the one open call blocking `Server_ReturnPlayerToHub` from being more than a documented stub.
-5. **Confirm or revise Decision 10** (investigation-arc folds into the contract system) before `B5` content work starts — it's currently a flagged recommendation, not a dev-confirmed decision.
-6. **Decide the needs/skill-system code refactor's own timing** (cutting Fatigue/Wet/Temperature, narrowing the skill roster) — currently deferred on purpose as its own reviewable pass, since it touches already-verified code with real downstream consumers (UI, tuning, footstep noise). Don't fold it silently into an unrelated checkpoint.
+3. **`BH`/`BR`/`BF` are now scoped** (`BH_HubHideoutEconomy.md`, `BR_RaidLifecycleExtraction.md`, `BF_HumanHostileFaction.md`, 2026-08-27) — the next move per-phase is batch-resolving each one's BLOCKING questions (`OQ-BH-01`/`02`, `OQ-BR-01`/`03`, `OQ-BF-01`) in a design session before pushing their implementation further, per §3 Step 2.
+4. **Confirm or revise Decision 10** (investigation-arc folds into the contract system) before `B5` content work starts — it's currently a flagged recommendation, not a dev-confirmed decision.
+5. **Decide the needs/skill-system code refactor's own timing** (cutting Fatigue/Wet/Temperature, narrowing the skill roster) — currently deferred on purpose as its own reviewable pass, since it touches already-verified code with real downstream consumers (UI, tuning, footstep noise). Don't fold it silently into an unrelated checkpoint.
 
 ---
 

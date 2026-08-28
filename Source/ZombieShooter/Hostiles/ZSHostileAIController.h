@@ -44,6 +44,9 @@ protected:
 
 	virtual void OnPossess(APawn* InPawn) override;
 
+	/** BF-T1.2 (Docs/Beta/BF_HumanHostileFaction.md): a minimal native "combat without a BT" fallback so a hostile is functional today, before BF-T2's real guard/patrol tree exists - calls TriggerRangedAttack() every tick interval whenever a target is currently perceived; Server_RangedAttack's own range/cooldown gating on AZSHostileCharacter does the actual rate-limiting, so this is safe to call unconditionally. Stationary defense only, no movement - an honest placeholder for "stands its ground and shoots," not a guess at BF-T2's real guard behavior (see OQ-BF-01). Superseded, not removed, once BT_Hostile exists - a real tree calling the same TriggerRangedAttack() from its own attack task is a strict improvement, not a breaking change. */
+	virtual void Tick(float DeltaTime) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "ZS|AI")
 	TObjectPtr<UAISenseConfig_Sight> SightConfig;
 

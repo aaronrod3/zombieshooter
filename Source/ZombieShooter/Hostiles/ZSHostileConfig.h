@@ -10,6 +10,7 @@ class USkeletalMesh;
 class UAnimInstance;
 class UBehaviorTree;
 class UDamageType;
+class UZSLootTableConfig;
 
 /*
 	BF (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27): per-hostile-type data
@@ -32,6 +33,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat", meta = (ClampMin = "1"))
 	float MaxHealth = 100.f;
+
+	/** BF-T3.2 (Docs/Beta/00_MasterPlan.md CR-13, OQ-BF-03): rolled once on death and spawned as world items at the death location, reusing UZSLootTableConfig::RollLoot exactly like AZSContainerActor::BeginPlay does - a hostile that only ever loses items on death has no need for a full carry-inventory component. Unset = no loot drop, same "content gap, no-op gracefully" pattern as every other optional reference in this project. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UZSLootTableConfig> DeathLootTable;
 
 	// ---- Ranged combat (AZSHostileCharacter::Server_RangedAttack) - a standalone hitscan, not a
 	// real AZSWeapon actor (that class's fire/reload/jam machinery is built around a player-owned

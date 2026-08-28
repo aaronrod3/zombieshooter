@@ -35,10 +35,13 @@ Any `B<N>_*.md` task that needs a dev-only, non-scriptable step (content asset c
 | `02_MasterWorkflow.md` | **The execution manual** — the repeatable per-phase and per-sub-task procedure, efficiency doctrine, testing/git/documentation quick-reference, and short phase-by-phase sequencing notes. How to actually run any phase above, not what's in it. |
 | `B0_Stabilization.md` | Verification debt · item-instance refactor · camera/needs/health/combat revisions · profiling baseline |
 | `B1_UI_UX.md` | Input modes · HUD · inventory · containers · death/sleep screens · menus |
+| `BH_HubHideoutEconomy.md` | *(new, CR-13)* Stash · currency · vendors · contracts · hideout upgrades · hub UI/space |
+| `BR_RaidLifecycleExtraction.md` | *(new, CR-13)* Raid session lifecycle · extraction points · raid reseed · permadeath/hub-return |
 | `B2_ArtPipeline.md` | Art direction lock · kit selection · pipeline standards · reference room |
 | `B3_Persistence.md` | Save topology · layered save · World Partition · corpse/item lifetime |
 | `B4_WorldContent.md` | Region · interiors · elevation · darkness · basements · weather · zones · content volume |
-| `B5_Events_Investigation.md` | Event director · event roster · radio · clue system · investigation arc |
+| `BF_HumanHostileFaction.md` | *(new, CR-13)* Human hostile character/AI · guard/patrol behavior · death loot · hostile-vs-zombie interaction |
+| `B5_Events_Investigation.md` | Event director · event roster · radio · clue system · investigation arc *(reframed to vendor contracts & narrative line, CR-13)* |
 | `B6_Progression_Onboarding.md` | Skills · XP hookup · backgrounds · character creation · onboarding |
 | `B7_Audio.md` | Audio architecture · zombie/combat/ambient audio · **horde AI solution** |
 | `B8_Performance.md` | Budget definition · measurement · rendering/AI/network optimization |

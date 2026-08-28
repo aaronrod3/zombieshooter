@@ -41,6 +41,10 @@
 #include "ZSNotificationSubsystem.h"
 #include "ZSContainerActor.h"
 #include "ZSHubSubsystem.h"
+#include "ZSVendorConfig.h"
+#include "ZSLootTableConfig.h"
+#include "ZSHostileCharacter.h"
+#include "ZSHostileConfig.h"
 
 namespace ZSTest
 {
@@ -2958,6 +2962,144 @@ bool FZSHubSubsystemTest::RunTest(const FString& Parameters)
 
 	FZSItemInstance UnusedOut;
 	TestFalse(TEXT("Withdrawing an already-withdrawn item fails"), Hub->WithdrawFromStash(FoodInstance.InstanceId, UnusedOut));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Hub.VendorSellAndBuy - BH-T2 (Docs/Beta/BH_HubHideoutEconomy.md). Covers both directions of
+// the vendor economy: selling a stash item for currency (scaled by ConditionQuality for a
+// non-stackable instance, by StackCount for a stack, then by the vendor's own BuyPriceMultiplier),
+// and buying a catalog item back into the stash (same fill-partial-stacks-then-mint-new shape as
+// UZSInventoryComponent::Server_AddItem).
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSVendorEconomyTest, "ZS.Hub.VendorSellAndBuy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSVendorEconomyTest::RunTest(const FString& Parameters)
+{
+	UGameInstance* DummyGameInstance = NewObject<UGameInstance>();
+	UZSHubSubsystem* Hub = NewObject<UZSHubSubsystem>(DummyGameInstance);
+	if (!TestNotNull(TEXT("Hub subsystem created"), Hub))
+	{
+		return false;
+	}
+
+	// Initialize() (which seeds StartingCurrency) is only ever called by the real subsystem-collection
+	// lifecycle, which a bare NewObject bypasses entirely - Currency starts at its raw in-class
+	// default (0) here, not StartingCurrency. Draining explicitly rather than assuming that default
+	// keeps this test correct even if that in-class default ever changes.
+	Hub->TrySpendCurrency(Hub->GetCurrency());
+	TestEqual(TEXT("Currency starts at a known baseline"), Hub->GetCurrency(), (int64)0);
+
+	UZSItemConfig* SellableItem = NewObject<UZSItemConfig>();
+	SellableItem->SellValue = 100;
+
+	UZSVendorConfig* Vendor = NewObject<UZSVendorConfig>();
+	Vendor->BuyPriceMultiplier = 0.5f;
+
+	FZSVendorCatalogEntry CatalogEntry;
+	CatalogEntry.Item = SellableItem;
+	CatalogEntry.Price = 40;
+	Vendor->SellCatalog.Add(CatalogEntry);
+
+	// --- Sell half: a full-condition, non-stackable instance sells for SellValue * BuyPriceMultiplier ---
+	FZSItemInstance ItemToSell;
+	ItemToSell.InstanceId = FGuid::NewGuid();
+	ItemToSell.Config = SellableItem;
+	ItemToSell.InstanceState.ConditionQuality = 1.f;
+	Hub->DepositItemsToStash({ ItemToSell });
+
+	int64 CurrencyEarned = -1;
+	if (!TestTrue(TEXT("Selling a vendor-accepted item succeeds"), Hub->SellStashItemToVendor(ItemToSell.InstanceId, Vendor, CurrencyEarned)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Sold for SellValue * BuyPriceMultiplier at full condition"), CurrencyEarned, (int64)50);
+	TestEqual(TEXT("Currency credited"), Hub->GetCurrency(), (int64)50);
+	TestEqual(TEXT("Stash no longer holds the sold item"), Hub->GetStashContents().Num(), 0);
+
+	// A vendor won't buy an item with no SellValue authored.
+	UZSItemConfig* UnsellableItem = NewObject<UZSItemConfig>();
+	FZSItemInstance ItemNoValue;
+	ItemNoValue.InstanceId = FGuid::NewGuid();
+	ItemNoValue.Config = UnsellableItem;
+	Hub->DepositItemsToStash({ ItemNoValue });
+	int64 UnusedEarned = -1;
+	TestFalse(TEXT("Vendor rejects an item with zero SellValue"), Hub->SellStashItemToVendor(ItemNoValue.InstanceId, Vendor, UnusedEarned));
+
+	// --- Buy half: spends currency, mints a fresh instance into the stash --- (50 currency on hand, item costs 40)
+	FZSItemInstance PurchasedInstance;
+	if (!TestTrue(TEXT("Buying the catalog item succeeds"), Hub->BuyItemFromVendor(Vendor, SellableItem, 1, PurchasedInstance)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Currency debited by the catalog price"), Hub->GetCurrency(), (int64)10); // 50 - 40
+	TestTrue(TEXT("Purchased instance is valid"), PurchasedInstance.IsValid());
+	TestTrue(TEXT("Purchased instance is now in the stash"), Hub->GetStashContents().ContainsByPredicate([&PurchasedInstance](const FZSItemInstance& I) { return I.InstanceId == PurchasedInstance.InstanceId; }));
+
+	// Insufficient funds: 10 currency left, item costs 40.
+	FZSItemInstance UnusedPurchase;
+	TestFalse(TEXT("Buying without enough currency fails, nothing charged"), Hub->BuyItemFromVendor(Vendor, SellableItem, 1, UnusedPurchase));
+	TestEqual(TEXT("Currency unchanged after failed purchase"), Hub->GetCurrency(), (int64)10);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ZS.Hostiles.DeathDropsLoot - BF-T1/T3.2 (Docs/Beta/BF_HumanHostileFaction.md, OQ-BF-03). Lethal
+// damage via a bare FDamageEvent (same pattern ZS.Combat.* already uses to kill an AZombieCharacter
+// directly, bypassing ApplyPointDamage/collision entirely) should mark the hostile dead and, if a
+// DeathLootTable is assigned, spawn its rolled loot as world items - the same RollLoot->
+// AZSWorldItemActor::InitializeFromInstance pattern AZSContainerActor's own BeginPlay already uses.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSHostileDeathLootTest, "ZS.Hostiles.DeathDropsLoot", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSHostileDeathLootTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	UZSItemConfig* LootItem = NewObject<UZSItemConfig>();
+
+	UZSLootTableConfig* LootTable = NewObject<UZSLootTableConfig>();
+	LootTable->NumRolls = 1;
+	FZSLootTableEntry Entry;
+	Entry.Item = LootItem;
+	Entry.Weight = 1.f;
+	Entry.MinCount = 1;
+	Entry.MaxCount = 1;
+	LootTable->Entries.Add(Entry);
+
+	UZSHostileConfig* HostileConfig = NewObject<UZSHostileConfig>();
+	HostileConfig->MaxHealth = 100.f;
+	HostileConfig->DeathLootTable = LootTable;
+
+	AZSHostileCharacter* Hostile = TestWorld.World->SpawnActor<AZSHostileCharacter>();
+	if (!TestNotNull(TEXT("Hostile spawned"), Hostile))
+	{
+		return false;
+	}
+	Hostile->HostileConfig = HostileConfig;
+
+	TestFalse(TEXT("Not dead initially"), Hostile->IsDead());
+
+	Hostile->TakeDamage(99999.f, FDamageEvent(), nullptr, nullptr);
+
+	if (!TestTrue(TEXT("Dead after lethal damage"), Hostile->IsDead()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Health clamped to zero"), Hostile->GetCurrentHealth(), 0.f);
+
+	int32 WorldItemCount = 0;
+	for (TActorIterator<AZSWorldItemActor> It(TestWorld.World); It; ++It)
+	{
+		++WorldItemCount;
+	}
+	TestEqual(TEXT("Death loot table's single roll spawned exactly one world item"), WorldItemCount, 1);
 
 	return true;
 }

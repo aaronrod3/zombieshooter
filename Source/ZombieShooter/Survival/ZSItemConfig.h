@@ -8,6 +8,7 @@
 
 class UTexture2D;
 class UStaticMesh;
+class AActor;
 
 /**
  *  Which action AZSPlayerCharacter::Server_UseItem routes an item to (P3, Docs/Phases/P3_HealthDamageMedical.md
@@ -25,7 +26,9 @@ enum class EZSItemUseType : uint8
 	/** Routes to UZSHealthComponent::Server_Disinfect(TargetZone). */
 	Disinfectant,
 	/** Routes to UZSHealthComponent::Server_Splint(TargetZone). */
-	Splint
+	Splint,
+	/** BH-T2.4/BR (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27): a purchasable support ability (airstrike/care package) - routes to spawning SupportStrikeActorClass a fixed distance in front of the player. The item existing and being purchasable is BH's job; what the spawned actor actually does (real airstrike damage, a lootable care-package drop) is BR/content's job - an unset SupportStrikeActorClass is a graceful no-op, same "content gap" pattern as every other optional class reference in this project. */
+	SupportStrike
 };
 
 /**
@@ -182,6 +185,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Medical", meta = (ClampMin = "0", EditCondition = "ItemUseType == EZSItemUseType::Bandage || ItemUseType == EZSItemUseType::Disinfectant"))
 	float MedicalIncubationDelayGameHours = 0.f;
 
+	/** BH-T2.4/BR (Docs/Beta/00_MasterPlan.md CR-13): only meaningful when ItemUseType == SupportStrike - what AZSPlayerCharacter::Server_UseItem spawns. Unset = graceful no-op, same "content gap" pattern as every other optional class reference in this project (e.g. AZombieCharacter::ZombieConfig). What the spawned actor actually does (real airstrike damage, a lootable care-package drop) is deliberately not designed here - this field only makes the item real and purchasable. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "SupportStrike", meta = (EditCondition = "ItemUseType == EZSItemUseType::SupportStrike"))
+	TSubclassOf<AActor> SupportStrikeActorClass;
+
+	/** Only meaningful when ItemUseType == SupportStrike - how far in front of the calling player the actor spawns. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "SupportStrike", meta = (ClampMin = "0", EditCondition = "ItemUseType == EZSItemUseType::SupportStrike"))
+	float SupportStrikeCallInDistance = 1000.f;
+
 	// ---- P6: general inventory fields (Docs/Phases/P6_InventoryLoot.md) - every item, not just
 	// consumables/medical, carries these once UZSInventoryComponent exists to read them. ----
 
@@ -208,6 +219,10 @@ public:
 	/** Consulted by UZSLootTableConfig::RollLoot / AZSGameState::Server_TryConsumeRarityPoolSlot for Rare/VeryRare items - see EZSItemRarity's comment for the resolved finite-pool model. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	EZSItemRarity Rarity = EZSItemRarity::Common;
+
+	/** BH (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27): base currency value at full condition (a single unit, before UZSHubSubsystem::SellStashItemToVendor scales it by ConditionQuality or StackCount and a vendor's own BuyPriceMultiplier). 0 (the default) means a vendor will never buy this item - most flavor/quest-only items should stay at 0 rather than being assigned an arbitrary value. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Economy", meta = (ClampMin = "0"))
+	int64 SellValue = 0;
 
 	/** B1-T5.0: see EZSItemSize's own comment - defaults to Small (the most permissive/conservative value, fits every compartment) since no content has been authored with a real value yet. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")

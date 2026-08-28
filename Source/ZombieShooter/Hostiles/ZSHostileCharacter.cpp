@@ -5,6 +5,8 @@
 #include "ZSHostileAIController.h"
 #include "../Combat/ZSDamageTypes.h"
 #include "../Zombies/ZSNoiseSystem.h"
+#include "../Inventory/ZSLootTableConfig.h"
+#include "../Inventory/ZSWorldItemActor.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -145,6 +147,25 @@ void AZSHostileCharacter::Die()
 
 	if (HasAuthority())
 	{
+		// BF-T3.2/OQ-BF-03: rolled once here, not carried as a live inventory - a dead hostile has
+		// nothing left to manage, only loot to leave behind. Same spawn pattern
+		// UZSInventoryComponent::Server_DropAllItems already uses for a dead player's own loot.
+		if (HostileConfig && HostileConfig->DeathLootTable)
+		{
+			const TArray<FZSItemInstance> DroppedLoot = HostileConfig->DeathLootTable->RollLoot(GetWorld());
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+			for (const FZSItemInstance& Instance : DroppedLoot)
+			{
+				if (AZSWorldItemActor* WorldItem = GetWorld()->SpawnActor<AZSWorldItemActor>(AZSWorldItemActor::StaticClass(), GetActorLocation(), GetActorRotation(), SpawnParams))
+				{
+					WorldItem->InitializeFromInstance(Instance);
+				}
+			}
+		}
+
 		GetWorldTimerManager().SetTimer(CorpseCleanupTimerHandle, this, &AZSHostileCharacter::HandleCorpseCleanup, CorpseLingerSeconds, false);
 	}
 }
