@@ -45,7 +45,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|Vendor")
 	FText VendorName;
 
-	/** What this vendor sells to the player - UZSHubSubsystem::BuyItemFromVendor reads this. */
+	/** What this vendor sells to the player - AZSPlayerState::Server_BuyItemFromVendor reads this. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "ZS|Vendor")
 	TArray<FZSVendorCatalogEntry> SellCatalog;
 

@@ -58,7 +58,7 @@
 | Sub-task | Definition of done |
 |---|---|
 | T4.1 | ✅ **Done, pre-existing + reused.** Death already drops every carried instance at the death location (`Server_HandleDeathLootAndZombie`) before routing through the same `Server_LeaveRaidAndReturnToHub(false)` extraction now shares. |
-| T4.2 | Skill/XP reset on death — currently a genuine no-op, since no skill system exists yet (`B6-Sys`). Flagged here as a forward hook: whenever `B6-Sys` lands, wherever it stores skill XP must live on the character/PlayerState, never on `UZSHubSubsystem`, or Decision 8's "full reset" breaks silently. |
+| T4.2 | Skill/XP reset on death — currently a genuine no-op, since no skill system exists yet (`B6-Sys`). Flagged here as a forward hook: whenever `B6-Sys` lands, wherever it stores skill XP must live on the character or a non-hub-persistent part of `AZSPlayerState`, never mixed into the hub stash/currency fields that survive death (`Currency`/`Stash`, `BH-T1.4`), or Decision 8's "full reset" breaks silently. |
 | T4.3 | **Re-examine `BP_ZS_PlayerCharacter::StartingHotbarLoadout`** — it currently re-grants the identical starting gear to every fresh character, which was correct under the pre-pivot "new character, same world" design and is a real open question under "new mercenary from scratch" (should a fresh mercenary start bare, or with a hub-purchased starter kit per `T1.3`?). Content/design work, not guessed here. |
 
 ---

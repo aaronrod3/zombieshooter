@@ -220,7 +220,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	EZSItemRarity Rarity = EZSItemRarity::Common;
 
-	/** BH (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27): base currency value at full condition (a single unit, before UZSHubSubsystem::SellStashItemToVendor scales it by ConditionQuality or StackCount and a vendor's own BuyPriceMultiplier). 0 (the default) means a vendor will never buy this item - most flavor/quest-only items should stay at 0 rather than being assigned an arbitrary value. */
+	/** BH (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27): base currency value at full condition (a single unit, before AZSPlayerState::Server_SellStashItemToVendor scales it by ConditionQuality or StackCount and a vendor's own BuyPriceMultiplier). 0 (the default) means a vendor will never buy this item - most flavor/quest-only items should stay at 0 rather than being assigned an arbitrary value. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Economy", meta = (ClampMin = "0"))
 	int64 SellValue = 0;
 

@@ -34,8 +34,8 @@
 #include "../Survival/ZSNeedsComponent.h"
 #include "../Framework/ZSGameState.h"
 #include "../Framework/ZSGameMode.h"
+#include "../Framework/ZSPlayerState.h"
 #include "../Framework/ZSElevationSubsystem.h"
-#include "../Hub/ZSHubSubsystem.h"
 #include "../Combat/ZSHealthComponent.h"
 #include "../Combat/ZSDamageTypes.h"
 #include "../Survival/ZSItemConfig.h"
@@ -2545,19 +2545,17 @@ void AZSPlayerCharacter::Server_RequestExtraction()
 	FlushAndDestroyEquippedWeapons();
 
 	// Banks to the hub stash BEFORE Server_LeaveRaidAndReturnToHub destroys this pawn below -
-	// UZSHubSubsystem::DepositItemsToStash is what makes "extract" mean something different from
-	// "die" (Server_HandleDeathLootAndZombie drops the same CarrySlots contents into the zone
-	// instead, see that function's own comment).
-	if (UGameInstance* GI = GetGameInstance())
+	// AZSPlayerState::Server_DepositItemsToStash is what makes "extract" mean something different
+	// from "die" (Server_HandleDeathLootAndZombie drops the same CarrySlots contents into the zone
+	// instead, see that function's own comment). 2026-08-28: the stash lives on AZSPlayerState now,
+	// not UZSHubSubsystem - a UGameInstanceSubsystem never replicates to a non-host client at all,
+	// see AZSPlayerState.h's own header comment for the full finding. Calling a Server RPC directly
+	// from here (already server-authoritative) executes its body immediately, no network round-trip.
+	if (AZSPlayerState* ZSPS = Cast<AZSPlayerState>(GetPlayerState()))
 	{
-		if (UZSHubSubsystem* Hub = GI->GetSubsystem<UZSHubSubsystem>())
-		{
-			// OQ-BH-02 (resolved 2026-08-28): the stash is per-player now, not one shared pool - the
-			// extracting player's own PlayerState is the identity UZSHubSubsystem keys on.
-			const TArray<FZSItemInstance> ExtractedItems = InventoryComponent ? InventoryComponent->Server_ExtractAllItems() : TArray<FZSItemInstance>();
-			Hub->DepositItemsToStash(GetPlayerState(), ExtractedItems);
-			UE_LOG(LogZombieShooter, Log, TEXT("%s: extraction successful, %d item(s) banked to hub stash"), *GetName(), ExtractedItems.Num());
-		}
+		const TArray<FZSItemInstance> ExtractedItems = InventoryComponent ? InventoryComponent->Server_ExtractAllItems() : TArray<FZSItemInstance>();
+		ZSPS->Server_DepositItemsToStash(ExtractedItems);
+		UE_LOG(LogZombieShooter, Log, TEXT("%s: extraction successful, %d item(s) banked to hub stash"), *GetName(), ExtractedItems.Num());
 	}
 
 	Server_LeaveRaidAndReturnToHub(true);

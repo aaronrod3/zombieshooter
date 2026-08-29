@@ -1129,7 +1129,7 @@ TArray<FZSItemInstance> UZSInventoryComponent::Server_ExtractAllItems()
 
 	// Same instances Server_DropAllItems above would otherwise scatter into the world as
 	// AZSWorldItemActors - here they're handed back verbatim (identity/InstanceState intact) for
-	// the caller to bank into UZSHubSubsystem's stash instead.
+	// the caller to bank into AZSPlayerState's stash instead.
 	TArray<FZSItemInstance> ExtractedItems = CarrySlots;
 
 	CarrySlots.Empty();

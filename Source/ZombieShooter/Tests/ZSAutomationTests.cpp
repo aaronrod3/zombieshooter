@@ -41,7 +41,7 @@
 #include "ZSUIManager.h"
 #include "ZSNotificationSubsystem.h"
 #include "ZSContainerActor.h"
-#include "ZSHubSubsystem.h"
+#include "ZSPlayerState.h"
 #include "ZSVendorConfig.h"
 #include "ZSLootTableConfig.h"
 #include "ZSHostileCharacter.h"
@@ -3017,84 +3017,72 @@ bool FZSExtractAllItemsTest::RunTest(const FString& Parameters)
 
 // ---------------------------------------------------------------------------------------------
 // ZS.Hub.StashDepositWithdrawAndCurrency - BH (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot
-// 2026-08-27). UZSHubSubsystem has no GetWorld()/GetGameInstance() dependency in its own logic (by
-// design - see its own header comment on why it's a plain GameInstanceSubsystem with no world-
-// scoped state), so it's tested via a bare NewObject rather than FScopedTestWorld/a real
-// GameInstance - this suite's minimal offline UWorld (ZSTest::FScopedTestWorld) doesn't wire up a
-// GameInstance at all, and doesn't need to for this subsystem's own logic to be verified.
+// 2026-08-27). Stash/currency moved from UZSHubSubsystem onto AZSPlayerState 2026-08-28 (see
+// AZSPlayerState.h's own header comment) so they actually replicate to the owning client - a
+// UGameInstanceSubsystem never does. The mutators below are real Server RPCs, but calling one
+// directly from this offline test world's own authoritative context executes its
+// _Implementation body immediately, no network round-trip needed, same as any other Server-tagged
+// function call from already-authoritative code elsewhere in this project.
 // ---------------------------------------------------------------------------------------------
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSHubSubsystemTest, "ZS.Hub.StashDepositWithdrawAndCurrency", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FZSHubSubsystemTest::RunTest(const FString& Parameters)
 {
-	// UGameInstanceSubsystem declares ClassWithin=UGameInstance (engine-enforced) - a bare
-	// NewObject<UZSHubSubsystem>() with no Outer fails that check, so this gives it a throwaway
-	// UGameInstance Outer rather than going through the real subsystem-creation lifecycle (Init(),
-	// which this suite's minimal offline UWorld/FScopedTestWorld doesn't wire up at all - see this
-	// test's own header comment). Fine for exercising the subsystem's own logic directly.
-	UGameInstance* DummyGameInstance = NewObject<UGameInstance>();
-	UZSHubSubsystem* Hub = NewObject<UZSHubSubsystem>(DummyGameInstance);
-	if (!TestNotNull(TEXT("Hub subsystem created"), Hub))
-	{
-		return false;
-	}
-
-	// OQ-BH-02 (resolved 2026-08-28): the stash/currency are per-player now, keyed by APlayerState -
-	// a real spawned instance (not a bare NewObject<AActor>) needs a UWorld, hence FScopedTestWorld
-	// here even though the Hub subsystem itself has no world dependency of its own.
 	ZSTest::FScopedTestWorld TestWorld;
 	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
 	{
 		return false;
 	}
-	APlayerState* Player = TestWorld.World->SpawnActor<APlayerState>();
+	AZSPlayerState* Player = TestWorld.World->SpawnActor<AZSPlayerState>();
 	if (!TestNotNull(TEXT("Player spawned"), Player))
 	{
 		return false;
 	}
+	if (!Player->HasActorBegunPlay())
+	{
+		Player->DispatchBeginPlay();
+	}
 
-	// GetCurrency lazily seeds StartingCurrency on first touch (see UZSHubSubsystem.h) - drain
-	// explicitly to a known baseline rather than assuming a specific StartingCurrency value, so this
-	// test stays correct even if that default is retuned.
-	Hub->TrySpendCurrency(Player, Hub->GetCurrency(Player));
-	TestEqual(TEXT("Starts at a known baseline"), Hub->GetCurrency(Player), (int64)0);
+	// BeginPlay seeds StartingCurrency - drain explicitly to a known baseline rather than assuming
+	// a specific value, so this test stays correct even if that default is retuned.
+	Player->Server_TrySpendCurrency(Player->GetCurrency());
+	TestEqual(TEXT("Starts at a known baseline"), Player->GetCurrency(), (int64)0);
 
-	Hub->AddCurrency(Player, 100);
-	TestEqual(TEXT("Currency after add"), Hub->GetCurrency(Player), (int64)100);
+	Player->Server_AddCurrency(100);
+	TestEqual(TEXT("Currency after add"), Player->GetCurrency(), (int64)100);
 
-	TestFalse(TEXT("Spending more than available fails"), Hub->TrySpendCurrency(Player, 101));
-	TestEqual(TEXT("Currency unchanged after failed spend"), Hub->GetCurrency(Player), (int64)100);
+	Player->Server_TrySpendCurrency(101);
+	TestEqual(TEXT("Spending more than available is a no-op"), Player->GetCurrency(), (int64)100);
 
-	TestTrue(TEXT("Spending within balance succeeds"), Hub->TrySpendCurrency(Player, 40));
-	TestEqual(TEXT("Currency after successful spend"), Hub->GetCurrency(Player), (int64)60);
+	Player->Server_TrySpendCurrency(40);
+	TestEqual(TEXT("Currency after successful spend"), Player->GetCurrency(), (int64)60);
 
 	UZSItemConfig* FoodConfig = NewObject<UZSItemConfig>();
 	FZSItemInstance FoodInstance;
 	FoodInstance.InstanceId = FGuid::NewGuid();
 	FoodInstance.Config = FoodConfig;
 
-	Hub->DepositItemsToStash(Player, { FoodInstance });
-	TestEqual(TEXT("Stash holds the deposited item"), Hub->GetStashContents(Player).Num(), 1);
+	Player->Server_DepositItemsToStash({ FoodInstance });
+	TestEqual(TEXT("Stash holds the deposited item"), Player->GetStashContents().Num(), 1);
 
-	FZSItemInstance WithdrawnItem;
-	if (!TestTrue(TEXT("Withdraw finds the deposited item"), Hub->WithdrawFromStash(Player, FoodInstance.InstanceId, WithdrawnItem)))
-	{
-		return false;
-	}
-	TestEqual(TEXT("Withdrawn instance matches what was deposited"), WithdrawnItem.InstanceId, FoodInstance.InstanceId);
-	TestEqual(TEXT("Stash empty after withdrawal"), Hub->GetStashContents(Player).Num(), 0);
+	Player->Server_WithdrawFromStash(FoodInstance.InstanceId);
+	TestEqual(TEXT("Stash empty after withdrawal"), Player->GetStashContents().Num(), 0);
 
-	FZSItemInstance UnusedOut;
-	TestFalse(TEXT("Withdrawing an already-withdrawn item fails"), Hub->WithdrawFromStash(Player, FoodInstance.InstanceId, UnusedOut));
+	Player->Server_WithdrawFromStash(FoodInstance.InstanceId);
+	TestEqual(TEXT("Withdrawing an already-withdrawn item is a no-op, stash still empty"), Player->GetStashContents().Num(), 0);
 
 	// A second player gets their own separate stash/currency, not the first player's - proves
-	// OQ-BH-02's per-player resolution actually holds, not just that the API takes a Player argument.
-	APlayerState* SecondPlayer = TestWorld.World->SpawnActor<APlayerState>();
+	// OQ-BH-02's per-player resolution actually holds, not just that the API is per-instance.
+	AZSPlayerState* SecondPlayer = TestWorld.World->SpawnActor<AZSPlayerState>();
 	if (TestNotNull(TEXT("Second player spawned"), SecondPlayer))
 	{
-		TestNotEqual(TEXT("A different player's fresh currency isn't the first player's post-spend balance"), Hub->GetCurrency(SecondPlayer), (int64)60);
-		TestEqual(TEXT("A different player's stash is independent, not shared"), Hub->GetStashContents(SecondPlayer).Num(), 0);
-		TestEqual(TEXT("First player's currency untouched by the second player's lookup"), Hub->GetCurrency(Player), (int64)60);
+		if (!SecondPlayer->HasActorBegunPlay())
+		{
+			SecondPlayer->DispatchBeginPlay();
+		}
+		TestNotEqual(TEXT("A different player's fresh currency isn't the first player's post-spend balance"), SecondPlayer->GetCurrency(), (int64)60);
+		TestEqual(TEXT("A different player's stash is independent, not shared"), SecondPlayer->GetStashContents().Num(), 0);
+		TestEqual(TEXT("First player's currency untouched by the second player's own state"), Player->GetCurrency(), (int64)60);
 	}
 
 	return true;
@@ -3111,29 +3099,25 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSVendorEconomyTest, "ZS.Hub.VendorSellAndBuy"
 
 bool FZSVendorEconomyTest::RunTest(const FString& Parameters)
 {
-	UGameInstance* DummyGameInstance = NewObject<UGameInstance>();
-	UZSHubSubsystem* Hub = NewObject<UZSHubSubsystem>(DummyGameInstance);
-	if (!TestNotNull(TEXT("Hub subsystem created"), Hub))
-	{
-		return false;
-	}
-
-	// OQ-BH-02 (resolved 2026-08-28): stash/currency are per-player, keyed by APlayerState.
 	ZSTest::FScopedTestWorld TestWorld;
 	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
 	{
 		return false;
 	}
-	APlayerState* Player = TestWorld.World->SpawnActor<APlayerState>();
+	AZSPlayerState* Player = TestWorld.World->SpawnActor<AZSPlayerState>();
 	if (!TestNotNull(TEXT("Player spawned"), Player))
 	{
 		return false;
 	}
+	if (!Player->HasActorBegunPlay())
+	{
+		Player->DispatchBeginPlay();
+	}
 
-	// GetCurrency lazily seeds StartingCurrency on first touch - drain explicitly to a known baseline
-	// rather than assuming that default, keeping this test correct even if it's retuned.
-	Hub->TrySpendCurrency(Player, Hub->GetCurrency(Player));
-	TestEqual(TEXT("Currency starts at a known baseline"), Hub->GetCurrency(Player), (int64)0);
+	// BeginPlay seeds StartingCurrency - drain explicitly to a known baseline rather than assuming
+	// that default, keeping this test correct even if it's retuned.
+	Player->Server_TrySpendCurrency(Player->GetCurrency());
+	TestEqual(TEXT("Currency starts at a known baseline"), Player->GetCurrency(), (int64)0);
 
 	UZSItemConfig* SellableItem = NewObject<UZSItemConfig>();
 	SellableItem->SellValue = 100;
@@ -3151,40 +3135,30 @@ bool FZSVendorEconomyTest::RunTest(const FString& Parameters)
 	ItemToSell.InstanceId = FGuid::NewGuid();
 	ItemToSell.Config = SellableItem;
 	ItemToSell.InstanceState.ConditionQuality = 1.f;
-	Hub->DepositItemsToStash(Player, { ItemToSell });
+	Player->Server_DepositItemsToStash({ ItemToSell });
 
-	int64 CurrencyEarned = -1;
-	if (!TestTrue(TEXT("Selling a vendor-accepted item succeeds"), Hub->SellStashItemToVendor(Player, ItemToSell.InstanceId, Vendor, CurrencyEarned)))
-	{
-		return false;
-	}
-	TestEqual(TEXT("Sold for SellValue * BuyPriceMultiplier at full condition"), CurrencyEarned, (int64)50);
-	TestEqual(TEXT("Currency credited"), Hub->GetCurrency(Player), (int64)50);
-	TestEqual(TEXT("Stash no longer holds the sold item"), Hub->GetStashContents(Player).Num(), 0);
+	Player->Server_SellStashItemToVendor(ItemToSell.InstanceId, Vendor);
+	TestEqual(TEXT("Sold for SellValue * BuyPriceMultiplier at full condition"), Player->GetCurrency(), (int64)50);
+	TestEqual(TEXT("Stash no longer holds the sold item"), Player->GetStashContents().Num(), 0);
 
 	// A vendor won't buy an item with no SellValue authored.
 	UZSItemConfig* UnsellableItem = NewObject<UZSItemConfig>();
 	FZSItemInstance ItemNoValue;
 	ItemNoValue.InstanceId = FGuid::NewGuid();
 	ItemNoValue.Config = UnsellableItem;
-	Hub->DepositItemsToStash(Player, { ItemNoValue });
-	int64 UnusedEarned = -1;
-	TestFalse(TEXT("Vendor rejects an item with zero SellValue"), Hub->SellStashItemToVendor(Player, ItemNoValue.InstanceId, Vendor, UnusedEarned));
+	Player->Server_DepositItemsToStash({ ItemNoValue });
+	Player->Server_SellStashItemToVendor(ItemNoValue.InstanceId, Vendor);
+	TestEqual(TEXT("Vendor rejects an item with zero SellValue - currency unchanged"), Player->GetCurrency(), (int64)50);
+	TestEqual(TEXT("Rejected item stays in the stash"), Player->GetStashContents().Num(), 1);
 
 	// --- Buy half: spends currency, mints a fresh instance into the stash --- (50 currency on hand, item costs 40)
-	FZSItemInstance PurchasedInstance;
-	if (!TestTrue(TEXT("Buying the catalog item succeeds"), Hub->BuyItemFromVendor(Player, Vendor, SellableItem, 1, PurchasedInstance)))
-	{
-		return false;
-	}
-	TestEqual(TEXT("Currency debited by the catalog price"), Hub->GetCurrency(Player), (int64)10); // 50 - 40
-	TestTrue(TEXT("Purchased instance is valid"), PurchasedInstance.IsValid());
-	TestTrue(TEXT("Purchased instance is now in the stash"), Hub->GetStashContents(Player).ContainsByPredicate([&PurchasedInstance](const FZSItemInstance& I) { return I.InstanceId == PurchasedInstance.InstanceId; }));
+	Player->Server_BuyItemFromVendor(Vendor, SellableItem, 1);
+	TestEqual(TEXT("Currency debited by the catalog price"), Player->GetCurrency(), (int64)10); // 50 - 40
+	TestTrue(TEXT("Purchased instance is now in the stash"), Player->GetStashContents().ContainsByPredicate([SellableItem](const FZSItemInstance& I) { return I.Config == SellableItem; }));
 
 	// Insufficient funds: 10 currency left, item costs 40.
-	FZSItemInstance UnusedPurchase;
-	TestFalse(TEXT("Buying without enough currency fails, nothing charged"), Hub->BuyItemFromVendor(Player, Vendor, SellableItem, 1, UnusedPurchase));
-	TestEqual(TEXT("Currency unchanged after failed purchase"), Hub->GetCurrency(Player), (int64)10);
+	Player->Server_BuyItemFromVendor(Vendor, SellableItem, 1);
+	TestEqual(TEXT("Currency unchanged after failed purchase (insufficient funds)"), Player->GetCurrency(), (int64)10);
 
 	return true;
 }
