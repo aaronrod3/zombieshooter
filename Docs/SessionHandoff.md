@@ -68,7 +68,13 @@ All three phase files (`BH_HubHideoutEconomy.md`, `BR_RaidLifecycleExtraction.md
 
 **Deliberately not done this session, same reasoning as before**: the needs-system reshape (Fatigue/Wet/Temperature cut) is still deferred until the editor is closed for a dedicated pass, per the Live-Coding/`WBP_ZS_MoodleStack` risk already on record.
 
-**Next concrete steps**: `BF-T2.3` investigate-noise `BT_Hostile` content (dev-hands-only, needs editor/MCP access); the `BH-T5` RPC-wrapper gap flagged in `BH_HubHideoutEconomy.md`'s Notes (close before building real hub UI against `UZSHubSubsystem` directly); the real `ServerTravel` reload `Server_CheckRaidEndAndReset` intentionally stops short of.
+**Then also built `BF-T2.1`'s native side** (same session): `Source/ZombieShooter/Hostiles/AI/` now has `BTTask_HostileGetInvestigationPoint`/`ClearLastKnownLocation`/`StartInvestigationTimer`, exact mirrors of `Zombies/AI/`'s own three. `AZSHostileAIController` writes `LastKnownLocation` on a successful sense and seeds a new `GuardLocation` key once at possess time; `UZSHostileConfig` gained `InvestigationDurationSeconds`. Rebuilt + full automation run after (44/44, exit 0). **`BT_Hostile` itself is still unbuilt** — dev-hands-only, no editor/MCP access this session; `BF_HumanHostileFaction.md`'s `T2.1` entry has the exact graph shape to wire (a stock `Move To` on `LastKnownLocation`, another on `GuardLocation` for the return leg — no custom "return" task needed).
+
+**A more significant finding surfaced while scoping RPC wrappers for the Hub subsystem (flagged, not fixed)**: `UZSHubSubsystem` being a `UGameInstanceSubsystem` means its state never replicates across the network at all - fine for the listen-server host (same process as the server), but a non-host connected player's own hub UI would read their own separate, never-updated local instance. RPC wrappers alone don't fix this; the state needs to live somewhere that actually replicates to its owning client (`AZSPlayerState` is the obvious candidate). Full detail in `BH_HubHideoutEconomy.md`'s Notes - needs its own design pass before `BH-T5` builds real UI, not guessed at here.
+
+Both increments committed locally (`cb7ebc7`, `0fd0aac`) — **not yet pushed**, since push wasn't explicitly requested this session.
+
+**Next concrete steps**: the `UZSHubSubsystem` replication redesign flagged just above (blocks `BH-T5` for real); `BT_Hostile` graph content once the dev has editor access; the real `ServerTravel` reload `Server_CheckRaidEndAndReset` intentionally stops short of.
 
 ## CR-13 progress — 2026-08-27 (BH/BR/BF scoped; hub economy + hostile combat code landed) — done alongside B1, not instead of it
 
