@@ -2461,8 +2461,26 @@ void AZSPlayerCharacter::HandleDeath()
 		}
 
 		Server_HandleDeathLootAndZombie();
-		GetWorldTimerManager().SetTimer(RespawnTimerHandle, this, &AZSPlayerCharacter::Server_RespawnAsNewCharacter, RespawnDelaySeconds, false);
+		GetWorldTimerManager().SetTimer(RespawnTimerHandle, this, &AZSPlayerCharacter::Server_EnterSpectatorAfterDeath, RespawnDelaySeconds, false);
 	}
+}
+
+void AZSPlayerCharacter::FlushAndDestroyEquippedWeapons()
+{
+	// Every other equip-transition path (CompleteHotbarSwitch, UnequipSecondaryWeapon) writes back
+	// live durability and destroys the outgoing weapon actor before losing the reference - the
+	// original death-path bug this fixed was skipping both, which dropped loot with stale
+	// (too-high) durability and permanently leaked the weapon actor (attachment alone doesn't
+	// cascade-destroy with the owning character). Shared now so extraction gets the same fix.
+	WriteBackCurrentWeaponDurability();
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->Destroy();
+		CurrentWeapon = nullptr;
+		RefreshBodyMeshFromWeapon();
+		AttachWeaponToBodyMesh();
+	}
+	UnequipSecondaryWeapon(); // Already writes back durability + destroys + nulls in one call.
 }
 
 void AZSPlayerCharacter::Server_HandleDeathLootAndZombie()
@@ -2474,20 +2492,8 @@ void AZSPlayerCharacter::Server_HandleDeathLootAndZombie()
 
 	const FVector DeathLocation = GetActorLocation();
 
-	// Every other equip-transition path (CompleteHotbarSwitch, UnequipSecondaryWeapon) writes back
-	// live durability and destroys the outgoing weapon actor before losing the reference - death was
-	// skipping both, which dropped loot with stale (too-high) durability and permanently leaked the
-	// weapon actor (attachment alone doesn't cascade-destroy with the owning character). Must run
-	// before Server_DropAllItems below, which reads CarrySlots' InstanceState directly.
-	WriteBackCurrentWeaponDurability();
-	if (CurrentWeapon)
-	{
-		CurrentWeapon->Destroy();
-		CurrentWeapon = nullptr;
-		RefreshBodyMeshFromWeapon();
-		AttachWeaponToBodyMesh();
-	}
-	UnequipSecondaryWeapon(); // Already writes back durability + destroys + nulls in one call.
+	// Must run before Server_DropAllItems below, which reads CarrySlots' InstanceState directly.
+	FlushAndDestroyEquippedWeapons();
 
 	// B0-T9.1: preserves every carried instance's InstanceId/InstanceState at the death location -
 	// already covers whatever was equipped/hotbarred too, since equipping never removes an instance
@@ -2507,7 +2513,7 @@ void AZSPlayerCharacter::Server_HandleDeathLootAndZombie()
 	}
 }
 
-void AZSPlayerCharacter::Server_RespawnAsNewCharacter()
+void AZSPlayerCharacter::Server_EnterSpectatorAfterDeath()
 {
 	if (!HasAuthority())
 	{
@@ -2532,6 +2538,12 @@ void AZSPlayerCharacter::Server_RequestExtraction()
 		return;
 	}
 
+	// Same reason the death path needs this: CurrentWeapon/SecondaryWeapon hold live durability and
+	// magazine-ammo state that only exists on the AZSWeapon actor, not yet written back into the
+	// CarrySlots instance Server_ExtractAllItems below is about to bank verbatim. Skipping this would
+	// bank a stale-condition weapon and leak the AZSWeapon actor exactly like the death path once did.
+	FlushAndDestroyEquippedWeapons();
+
 	// Banks to the hub stash BEFORE Server_LeaveRaidAndReturnToHub destroys this pawn below -
 	// UZSHubSubsystem::DepositItemsToStash is what makes "extract" mean something different from
 	// "die" (Server_HandleDeathLootAndZombie drops the same CarrySlots contents into the zone
@@ -2540,8 +2552,10 @@ void AZSPlayerCharacter::Server_RequestExtraction()
 	{
 		if (UZSHubSubsystem* Hub = GI->GetSubsystem<UZSHubSubsystem>())
 		{
+			// OQ-BH-02 (resolved 2026-08-28): the stash is per-player now, not one shared pool - the
+			// extracting player's own PlayerState is the identity UZSHubSubsystem keys on.
 			const TArray<FZSItemInstance> ExtractedItems = InventoryComponent ? InventoryComponent->Server_ExtractAllItems() : TArray<FZSItemInstance>();
-			Hub->DepositItemsToStash(ExtractedItems);
+			Hub->DepositItemsToStash(GetPlayerState(), ExtractedItems);
 			UE_LOG(LogZombieShooter, Log, TEXT("%s: extraction successful, %d item(s) banked to hub stash"), *GetName(), ExtractedItems.Num());
 		}
 	}

@@ -10,8 +10,8 @@
 
 - [x] B1's widget/modal-stack architecture exists in code (`UZSUserWidgetBase`, `UZSUIManager`) — BH's screens reuse this directly, no parallel UI system needed. B1 does not need to be fully PIE-verified first.
 - [x] CR-13 confirmed: a secure stash exists at the hub, never tied to character death (`GameDevPlan.md` Decision 7).
-- [ ] **OQ-BH-01 (BLOCKING)** — is the hub a walkable 3D space (vendor NPCs as physical interactables) or a menu-driven screen flow (no level at all)? Determines whether `BH-T6` is a content task or doesn't exist. `GameDevPlan.md`'s own pivot Q&A left this open ("Safe hub outside the zone" was chosen over "physical NPCs in the raid zone," but walkable-vs-menu for the hub itself was never asked).
-- [ ] **OQ-BH-02 (BLOCKING)** — per-player or shared stash in a hosted co-op world? `UZSHubSubsystem`'s own header comment already flags this as unresolved: today every caller on one game instance shares the one stash, correct for a solo host, not yet correct for distinguishing multiple remote players' own separate stashes.
+- [x] **OQ-BH-01 (BLOCKING)** — ✅ RESOLVED 2026-08-28: **menu-driven screen flow, no hub level at all.** `BH-T6` is now `T6.1-alt` only.
+- [x] **OQ-BH-02 (BLOCKING)** — ✅ RESOLVED 2026-08-28: **per-player stash**, not shared per game instance. `UZSHubSubsystem`'s `Currency`/`Stash` need to key off the requesting player, not be one flat pool — real work, not yet built (see `BH-T1.4` below).
 - [ ] **OQ-BH-03 (SEQUENCEABLE)** — starting currency for a fresh mercenary, and the first vendor's price scale. Needed before `BH-T2` can be tuned, not before it can be built.
 
 ## Exit criteria
@@ -35,6 +35,7 @@
 | T1.1 | ✅ **Done, 2026-08-27.** `UZSHubSubsystem` (`UGameInstanceSubsystem`) — `Currency` (int64), `Stash` (`TArray<FZSItemInstance>`), `AddCurrency`/`TrySpendCurrency`/`DepositItemsToStash`/`WithdrawFromStash`, `OnHubStateChanged` delegate. Automation-tested (`ZS.Hub.StashDepositWithdrawAndCurrency`). |
 | T1.2 | Real disk persistence — **blocked on `B3`**, no `UZSSaveGameSubsystem` exists yet anywhere in this project. Until then, hub state is in-memory only for the lifetime of one running game instance (matches the "content gap, no-op gracefully" pattern used throughout this codebase). Do not build a bespoke save path here that `B3` would have to unwind later. |
 | T1.3 | Starting currency for a fresh mercenary tuned and added to `TuningReference.md` (`OQ-BH-03`). |
+| T1.4 | ✅ **Done, 2026-08-28.** Every `UZSHubSubsystem` function now takes an `APlayerState* Player` parameter and keys off a `TMap<TWeakObjectPtr<APlayerState>, FZSPlayerHubData>` internally (`GetOrCreatePlayerData`, lazily seeding `StartingCurrency` on a player's first touch) - a hosted co-op raid now gives each connected player their own separate stash/currency, not a shared pool. `Server_RequestExtraction` passes `GetPlayerState()`. `OnHubStateChanged` now carries the affected player so a future per-player UI doesn't refresh on someone else's transaction. Tests updated (`ZS.Hub.StashDepositWithdrawAndCurrency`/`VendorSellAndBuy`), plus a new assertion confirming a second player's balance is genuinely independent. |
 
 ### BH-T2 — Vendor & economy system · **M**
 
@@ -50,7 +51,7 @@
 | Sub-task | Definition of done |
 |---|---|
 | T3.1 | `UZSContractConfig` data asset — type (Scavenge/Recon/Heist/Retrieve), objective description, reward (currency + skill XP + optional item), a way to express its completion condition data-side (e.g. "extract carrying item X," "extract having visited location tag Y" — exact shape is this task's own design work, not guessed here). |
-| T3.2 | Contract acceptance/tracking — an active-contract list, scoped per the same per-player-vs-shared question `OQ-BH-02` already raises for the stash; answer both together, don't decide them separately. |
+| T3.2 | Contract acceptance/tracking — an active-contract list, per-player (`OQ-BH-02`'s resolution — decided the same way as the stash, per `BH-T1.4`). |
 | T3.3 | **Cross-phase hook into `BR`**: a raid's own lifecycle needs to report objective-relevant events (item picked up, location visited, successful extraction) back to whatever is tracking contract progress. Define this as a real interface now (even a simple one, e.g. a delegate `AZSGameMode` broadcasts on extraction) so `BR` doesn't have to guess at BH's shape later. |
 | T3.4 | Payout on turn-in, back through `BH-T1`'s currency/XP grant path. |
 
@@ -71,12 +72,12 @@
 | T5.4 | Loadout-prep screen — equip from the stash before entering a raid; this is the concrete screen `BR`'s "enter raid" flow opens into. |
 | T5.5 | Currency display, wherever the hub's own persistent HUD/menu chrome lives. |
 
-### BH-T6 — The hub space itself · *size depends on `OQ-BH-01`*
+### BH-T6 — The hub space itself · **RESOLVED 2026-08-28: menu-only, `T6.1` cut**
 
 | Sub-task | Definition of done |
 |---|---|
-| T6.1 | **If walkable (OQ-BH-01 resolves that way)**: a small graybox hub level, vendor NPCs as physical `UZSInteractableComponent`-bearing actors (mirrors `AZSContainerActor`'s existing pattern — no new interaction path needed). |
-| T6.1-alt | **If menu-only**: no level content at all — the hub is a screen flow reached directly from `BR`'s "raid ended" transition. Cheaper, and consistent with `AZSGameMode::Server_ReturnPlayerToHub`'s current honest content-gap stub not yet assuming either answer. |
+| ~~T6.1~~ | ~~Walkable hub level~~ — cut, `OQ-BH-01` resolved menu-driven. |
+| T6.1-alt | **The actual scope now.** No level content at all — the hub is a screen flow reached directly from `BR`'s "raid ended" transition. `AZSGameMode::Server_ReturnPlayerToHub` still needs a real destination to send the departing player's pawn to first (`OQ-BR-01`'s level-streamed private sub-area, `BR-T1.2`) — that destination can be a minimal/empty holding level with no hub geometry, since all real hub interaction happens through `BH-T5`'s UI screens on top of it, not by walking around. |
 
 ---
 
@@ -93,3 +94,4 @@
 - **No historical size basis.** Unlike every other phase in this plan, `BH` has no P0–P10 lineage and no consolidated-changes-doc precedent to size against — the **L** estimate above is a placeholder, same caveat `BV`'s own file states for itself. Re-forecast after `BH-T2` (the first real multi-session task) rather than trusting this number.
 - **Vendor content (rosters, prices, dialogue flavor) is not this phase's job** — `BH` builds the system; populating it with more than one proof-of-concept vendor is `T_ContinuousTracks.md` T4's content-authoring track, same split as every other data-asset-driven system in this project.
 - **Real narrative/vendor-personality content is `B5`'s** (the reframed "Vendor Contracts & Narrative Line" phase) — `BH` owns the mechanism, `B5` owns what a vendor actually says and the investigation-arc contract line (`GameDevPlan.md` Decision 10).
+- **Latent RPC gap to close before `BH-T5` builds real UI, found 2026-08-28 during a logic-verification pass**: every `UZSHubSubsystem` function (`SellStashItemToVendor`, `BuyItemFromVendor`, `DepositItemsToStash`, `WithdrawFromStash`, `AddCurrency`, `TrySpendCurrency`) is a plain `BlueprintCallable` call, not a real `Server`-RPC-gated entry point — fine today since the only caller (`Server_RequestExtraction`) already runs server-side, but if a future hub-UI widget calls one of these directly from a client-owned Blueprint, it wouldn't silently no-op the way `Server_EquipToSlot`'s own pre-fix bug did (`CLAUDE.md`'s UI/ section) — it would actually execute, but against that CLIENT's own separate, empty `UZSHubSubsystem` instance (each game instance has its own), silently diverging from the host's real economy state. `BH-T5` needs the same fix that bug already got: real `Server_SellItemToVendor`/etc. RPC wrappers on `AZSPlayerCharacter` (or equivalent), not direct widget-to-subsystem calls.

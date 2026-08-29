@@ -154,11 +154,11 @@ Stays flexible — a dedicated key (`F` default) or a context-aware dispatch, ei
 
 ## BH — Hub/Hideout & Economy *(new, CR-13, extraction pivot 2026-08-27)*
 
-### OQ-BH-01 — Walkable hub or menu-driven screen flow? 🔴
-Full option tables and reasoning: `BH_HubHideoutEconomy.md` Entry criteria. **No rec yet** — determines whether `BH-T6` is a content task or doesn't exist at all, and what `AZSGameMode::Server_ReturnPlayerToHub` actually transitions to.
+### OQ-BH-01 — Walkable hub or menu-driven screen flow? ✅ RESOLVED 2026-08-28 (dev-confirmed)
+**Menu-driven screens — no hub level content.** "Returning to hub" opens a screen flow (stash/vendor/contract UI, reusing B1's `UZSUserWidgetBase`/`UZSUIManager` modal stack) directly, not a walkable space. `BH-T6` ("the hub space itself") is now scoped to `T6.1-alt` only — `T6.1`'s walkable-hub-level path is cut, not just deprioritized. See OQ-BR-01's resolution below for how this reconciles with a level-streamed transition still being needed mechanically.
 
-### OQ-BH-02 — Per-player or shared stash in a hosted co-op world? 🔴
-`UZSHubSubsystem`'s own header comment already flags this — today every caller on one game instance shares the one stash, correct for a solo host, not yet correct for multiple remote players wanting their own. **No rec yet.**
+### OQ-BH-02 — Per-player or shared stash in a hosted co-op world? ✅ RESOLVED 2026-08-28 (dev-confirmed)
+**Per-player stash.** Each connected client gets its own separate stash/currency, not one shared pool per game instance. Real engineering work still needed: `UZSHubSubsystem`'s `Currency`/`Stash` need to key off the requesting player (`PlayerState` or equivalent) instead of being one flat `GameInstanceSubsystem`-wide pool — not built yet, tracked as the concrete next step on `BH-T1`. `BH-T3.2`'s contract-tracking scope question ("scoped per the same per-player-vs-shared question") is resolved the same way: per-player.
 
 ### OQ-BH-03 — Starting currency and first vendor's price scale 🟡
 **Rec:** pick a provisional number once `BH-T2`'s vendor catalog exists, tune from there — not blocking `BH-T1`/`T2`'s construction, only their content.
@@ -167,14 +167,14 @@ Full option tables and reasoning: `BH_HubHideoutEconomy.md` Entry criteria. **No
 
 ## BR — Raid Lifecycle & Extraction *(new, CR-13, extraction pivot 2026-08-27)*
 
-### OQ-BR-01 — Can one player leave a shared raid without ending it for teammates? 🔴
-`AZSGameMode::Server_ReturnPlayerToHub`'s own code comment already flags this as genuinely undecided at the architecture level (a separate per-player session? a level-streamed private sub-area? something else?), not just unbuilt. **No rec yet — needs its own design session, not an assumption.**
+### OQ-BR-01 — Can one player leave a shared raid without ending it for teammates? ✅ RESOLVED 2026-08-28 (dev-confirmed)
+**Level-streamed private sub-area.** A player who extracts or dies travels into a private streamed level while the shared raid level keeps running for everyone else on the same server. **Reconciled with OQ-BH-01's "menu-driven, no hub level" answer**: the private sub-area this streams into doesn't need to be a rich walkable space — it can be a minimal/empty holding level whose only job is to host the departing player's pawn while the menu-driven hub UI runs on top of it. The level-streaming mechanism and the hub's own content are two separate questions; this resolution is my synthesis of the two answers, not independently dev-confirmed as a single statement — flag if that reconciliation isn't what's intended. `AZSGameMode::Server_ReturnPlayerToHub` is the one call site that needs to change from its current `RestartPlayer`-in-place fallback to this real mechanism (`BR-T1.2`).
 
 ### OQ-BR-02 — Should extraction have a delay/channel time? 🟡
 **Rec: yes, a short interruptible channel** (broken by taking damage) — an instant, uninterruptible extract undermines the genre's "the last moments of a raid are the tensest" pattern. Needs a real decision, not an assumption either way.
 
-### OQ-BR-03 — Does entering the zone reload the level, or does it stay persistently loaded? 🔴
-**The single highest-leverage open question in the whole `BR`/`B3`/`B4X` cluster.** A level-reload model reseeds loot/zombie state for free but requires dropped-loot persistence to survive across reloads via real save data (a `B3` dependency, sooner than `B3` otherwise needs to exist). A persistently-loaded zone needs an explicit re-roll entry point built into every reseeded system (`AZSContainerActor` included) instead. **No rec yet — resolve in the same session as `OQ-BR-01`, not separately, since both shape the same underlying session-lifecycle architecture.**
+### OQ-BR-03 — Does entering the zone reload the level, or does it stay persistently loaded? ✅ RESOLVED 2026-08-28 (dev-confirmed)
+**Level reload each raid entry.** Reseeds loot/zombie/hostile state for free via a fresh level load. **Consequence, already flagged when this was open:** dropped-loot persistence now needs to survive across reloads via real save data — this pulls a slice of `B3` (Persistence) forward sooner than `B3` would otherwise need to exist, since "loot stays where it fell across raids" (already a confirmed CR-13 requirement) can't be true across a level reload without saving it first. `BR-T3`'s raid-reseed task should build against this model, not the persistent-zone alternative.
 
 ---
 
@@ -242,8 +242,8 @@ Full option tables and reasoning: `BH_HubHideoutEconomy.md` Entry criteria. **No
 
 ## BF — Human Hostile AI Faction *(new, CR-13, extraction pivot 2026-08-27 — promotes `GameDevPlan.md` Decision 5 from deferred to core)*
 
-### OQ-BF-01 — What does "guard" behavior actually mean? 🔴 *(blocking `BF-T2`, not `BF-T1`)*
-Hold a fixed point and never move? Patrol a short route? Investigate noise like a zombie does? Needs its own design+implementation pass, the same shape as `OQ-B4-12`'s zombie-behavior session. **No rec yet.**
+### OQ-BF-01 — What does "guard" behavior actually mean? ✅ RESOLVED 2026-08-28 (dev-confirmed)
+**Investigate noise like a zombie does.** A hostile reacts to `UZSNoiseSystem` events (gunfire, sprinting) by moving to investigate, the same behavior shape `BT_Zombie` already has — not a fixed patrol route. Consequence for `BF-T2`'s task breakdown: `T2.3` (investigate-noise) is now the primary defining "guard" behavior, not a secondary addition alongside patrol; `T2.2`'s "guard-point/patrol-route" framing is superseded by this answer rather than run alongside it — a guard's default state is holding position (already built, `BF-T1.2`'s stationary fallback) until noise or sight gives it something to investigate, mirroring zombie AI's own wander/investigate/chase shape rather than inventing a separate patrol system.
 
 ### OQ-BF-02 — One hostile archetype for beta, or roster variety? 🟡
 Mirrors `OQ-B7-03`'s zombie-roster question. **Rec: start with one, add a second (heavier heist-guard variant) only if content time allows** — the multi-config rule makes a second archetype cheap once the first is proven.
@@ -510,13 +510,10 @@ Dev's stated goals: a safe voluntary way to leave, a safe respawn back in, and *
 | **OQ-B6-04** Background roster | Confirmed: generic, data-driven system, build now (`B6-Sys`). | The actual roster/names — dev's own list, later (`B6-Content`). |
 | **OQ-B10-04** Disconnect handling | Dev's goals stated (safe exit/respawn, no combat-log exploit); a proposal is drafted above. | Needs a go/no-go on the proposed anti-exploit design. |
 
-**🔴 Still BLOCKING (10)** — resolve before the named phase starts.
+**🔴 Still BLOCKING (5)** — resolve before the named phase starts. All 5 CR-13 (BH/BR/BF) BLOCKING items were resolved 2026-08-28 — see `OQ-BH-01`/`OQ-BH-02`/`OQ-BR-01`/`OQ-BR-03`/`OQ-BF-01` above.
 
 | Phase | Questions |
 |---|---|
-| Before `BH` full implementation | `OQ-BH-01` (walkable hub vs. menu flow), `OQ-BH-02` (per-player vs. shared stash) |
-| Before `BR` full implementation | `OQ-BR-01` (can a player leave a shared raid solo?), `OQ-BR-03` (level-reload vs. persistently-loaded zone) |
-| Before `BF-T2` | `OQ-BF-01` (what "guard" behavior means) — does not block `BF-T1`'s character/controller/combat skeleton |
 | Before B5 | OQ-B5-04 (event roster count — genuinely still open, tone also open) |
 | Before B7 | OQ-B7-01 (horde-coordination *approach* — still gated on profiling measurements, ambition is confirmed but the technical answer isn't) |
 | Before B8 | OQ-B8-01, OQ-B8-02 (budget numbers — re-baselined for 4+ players, but still pending actual measurement) |

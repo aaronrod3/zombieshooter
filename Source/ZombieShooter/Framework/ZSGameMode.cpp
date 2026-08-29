@@ -76,6 +76,15 @@ void AZSGameMode::Logout(AController* Exiting)
 	}
 
 	Super::Logout(Exiting);
+
+	// OQ-BR-01 edge case: a player who disconnects outright (rather than dying or extracting first)
+	// still needs to be able to end the raid if they were the last one with a living pawn in it -
+	// otherwise the raid could get stuck never reseeding. Checked after Super::Logout so PlayerArray
+	// no longer includes Exiting (IsRaidOver's own scan would otherwise still count them).
+	if (AZSGameState* ZSGameState = GetGameState<AZSGameState>())
+	{
+		ZSGameState->Server_CheckRaidEndAndReset();
+	}
 }
 
 void AZSGameMode::Server_ReturnPlayerToHub(AController* PlayerController, bool bWasExtraction)
@@ -85,17 +94,23 @@ void AZSGameMode::Server_ReturnPlayerToHub(AController* PlayerController, bool b
 		return;
 	}
 
-	// BR content gap: sending just one departing player to a real separate hub space, while the
-	// raid keeps running for whoever's left, isn't a plain engine travel call the way the old
-	// single-player-world RestartPlayer flow was - ServerTravel would move every connected player,
-	// not just this one, and no hub level/PlayerStart exists to travel to yet regardless. That's a
-	// real BH/BR design question (a genuinely separate per-player session? a level-streamed private
-	// sub-area of the same persistent level? something else?), not guessed here. Until it's
-	// resolved, this falls back to the exact pre-pivot behavior (respawn a fresh pawn at a
-	// PlayerStart in the same raid zone via RestartPlayer) for both death and extraction alike, so a
-	// raid never leaves a connected player with no pawn at all. This is the one call site that
-	// needs to change once a real hub exists.
-	UE_LOG(LogZombieShooter, Log, TEXT("Server_ReturnPlayerToHub: %s (bWasExtraction=%s) - no hub content yet, falling back to in-zone respawn"), *PlayerController->GetName(), bWasExtraction ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogZombieShooter, Log, TEXT("Server_ReturnPlayerToHub: %s (bWasExtraction=%s)"), *PlayerController->GetName(), bWasExtraction ? TEXT("true") : TEXT("false"));
 
-	RestartPlayer(PlayerController);
+	if (!bWasExtraction)
+	{
+		// Died: spectate the rest of the party until the raid ends (OQ-BR-01, resolved 2026-08-28)
+		// rather than respawning a fresh character into the same still-running raid. An extracted
+		// player is already pawn-less by the time this runs (Server_LeaveRaidAndReturnToHub destroyed
+		// their pawn before calling here) and the hub has no level to travel to (OQ-BH-01), so there's
+		// nothing further to do for that half.
+		if (APlayerController* PC = Cast<APlayerController>(PlayerController))
+		{
+			PC->StartSpectatingOnly();
+		}
+	}
+
+	if (AZSGameState* ZSGameState = GetGameState<AZSGameState>())
+	{
+		ZSGameState->Server_CheckRaidEndAndReset();
+	}
 }

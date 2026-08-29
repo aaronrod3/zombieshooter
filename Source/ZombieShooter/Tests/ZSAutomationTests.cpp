@@ -18,6 +18,7 @@
 #include "Engine/DamageEvents.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/PlayerState.h"
 
 #include "ZSItemInstance.h"
 #include "ZSItemConfig.h"
@@ -66,6 +67,21 @@ namespace ZSTest
 			WorldContext.SetCurrentWorld(World);
 			World->InitializeActorsForPlay(FURL());
 			World->BeginPlay();
+
+			// 2026-08-28 root cause: InitializeActorsForPlay alone never spawns a GameMode - only a
+			// real map load (UEngine::LoadMap -> UWorld::SetGameMode) does that - so GetAuthGameMode()
+			// stayed null on every test world this suite ever created. APawn::ShouldTakeDamage()
+			// hard-requires a non-null AuthGameMode (`!GetWorld()->GetAuthGameMode()` rejects the
+			// damage outright, before ACharacter/AZombieCharacter/AZSHostileCharacter's own TakeDamage
+			// override even runs), so ANY test calling ->TakeDamage() directly on a Pawn/Character -
+			// rather than routing around it via a component's own Server_ApplyDamage-style entry point
+			// - silently no-opped. UWorld::SetGameMode needs a real (if minimal) UGameInstance to call
+			// through; CreateGameModeForURL falls back to plain AGameModeBase::StaticClass() when no
+			// DefaultGameMode/URL game param is set, so this doesn't need any further setup.
+			UGameInstance* TestGameInstance = NewObject<UGameInstance>();
+			World->SetGameInstance(TestGameInstance);
+			WorldContext.OwningGameInstance = TestGameInstance;
+			World->SetGameMode(FURL());
 		}
 
 		~FScopedTestWorld()
@@ -96,6 +112,13 @@ namespace ZSTest
 		WorldContext.SetCurrentWorld(World);
 		World->InitializeActorsForPlay(FURL());
 		World->BeginPlay();
+
+		// Same fix as FScopedTestWorld's constructor above, same root cause - see that comment.
+		UGameInstance* TestGameInstance = NewObject<UGameInstance>();
+		World->SetGameInstance(TestGameInstance);
+		WorldContext.OwningGameInstance = TestGameInstance;
+		World->SetGameMode(FURL());
+
 		return World;
 	}
 
@@ -368,9 +391,16 @@ bool FZSInventoryBagTest::RunTest(const FString& Parameters)
 
 	// 2026-07-27 fix: a second bag whose own ContainedItems is non-empty must be rejected when
 	// stored into the first bag, not silently truncated.
+	// Filler is a fresh non-stackable config, not FoodConfig again - DA_ZS_ItemConfig_CannedFood is a
+	// real stackable content asset, so a second Server_AddItem(FoodConfig, 1) here would just merge
+	// into the already-retrieved FoodId instance's StackCount instead of minting a second, distinct
+	// instance (root-caused 2026-08-28: this is why "Second food found" below used to come up null -
+	// there never was a second instance to find). This sub-test only needs *some* second item to load
+	// the second bag with, so its identity doesn't need to be food specifically.
+	UZSItemConfig* SecondFillerConfig = NewObject<UZSItemConfig>();
 	const int32 SecondBagAdded = Inventory->Server_AddItem(BagConfig, 1);
-	const int32 SecondFoodAdded = Inventory->Server_AddItem(FoodConfig, 1);
-	if (!TestEqual(TEXT("Second bag added"), SecondBagAdded, 1) || !TestEqual(TEXT("Second food added"), SecondFoodAdded, 1))
+	const int32 SecondFoodAdded = Inventory->Server_AddItem(SecondFillerConfig, 1);
+	if (!TestEqual(TEXT("Second bag added"), SecondBagAdded, 1) || !TestEqual(TEXT("Second filler item added"), SecondFoodAdded, 1))
 	{
 		return false;
 	}
@@ -380,7 +410,7 @@ bool FZSInventoryBagTest::RunTest(const FString& Parameters)
 	for (const FZSItemInstance& Instance : Slots)
 	{
 		if (Instance.Config == BagConfig && Instance.InstanceId != BagId) { SecondBag = &Instance; }
-		if (Instance.Config == FoodConfig && Instance.InstanceId != FoodId) { SecondFood = &Instance; }
+		if (Instance.Config == SecondFillerConfig) { SecondFood = &Instance; }
 	}
 	if (TestNotNull(TEXT("Second bag found"), SecondBag) && TestNotNull(TEXT("Second food found"), SecondFood))
 	{
@@ -1022,11 +1052,16 @@ bool FZSSecondaryWeaponDurabilityWritebackTest::RunTest(const FString& Parameter
 
 // ---------------------------------------------------------------------------------------------
 // Third batch, added 2026-07-28 - latent (time-based) tests. RunTest() only sets up state and
-// queues a latent command; the actual check runs later, after real time has passed, driven by the
-// engine's own per-frame Tick (which also drives FTimerManager for the manually-created test world,
-// since it's a properly registered world context - confirmed empirically, not assumed). Uses
+// queues a latent command; the actual check runs later, after real time has passed. Uses
 // ZSTest::CreateLatentTestWorld/DestroyLatentTestWorld (non-RAII) rather than FScopedTestWorld,
 // since the world must outlive RunTest()'s own return.
+//
+// 2026-08-28 correction: the "engine's own per-frame Tick also drives FTimerManager for this world"
+// claim this comment used to make here was wrong, not just unconfirmed - traced against the actual
+// UE 5.8 engine source (UEditorEngine::Tick only ticks the single Editor-type world context plus any
+// PIE-type ones; this harness's world is EWorldType::Game, which matches neither, so it is never
+// ticked and its FTimerManager never advances on its own). Both latent commands below now pump
+// State->World->GetTimerManager().Tick() manually each poll instead of relying on that.
 // ---------------------------------------------------------------------------------------------
 
 namespace ZSTest
@@ -1037,6 +1072,7 @@ namespace ZSTest
 		UWorld* World = nullptr;
 		TWeakObjectPtr<AZombieCharacter> Zombie;
 		double DeadlineSeconds = 0.0;
+		double LastPollSeconds = 0.0;
 	};
 
 	struct FAmputationShockLatentState
@@ -1045,13 +1081,27 @@ namespace ZSTest
 		UWorld* World = nullptr;
 		TWeakObjectPtr<AZSPlayerCharacter> Character;
 		double DeadlineSeconds = 0.0;
+		double LastPollSeconds = 0.0;
 	};
 }
 
 DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FZSCheckDownedRecoveryCommand, TSharedRef<ZSTest::FDownedRecoveryLatentState>, State);
 bool FZSCheckDownedRecoveryCommand::Update()
 {
-	if (FPlatformTime::Seconds() < State->DeadlineSeconds)
+	// 2026-08-28: root-caused - this harness's UWorld (EWorldType::Game) is never ticked by
+	// UEditorEngine::Tick outside PIE/Editor contexts, so its FTimerManager (what
+	// Server_EnterDownedState's recovery timer depends on) would otherwise never advance no matter
+	// how long this latent command waits in real time - the deadline check below would always see an
+	// un-recovered zombie. Pumping the timer manager manually here, once per poll, with the real
+	// elapsed time since the last poll, is what lets that timer actually fire.
+	const double Now = FPlatformTime::Seconds();
+	if (State->World)
+	{
+		State->World->GetTimerManager().Tick((float)(Now - State->LastPollSeconds));
+	}
+	State->LastPollSeconds = Now;
+
+	if (Now < State->DeadlineSeconds)
 	{
 		return false;
 	}
@@ -1109,6 +1159,7 @@ bool FZSDownedZombieAutoRecoveryTest::RunTest(const FString& Parameters)
 	State->Test = this;
 	State->World = World;
 	State->Zombie = Zombie;
+	State->LastPollSeconds = FPlatformTime::Seconds();
 	State->DeadlineSeconds = FPlatformTime::Seconds() + 7.0; // DownedRecoverySeconds (6s default) + scheduling slack
 
 	ADD_LATENT_AUTOMATION_COMMAND(FZSCheckDownedRecoveryCommand(State));
@@ -1119,7 +1170,15 @@ bool FZSDownedZombieAutoRecoveryTest::RunTest(const FString& Parameters)
 DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FZSCheckAmputationShockCommand, TSharedRef<ZSTest::FAmputationShockLatentState>, State);
 bool FZSCheckAmputationShockCommand::Update()
 {
-	if (FPlatformTime::Seconds() < State->DeadlineSeconds)
+	// Same fix as FZSCheckDownedRecoveryCommand above, same root cause - see that function's comment.
+	const double Now = FPlatformTime::Seconds();
+	if (State->World)
+	{
+		State->World->GetTimerManager().Tick((float)(Now - State->LastPollSeconds));
+	}
+	State->LastPollSeconds = Now;
+
+	if (Now < State->DeadlineSeconds)
 	{
 		return false;
 	}
@@ -1189,6 +1248,7 @@ bool FZSAmputationShockTest::RunTest(const FString& Parameters)
 	State->Test = this;
 	State->World = World;
 	State->Character = Character;
+	State->LastPollSeconds = FPlatformTime::Seconds();
 	State->DeadlineSeconds = FPlatformTime::Seconds() + 4.0; // AmputationDurationSeconds (3s default) + scheduling slack
 
 	ADD_LATENT_AUTOMATION_COMMAND(FZSCheckAmputationShockCommand(State));
@@ -1711,7 +1771,8 @@ bool FZSStoreInBagRejectsSecondaryHandTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* PlainInstance = Inventory->GetCarrySlots().FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
+	const TArray<FZSItemInstance> SlotsAfterPlainItemAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* PlainInstance = SlotsAfterPlainItemAdded.FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
 	if (!TestNotNull(TEXT("Plain item instance found"), PlainInstance))
 	{
 		return false;
@@ -1803,7 +1864,8 @@ bool FZSMoveToSlotRejectsEquippedOrMountedTest::RunTest(const FString& Parameter
 	{
 		return false;
 	}
-	const FZSItemInstance* PlainInstance = Inventory->GetCarrySlots().FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
+	const TArray<FZSItemInstance> SlotsAfterPlainItemAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* PlainInstance = SlotsAfterPlainItemAdded.FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
 	if (!TestNotNull(TEXT("Plain item instance found"), PlainInstance))
 	{
 		return false;
@@ -1868,7 +1930,8 @@ bool FZSMagazineReloadTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* FirstMagInstance = Inventory->GetCarrySlots().FindByPredicate([MagazineConfig](const FZSItemInstance& I) { return I.Config == MagazineConfig; });
+	const TArray<FZSItemInstance> SlotsAfterFirstMagAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* FirstMagInstance = SlotsAfterFirstMagAdded.FindByPredicate([MagazineConfig](const FZSItemInstance& I) { return I.Config == MagazineConfig; });
 	if (!TestNotNull(TEXT("First magazine instance found"), FirstMagInstance))
 	{
 		return false;
@@ -1893,7 +1956,8 @@ bool FZSMagazineReloadTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* SecondMagInstance = Inventory->GetCarrySlots().FindByPredicate(
+	const TArray<FZSItemInstance> SlotsAfterSecondMagAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* SecondMagInstance = SlotsAfterSecondMagAdded.FindByPredicate(
 		[MagazineConfig, FirstMagId](const FZSItemInstance& I) { return I.Config == MagazineConfig && I.InstanceId != FirstMagId; });
 	if (!TestNotNull(TEXT("Second magazine instance found"), SecondMagInstance))
 	{
@@ -2428,7 +2492,8 @@ bool FZSCompartmentCapacityRegressionTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* BackpackInstance = Inventory->GetCarrySlots().FindByPredicate([BackpackConfig](const FZSItemInstance& I) { return I.Config == BackpackConfig; });
+	const TArray<FZSItemInstance> SlotsAfterBackpackAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* BackpackInstance = SlotsAfterBackpackAdded.FindByPredicate([BackpackConfig](const FZSItemInstance& I) { return I.Config == BackpackConfig; });
 	if (!TestNotNull(TEXT("Backpack instance found"), BackpackInstance))
 	{
 		return false;
@@ -2448,7 +2513,8 @@ bool FZSCompartmentCapacityRegressionTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* PlainInstance = Inventory->GetCarrySlots().FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
+	const TArray<FZSItemInstance> SlotsAfterPlainItemAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* PlainInstance = SlotsAfterPlainItemAdded.FindByPredicate([PlainItemConfig](const FZSItemInstance& I) { return I.Config == PlainItemConfig; });
 	if (!TestNotNull(TEXT("Plain item instance found"), PlainInstance))
 	{
 		return false;
@@ -2483,7 +2549,8 @@ bool FZSCompartmentCapacityRegressionTest::RunTest(const FString& Parameters)
 		{
 			return false;
 		}
-		const FZSItemInstance* Filler = Inventory->GetCarrySlots().FindByPredicate([FillerConfig](const FZSItemInstance& I) { return I.Config == FillerConfig; });
+		const TArray<FZSItemInstance> SlotsAfterFillerAdded = Inventory->GetCarrySlots();
+		const FZSItemInstance* Filler = SlotsAfterFillerAdded.FindByPredicate([FillerConfig](const FZSItemInstance& I) { return I.Config == FillerConfig; });
 		if (!TestNotNull(FString::Printf(TEXT("Filler %d instance found"), FillIndex), Filler))
 		{
 			return false;
@@ -2500,7 +2567,8 @@ bool FZSCompartmentCapacityRegressionTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* Overflow = Inventory->GetCarrySlots().FindByPredicate([FillerConfig](const FZSItemInstance& I) { return I.Config == FillerConfig; });
+	const TArray<FZSItemInstance> SlotsAfterOverflowAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* Overflow = SlotsAfterOverflowAdded.FindByPredicate([FillerConfig](const FZSItemInstance& I) { return I.Config == FillerConfig; });
 	if (TestNotNull(TEXT("Overflow instance found"), Overflow))
 	{
 		TestFalse(TEXT("Server_StoreInBag rejects storing into a full Backpack"), Inventory->Server_StoreInBag(BackpackId, Overflow->InstanceId));
@@ -2573,7 +2641,8 @@ bool FZSHelmetForceUnequipsHeadTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* HeadInstance = Inventory->GetCarrySlots().FindByPredicate([HeadConfig](const FZSItemInstance& I) { return I.Config == HeadConfig; });
+	const TArray<FZSItemInstance> SlotsAfterHeadAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* HeadInstance = SlotsAfterHeadAdded.FindByPredicate([HeadConfig](const FZSItemInstance& I) { return I.Config == HeadConfig; });
 	if (!TestNotNull(TEXT("Head instance found"), HeadInstance))
 	{
 		return false;
@@ -2593,7 +2662,8 @@ bool FZSHelmetForceUnequipsHeadTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const FZSItemInstance* HelmetInstance = Inventory->GetCarrySlots().FindByPredicate([HelmetConfig](const FZSItemInstance& I) { return I.Config == HelmetConfig; });
+	const TArray<FZSItemInstance> SlotsAfterHelmetAdded = Inventory->GetCarrySlots();
+	const FZSItemInstance* HelmetInstance = SlotsAfterHelmetAdded.FindByPredicate([HelmetConfig](const FZSItemInstance& I) { return I.Config == HelmetConfig; });
 	if (!TestNotNull(TEXT("Helmet instance found"), HelmetInstance))
 	{
 		return false;
@@ -2840,6 +2910,42 @@ bool FZSSleepReadyCountsTest::RunTest(const FString& Parameters)
 }
 
 // ---------------------------------------------------------------------------------------------
+// ZS.Raid.IsRaidOverEdgeCases - OQ-BR-01 (resolved 2026-08-28: dead players spectate the rest of
+// the party until the raid ends). Same harness limitation FZSSleepReadyCountsTest's own comment
+// already documents applies here too: populating PlayerArray with entries whose GetPawn() actually
+// resolves needs a full Controller::Possess()/PlayerState pawn-linkage chain this offline harness
+// doesn't build (AController::SetPawn alone doesn't update PlayerState's own pawn reference) - so
+// this smoke-tests the edge case that doesn't need any of that (an empty PlayerArray is never
+// "over," matching "nothing to be over"), same scope-limiting precedent as the sleep-ready test.
+// The real multi-player "one alive blocks it, all dead/extracted resolves it" scenario needs either
+// a future harness enhancement or PIE verification, not guessed at here.
+// ---------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FZSIsRaidOverEdgeCasesTest, "ZS.Raid.IsRaidOverEdgeCases", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FZSIsRaidOverEdgeCasesTest::RunTest(const FString& Parameters)
+{
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+
+	AZSGameState* GameState = TestWorld.World->SpawnActor<AZSGameState>();
+	if (!TestNotNull(TEXT("GameState spawned"), GameState))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("An empty PlayerArray is never \"over\" - nothing to be over"), GameState->IsRaidOver());
+
+	// Server_CheckRaidEndAndReset must be a safe no-op here too - it shouldn't crash or reseed
+	// against zero players just because IsRaidOver() is (deliberately) false for that case.
+	GameState->Server_CheckRaidEndAndReset();
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
 // ZS.Inventory.ExtractAllItemsClearsAndReturns - BR (Docs/Beta/00_MasterPlan.md CR-13, extraction
 // pivot 2026-08-27). Server_ExtractAllItems is Server_DropAllItems' extraction counterpart - same
 // full clear (CarrySlots/EquippedSlots/mounts), but hands the removed instances back instead of
@@ -2933,35 +3039,63 @@ bool FZSHubSubsystemTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	TestEqual(TEXT("Starts with zero currency"), Hub->GetCurrency(), (int64)0);
+	// OQ-BH-02 (resolved 2026-08-28): the stash/currency are per-player now, keyed by APlayerState -
+	// a real spawned instance (not a bare NewObject<AActor>) needs a UWorld, hence FScopedTestWorld
+	// here even though the Hub subsystem itself has no world dependency of its own.
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+	APlayerState* Player = TestWorld.World->SpawnActor<APlayerState>();
+	if (!TestNotNull(TEXT("Player spawned"), Player))
+	{
+		return false;
+	}
 
-	Hub->AddCurrency(100);
-	TestEqual(TEXT("Currency after add"), Hub->GetCurrency(), (int64)100);
+	// GetCurrency lazily seeds StartingCurrency on first touch (see UZSHubSubsystem.h) - drain
+	// explicitly to a known baseline rather than assuming a specific StartingCurrency value, so this
+	// test stays correct even if that default is retuned.
+	Hub->TrySpendCurrency(Player, Hub->GetCurrency(Player));
+	TestEqual(TEXT("Starts at a known baseline"), Hub->GetCurrency(Player), (int64)0);
 
-	TestFalse(TEXT("Spending more than available fails"), Hub->TrySpendCurrency(101));
-	TestEqual(TEXT("Currency unchanged after failed spend"), Hub->GetCurrency(), (int64)100);
+	Hub->AddCurrency(Player, 100);
+	TestEqual(TEXT("Currency after add"), Hub->GetCurrency(Player), (int64)100);
 
-	TestTrue(TEXT("Spending within balance succeeds"), Hub->TrySpendCurrency(40));
-	TestEqual(TEXT("Currency after successful spend"), Hub->GetCurrency(), (int64)60);
+	TestFalse(TEXT("Spending more than available fails"), Hub->TrySpendCurrency(Player, 101));
+	TestEqual(TEXT("Currency unchanged after failed spend"), Hub->GetCurrency(Player), (int64)100);
+
+	TestTrue(TEXT("Spending within balance succeeds"), Hub->TrySpendCurrency(Player, 40));
+	TestEqual(TEXT("Currency after successful spend"), Hub->GetCurrency(Player), (int64)60);
 
 	UZSItemConfig* FoodConfig = NewObject<UZSItemConfig>();
 	FZSItemInstance FoodInstance;
 	FoodInstance.InstanceId = FGuid::NewGuid();
 	FoodInstance.Config = FoodConfig;
 
-	Hub->DepositItemsToStash({ FoodInstance });
-	TestEqual(TEXT("Stash holds the deposited item"), Hub->GetStashContents().Num(), 1);
+	Hub->DepositItemsToStash(Player, { FoodInstance });
+	TestEqual(TEXT("Stash holds the deposited item"), Hub->GetStashContents(Player).Num(), 1);
 
 	FZSItemInstance WithdrawnItem;
-	if (!TestTrue(TEXT("Withdraw finds the deposited item"), Hub->WithdrawFromStash(FoodInstance.InstanceId, WithdrawnItem)))
+	if (!TestTrue(TEXT("Withdraw finds the deposited item"), Hub->WithdrawFromStash(Player, FoodInstance.InstanceId, WithdrawnItem)))
 	{
 		return false;
 	}
 	TestEqual(TEXT("Withdrawn instance matches what was deposited"), WithdrawnItem.InstanceId, FoodInstance.InstanceId);
-	TestEqual(TEXT("Stash empty after withdrawal"), Hub->GetStashContents().Num(), 0);
+	TestEqual(TEXT("Stash empty after withdrawal"), Hub->GetStashContents(Player).Num(), 0);
 
 	FZSItemInstance UnusedOut;
-	TestFalse(TEXT("Withdrawing an already-withdrawn item fails"), Hub->WithdrawFromStash(FoodInstance.InstanceId, UnusedOut));
+	TestFalse(TEXT("Withdrawing an already-withdrawn item fails"), Hub->WithdrawFromStash(Player, FoodInstance.InstanceId, UnusedOut));
+
+	// A second player gets their own separate stash/currency, not the first player's - proves
+	// OQ-BH-02's per-player resolution actually holds, not just that the API takes a Player argument.
+	APlayerState* SecondPlayer = TestWorld.World->SpawnActor<APlayerState>();
+	if (TestNotNull(TEXT("Second player spawned"), SecondPlayer))
+	{
+		TestNotEqual(TEXT("A different player's fresh currency isn't the first player's post-spend balance"), Hub->GetCurrency(SecondPlayer), (int64)60);
+		TestEqual(TEXT("A different player's stash is independent, not shared"), Hub->GetStashContents(SecondPlayer).Num(), 0);
+		TestEqual(TEXT("First player's currency untouched by the second player's lookup"), Hub->GetCurrency(Player), (int64)60);
+	}
 
 	return true;
 }
@@ -2984,12 +3118,22 @@ bool FZSVendorEconomyTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	// Initialize() (which seeds StartingCurrency) is only ever called by the real subsystem-collection
-	// lifecycle, which a bare NewObject bypasses entirely - Currency starts at its raw in-class
-	// default (0) here, not StartingCurrency. Draining explicitly rather than assuming that default
-	// keeps this test correct even if that in-class default ever changes.
-	Hub->TrySpendCurrency(Hub->GetCurrency());
-	TestEqual(TEXT("Currency starts at a known baseline"), Hub->GetCurrency(), (int64)0);
+	// OQ-BH-02 (resolved 2026-08-28): stash/currency are per-player, keyed by APlayerState.
+	ZSTest::FScopedTestWorld TestWorld;
+	if (!TestTrue(TEXT("Test world created"), TestWorld.IsValid()))
+	{
+		return false;
+	}
+	APlayerState* Player = TestWorld.World->SpawnActor<APlayerState>();
+	if (!TestNotNull(TEXT("Player spawned"), Player))
+	{
+		return false;
+	}
+
+	// GetCurrency lazily seeds StartingCurrency on first touch - drain explicitly to a known baseline
+	// rather than assuming that default, keeping this test correct even if it's retuned.
+	Hub->TrySpendCurrency(Player, Hub->GetCurrency(Player));
+	TestEqual(TEXT("Currency starts at a known baseline"), Hub->GetCurrency(Player), (int64)0);
 
 	UZSItemConfig* SellableItem = NewObject<UZSItemConfig>();
 	SellableItem->SellValue = 100;
@@ -3007,40 +3151,40 @@ bool FZSVendorEconomyTest::RunTest(const FString& Parameters)
 	ItemToSell.InstanceId = FGuid::NewGuid();
 	ItemToSell.Config = SellableItem;
 	ItemToSell.InstanceState.ConditionQuality = 1.f;
-	Hub->DepositItemsToStash({ ItemToSell });
+	Hub->DepositItemsToStash(Player, { ItemToSell });
 
 	int64 CurrencyEarned = -1;
-	if (!TestTrue(TEXT("Selling a vendor-accepted item succeeds"), Hub->SellStashItemToVendor(ItemToSell.InstanceId, Vendor, CurrencyEarned)))
+	if (!TestTrue(TEXT("Selling a vendor-accepted item succeeds"), Hub->SellStashItemToVendor(Player, ItemToSell.InstanceId, Vendor, CurrencyEarned)))
 	{
 		return false;
 	}
 	TestEqual(TEXT("Sold for SellValue * BuyPriceMultiplier at full condition"), CurrencyEarned, (int64)50);
-	TestEqual(TEXT("Currency credited"), Hub->GetCurrency(), (int64)50);
-	TestEqual(TEXT("Stash no longer holds the sold item"), Hub->GetStashContents().Num(), 0);
+	TestEqual(TEXT("Currency credited"), Hub->GetCurrency(Player), (int64)50);
+	TestEqual(TEXT("Stash no longer holds the sold item"), Hub->GetStashContents(Player).Num(), 0);
 
 	// A vendor won't buy an item with no SellValue authored.
 	UZSItemConfig* UnsellableItem = NewObject<UZSItemConfig>();
 	FZSItemInstance ItemNoValue;
 	ItemNoValue.InstanceId = FGuid::NewGuid();
 	ItemNoValue.Config = UnsellableItem;
-	Hub->DepositItemsToStash({ ItemNoValue });
+	Hub->DepositItemsToStash(Player, { ItemNoValue });
 	int64 UnusedEarned = -1;
-	TestFalse(TEXT("Vendor rejects an item with zero SellValue"), Hub->SellStashItemToVendor(ItemNoValue.InstanceId, Vendor, UnusedEarned));
+	TestFalse(TEXT("Vendor rejects an item with zero SellValue"), Hub->SellStashItemToVendor(Player, ItemNoValue.InstanceId, Vendor, UnusedEarned));
 
 	// --- Buy half: spends currency, mints a fresh instance into the stash --- (50 currency on hand, item costs 40)
 	FZSItemInstance PurchasedInstance;
-	if (!TestTrue(TEXT("Buying the catalog item succeeds"), Hub->BuyItemFromVendor(Vendor, SellableItem, 1, PurchasedInstance)))
+	if (!TestTrue(TEXT("Buying the catalog item succeeds"), Hub->BuyItemFromVendor(Player, Vendor, SellableItem, 1, PurchasedInstance)))
 	{
 		return false;
 	}
-	TestEqual(TEXT("Currency debited by the catalog price"), Hub->GetCurrency(), (int64)10); // 50 - 40
+	TestEqual(TEXT("Currency debited by the catalog price"), Hub->GetCurrency(Player), (int64)10); // 50 - 40
 	TestTrue(TEXT("Purchased instance is valid"), PurchasedInstance.IsValid());
-	TestTrue(TEXT("Purchased instance is now in the stash"), Hub->GetStashContents().ContainsByPredicate([&PurchasedInstance](const FZSItemInstance& I) { return I.InstanceId == PurchasedInstance.InstanceId; }));
+	TestTrue(TEXT("Purchased instance is now in the stash"), Hub->GetStashContents(Player).ContainsByPredicate([&PurchasedInstance](const FZSItemInstance& I) { return I.InstanceId == PurchasedInstance.InstanceId; }));
 
 	// Insufficient funds: 10 currency left, item costs 40.
 	FZSItemInstance UnusedPurchase;
-	TestFalse(TEXT("Buying without enough currency fails, nothing charged"), Hub->BuyItemFromVendor(Vendor, SellableItem, 1, UnusedPurchase));
-	TestEqual(TEXT("Currency unchanged after failed purchase"), Hub->GetCurrency(), (int64)10);
+	TestFalse(TEXT("Buying without enough currency fails, nothing charged"), Hub->BuyItemFromVendor(Player, Vendor, SellableItem, 1, UnusedPurchase));
+	TestEqual(TEXT("Currency unchanged after failed purchase"), Hub->GetCurrency(Player), (int64)10);
 
 	return true;
 }

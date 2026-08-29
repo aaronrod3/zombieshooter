@@ -3,56 +3,93 @@
 #include "ZSHubSubsystem.h"
 #include "ZSVendorConfig.h"
 #include "../Survival/ZSItemConfig.h"
+#include "GameFramework/PlayerState.h"
 
-void UZSHubSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+FZSPlayerHubData* UZSHubSubsystem::GetOrCreatePlayerData(APlayerState* Player)
 {
-	Super::Initialize(Collection);
+	if (!Player)
+	{
+		return nullptr;
+	}
 
-	Currency = StartingCurrency;
+	if (FZSPlayerHubData* Existing = PerPlayerData.Find(Player))
+	{
+		return Existing;
+	}
+
+	FZSPlayerHubData& NewData = PerPlayerData.Add(Player);
+	NewData.Currency = StartingCurrency;
+	return &NewData;
 }
 
-void UZSHubSubsystem::AddCurrency(int64 Amount)
+int64 UZSHubSubsystem::GetCurrency(APlayerState* Player)
+{
+	const FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	return Data ? Data->Currency : 0;
+}
+
+void UZSHubSubsystem::AddCurrency(APlayerState* Player, int64 Amount)
 {
 	if (Amount <= 0)
 	{
 		return;
 	}
 
-	Currency += Amount;
-	OnHubStateChanged.Broadcast();
+	FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	if (!Data)
+	{
+		return;
+	}
+
+	Data->Currency += Amount;
+	OnHubStateChanged.Broadcast(Player);
 }
 
-bool UZSHubSubsystem::TrySpendCurrency(int64 Amount)
+bool UZSHubSubsystem::TrySpendCurrency(APlayerState* Player, int64 Amount)
 {
-	if (Amount <= 0 || Amount > Currency)
+	FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	if (!Data || Amount <= 0 || Amount > Data->Currency)
 	{
 		return false;
 	}
 
-	Currency -= Amount;
-	OnHubStateChanged.Broadcast();
+	Data->Currency -= Amount;
+	OnHubStateChanged.Broadcast(Player);
 	return true;
 }
 
-void UZSHubSubsystem::DepositItemsToStash(const TArray<FZSItemInstance>& Items)
+TArray<FZSItemInstance> UZSHubSubsystem::GetStashContents(APlayerState* Player)
+{
+	const FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	return Data ? Data->Stash : TArray<FZSItemInstance>();
+}
+
+void UZSHubSubsystem::DepositItemsToStash(APlayerState* Player, const TArray<FZSItemInstance>& Items)
 {
 	if (Items.Num() == 0)
 	{
 		return;
 	}
 
-	Stash.Append(Items);
-	OnHubStateChanged.Broadcast();
+	FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	if (!Data)
+	{
+		return;
+	}
+
+	Data->Stash.Append(Items);
+	OnHubStateChanged.Broadcast(Player);
 }
 
-bool UZSHubSubsystem::WithdrawFromStash(FGuid InstanceId, FZSItemInstance& OutItem)
+bool UZSHubSubsystem::WithdrawFromStash(APlayerState* Player, FGuid InstanceId, FZSItemInstance& OutItem)
 {
-	if (!InstanceId.IsValid())
+	FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	if (!Data || !InstanceId.IsValid())
 	{
 		return false;
 	}
 
-	const int32 FoundIndex = Stash.IndexOfByPredicate([InstanceId](const FZSItemInstance& Item)
+	const int32 FoundIndex = Data->Stash.IndexOfByPredicate([InstanceId](const FZSItemInstance& Item)
 	{
 		return Item.InstanceId == InstanceId;
 	});
@@ -62,22 +99,23 @@ bool UZSHubSubsystem::WithdrawFromStash(FGuid InstanceId, FZSItemInstance& OutIt
 		return false;
 	}
 
-	OutItem = Stash[FoundIndex];
-	Stash.RemoveAt(FoundIndex);
-	OnHubStateChanged.Broadcast();
+	OutItem = Data->Stash[FoundIndex];
+	Data->Stash.RemoveAt(FoundIndex);
+	OnHubStateChanged.Broadcast(Player);
 	return true;
 }
 
-bool UZSHubSubsystem::SellStashItemToVendor(FGuid InstanceId, const UZSVendorConfig* Vendor, int64& OutCurrencyEarned)
+bool UZSHubSubsystem::SellStashItemToVendor(APlayerState* Player, FGuid InstanceId, const UZSVendorConfig* Vendor, int64& OutCurrencyEarned)
 {
 	OutCurrencyEarned = 0;
 
-	if (!Vendor || !InstanceId.IsValid())
+	FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	if (!Data || !Vendor || !InstanceId.IsValid())
 	{
 		return false;
 	}
 
-	const int32 FoundIndex = Stash.IndexOfByPredicate([InstanceId](const FZSItemInstance& Item)
+	const int32 FoundIndex = Data->Stash.IndexOfByPredicate([InstanceId](const FZSItemInstance& Item)
 	{
 		return Item.InstanceId == InstanceId;
 	});
@@ -87,7 +125,7 @@ bool UZSHubSubsystem::SellStashItemToVendor(FGuid InstanceId, const UZSVendorCon
 		return false;
 	}
 
-	const FZSItemInstance& Item = Stash[FoundIndex];
+	const FZSItemInstance& Item = Data->Stash[FoundIndex];
 	if (!Vendor->WillBuyItem(Item.Config))
 	{
 		return false;
@@ -101,17 +139,18 @@ bool UZSHubSubsystem::SellStashItemToVendor(FGuid InstanceId, const UZSVendorCon
 
 	OutCurrencyEarned = FMath::Max<int64>(0, FMath::RoundToInt64((double)Item.Config->SellValue * ValueScale * Vendor->BuyPriceMultiplier));
 
-	Stash.RemoveAt(FoundIndex);
-	Currency += OutCurrencyEarned;
-	OnHubStateChanged.Broadcast();
+	Data->Stash.RemoveAt(FoundIndex);
+	Data->Currency += OutCurrencyEarned;
+	OnHubStateChanged.Broadcast(Player);
 	return true;
 }
 
-bool UZSHubSubsystem::BuyItemFromVendor(const UZSVendorConfig* Vendor, UZSItemConfig* Item, int32 Count, FZSItemInstance& OutPurchasedInstance)
+bool UZSHubSubsystem::BuyItemFromVendor(APlayerState* Player, const UZSVendorConfig* Vendor, UZSItemConfig* Item, int32 Count, FZSItemInstance& OutPurchasedInstance)
 {
 	OutPurchasedInstance = FZSItemInstance();
 
-	if (!Vendor || !Item || Count <= 0)
+	FZSPlayerHubData* Data = GetOrCreatePlayerData(Player);
+	if (!Data || !Vendor || !Item || Count <= 0)
 	{
 		return false;
 	}
@@ -126,7 +165,7 @@ bool UZSHubSubsystem::BuyItemFromVendor(const UZSVendorConfig* Vendor, UZSItemCo
 		return false;
 	}
 
-	if (!TrySpendCurrency(CatalogEntry->Price * (int64)Count))
+	if (!TrySpendCurrency(Player, CatalogEntry->Price * (int64)Count))
 	{
 		return false;
 	}
@@ -137,7 +176,7 @@ bool UZSHubSubsystem::BuyItemFromVendor(const UZSVendorConfig* Vendor, UZSItemCo
 	const int32 StackSize = FMath::Max(Item->MaxStackSize, 1);
 	int32 Remaining = Count;
 
-	for (FZSItemInstance& Existing : Stash)
+	for (FZSItemInstance& Existing : Data->Stash)
 	{
 		if (Remaining <= 0)
 		{
@@ -158,11 +197,11 @@ bool UZSHubSubsystem::BuyItemFromVendor(const UZSVendorConfig* Vendor, UZSItemCo
 		NewInstance.InstanceId = FGuid::NewGuid();
 		NewInstance.Config = Item;
 		NewInstance.StackCount = FMath::Min(Remaining, StackSize);
-		Stash.Add(NewInstance);
+		Data->Stash.Add(NewInstance);
 		Remaining -= NewInstance.StackCount;
 		OutPurchasedInstance = NewInstance;
 	}
 
-	OnHubStateChanged.Broadcast();
+	OnHubStateChanged.Broadcast(Player);
 	return true;
 }

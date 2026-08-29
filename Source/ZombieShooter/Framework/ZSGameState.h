@@ -173,6 +173,14 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ZS|Raid")
 	FZSOnRaidReseedApplied OnRaidReseedApplied;
 
+	/** OQ-BR-01 (resolved 2026-08-28): true once no connected player has a living pawn in the raid - everyone still connected has either died (and is spectating, per AZSPlayerCharacter::Server_EnterSpectatorAfterDeath/AZSGameMode::Server_ReturnPlayerToHub) or extracted (and is pawn-less, at the hub). Same PlayerArray-scan shape as UpdateSleepRequestState's readiness aggregation above - this is the one place with visibility over every connected player. False for an empty PlayerArray (nothing to be "over"). */
+	UFUNCTION(BlueprintPure, Category = "ZS|Raid")
+	bool IsRaidOver() const;
+
+	/** Server-only: called after any player dies or extracts (AZSGameMode::Server_ReturnPlayerToHub). If IsRaidOver(), reseeds via Server_StartRaidReseed and brings every spectating player back to a pawn-less "ready for a new raid" state (clears PlayerState::bOnlySpectator and ChangeState(NAME_Playing), which - per APlayerController::ChangeState's own dispatch - runs EndSpectatingState() to destroy their spectator pawn), converging with whoever already extracted into the same waiting state. Deliberately does NOT trigger a real level reload/ServerTravel yet (the literal mechanism OQ-BR-03 originally described) - see this function's own .cpp comment for why that's a follow-up, not done here. No-op off a non-authoritative machine or while the raid isn't actually over. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|Raid")
+	void Server_CheckRaidEndAndReset();
+
 	// ---- B1-T3.10: toast/notification dispatch ----
 
 	/** Server -> every client toast trigger - routes into the receiving client's own UZSNotificationSubsystem (a ULocalPlayerSubsystem, so this multicast just forwards into local queue state; the queue itself is never replicated). Wired so far only from AZSGameMode::PostLogin/Logout (player joined/left) - pickup confirmation and horde-approaching wiring are still open, see B1_UI_UX.md's Manual setup steps. */

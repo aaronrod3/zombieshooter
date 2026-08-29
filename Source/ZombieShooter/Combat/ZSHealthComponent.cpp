@@ -187,17 +187,23 @@ EZSWoundDisplayCondition UZSHealthComponent::GetWoundDisplayCondition(const FZSB
 	{
 		return EZSWoundDisplayCondition::Bleeding;
 	}
+
+	// Beyond bleeding/infection/amputation, only Arms/Legs currently touch a gameplay multiplier at
+	// all - GetMobilityMultiplier/GetAttackSpeedMultiplier/GetReloadSpeedMultiplier/
+	// GetAccuracySpreadMultiplier above all key off Arms/Legs WoundType != None. A Head/Torso wound
+	// (Fracture included) with no active bleed has no mechanical effect yet, so it stays None here -
+	// the Fracture check below must sit behind this same zone gate, not ahead of it.
+	const bool bZoneHasMultiplier = Wound.Zone == EZSBodyZone::Arms || Wound.Zone == EZSBodyZone::Legs;
+	if (!bZoneHasMultiplier)
+	{
+		return EZSWoundDisplayCondition::None;
+	}
+
 	if (Wound.WoundType == EZSWoundType::Fracture)
 	{
 		return EZSWoundDisplayCondition::Fracture;
 	}
-
-	// Beyond bleeding/infection/fracture/amputation, only Arms/Legs currently touch a gameplay
-	// multiplier at all - GetMobilityMultiplier/GetAttackSpeedMultiplier/GetReloadSpeedMultiplier/
-	// GetAccuracySpreadMultiplier above all key off Arms/Legs WoundType != None. A Head/Torso wound
-	// with no active bleed has no mechanical effect yet, so it stays None here.
-	const bool bZoneHasMultiplier = Wound.Zone == EZSBodyZone::Arms || Wound.Zone == EZSBodyZone::Legs;
-	if (bZoneHasMultiplier && Wound.WoundType != EZSWoundType::None)
+	if (Wound.WoundType != EZSWoundType::None)
 	{
 		return EZSWoundDisplayCondition::Wounded;
 	}
@@ -697,7 +703,7 @@ void UZSHealthComponent::TickInfection(float DeltaTime)
 
 void UZSHealthComponent::TickFractureRecovery(float DeltaTime)
 {
-	if (!HealthConfig || bIsDowned)
+	if (!HealthConfig || bIsDead || bIsDowned)
 	{
 		return;
 	}
@@ -752,7 +758,7 @@ void UZSHealthComponent::TickFractureRecovery(float DeltaTime)
 
 void UZSHealthComponent::TickWoundInfection(float DeltaTime)
 {
-	if (!HealthConfig || bIsDowned)
+	if (!HealthConfig || bIsDead || bIsDowned)
 	{
 		return;
 	}

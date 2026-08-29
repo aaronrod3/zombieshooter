@@ -3,6 +3,7 @@
 #include "ZSGameState.h"
 #include "ZombieShooter/Player/ZSPlayerCharacter.h"
 #include "ZombieShooter/Survival/ZSNeedsComponent.h"
+#include "ZombieShooter/Combat/ZSHealthComponent.h"
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/LocalPlayer.h"
@@ -297,6 +298,55 @@ void AZSGameState::Server_StartRaidReseed()
 void AZSGameState::OnRep_RaidUtilitiesHazardActive()
 {
 	OnRaidReseedApplied.Broadcast();
+}
+
+bool AZSGameState::IsRaidOver() const
+{
+	if (PlayerArray.Num() == 0)
+	{
+		return false;
+	}
+
+	for (const APlayerState* PS : PlayerArray)
+	{
+		const AZSPlayerCharacter* PlayerCharacter = PS ? Cast<AZSPlayerCharacter>(PS->GetPawn()) : nullptr;
+		if (PlayerCharacter && PlayerCharacter->GetHealthComponent() && !PlayerCharacter->GetHealthComponent()->IsDead())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void AZSGameState::Server_CheckRaidEndAndReset()
+{
+	if (!HasAuthority() || !IsRaidOver())
+	{
+		return;
+	}
+
+	Server_StartRaidReseed();
+
+	// A real level reload/ServerTravel (the literal mechanism OQ-BR-03 originally described) is
+	// deliberately not triggered here yet: it's genuinely untestable without a multi-client PIE
+	// session (dev-hands-only, per CLAUDE.md), it's disruptive to every connected client, and B4X's
+	// real reseeded content (zombie/container placement) doesn't exist yet to actually benefit from
+	// one. This does the safe, verifiable-by-reading-the-code half instead - reseed in place, and
+	// bring every spectating player back to a pawn-less "ready for a new raid" state, same state
+	// whoever already extracted is already sitting in.
+	for (APlayerState* PS : PlayerArray)
+	{
+		APlayerController* PC = PS ? PS->GetPlayerController() : nullptr;
+		if (PC && PC->GetStateName() == NAME_Spectating)
+		{
+			// Clear this before ChangeState - EndSpectatingState (run by ChangeState's own dispatch)
+			// warns loudly if bOnlyASpectator is still true when leaving Spectating, since that flag
+			// normally means "permanently an observer, never expected to play again."
+			PS->SetIsOnlyASpectator(false);
+			PC->ChangeState(NAME_Playing);
+		}
+	}
 }
 
 void AZSGameState::Multicast_ShowToast_Implementation(const FText& Message, EZSToastType Type)

@@ -269,7 +269,18 @@ bool AZSWeapon::FindBestCompatibleMagazine(FGuid& OutInstanceId, int32& OutAmmoC
 
 bool AZSWeapon::CanReload() const
 {
-	if (!CurrentConfig || !CurrentConfig->AmmoItemConfig || CurrentMagazineAmmo >= CurrentConfig->MagazineCapacity)
+	if (!CurrentConfig || !CurrentConfig->AmmoItemConfig)
+	{
+		return false;
+	}
+
+	// CurrentMagazineInstanceId stays invalid until the first real reload - a freshly-equipped
+	// weapon starts with phantom full ammo (InitializeFromConfig seeds CurrentMagazineAmmo =
+	// MagazineCapacity with no real carried magazine loaded yet), which used to be indistinguishable
+	// from "a real magazine is already loaded and full" and blocked reloading at all until the
+	// player fired at least one shot. Only short-circuit on "already full" once a real magazine is
+	// actually the one that's loaded.
+	if (CurrentMagazineInstanceId.IsValid() && CurrentMagazineAmmo >= CurrentConfig->MagazineCapacity)
 	{
 		return false;
 	}

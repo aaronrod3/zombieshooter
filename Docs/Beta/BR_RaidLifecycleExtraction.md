@@ -4,14 +4,14 @@
 
 > **New phase, CR-13 (`00_MasterPlan.md` §2, extraction pivot 2026-08-27).** The other new half of the hub-and-raid loop: how a raid starts, reseeds, and ends (by extraction or by death). First code landed the same day as the pivot — `AZSExtractionPointActor`, `AZSPlayerCharacter::Server_RequestExtraction`/`Server_LeaveRaidAndReturnToHub`, `AZSGameMode::Server_ReturnPlayerToHub`, `AZSGameState::Server_StartRaidReseed` — all additive, all deliberately stopping at an honest content/architecture gap rather than guessing past one. This file is the scoping pass, per `02_MasterWorkflow.md` §3 Step 3.
 >
-> **The single highest-leverage open question in this phase is `OQ-BR-03`** (does entering the zone mean a level reload, or does the zone stay persistently loaded?) — it isn't answered yet, and a wrong guess here would ripple into `B3`'s save topology and `B4X`'s content architecture. Resolve it before building `BR-T3`'s reseed mechanism out further than what already exists.
+> **`OQ-BR-03` and `OQ-BR-01`, the two highest-leverage open questions in this phase, were both resolved 2026-08-28** (level reload each raid entry; level-streamed private sub-area for a solo leave/death) — see Entry criteria below. Neither is implemented yet; `BR-T1.2`/`T3.2` are the concrete next steps.
 
 ## Entry criteria
 
 - [x] `BH-T1` (stash/currency backend) exists — extraction has somewhere real to bank loot.
-- [ ] **OQ-BR-01 (BLOCKING)** — can one player leave a shared listen-server raid (by extracting or dying) without ending the session for teammates still playing? `AZSGameMode::Server_ReturnPlayerToHub`'s own code comment already flags this as genuinely undecided at the architecture level, not just unbuilt.
-- [ ] **OQ-BR-03 (BLOCKING)** — does a fresh raid entry mean a level reload (clean reseed, but dropped-loot persistence must survive across reloads via save data — a `B3` dependency) or does the zone stay continuously loaded (reseed needs an explicit re-roll call against live actors, no reload)? This determines the actual shape of `BR-T3`.
-- [ ] `OQ-BH-01` answered — walkable-vs-menu hub determines what "return to hub" literally transitions to.
+- [x] **OQ-BR-01 (BLOCKING)** — ✅ RESOLVED and IMPLEMENTED 2026-08-28, superseding the "level-streamed private sub-area" framing below with something simpler the dev proposed directly: **a player who dies spectates the rest of the party until the raid ends (everyone else also dies or extracts); an extracted player is already pawn-less and goes straight to the (menu-driven, `OQ-BH-01`) hub UI.** No level travel needed for either case — both stay connected to the same raid level, just without a pawn in it. This also resolves `OQ-BR-03` differently than originally framed: since nobody with an active gameplay stake is ever disturbed, a real level reload becomes safe to trigger at exactly one moment — when the raid is over for everyone (`AZSGameState::IsRaidOver`/`Server_CheckRaidEndAndReset`, `AZSGameMode::Server_ReturnPlayerToHub`) — not per-player, on demand. See BR-T1.2 below for what's actually built vs. still deferred (a real `ServerTravel` reload is NOT part of this yet, on purpose).
+- [x] **OQ-BR-03 (BLOCKING)** — ✅ RESOLVED 2026-08-28, reframed by the same discussion that resolved `OQ-BR-01` above: the level reload now happens once, at whole-raid-end (last living player dies or extracts), not per-player on demand. Consequence unchanged: dropped-loot persistence across raids (already a confirmed CR-13 requirement) needs real save data to survive that reload once it's actually implemented, pulling a slice of `B3` forward. `BR-T3` builds against this model. The reload itself is not yet implemented (`Server_CheckRaidEndAndReset` currently reseeds in place via `Server_StartRaidReseed`, not a real `ServerTravel` — see BR-T1.2's own note on why that's deliberately deferred).
+- [x] `OQ-BH-01` answered — ✅ menu-driven, no hub level.
 
 ## Exit criteria
 
@@ -31,7 +31,7 @@
 | Sub-task | Definition of done |
 |---|---|
 | T1.1 | ✅ **Done, 2026-08-27.** `Server_RequestExtraction`, the shared `Server_LeaveRaidAndReturnToHub(bool bWasExtraction)`, and `AZSGameMode::Server_ReturnPlayerToHub` hook — currently falls back to the pre-pivot in-zone `RestartPlayer` for both death and extraction, by design, until `OQ-BR-01`/`OQ-BH-01` are answered. |
-| T1.2 | Resolve `OQ-BR-01` and implement the real hub-transition mechanism once it's answered — this is the one call site (`Server_ReturnPlayerToHub`) that needs to change. |
+| T1.2 | ✅ **Done, 2026-08-28.** `AZSGameMode::Server_ReturnPlayerToHub` now branches on `bWasExtraction`: death calls `APlayerController::StartSpectatingOnly()` (built-in engine spectator mode, watching the rest of the party); extraction does nothing further (already pawn-less). Either way it calls the new `AZSGameState::Server_CheckRaidEndAndReset()`, which (via `IsRaidOver()` — a `PlayerArray` scan mirroring `UpdateSleepRequestState`'s own pattern) reseeds (`Server_StartRaidReseed`) and releases every spectating player back to a pawn-less "ready" `NAME_Playing` state once nobody has a living pawn left. **Deliberately NOT a real `ServerTravel` level reload yet** — untestable without a multi-client PIE session (dev-hands-only), disruptive, and no `B4X` content exists yet to actually benefit from one. `AZSPlayerCharacter::Server_RespawnAsNewCharacter` renamed to `Server_EnterSpectatorAfterDeath` to match (no longer spawns a replacement character at all). `AZSGameMode::Logout` also calls the same check, so a player disconnecting outright (not dying/extracting first) can still end the raid if they were the last one alive. New test: `ZS.Raid.IsRaidOverEdgeCases` (empty-`PlayerArray` edge case only — full multi-player coverage needs a Controller/PlayerState possession-chain harness enhancement this session didn't build, same limitation `ZS.Survival.SleepReadyCounts` already documents for itself). |
 | T1.3 | **New-mercenary-at-hub creation flow**: what does a fresh character actually start with? Ties directly into `BH`'s vendor system (buy a starting kit?) and `B6-Content`'s character-creation/background work — don't design this in isolation from either. |
 | T1.4 | Raid-entry flow: choosing an entry point at the hub, leaving the hub, spawning in the zone with whatever loadout `T1.3` produced. |
 
@@ -44,14 +44,14 @@
 | T2.3 | **`OQ-BR-02` (SEQUENCEABLE)** — should extraction have a delay/channel time? An instant, uninterruptible extract undermines the "last moments of a raid are the tensest" pattern this genre relies on. Recommend a short channel (interruptible by taking damage), but this needs a real decision, not an assumption. |
 | T2.4 | Extraction-point availability/rotation — are all points always live, or does access to some require content that doesn't exist yet (a vehicle, a key)? If the latter, that's a `BV`/future hook, not this phase's scope — don't build toward it speculatively. |
 
-### BR-T3 — Raid reseed · **M** · *shape depends on `OQ-BR-03`*
+### BR-T3 — Raid reseed · **M** · **`OQ-BR-03` resolved 2026-08-28: level reload each raid entry**
 
 | Sub-task | Definition of done |
 |---|---|
 | T3.1 | ✅ **Done, 2026-08-27.** `AZSGameState::Server_StartRaidReseed` — restores the loot-rarity pool to its authored defaults and rolls a fresh per-raid utilities hazard (Decision 11). Not yet wired to anything that calls it. |
-| T3.2 | Wire `Server_StartRaidReseed` to an actual "a raid just started" event — the trigger point itself depends on `OQ-BR-03`'s answer (a level-load hook vs. an explicit per-player/per-party raid-begin call on a persistently-loaded zone). |
+| T3.2 | Wire `Server_StartRaidReseed` to the level-load hook (`OQ-BR-03`'s resolution) — call it on the raid level's own `BeginPlay`/game-mode-init path, once `BR-T1.4`'s raid-entry flow actually triggers a level load rather than reusing whatever level is already running. |
 | T3.3 | Zombie density/placement reseed — needs real spawn-volume content (`B4X`'s job); this task only needs the hook to exist, not the content behind it. |
-| T3.4 | Loot-container content reseed — `AZSContainerActor` currently rolls its `ContainerSlots` once at `BeginPlay` and never again, which was correct for a single persistent world and is not correct for a reseeding raid. The fix's shape depends entirely on `OQ-BR-03`: a level-reload model reseeds this for free; a persistently-loaded zone needs an explicit re-roll entry point added to `AZSContainerActor`. Don't build this until `OQ-BR-03` is answered. |
+| T3.4 | Loot-container content reseed — **now free**, per `OQ-BR-03`'s resolution: `AZSContainerActor`'s existing `BeginPlay`-time `ContainerSlots` roll already reseeds correctly on every level reload with zero extra code, since a level reload naturally re-runs every actor's `BeginPlay`. No re-roll entry point needs building — that was only required under the persistently-loaded alternative, which wasn't chosen. |
 
 ### BR-T4 — Permadeath & hub-return · **S** · *mostly done*
 
@@ -75,5 +75,5 @@
 ## Notes
 
 - **No historical size basis** — same caveat as `BH`; re-forecast after `BR-T1`/`T3` land for real.
-- **`OQ-BR-03` is the load-bearing decision in this entire phase.** Everything in `BR-T3`, and a meaningful slice of `B3`'s save topology and `B4X`'s content architecture, waits on it. Resolve it in the same session as `OQ-BR-01`, not separately.
+- **`OQ-BR-03` was the load-bearing decision in this entire phase** — resolved 2026-08-28 (level reload). Everything in `BR-T3`, and a meaningful slice of `B3`'s save topology and `B4X`'s content architecture, can now proceed against that model rather than hedging between two.
 - **Ability/support-strike consumable *effects*** (spawning the actual airstrike/care-package actor in the raid) belong here, once `BH-T2.4` makes the item purchasable — the item existing and the item doing something in-raid are two different tasks, split across the two phases on purpose.

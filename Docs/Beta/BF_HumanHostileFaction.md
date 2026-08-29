@@ -7,7 +7,7 @@
 ## Entry criteria
 
 - [x] The zombie AI pipeline exists as the pattern to mirror — confirmed low-risk reuse, not a new architecture.
-- [ ] **`OQ-BF-01` (BLOCKING for `BF-T2`, not for `BF-T1`)** — what does "guard" behavior actually mean here? Hold a fixed point and never move? Patrol a short route? Investigate noise like a zombie does? This needs its own design pass, the same way `OQ-B4-12` was a dedicated design+implementation session for zombie behavior, not something to guess into a BT.
+- [x] **`OQ-BF-01` (BLOCKING for `BF-T2`, not for `BF-T1`)** — ✅ RESOLVED 2026-08-28: **investigate noise like a zombie does.** A guard's default state is holding position (`BF-T1.2`, already built) until noise or sight gives it something to investigate — no separate patrol-route system. `BF-T2.2`'s original "guard-point/patrol-route" framing is superseded by this answer, not run alongside it; `BF-T2.3` (investigate-noise) is now the primary behavior `BT_Hostile` needs to implement.
 - [ ] **`OQ-BF-02` (SEQUENCEABLE)** — is one hostile archetype enough for beta, or does the roster need variety (a lightly-armed patrol vs. a heavily-armed heist guard)? Mirrors `OQ-B7-03`'s zombie-roster question.
 - [ ] **`OQ-BF-03` (SEQUENCEABLE)** — do hostiles drop loot on death? Given the "guarded loot" framing this is almost certainly yes (their weapon/ammo, at minimum) — recommend confirming rather than assuming, since it changes `BF-T3`'s scope.
 - [ ] **`OQ-BF-04` (SEQUENCEABLE)** — do hostiles and zombies fight each other, or does each faction only ever target the player? A genuine three-way fight is a much more interesting heist scenario than two separate one-sided threats, but both AI controllers currently detect "Friendlies/Neutrals/Hostiles" equally (the same v1 simplification `AZombieAIController`'s own header comment already documents) — real faction-affiliation work if the answer is yes.
@@ -33,13 +33,13 @@
 | T1.2 | **Minimal native "combat without a BT" fallback**, so a hostile is functional today even before `BF-T2`'s guard/patrol tree exists — e.g. a Tick-driven check on `AZSHostileAIController` (mirrors `AZombieAIController::Tick`'s own `bIsInMeleeRange` computation) that calls `TriggerRangedAttack()` whenever a target is currently perceived and in range. Stationary defense only, no movement — an honest placeholder for "stands its ground and shoots," not a guess at real guard behavior. |
 | T1.3 | Automation-test coverage for `TakeDamage`/`Die`/`Server_RangedAttack`'s range-and-cooldown gating, mirroring `AZombieCharacter`'s own existing test coverage shape (`ZSAutomationTests.cpp`). |
 
-### BF-T2 — Guard/patrol behavior · **M** · *depends on `OQ-BF-01`*
+### BF-T2 — Guard/investigate behavior · **M** · **`OQ-BF-01` resolved 2026-08-28: investigate-noise, not patrol**
 
 | Sub-task | Definition of done |
 |---|---|
 | T2.1 | `BT_Hostile` authored (dev-hands-only, no editor/MCP access confirmed this session — same content gap `BT_Zombie` itself sat in for a long stretch). Native BT task nodes mirroring `Zombies/AI/`'s pattern (`BTTask_*` C++ classes sharing key names via a `ZSHostileBlackboardKeys.h`-style header, already stubbed) so the actual content-authoring side is thin once this starts. |
-| T2.2 | Guard-point / patrol-route behavior around heist-relevant loot — `OQ-BF-01`'s answer, implemented. This is the actual differentiator from a zombie, not just a reskinned wander. |
-| T2.3 | Investigate-noise behavior, reusing `UZSNoiseSystem` the same way zombies already do — a hostile should react to gunfire/noise, not only to direct sight. |
+| ~~T2.2~~ | ~~Guard-point/patrol-route behavior~~ — cut, superseded by `OQ-BF-01`'s resolution. A guard holds its spawn position by default (already built, `BF-T1.2`) rather than patrolling a route. |
+| T2.3 | **Investigate-noise behavior — now the actual differentiator from a zombie**, per `OQ-BF-01`'s resolution. Reuse `UZSNoiseSystem` the same way `BT_Zombie`'s own investigate branch already does: a hostile should move to investigate gunfire/sprinting noise, not only react to direct sight, and return to its guard position once the investigation lapses (mirrors `AZombieAIController::StartInvestigationTimer`'s shape). |
 
 ### BF-T3 — Content & death consequences · **S**
 

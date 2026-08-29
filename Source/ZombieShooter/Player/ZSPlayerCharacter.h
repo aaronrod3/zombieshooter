@@ -838,8 +838,8 @@ protected:
 	/** Shared by OnRep_IsSprinting, HandleBodyZonesChanged, and HandleInventoryChanged - MaxWalkSpeed = (sprinting ? BaseWalkSpeed * SprintSpeedMultiplier : BaseWalkSpeed) * HealthComponent->GetMobilityMultiplier() * InventoryComponent->GetEncumbranceMultiplier(). */
 	void UpdateMovementSpeed();
 
-	/** Server-only, fired by RespawnTimerHandle after RespawnDelaySeconds. A genuinely fresh character (new Needs/Health state), not the same one healed - matches the permadeath framing. Loot is already dropped by then (Server_HandleDeathLootAndZombie, called from HandleDeath before this timer starts) - this just does the actual "leave the raid" mechanics via Server_LeaveRaidAndReturnToHub(false), same shared hub-transition hook Server_RequestExtraction's success path below uses with true. */
-	void Server_RespawnAsNewCharacter();
+	/** Server-only, fired by RespawnTimerHandle after RespawnDelaySeconds. OQ-BR-01 (resolved 2026-08-28): does NOT respawn a fresh character into the same still-running raid anymore (the old pre-pivot permadeath-into-the-same-world behavior) - this character is genuinely gone, no replacement spawned here at all. Loot is already dropped by then (Server_HandleDeathLootAndZombie, called from HandleDeath before this timer starts) - this just does the actual "leave the raid" mechanics via Server_LeaveRaidAndReturnToHub(false), which routes into AZSGameMode::Server_ReturnPlayerToHub's spectate-until-raid-ends behavior for the death path. */
+	void Server_EnterSpectatorAfterDeath();
 
 	// =====================================================================
 	// BR (Docs/Beta/00_MasterPlan.md CR-13, extraction pivot 2026-08-27) - Extraction: the other
@@ -855,7 +855,7 @@ public:
 
 protected:
 
-	/** Shared by Server_RequestExtraction and Server_RespawnAsNewCharacter (the death path) above - the actual "leave this raid" mechanics: destroys this pawn (AActor::Destroyed() auto-unpossesses the controller, same as the pre-pivot respawn flow this replaces) then hands the vacated controller to AZSGameMode::Server_ReturnPlayerToHub, the one hook point for what happens next. bWasExtraction is passed through untouched for that hook's own use (logging/future hub-side bookkeeping) - both paths currently resolve identically once GameMode gets there, see that function's own comment for the real hub-map content gap this is standing in for. */
+	/** Shared by Server_RequestExtraction and Server_EnterSpectatorAfterDeath (the death path) above - the actual "leave this raid" mechanics: destroys this pawn (AActor::Destroyed() auto-unpossesses the controller, same as the pre-pivot respawn flow this replaces) then hands the vacated controller to AZSGameMode::Server_ReturnPlayerToHub, the one hook point for what happens next - spectate (death) or nothing further to do (already-pawn-less extraction), per bWasExtraction, see that function's own comment. */
 	void Server_LeaveRaidAndReturnToHub(bool bWasExtraction);
 
 	UPROPERTY(EditAnywhere, Category = "ZS|Health")
@@ -869,6 +869,9 @@ protected:
 
 	/** B0-T9.1/T9.2, server-only, called from HandleDeath before the respawn timer starts: drops every carried instance at the death location (InventoryComponent->Server_DropAllItems - already covers whatever was equipped/hotbarred too, since this project's equip model never removes an instance from CarrySlots) and, if DeathZombieClass is set, spawns one there. Dev-confirmed 2026-07-26 framing ("the character becomes a zombie, holding on to loot and clothing it had on when it died") is satisfied by co-locating both rather than giving AZombieCharacter a literal carry-inventory system it has no other use for - the loot pile and the zombie stand in the same spot. */
 	void Server_HandleDeathLootAndZombie();
+
+	/** Shared by Server_HandleDeathLootAndZombie and Server_RequestExtraction - both tear the character down (drop-to-world or bank-to-stash) via CarrySlots, so both need CurrentWeapon's/SecondaryWeapon's live durability and loaded-magazine ammo count flushed back into their CarrySlots instances first, and both live AZSWeapon actors destroyed before that happens - attachment alone doesn't cascade-destroy them with the owning character (confirmed the hard way once already, see Server_HandleDeathLootAndZombie's original fix). Leaving this out of extraction would silently bank a stale-condition weapon to the stash and leak the AZSWeapon actor exactly the same way death used to. */
+	void FlushAndDestroyEquippedWeapons();
 
 	/** Maps a hit's bone name to a body zone via common mannequin bone-name substrings (spine/pelvis -> Torso, head/neck -> Head, arm/hand/clavicle -> Arms, leg/foot/thigh/calf -> Legs). Falls back to Torso if unrecognized - a safe, central-mass default. */
 	static EZSBodyZone BodyZoneFromBoneName(FName BoneName);
