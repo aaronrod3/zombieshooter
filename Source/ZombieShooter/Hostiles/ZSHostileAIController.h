@@ -40,6 +40,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ZS|AI")
 	void TriggerRangedAttack();
 
+	/** BF-T2 (OQ-BF-01, resolved 2026-08-28): called by UBTTask_HostileStartInvestigationTimer - same shape as AZombieAIController::StartInvestigationTimer. Sets "bInvestigationTimerStarted" true and starts a HostileConfig->InvestigationDurationSeconds timer; on expiry, clears both that flag and "LastKnownLocation" (giving up the investigation - a future BT_Hostile's decorators fall through to a stock "Move To" node reading "GuardLocation" to walk back, same pattern this class's own header comment on GuardLocation already documents). No-op if the pawn isn't an AZSHostileCharacter or has no HostileConfig. */
+	UFUNCTION(BlueprintCallable, Category = "ZS|AI")
+	void StartInvestigationTimer();
+
 protected:
 
 	virtual void OnPossess(APawn* InPawn) override;
@@ -56,7 +60,12 @@ protected:
 	/** Applies InPawn's HostileConfig sense radii to SightConfig/HearingConfig at possess time (the pawn/config aren't known any earlier), seeds the Blackboard's SelfActor key if a BehaviorTree is set, and RunBehaviorTree(Config->BehaviorTree) - graceful no-op if BehaviorTree is unset, same "content gap" pattern as AZombieAIController::ConfigurePerceptionAndBehavior. */
 	void ConfigurePerceptionAndBehavior(AZSHostileCharacter* Hostile);
 
-	/** Bound to PerceptionComponent->OnTargetPerceptionUpdated in the constructor. Writes/clears the "TargetActor" Blackboard key on a successful/lost stimulus - same shape as AZombieAIController::HandleTargetPerceptionUpdated, minus the chase-speed/aggro-cooldown hooks that are zombie-specific (a hostile has no chase-speed distinction and doesn't feed AZSPlayerCharacter's sleep-safety cooldown - that cooldown is specifically about zombie aggro, not hostile-faction aggro, a design question for BF's own scoping pass, not assumed here). */
+	/** Bound to PerceptionComponent->OnTargetPerceptionUpdated in the constructor. Writes/clears the "TargetActor" Blackboard key on a successful/lost stimulus - same shape as AZombieAIController::HandleTargetPerceptionUpdated, minus the chase-speed/aggro-cooldown hooks that are zombie-specific (a hostile has no chase-speed distinction and doesn't feed AZSPlayerCharacter's sleep-safety cooldown - that cooldown is specifically about zombie aggro, not hostile-faction aggro, a design question for BF's own scoping pass, not assumed here). BF-T2 addition (OQ-BF-01): a successful sense now also writes "LastKnownLocation" (mirroring AZombieAIController exactly) - lost-target loss still only clears TargetActor, leaving LastKnownLocation for the investigate branch, same reasoning as the zombie version. */
 	UFUNCTION()
 	void HandleTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
+
+	FTimerHandle InvestigationTimerHandle;
+
+	/** void() wrapper - FTimerManager::SetTimer needs an exact match, same reasoning as AZombieAIController's own HandleInvestigationTimerExpired. */
+	void HandleInvestigationTimerExpired();
 };

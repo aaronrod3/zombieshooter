@@ -41,7 +41,8 @@ public class ZombieShooter : ModuleRules
 			"ZombieShooter/UI",
 			"ZombieShooter/Hub",
 			"ZombieShooter/Raid",
-			"ZombieShooter/Hostiles"
+			"ZombieShooter/Hostiles",
+			"ZombieShooter/Hostiles/AI"
 		});
 
 		// Uncomment if you are using online features

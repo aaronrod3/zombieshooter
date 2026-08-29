@@ -69,6 +69,12 @@ void AZSHostileAIController::ConfigurePerceptionAndBehavior(AZSHostileCharacter*
 	if (UBlackboardComponent* BB = GetBlackboardComponent())
 	{
 		BB->SetValueAsObject(ZSHostileBlackboardKeys::SelfActor, Hostile);
+
+		// BF-T2 (OQ-BF-01, resolved 2026-08-28): seeded once here, never rewritten - a zombie has
+		// nowhere to "return to" after investigating (it just resumes wandering), but a guard does.
+		// A future BT_Hostile's stock "Move To" node reads this to walk back once an investigation
+		// lapses (HandleInvestigationTimerExpired below) - no custom native task needed for that half.
+		BB->SetValueAsVector(ZSHostileBlackboardKeys::GuardLocation, Hostile->GetActorLocation());
 	}
 }
 
@@ -83,10 +89,38 @@ void AZSHostileAIController::HandleTargetPerceptionUpdated(AActor* Actor, FAISti
 	if (Stimulus.WasSuccessfullySensed())
 	{
 		BB->SetValueAsObject(ZSHostileBlackboardKeys::TargetActor, Actor);
+		BB->SetValueAsVector(ZSHostileBlackboardKeys::LastKnownLocation, Actor->GetActorLocation());
 	}
 	else
 	{
+		// Lost the target, not necessarily lost the trail - LastKnownLocation stays set so a future
+		// BT_Hostile's investigate branch has somewhere to head toward, same reasoning as
+		// AZombieAIController's own HandleTargetPerceptionUpdated. BTTask_HostileClearLastKnownLocation
+		// / StartInvestigationTimer's own expiry are what eventually clear it.
 		BB->ClearValue(ZSHostileBlackboardKeys::TargetActor);
+	}
+}
+
+void AZSHostileAIController::StartInvestigationTimer()
+{
+	UBlackboardComponent* BB = GetBlackboardComponent();
+	AZSHostileCharacter* Hostile = Cast<AZSHostileCharacter>(GetPawn());
+	if (!BB || !Hostile || !Hostile->HostileConfig)
+	{
+		return;
+	}
+
+	BB->SetValueAsBool(ZSHostileBlackboardKeys::bInvestigationTimerStarted, true);
+
+	GetWorldTimerManager().SetTimer(InvestigationTimerHandle, this, &AZSHostileAIController::HandleInvestigationTimerExpired, Hostile->HostileConfig->InvestigationDurationSeconds, false);
+}
+
+void AZSHostileAIController::HandleInvestigationTimerExpired()
+{
+	if (UBlackboardComponent* BB = GetBlackboardComponent())
+	{
+		BB->SetValueAsBool(ZSHostileBlackboardKeys::bInvestigationTimerStarted, false);
+		BB->ClearValue(ZSHostileBlackboardKeys::LastKnownLocation);
 	}
 }
 

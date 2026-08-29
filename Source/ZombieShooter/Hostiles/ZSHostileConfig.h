@@ -91,6 +91,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AI")
 	TObjectPtr<UBehaviorTree> BehaviorTree;
 
+	/** BF-T2, OQ-BF-01 (resolved 2026-08-28: guards investigate noise like a zombie does, holding position otherwise) - how long AZSHostileAIController::StartInvestigationTimer keeps investigating a lost target's last known/heard location before giving up and returning to GuardLocation. Same field name/role as UZSZombieConfig::InvestigationDurationSeconds. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AI", meta = (ClampMin = "0"))
+	float InvestigationDurationSeconds = 10.f;
+
 	// ---- Visuals ----
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals")
