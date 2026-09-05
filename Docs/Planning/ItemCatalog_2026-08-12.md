@@ -8,27 +8,31 @@
 
 ## Weapons — Ranged
 
-| Item | Notes | Status |
-|---|---|---|
-| Assault Rifle | | `[Done]` |
-| Pistol | mesh sourcing unconfirmed this pass, worth a quick check | `[Data-only]`? |
-| Revolver | | `[Blender]` |
-| Pump Shotgun | | `[Blender]` |
-| Sawn-off Shotgun | cheap variant, reuses the pump shotgun's texture/material where possible | `[Blender]` |
-| SMG | | `[Blender]` |
-| Bolt-Action / Hunting Rifle | high damage, slow follow-up — a real alternative to the AR, not a reskin | `[Blender]` |
+Tris column: **bold = real, measured**; everything else is a 2026-08-29 estimate reasoned off the M4's actual part costs (no rail/quad-rail system on any of these except the M4 itself — that's the outlier, not the norm), to be replaced with real numbers as each gets modeled.
+
+| Item | Notes | Est. Tris | Status |
+|---|---|---|---|
+| Assault Rifle (M4) | fully modeled, twice-optimized quad-rail build | **6,149** | `[Done]` |
+| Pistol | mesh sourcing unconfirmed this pass, worth a quick check | ~900 | `[Data-only]`? |
+| Revolver | no rail, no detachable mag, simplest ranged weapon on the list | ~1,000 | `[Blender]` |
+| Pump Shotgun | pump foregrip is a smooth tube, no rail teeth | ~1,800 | `[Blender]` |
+| Sawn-off Shotgun | cheap variant, reuses the pump shotgun's texture/material where possible | ~900 | `[Blender]` |
+| SMG | compact, has a detachable mag, but no full-length rail like the M4 | ~2,200 | `[Blender]` |
+| Bolt-Action / Hunting Rifle | high damage, slow follow-up — a real alternative to the AR, not a reskin; wood stock, no rail | ~1,800 | `[Blender]` |
 
 ## Weapons — Melee
 
-| Item | Notes | Status |
-|---|---|---|
-| Crowbar | | `[Done]` |
-| Kitchen Knife | one-handed, fits `SecondaryHand`-eligible per `Handedness`/`bUsableInSecondaryHand` | `[Blender]` |
-| Baseball Bat | | `[Blender]` |
-| Fire Axe | two-handed | `[Blender]` |
-| Machete | | `[Blender]` |
-| Claw Hammer | doubles conceptually as a Tools-category item — one mesh, two `DA_ZS_ItemConfig`/`DA_ZS_WeaponConfig` uses is a design call, not required | `[Blender]` |
-| Sledgehammer | two-handed, slow/heavy | `[Blender]` |
+Same estimate caveat as the Ranged table above — no moving mechanical parts or attachment points on any of these, so they're all cheap by construction.
+
+| Item | Notes | Est. Tris | Status |
+|---|---|---|---|
+| Crowbar | mesh sourcing unconfirmed this pass, but a simple bent bar is inherently cheap | ~250 | `[Done]` |
+| Kitchen Knife | one-handed, fits `SecondaryHand`-eligible per `Handedness`/`bUsableInSecondaryHand` | ~200 | `[Blender]` |
+| Baseball Bat | | ~200 | `[Blender]` |
+| Fire Axe | two-handed | ~375 | `[Blender]` |
+| Machete | | ~275 | `[Blender]` |
+| Claw Hammer | doubles conceptually as a Tools-category item — one mesh, two `DA_ZS_ItemConfig`/`DA_ZS_WeaponConfig` uses is a design call, not required | ~325 | `[Blender]` |
+| Sledgehammer | two-handed, slow/heavy | ~325 | `[Blender]` |
 
 ## Ammo
 
@@ -42,25 +46,27 @@
 
 ## Magazines (loose, carryable — distinct from a weapon's built-in cosmetic mag prop)
 
-| Item | Notes | Status |
-|---|---|---|
-| AR Magazine | check whether `SM_AR_Magazine` (already on the gun) can be reused first | `[Blender]`/reuse |
-| Pistol Magazine | | `[Blender]` |
-| SMG Magazine | | `[Blender]` |
-| Revolver/Shotgun | N/A — these two reload by individual round or don't use a detachable box magazine; don't force a magazine item onto them, needs its own reload-mode design question (flagged in Open Questions below) | — |
+| Item | Notes | Est. Tris | Status |
+|---|---|---|---|
+| AR Magazine (PMAG) | custom-modeled, not the pack's `SM_AR_Magazine` — one mesh doing double duty as both the weapon's cosmetic mag and the loose carryable pickup | **116** | `[Done]` |
+| Pistol Magazine | | ~150 | `[Blender]` |
+| SMG Magazine | | ~150 | `[Blender]` |
+| Revolver/Shotgun | N/A — these two reload by individual round or don't use a detachable box magazine; don't force a magazine item onto them, needs its own reload-mode design question (flagged in Open Questions below) | — | — |
 
-## Weapon Attachments (one set of 4 slots per `UZSWeaponConfig`: Muzzle/Handguard/Grip/Optic)
+## Weapon Attachments (narrowed 2026-08-29, dev-confirmed real scope)
+
+**Dev-confirmed scope**: a weapon only actually needs to support changing optics, detachable mags (already the built magazine system, not new content), equipping/unequipping a suppressor, attaching a flashlight or laser, and a rail-mounted foregrip. Muzzle is narrowed to Suppressor only, dropping Compensator as a separate item — the only real cut.
 
 | Item | Slot | Status |
 |---|---|---|
 | Suppressor | Muzzle | `[Blender]` |
-| Compensator | Muzzle | `[Blender]` |
+| Foregrip (rail-mounted) | Grip | `[Blender]` |
 | Flashlight (rail-mounted) | Handguard | `[Blender]` |
 | Laser sight | Handguard | `[Blender]` |
-| Vertical grip | Grip | `[Blender]` |
-| Angled grip | Grip | `[Blender]` |
 | Red dot sight | Optic | `[Blender]` |
 | Basic 4x scope | Optic | `[Blender]` |
+
+~~Compensator~~ (Muzzle) — cut, not planned.
 
 ## Medical
 

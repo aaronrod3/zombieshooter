@@ -110,14 +110,38 @@ No changes to the `FZSItemInstance`/equip/mount architecture — that's settled 
 
 Dev's direction: model low-poly, put detail in the UV-mapped texture rather than geometry. Correct call for a fixed top-down/isometric camera that never gets close, and it cuts both modeling time and runtime cost. **Nothing below is enforced by code or measured yet** — starting points only, same "propose, don't guess-and-lock" spirit as the rest of this doc. Revisit after the first few real items go through the pipeline once, and again if B2-T3 (still parked, per `Docs/Beta/B2_ArtPipeline.md`) ever formally sets project-wide LOD/material budgets that should supersede these.
 
-**Triangle budget, by class:**
+**Triangle budget, by class — revised 2026-08-29 against real data, not just a guess anymore:**
 
 | Class | Budget | Examples |
 |---|---|---|
 | Small handheld/pickup | 100–400 tris | food, meds, ammo boxes, small tools |
 | Worn gear, small | 300–800 tris | helmet, belt |
 | Worn gear, large | 500–1200 tris | backpack, duffle, vest |
-| Weapons | 600–1500 tris | roughly matches the density of the already-owned LowPolyWeapons pack parts |
+| Weapons, simple | 800–2,200 tris | revolver, shotguns, melee weapons — no modular rail system |
+| Weapons, modular/hero | 4,000–6,500 tris | the AR (M4), and anything else with a full quad-rail handguard + separate trigger/magazine/attachment points |
+
+The original single 600–1,500 "Weapons" band was a guess before any real weapon existed. The M4 — a fully modeled, twice-optimized quad-rail rifle with a real trigger, receiver, stock, and magazine — landed at **6,149 triangles**, and its quad-rail handguard is almost certainly the single biggest per-item outlier this game will have (see `ItemCatalog_2026-08-12.md`'s Weapons tables for the reasoning and estimated numbers for the rest of the roster). Real modeling data beats a guess — this replaces the old number rather than sitting alongside it. Revise again the next time a weapon's real count comes in meaningfully different from its estimate.
+
+**Reference-room ceiling estimate (2026-08-29)** — a category-average sanity check against the item side of `B2_ArtPipeline.md`'s eventual real profiling pass (B2-T4.3), not a substitute for it. Question asked: if every one of the manifest's 86 item types existed and were somehow all present at once (an unrealistic worst case — a real room would have a curated handful of instances, not one of each), what would the item-geometry total be?
+
+| Category | Items | Est. subtotal |
+|---|---|---|
+| Weapons — Ranged | 7 | ~14,750 (M4 alone is 42% of this) |
+| Weapons — Melee | 7 | ~1,950 |
+| Ammo | 5 | ~750 |
+| Magazines (Pistol/SMG only — AR's is assumed reused from its own cosmetic mesh) | 2 | ~400 |
+| Weapon Attachments | 6 | ~900 |
+| Medical | 9 | ~1,800 |
+| Food | 9 | ~1,800 |
+| Drinks | 4 | ~800 |
+| Clothing | 6 | **0** — texture-only, no mesh at all |
+| Gear | 6 | ~4,200 |
+| Tools & Utility | 8 | ~1,600 |
+| World Containers | 6 | ~3,000 |
+| Misc / Junk | 5 | ~600 |
+| **Total** | **80 modeled items** | **~32,550 triangles** |
+
+**Read on this**: that's genuinely not a concerning number, even as a deliberately unrealistic ceiling. It's about 5× a single M4 — meaning the *entire rest of the item catalog combined*, one of everything, still doesn't add up to 5 rifles' worth of geometry. **Items were never going to be this game's performance problem.** The things that will actually decide whether a real room holds up: the environment/room geometry itself (totally unbudgeted so far — no kit has been chosen, that's `B2-T2`'s job), zombie count/density at a horde moment (the risk `GameDevPlan.md`'s own table and `B8_Performance` have flagged from the start), and multiplying weapon/gear loadouts across 4+ concurrent players (even a fully-loaded player at worst case is still only in the ~10,000-triangle range). **Practical takeaway: stop optimizing small items further than the bands above already ask for — the discipline was worth establishing to avoid a repeat of the M4's original unoptimized handguard, but chasing item triangles further than this has hit its point of diminishing returns. Direct any further optimization energy at zombies and whatever the environment kit turns out to cost, once those are real.**
 
 **Texture/material convention — one shared master material + per-item instance, not an atlas:**
 - One master material (e.g. `M_ZS_Item`, doesn't exist yet) with a `MI_<ItemName>` instance per item, per B2-T3.2's already-decided "master materials + instances only" rule. This keeps material count (the real draw-call lever) flat no matter how many items exist, without the ongoing overhead of packing/repacking a shared atlas every time an item is added — a category atlas was considered and rejected here specifically because repacking is *more* authoring friction over time, not less, which cuts against the "reduce time spent" goal.
@@ -167,7 +191,7 @@ Scoped narrower than the tracker table above: only real, confirmed gaps that are
 - Duffle deliberately not listed — shares `Backpack`'s socket (`SocketBack`), low value to model a second item for the same slot this early
 
 **Weapons (mechanical blocker, not just cosmetic — neither existing gun can currently reload at all, per `Docs/TuningReference.md`'s Per-Weapon Config section, no `DA_ZS_MagazineConfig_*` exists yet):**
-- [ ] AR Magazine (loose, carryable `WorldMesh`) — **check first** whether `SM_AR_Magazine` (the cosmetic mesh already on the gun) can just be reused before modeling a new one
+- [x] AR Magazine (PMAG) — **done**, 116 tris, custom-modeled rather than reusing the pack's `SM_AR_Magazine`
 - [ ] Pistol Magazine (loose, carryable `WorldMesh`) — same check first; Pistol's own mesh sourcing was never confirmed this pass
 
 **Optional / lower priority — don't block on these:**
@@ -191,10 +215,12 @@ Scoped narrower than the tracker table above: only real, confirmed gaps that are
 - [ ] Wooden crate
 - [ ] Footlocker
 
-**Weapon attachments (one simple pass per `UZSWeaponConfig` attachment slot):**
-- [ ] Muzzle (suppressor or compensator)
+**Weapon attachments — narrowed 2026-08-29 to actual confirmed scope (Muzzle narrowed to suppressor only, Grip kept as one rail-mounted foregrip — see `ItemCatalog_2026-08-12.md`'s Weapon Attachments section for the reasoning):**
+- [ ] Suppressor (Muzzle)
+- [ ] Foregrip, rail-mounted (Grip)
 - [ ] Handguard-mounted flashlight
-- [ ] Grip
-- [ ] Optic (red dot or basic scope)
+- [ ] Laser sight (Handguard)
+- [ ] Red dot sight (Optic)
+- [ ] Basic 4x scope (Optic)
 
 **The full, longer-horizon item list for the whole game** (not just this near-term Blender queue) is now tracked separately in `Docs/Planning/ItemCatalog_2026-08-12.md` — this section stays scoped to "what's actually next," that doc is the fuller picture.
