@@ -124,13 +124,13 @@ The original single 600–1,500 "Weapons" band was a guess before any real weapo
 
 **Reference-room ceiling estimate (2026-08-29)** — a category-average sanity check against the item side of `B2_ArtPipeline.md`'s eventual real profiling pass (B2-T4.3), not a substitute for it. Question asked: if every one of the manifest's 86 item types existed and were somehow all present at once (an unrealistic worst case — a real room would have a curated handful of instances, not one of each), what would the item-geometry total be?
 
-| Category | Items | Est. subtotal |
+| Category | Items | Subtotal |
 |---|---|---|
 | Weapons — Ranged | 7 | ~14,750 (M4 alone is 42% of this) |
 | Weapons — Melee | 7 | ~1,950 |
 | Ammo | 5 | ~750 |
-| Magazines (Pistol/SMG only — AR's is assumed reused from its own cosmetic mesh) | 2 | ~400 |
-| Weapon Attachments | 6 | ~900 |
+| Magazines (AR real, Pistol/SMG estimated) | 3 | ~416 |
+| Weapon Attachments | 9 | **2,474 — real, complete, all 9 modeled** |
 | Medical | 9 | ~1,800 |
 | Food | 9 | ~1,800 |
 | Drinks | 4 | ~800 |
@@ -139,7 +139,9 @@ The original single 600–1,500 "Weapons" band was a guess before any real weapo
 | Tools & Utility | 8 | ~1,600 |
 | World Containers | 6 | ~3,000 |
 | Misc / Junk | 5 | ~600 |
-| **Total** | **80 modeled items** | **~32,550 triangles** |
+| **Total** | **84 modeled items** | **~34,140 triangles** |
+
+Updated 2026-08-29: Weapon Attachments moved from a category-average guess to a fully real, measured subtotal — the whole slot came in at 2,474 triangles across 9 items, still nowhere close to changing the conclusion below.
 
 **Read on this**: that's genuinely not a concerning number, even as a deliberately unrealistic ceiling. It's about 5× a single M4 — meaning the *entire rest of the item catalog combined*, one of everything, still doesn't add up to 5 rifles' worth of geometry. **Items were never going to be this game's performance problem.** The things that will actually decide whether a real room holds up: the environment/room geometry itself (totally unbudgeted so far — no kit has been chosen, that's `B2-T2`'s job), zombie count/density at a horde moment (the risk `GameDevPlan.md`'s own table and `B8_Performance` have flagged from the start), and multiplying weapon/gear loadouts across 4+ concurrent players (even a fully-loaded player at worst case is still only in the ~10,000-triangle range). **Practical takeaway: stop optimizing small items further than the bands above already ask for — the discipline was worth establishing to avoid a repeat of the M4's original unoptimized handguard, but chasing item triangles further than this has hit its point of diminishing returns. Direct any further optimization energy at zombies and whatever the environment kit turns out to cost, once those are real.**
 
@@ -215,12 +217,15 @@ Scoped narrower than the tracker table above: only real, confirmed gaps that are
 - [ ] Wooden crate
 - [ ] Footlocker
 
-**Weapon attachments — narrowed 2026-08-29 to actual confirmed scope (Muzzle narrowed to suppressor only, Grip kept as one rail-mounted foregrip — see `ItemCatalog_2026-08-12.md`'s Weapon Attachments section for the reasoning):**
-- [ ] Suppressor (Muzzle)
-- [ ] Foregrip, rail-mounted (Grip)
-- [ ] Handguard-mounted flashlight
-- [ ] Laser sight (Handguard)
-- [ ] Red dot sight (Optic)
-- [ ] Basic 4x scope (Optic)
+**Weapon attachments — COMPLETE as of 2026-08-29.** Scope grew back out slightly as modeling started (Compensator un-cut, Grip/Laser/Optic each became two real-world-named variants) — see `ItemCatalog_2026-08-12.md`'s Weapon Attachments section for the full reasoning and per-item tris:
+- [x] Suppressor (Muzzle) — 92 tris
+- [x] Compensator (Muzzle) — 44 tris, shared mesh reusable across other weapons
+- [x] Vertical Grip (Grip) — 220 tris
+- [x] Angled Grip (Grip) — 208 tris
+- [x] Weapon Light (Handguard) — 188 tris
+- [x] DBAL Laser (Handguard) — 132 tris
+- [x] PEQ-15 Laser (Handguard) — 232 tris
+- [x] EOTech Holo Sight (Optic) — 314 tris
+- [x] LPVO Sight + Mount (Optic) — 1,044 tris (likely turret caps + mount rings driving the count, revisit later — not urgent, see `ItemCatalog_2026-08-12.md`)
 
 **The full, longer-horizon item list for the whole game** (not just this near-term Blender queue) is now tracked separately in `Docs/Planning/ItemCatalog_2026-08-12.md` — this section stays scoped to "what's actually next," that doc is the fuller picture.

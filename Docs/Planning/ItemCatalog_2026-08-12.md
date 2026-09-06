@@ -53,18 +53,23 @@ Same estimate caveat as the Ranged table above — no moving mechanical parts or
 | SMG Magazine | | ~150 | `[Blender]` |
 | Revolver/Shotgun | N/A — these two reload by individual round or don't use a detachable box magazine; don't force a magazine item onto them, needs its own reload-mode design question (flagged in Open Questions below) | — | — |
 
-## Weapon Attachments (narrowed 2026-08-29, dev-confirmed real scope)
+## Weapon Attachments — full roster now modeled (2026-08-29)
 
-**Dev-confirmed scope**: a weapon only actually needs to support changing optics, detachable mags (already the built magazine system, not new content), equipping/unequipping a suppressor, attaching a flashlight or laser, and a rail-mounted foregrip. Muzzle is narrowed to Suppressor only, dropping Compensator as a separate item — the only real cut.
+Scope grew back out slightly from the 2026-08-29 narrowing as real modeling started: Compensator is back (turned out cheap enough not to skip, and it's a shared mesh reusable across other weapons), and Grip/Laser/Optic each ended up as two named real-world variants rather than one generic placeholder. **All 9 are now done, real, measured** — this whole slot is complete.
 
-| Item | Slot | Status |
-|---|---|---|
-| Suppressor | Muzzle | `[Blender]` |
-| Foregrip (rail-mounted) | Grip | `[Blender]` |
-| Flashlight (rail-mounted) | Handguard | `[Blender]` |
-| Laser sight | Handguard | `[Blender]` |
-| Red dot sight | Optic | `[Blender]` |
-| Basic 4x scope | Optic | `[Blender]` |
+| Item | Slot | Tris | Status |
+|---|---|---|---|
+| Suppressor | Muzzle | **92** | `[Done]` |
+| Compensator | Muzzle | **44** | `[Done]` — shared mesh, reusable across other weapons |
+| Vertical Grip | Grip | **220** | `[Done]` |
+| Angled Grip | Grip | **208** | `[Done]` |
+| Weapon Light | Handguard | **188** | `[Done]` |
+| DBAL Laser | Handguard | **132** | `[Done]` |
+| PEQ-15 Laser | Handguard | **232** | `[Done]` |
+| EOTech Holo Sight | Optic | **314** | `[Done]` |
+| LPVO Sight + Mount | Optic | **1,044** | `[Done]` — priciest of the 9; scope+mount combos (zoom ring, turret caps, separate mount rings, two lens ends) are inherently the most geometrically complex attachment type, so this being well above the rest isn't itself a concern. **Dev-identified likely source**: the 2 turret caps (probably over-segmented cylinders, same class of issue the buffer tube had) and the mount's 2 separate rings. Not urgent — flagged for a later revision pass, not a blocker. |
+
+**9 items, 2,474 triangles total** — cheap in aggregate even with the LPVO's outsized share (42% of the slot by itself, similar shape to how the M4's handguard dominated the rifle).
 
 ~~Compensator~~ (Muzzle) — cut, not planned.
 
