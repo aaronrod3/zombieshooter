@@ -1,0 +1,210 @@
+<title>Blender Build Guides</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1000px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:74ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(32px,5.6vw,50px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:66ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  .warn-box{background:var(--surface);border:2px solid var(--rust);border-radius:3px;padding:16px 22px;margin-bottom:40px;box-shadow:var(--shadow);}
+  .warn-box .k{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--rust);font-weight:700;display:block;margin-bottom:6px;}
+  .warn-box p{margin:0;font-size:14px;max-width:none;}
+
+  section{margin-bottom:52px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:26px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14.5px;max-width:74ch;margin:12px 0 18px;}
+
+  .spec-strip{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:3px;margin-bottom:22px;overflow:hidden;}
+  .spec-cell{flex:1 1 150px;padding:12px 16px;background:var(--surface);border-right:1px solid var(--line);}
+  .spec-cell:last-child{border-right:none;}
+  .spec-cell .k{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:4px;}
+  .spec-cell .v{font-size:13.5px;color:var(--ink);}
+
+  .steps{list-style:none;margin:0;padding:0;counter-reset:step;display:grid;gap:10px;}
+  .steps li{counter-increment:step;display:grid;grid-template-columns:36px 1fr;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:14px 18px;}
+  .steps li::before{content:counter(step);font-family:'Oswald';font-size:18px;font-weight:700;color:var(--accent-ink);background:var(--accent);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;}
+  .steps li p{margin:0;font-size:14px;max-width:none;}
+  .steps li .stage{font-family:'IBM Plex Mono';font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--rust);display:block;margin-bottom:4px;}
+
+  .stage-divider{display:flex;align-items:center;gap:12px;margin:20px 0 10px;}
+  .stage-divider .line{flex:1;height:1px;background:var(--line-strong);}
+  .stage-divider span{font-family:'IBM Plex Mono';font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint);white-space:nowrap;}
+
+  .note{background:var(--surface-2);border-left:3px solid var(--info);border-radius:3px;padding:10px 14px;font-size:13px;color:var(--ink-muted);margin:12px 0;}
+  .note strong{color:var(--ink);}
+
+  footer{border-top:3px solid var(--ink);margin-top:60px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 10 / 10</span> ZombieShooter Production Manifests · Build Guide</div>
+    <h1 class="title">Blender Build Guides</h1>
+    <p class="subtitle">Step-by-step modeling blueprints for hands-on Blender work — reference dimensions, a build order, and export settings tied to Manifest 07's conventions. Grows one guide at a time as items come up.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Companion to</span><span class="meta-value">Manifest 07 (queue, budgets, folders)</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-07</span></div>
+      <div class="meta-cell"><span class="meta-label">Guides so far</span><span class="meta-value">2 — Backpack, Residential Blockout</span></div>
+    </div>
+  </div>
+
+  <div class="warn-box">
+    <span class="k">Still true from Manifest 07</span>
+    <p>The 1×1×1m cube export test has never been run. Do it before trusting either guide's final in-engine scale — export a plain 1m cube with the settings in Stage 4 below, import it, and confirm it measures 100×100×100 Unreal units.</p>
+  </div>
+
+  <section id="backpack">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Backpack</h2></div>
+    <p class="sec-dek">Top of Manifest 07's priority queue — unblocks the equip-visual loop, the one gear item currently in progress.</p>
+    <div class="spec-strip">
+      <div class="spec-cell"><span class="k">Reference size</span><span class="v">~50cm H × 32cm W × 17cm D</span></div>
+      <div class="spec-cell"><span class="k">Tri budget</span><span class="v">500–1,200</span></div>
+      <div class="spec-cell"><span class="k">Destination</span><span class="v"><code>Content/ZS/Items/Containers/</code></span></div>
+      <div class="spec-cell"><span class="k">Socket</span><span class="v"><code>SocketBack</code> — confirm it exists on <code>SKEL_TFA_Mannequin</code> first</span></div>
+      <div class="spec-cell"><span class="k">Naming out</span><span class="v"><code>SM_Backpack</code> / <code>T_Backpack_BaseColor</code> / <code>MI_Backpack</code></span></div>
+    </div>
+
+    <div class="stage-divider"><span>Stage 1 — Blockout</span><div class="line"></div></div>
+    <ol class="steps">
+      <li><p><span class="stage">Reference</span>Set scene units to meters. Import or rough in a simple capsule at 1.8m tall so you have a body to check proportions against — the bag should sit roughly between shoulder blades and waist.</p></li>
+      <li><p><span class="stage">Main body</span>Add a Cube, scale to ~0.50m × 0.32m × 0.17m (H×W×D), apply scale (<code>Ctrl+A</code>). This is the pack's core volume.</p></li>
+      <li><p><span class="stage">Soften edges</span><code>Ctrl+B</code> to bevel the vertical edges, small width (~1cm), 2 segments — reads as fabric, not a cardboard box, without spending real poly count.</p></li>
+      <li><p><span class="stage">Front pouch</span>Duplicate a smaller cube (~0.20m × 0.28m × 0.08m), position flush against the front face with a slight overlap so there's no visible gap, bevel to match.</p></li>
+    </ol>
+
+    <div class="stage-divider"><span>Stage 2 — Details</span><div class="line"></div></div>
+    <ol class="steps" start="5">
+      <li><p><span class="stage">Compression straps</span>Two thin flattened cubes (~2cm thick) wrapping partway around each side. Keep them flat rectangles — a slight bow isn't worth the poly cost at this budget.</p></li>
+      <li><p><span class="stage">Shoulder straps</span>Add a Bezier curve for each strap's path, set Bevel Depth to ~1.5cm in the curve's Object Data properties, then Convert To → Mesh once the shape reads right.</p></li>
+      <li><p><span class="stage">Carry handle</span>A short bent cylinder or partial torus above the main body, sized to a hand-width loop (~10cm).</p></li>
+      <li><p><span class="stage">Zipper lines</span>Don't model teeth. Mark a thin edge loop where a zipper would run, <code>Ctrl+I</code> (inset) a hair's width, small bevel — reads correctly at top-down gameplay distance per the project's own animation/art scope rule.</p></li>
+    </ol>
+
+    <div class="stage-divider"><span>Stage 3 — Finish</span><div class="line"></div></div>
+    <ol class="steps" start="9">
+      <li><p><span class="stage">Merge &amp; budget-check</span><code>Ctrl+J</code> everything into one object. Open the Statistics overlay and confirm you're inside 500–1,200 tris — if over, Decimate (Planar) the rounded sections or dissolve unneeded loops rather than cutting a real feature.</p></li>
+      <li><p><span class="stage">Origin placement</span>Place the 3D cursor at the point that should align with <code>SocketBack</code> (roughly spine-height, back-center), then <strong>Object → Set Origin → Origin to 3D Cursor</strong>. This is critical — a worn mesh has no per-item code offset, so a wrong origin means a floating or clipped backpack in-game with no fix except remodeling.</p></li>
+      <li><p><span class="stage">UV unwrap</span>Mark seams along hidden edges (bottom, strap undersides), Smart UV Project or hand-unwrap, pack islands into one 256×256 UV space.</p></li>
+      <li><p><span class="stage">Texture &amp; material</span>Paint or bake a single BaseColor (canvas fabric tone, darker AO in creases, a distinct tone for straps/hardware). One Principled BSDF: BaseColor texture plugged in, Roughness ~0.7 flat, Metallic 0.</p></li>
+    </ol>
+
+    <div class="stage-divider"><span>Stage 4 — Export</span><div class="line"></div></div>
+    <ol class="steps" start="13">
+      <li><p><span class="stage">Apply transforms</span><code>Ctrl+A</code> → All Transforms, one last time, before export.</p></li>
+      <li><p><span class="stage">FBX export</span>Selected object only. Forward <code>-Z</code>, Up <code>Y</code>, Scale <code>1.00</code>, Apply Scalings: <code>FBX All</code>. No armature/animation — this is a static prop.</p></li>
+      <li><p><span class="stage">Import to Unreal</span>Into <code>Content/ZS/Items/Containers/</code>. Rename the imported asset <code>SM_Backpack</code>, texture <code>T_Backpack_BaseColor</code>, create <code>MI_Backpack</code> off the shared item master material.</p></li>
+    </ol>
+    <div class="note"><strong>Duffle reuses this exact socket and topology approach</strong> once Backpack is done — Manifest 07 has it deliberately queued right after, sharing the base shape at a different scale/texture.</div>
+  </section>
+
+  <section id="house">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Residential Building — Test Blockout</h2></div>
+    <p class="sec-dek">Deliberately <strong>not</strong> final art — the dev chose "quick blockout, defer the real kit" (Manifest 05's B2-T2 decision stays open). This exists purely to test the multi-level/interior-visibility systems and loot placement on the most-repeated building type in the game.</p>
+    <div class="spec-strip">
+      <div class="spec-cell"><span class="k">Footprint</span><span class="v">~10m × 8m</span></div>
+      <div class="spec-cell"><span class="k">Floor height</span><span class="v">~3m floor-to-floor (2 stories)</span></div>
+      <div class="spec-cell"><span class="k">Wall thickness</span><span class="v">~0.2m</span></div>
+      <div class="spec-cell"><span class="k">Destination</span><span class="v"><code>Content/ZS/Environments/_Blockout/House01/</code> <em>(underscore prefix, kept separate from final content)</em></span></div>
+      <div class="spec-cell"><span class="k">Naming</span><span class="v"><code>SM_BLOCKOUT_House01_&lt;Part&gt;</code> — never <code>SM_House01_</code>, so it can't be mistaken for finished content</span></div>
+    </div>
+
+    <div class="stage-divider"><span>Stage 1 — Ground floor shell</span><div class="line"></div></div>
+    <ol class="steps">
+      <li><p><span class="stage">Snapping</span>Enable increment snapping (<code>Shift+Tab</code>, or the magnet icon) at 0.5m or 1m — speed matters more than precision for a blockout.</p></li>
+      <li><p><span class="stage">Floor slab</span>Add a Cube, scale to 10m × 8m × 0.2m. This is <code>Floor01</code> — keep it a separate object from everything else.</p></li>
+      <li><p><span class="stage">Four walls</span>Build front/back walls (10m × 0.2m × 3m) and side walls (0.2m × 8m × 3m) as four separate cube objects, positioned flush to the floor slab's edges. Separate objects, not one merged shell — this is what makes swapping in real kit pieces later a one-for-one replacement instead of a rebuild.</p></li>
+      <li><p><span class="stage">Ceiling / second-floor slab</span>Duplicate the floor slab, move up to 3m. This doubles as Floor01's ceiling and Floor02's floor.</p></li>
+    </ol>
+
+    <div class="stage-divider"><span>Stage 2 — Openings</span><div class="line"></div></div>
+    <ol class="steps" start="5">
+      <li><p><span class="stage">Door cutout</span>Add a cube sized ~1m × 0.3m × 2.1m where the front door goes, positioned to punch through the wall. Add a Boolean modifier (Difference) on the wall, target the door cube, apply, then delete the cutter cube.</p></li>
+      <li><p><span class="stage">Window cutouts</span>Same Boolean approach, cube ~1.2m × 0.3m × 1.2m, sill height ~0.9m off the floor. Repeat per wall as needed — 2–3 windows per floor is enough for a blockout.</p></li>
+      <li><p><span class="stage">Second story</span>Repeat Stages 1–2 offset up by 3m for Floor02's walls and openings.</p></li>
+    </ol>
+
+    <div class="stage-divider"><span>Stage 3 — Vertical traversal &amp; roof</span><div class="line"></div></div>
+    <ol class="steps" start="8">
+      <li><p><span class="stage">Stairs</span>A stepped row of small cubes (~0.25m tread depth, ~0.18m rise) connecting Floor01 to Floor02 — functional, not pretty. This is what actually exercises <code>UZSElevationSubsystem</code>'s floor-detection and the aim-ray floor-plane resolve, so don't skip it even in a rough pass.</p></li>
+      <li><p><span class="stage">Roof</span>One more flat slab above Floor02, or a simple two-plane pitched roof if you want the silhouette read from outside — not load-bearing for the system test, purely visual.</p></li>
+    </ol>
+
+    <div class="stage-divider"><span>Stage 4 — Export &amp; import</span><div class="line"></div></div>
+    <ol class="steps" start="10">
+      <li><p><span class="stage">Apply transforms</span>On every object, <code>Ctrl+A</code> → All Transforms.</p></li>
+      <li><p><span class="stage">Export</span>Either export all pieces together (fastest for a one-off test level) or individually if you want to reuse a wall/floor piece elsewhere. Same FBX settings as the Backpack guide above — verify against the cube test first.</p></li>
+      <li><p><span class="stage">Collision</span>On import, make sure "Generate Missing Collision" is enabled (or add Box Simplified Collision manually in the Static Mesh Editor) — these need to be walkable and blocking, not just visual.</p></li>
+      <li><p><span class="stage">Import location</span><code>Content/ZS/Environments/_Blockout/House01/</code> — deliberately outside the real environment folder structure Manifest 05 will eventually use, so nobody mistakes this for finished content later.</p></li>
+    </ol>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+      <li><a class="current" href="10_BlenderBuildGuides.html">10 · Blender Build Guides</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/10_BlenderBuildGuides.html · written 2026-09-07 · ask for the next guide by item/building name and it gets added here</div>
+  </footer>
+
+</div>
