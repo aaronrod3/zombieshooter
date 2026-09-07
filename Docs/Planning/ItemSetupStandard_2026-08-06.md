@@ -203,9 +203,9 @@ Scoped narrower than the tracker table above: only real, confirmed gaps that are
 **Expanded 2026-08-12** at dev request to also include Food/Medical, World Containers, and Weapon Attachments — these were originally left off as "pack already covers it," but the dev wants some of these hand-modeled too (style consistency with everything else in this pipeline, and reps on the process), not just wired up from the source packs.
 
 **Food (keep genuinely simple — single/near-single-mesh items, not the pack's modular multi-part kits like the burger/pizza/sandwich assemblies, which don't need remaking):**
-- [ ] Generic unlabeled can — reusable across several canned-goods items via texture swap alone, good first example of the UV-does-the-work philosophy paying off
-- [ ] Water bottle
-- [ ] Wrapped snack/candy bar
+- [ ] Generic unlabeled can — 2026-08-29 pack audit found a real match (`SM_The_Can`), optional now, still good style-consistency practice
+- [ ] Water bottle — pack audit found a real match (`SM_Bottle_1l`), optional now
+- [ ] Wrapped snack/candy bar — still a real gap, no pack match found
 - [ ] Bread loaf
 
 **Medical (simple; several of these already exist in `Content/FirstAidCabinet/` — model your own only if you want it style-matched to everything else, otherwise just reuse the pack mesh and skip):**
@@ -214,8 +214,8 @@ Scoped narrower than the tracker table above: only real, confirmed gaps that are
 - [ ] Antiseptic wipes packet — small, flat, easy
 
 **World containers (simple loot props, generic enough to reuse across many building types):**
-- [ ] Wooden crate
-- [ ] Footlocker
+- [ ] Wooden crate — pack audit found a real match (`SM_Large_Wood_Box`), optional now
+- [ ] Footlocker — only a plausible reskin match (`SM_METAL_BOX`), still worth a dedicated model
 
 **Weapon attachments — COMPLETE as of 2026-08-29.** Scope grew back out slightly as modeling started (Compensator un-cut, Grip/Laser/Optic each became two real-world-named variants) — see `ItemCatalog_2026-08-12.md`'s Weapon Attachments section for the full reasoning and per-item tris:
 - [x] Suppressor (Muzzle) — 92 tris

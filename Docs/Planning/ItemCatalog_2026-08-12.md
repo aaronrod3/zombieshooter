@@ -6,6 +6,18 @@
 >
 > **Deliberately not covered here**: deep crafting materials/recipes (`CLAUDE.md`'s Off-Limits section lists deep crafting as CUT, needs its own planning pass before it's real scope), vehicles (own future phase, `BV`), NPC faction-specific gear (full factions are post-v1). Counts below are a reasonable genre-appropriate spread, not an attempt at exhaustiveness — pad categories further only when a real design reason calls for it (a new loot-tier need, a new recipe, a new skill), not just to hit a bigger number.
 
+## Pack audit findings (2026-08-29) — read this before trusting the per-category `[Blender]` tags below
+
+A real, direct directory audit of all four owned packs (not the earlier spot-checks) turned up one big surprise: **`Content/LowPolyWeapons/` is far larger than previously known and has already been fully mirrored into `Content/ZS/Items/Weapons/Meshes/`** — Pistols, Shotguns, SMG, SniperRifle, Grenade, LMG, HandWeapon, HeavyWeapon, Optic, and Loot subfolders all exist there in full, not just the AssaultRifle set this doc originally described. Most of "Weapons — Ranged" below is genuinely **`[Data-only]` now, not `[Blender]`** — the per-category tables haven't been rewritten row-by-row (would mean editing 30+ cells with low added value over this summary), so treat this section as the corrected status and the tables below as the original first-pass assessment.
+
+**Confirmed real mesh exists (upgrade to `[Data-only]`)**: Pistol (`Meshes/Pistols/SM_Pistols1_01` + 5 more families), SMG (`Meshes/SMG/SM_SMG1_01` + 5 more), Crowbar (`Mega_Survival_Tools/SM_Crowbar`), Fire Axe (`SM_Fire_Axe`), Claw Hammer (`SM_Claw_Hammer`), Sledgehammer (`SM_Sledgehammer`), Generic unlabeled can (`SM_The_Can`/`SM_Tin_Can_02`), **Water Bottle** (`SM_Bottle_1l`/`SM_Water_Package`), Coffee (`SM_Instant_Coffee`), Flashlight mesh (`Mega_Survival_Tools/SM_FLASHLIGHT`), Lockpick-plausible (`SM_Diamond_File`), Battery (`SM_Battery_01`), Matches/Lighter (`SM_Camping_Matches`/`SM_Gas_Lighter`), Rope (`SM_Rope`), Screwdriver (`SM_Screwdriver_01/02`), Duct Tape (`SM_INSULATING_TAPE`), Wooden Crate (`SM_Large_Wood_Box`).
+
+**Plausible, needs a visual check before committing**: Revolver/Pump Shotgun/Sawn-off/Bolt-Action (candidate families exist in the mirrored pack but which specific mesh matches which archetype wasn't visually confirmed), Kitchen Knife/Baseball Bat/Machete (generic `HandWeapon_01..08` shapes, unlabeled), .357 ammo (`SM_Bullet_45Cal`, close caliber), Suture kit (`SM_SEWING_KIT` reskin), Footlocker (`SM_METAL_BOX`), Newspaper/magazine (`SM_OFFICE_PAPER`).
+
+**Confirmed real gap — no match anywhere, Blender genuinely required**: all 5 Gear items (Backpack/Helmet/Vest/Belt/Duffle — nothing wearable in any owned pack), Splint, Antibiotics, Antiseptic wipes, .308/12 Gauge ammo, Pistol/SMG loose magazines, Wrapped snack/candy bar, Kitchen Cabinet, Locker, Dumpster, Wallet, Cigarette pack, Playing cards.
+
+**Notable assets sitting unused in the packs, not on this catalog at all**: a full grenade/throwable set already modeled (`Meshes/Grenade/SM_Grenade_01-06`, `SM_MolotovCocktail_01`, `SM_Mine_01-03` — directly covers the Frag/Smoke Grenade rows added below), a **Chainsaw** (`SM_Chainsaw` — strong heavy-melee candidate), **Bolt/Wire Cutters** (ties directly to the breach/lockpick mechanic), a **Compass**, a **Ladder** (verticality prop for `B4-T3`), a ready-made `Meshes/Loot/` set (ammo boxes, health packs, energy packs), gas cylinders/propane tanks, and cardboard boxes/pallets for generic loot dressing.
+
 ## Weapons — Ranged
 
 Tris column: **bold = real, measured**; everything else is a 2026-08-29 estimate reasoned off the M4's actual part costs (no rail/quad-rail system on any of these except the M4 itself — that's the outlier, not the norm), to be replaced with real numbers as each gets modeled.
@@ -174,7 +186,45 @@ Low-value, no mechanical purpose beyond loot variety and world dressing — keep
 
 ---
 
-## Open questions this catalog surfaces (not resolved here — flag for the dev/design pass, don't guess)
+## Additional items — pivot-aware expansion (added 2026-08-29)
+
+This catalog was written 2026-08-12, before the 2026-08-27 hub-and-raid extraction pivot. The original 87 items still hold (per `CLAUDE.md`'s own note that item/weapon/gear systems carry over unchanged), but the pivot's actual shape — vendor contracts (scavenging/recon/heist/document-retrieval), a hub economy with real currency, and a genre now closer to an extraction shooter than open survival — surfaces real items the original list never had a reason to include. Same rule as the original catalog: genre-appropriate, grounded in what the game's systems can actually use, not padding for count.
+
+**Combat/tactical (extraction-shooter staples, not in the original 87):**
+
+| Item | Notes | Status |
+|---|---|---|
+| Frag Grenade | mesh already exists, unused — `LowPolyWeapons/Meshes/Grenade/SM_Grenade_01-06` | `[Data-only]` |
+| Molotov Cocktail | wasn't on the original candidate list — found already modeled and worth adding on its own merits, `SM_MolotovCocktail_01` | `[Data-only]` |
+| Landmine | same discovery — `SM_Mine_01-03`, a real gap-filler for area denial that nothing else on this catalog covers | `[Data-only]` |
+| Smoke Grenade | no matching mesh found in the audit — genuine gap unless a grenade mesh above gets reskinned | `[Blender]` |
+| Flare | hand-held or flare gun — signaling/light utility, distinct from the flashlight | `[Blender]` |
+| Ballistic Plate | insert for the `Vest` gear slot — armor-tier variety without a new equip slot | `[Blender]` |
+| Weapon Cleaning/Repair Kit | restores `AZSWeapon::CurrentConditionQuality` — the game already has the jam-chance mechanic this would feed, no content exists for it yet | `[Blender]` |
+| Binoculars | recon-contract tool | `[Blender]` |
+| Chainsaw | not on any earlier list — found already modeled (`Mega_Survival_Tools/SM_Chainsaw`), strong heavy-melee weapon candidate worth adding to the Melee roster | `[Data-only]` |
+| Bolt/Wire Cutters | ties directly to the resolved hybrid breach+lockpicking design (`OQ-B4-08`) — found already modeled, not previously catalogued | `[Data-only]` |
+
+**Contract/extraction-specific (new — these didn't exist as a concept before the pivot):**
+
+| Item | Notes | Status |
+|---|---|---|
+| Classified Dossier | document-retrieval contract objective — a physical paper/folder item | `[Blender]` |
+| USB Drive / Data Stick | digital-intel variant of the above, for a more modern-feeling contract | `[Blender]` |
+| Keycard | heist-contract access item — pairs with the resolved hybrid breach+lockpicking design (`OQ-B4-08`, pre-pivot but likely still applicable) | `[Blender]` |
+| Cash Bundle | found loot that converts straight to `AZSPlayerState::Server_AddCurrency` on pickup rather than occupying a carry slot — common extraction-shooter loot type, and the hub economy (`BH-T2`) already has real currency to feed | `[Blender]` — **needs a code-side decision first**: does this bypass inventory entirely, or sit as a carryable item that only converts at a vendor/stash? Flag for the coding session, don't guess the mechanic here. |
+
+**Medical tiers (the original Medical section covered the basics; these are genre-appropriate higher tiers for combat-focused pacing):**
+
+| Item | Notes | Status |
+|---|---|---|
+| Tourniquet | faster bleed-stop than a bandage, higher tier | `[Blender]` |
+| Morphine / Pain Injector | fast `HealthRestore`, higher tier than a painkiller pill | `[Blender]` |
+| Adrenaline Shot | temporary Stamina/performance boost | `[Blender]` |
+
+**Flagged, not added — uncertain post-pivot**: a Radio item was planned pre-pivot (`B5_Events_Investigation.md`'s radio/broadcast system) but B5 itself was written for the old open-world structure and hasn't been reconciled against the hub-and-raid pivot yet (`CLAUDE.md`'s pivot note only confirms B0/B1 systems carry over, B5 isn't mentioned either way) — don't model a Radio item until that's resolved, it may not exist in the same form.
+
+
 
 - **Revolver/Shotgun reload model**: the current magazine system (`UZSMagazineConfig`) assumes a detachable box magazine. A revolver/shotgun's per-round reload is a different mechanic entirely — needs its own design decision before those two weapons can actually be built, not just a content gap.
 - **Water purification**: is drinking untreated water ever risky (a PZ-style mechanic), or is all water safe once found? Changes whether "purification tablets" is a real item or not.
