@@ -120,12 +120,32 @@
       <div class="spec"><span class="k">Icon pipeline</span><span class="v"><code>BP_IconGenerator</code>/<code>M_Icon</code> exist mid-edit — appears to be a render-capture-to-icon system. <strong>Unconfirmed</strong> — if true, no separate 2D icon art is ever needed. Confirm before assuming.</span></div>
     </div>
 
-    <h3 style="font-size:14px;text-transform:uppercase;color:var(--ink-muted);margin:24px 0 10px;">Folder destinations (verified current)</h3>
-    <div class="spec-grid">
-      <div class="spec"><span class="k">Existing</span><span class="v"><code>Content/ZS/Items/Weapons/{Ammo,Melee,Pistol,Rifle}/</code>, <code>.../Weapons/Meshes/AssaultRifle/</code>, <code>Medical/Meshes/</code>, flat <code>Textures/</code>, <code>ItemDataAssets/</code></span></div>
+    <h3 style="font-size:14px;text-transform:uppercase;color:var(--ink-muted);margin:24px 0 10px;">Folder structure — revised 2026-09-07 (full weapon roster expansion)</h3>
+    <p style="font-size:13.5px;color:var(--ink-muted);">Superseded the old flat <code>Weapons/{Ammo,Melee,Pistol,Rifle}/</code> layout — it doesn't scale to 3–6 weapons per category. Each weapon now gets its own subfolder (mesh+texture+material+DA+BP together), matching the pattern the FAB pack's own mesh dump already uses.</p>
+    <div class="table-wrap"><table class="tasks">
+      <tbody>
+        <tr><td class="notes" style="white-space:pre;font-family:'IBM Plex Mono';font-size:12px;line-height:1.7;">Content/ZS/Items/
+├── Weapons/
+│   ├── Rifles/&lt;Codename&gt;/       (6 — AMCAR, Kalinov-47, Falk-77, Sturm-36, AMCAR-L, Skarn-L)
+│   ├── Pistols/&lt;Codename&gt;/      (3 — Glak-19, Widow .357, Vantec-9)
+│   ├── Shotguns/&lt;Codename&gt;/     (3 — Ferelli Auto-12, Renfield-12, Sawn-Off 12)
+│   ├── SMGs/&lt;Codename&gt;/         (4 — SP-5, SP-7, PP-9, Micro-9)
+│   ├── LMGs/&lt;Codename&gt;/         (4 — Predator LMG, Vulcan Rotary, Kalinov LSW, Torrent-45)
+│   ├── HeavyWeapons/&lt;Codename&gt;/ (2 — GL-40, RL-7)
+│   ├── Melee/&lt;Name&gt;/            (unchanged — Bat, Nailed Bat, Knife, Machete)
+│   ├── Ammo/Ammo_&lt;Caliber&gt;/     (10 calibers, see Weapon Roster table below)
+│   └── _SourceMeshes/LowPolyWeapons/  (was LowPolyPackUsedMeshes — unchanged, raw FAB reference pool)
+├── CombatTactical/{Grenades,Explosives}/
+├── Medical/{Bleeding,Infection,Fracture,PainManagement,Emergency}/
+├── Food/                          (unchanged, flat, placeholders)
+├── Comms/Radio/                   (new)
+└── Containers/, Tools/, ItemDataAssets/, IconCreator/  (unchanged)</td></tr>
+      </tbody>
+    </table></div>
+    <div class="spec-grid" style="margin-top:12px;">
+      <div class="spec"><span class="k">Migration</span><span class="v">Existing <code>Weapons/Pistol/</code> → <code>Pistols/&lt;codename&gt;/</code> and <code>Weapons/Rifle/</code> → <code>Rifles/AMCAR/</code> must be done via the Content Browser's Move/Rename — never a raw filesystem move, it breaks every reference into the asset.</span></div>
       <div class="spec"><span class="k">Removed</span><span class="v"><code>Content/ZS/Weapons/</code> <strong>no longer exists</strong> — don't reference it if seen in an older doc</span></div>
-      <div class="spec"><span class="k">New</span><span class="v"><code>Content/LowPolyPackUsedMeshes/</code> — destination for a specific mesh picked out of the big mirrored <code>LowPolyWeapons</code> dump, alongside (not replacing) the per-category weapon folders</span></div>
-      <div class="spec"><span class="k">New Blender output</span><span class="v"><code>Content/ZS/Items/&lt;Category&gt;/</code> (non-weapon) or <code>.../Weapons/&lt;Category&gt;/</code> (weapon) — mesh+texture+material together, flat, matching <code>Rifle/</code>'s pattern</span></div>
+      <div class="spec"><span class="k">Trigger</span><span class="v">Final assets bake the trigger into <code>BaseWeaponMesh</code> permanently — leave <code>UZSWeaponConfig::TriggerMesh</code> unset on every new weapon. No code change needed.</span></div>
     </div>
 
     <h3 style="font-size:14px;text-transform:uppercase;color:var(--ink-muted);margin:24px 0 10px;">Triangle budgets by class</h3>
@@ -141,8 +161,42 @@
     </table></div>
   </section>
 
+  <section id="roster">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Weapon Roster &amp; Ammo Consolidation</h2></div>
+    <p class="sec-dek">Real-world references renamed to avoid trademark issues — Payday 2-style phonetic-adjacent fictional names (recognizable, legally distinct), not Fallout-style generic descriptions, chosen to fit this game's grounded tone. Cheap to rename further — nothing is built against these except AMCAR.</p>
+    <div class="table-wrap"><table class="tasks">
+      <thead><tr><th>Category</th><th>Real reference</th><th>Codename</th><th>Caliber</th></tr></thead>
+      <tbody>
+        <tr><td>Rifle</td><td class="notes">AR <em>(existing built asset)</em></td><td><strong>AMCAR</strong></td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">AK</td><td><strong>Kalinov-47</strong></td><td class="notes">7.62×39</td></tr>
+        <tr><td>Rifle</td><td class="notes">AUG</td><td><strong>Falk-77</strong></td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">G36</td><td><strong>Sturm-36</strong></td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">M16</td><td><strong>AMCAR-L</strong> <em>(rifle-length AMCAR sibling)</em></td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">SCAR (-L confirmed)</td><td><strong>Skarn-L</strong></td><td class="notes">5.56×45</td></tr>
+        <tr><td>Pistol</td><td class="notes">Glock</td><td><strong>Glak-19</strong></td><td class="notes">9×19</td></tr>
+        <tr><td>Pistol</td><td class="notes">Revolver</td><td><strong>Widow .357</strong></td><td class="notes">.357 Mag</td></tr>
+        <tr><td>Pistol</td><td class="notes">Tec-9</td><td><strong>Vantec-9</strong></td><td class="notes">9×19</td></tr>
+        <tr><td>Shotgun</td><td class="notes">Benelli M4</td><td><strong>Ferelli Auto-12</strong></td><td class="notes">12 Gauge</td></tr>
+        <tr><td>Shotgun</td><td class="notes">Remington 870</td><td><strong>Renfield-12</strong></td><td class="notes">12 Gauge</td></tr>
+        <tr><td>Shotgun</td><td class="notes">Sawed-Off</td><td><strong>Sawn-Off 12</strong> <em>(generic term, no rename needed)</em></td><td class="notes">12 Gauge</td></tr>
+        <tr><td>SMG</td><td class="notes">MP5</td><td><strong>SP-5</strong></td><td class="notes">9×19</td></tr>
+        <tr><td>SMG</td><td class="notes">MP7</td><td><strong>SP-7</strong></td><td class="notes">4.6×30</td></tr>
+        <tr><td>SMG</td><td class="notes">PP9</td><td><strong>PP-9</strong> <em>(already generic)</em></td><td class="notes">9×19</td></tr>
+        <tr><td>SMG</td><td class="notes">Uzi</td><td><strong>Micro-9</strong></td><td class="notes">9×19</td></tr>
+        <tr><td>LMG</td><td class="notes">M249</td><td><strong>Predator LMG</strong></td><td class="notes">5.56×45</td></tr>
+        <tr><td>LMG</td><td class="notes">Minigun</td><td><strong>Vulcan Rotary</strong></td><td class="notes">7.62×51</td></tr>
+        <tr><td>LMG</td><td class="notes">RPK</td><td><strong>Kalinov LSW</strong> <em>(shares AK's fictional maker)</em></td><td class="notes">7.62×39</td></tr>
+        <tr><td>LMG</td><td class="notes">TommyGun</td><td><strong>Torrent-45</strong></td><td class="notes">.45 ACP</td></tr>
+        <tr><td>Heavy</td><td class="notes">Grenade Launcher</td><td><strong>GL-40</strong></td><td class="notes">40mm Grenade</td></tr>
+        <tr><td>Heavy</td><td class="notes">RPG</td><td><strong>RL-7</strong></td><td class="notes">RPG Rocket</td></tr>
+        <tr><td>Melee</td><td class="notes">Bat / Nailed Bat / Knife / Machete</td><td colspan="2" class="notes"><em>unchanged — generic object names, not trademarks</em></td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:14px;"><strong>10 ammo types, not 24</strong> — most weapons share a caliber. Per caliber, build in this priority order: <strong>Loose Round</strong> (bullet+case combined — the actual loot/pickup representation, build first) → <strong>Case</strong> (ejected-shell VFX, nice-to-have) → <strong>Bullet-only</strong> (lowest priority, rarely seen alone). Calibers needed: 5.56×45 (6 weapons), 9×19 (5 weapons), 7.62×39 (2 weapons), 12 Gauge (3 weapons), plus one weapon each on .357 Mag, 7.62×51, 4.6×30, .45 ACP, 40mm Grenade, RPG Rocket.</p>
+  </section>
+
   <section id="queue">
-    <div class="sec-head"><span class="sec-num">02</span><h2>Active Priority Queue</h2></div>
+    <div class="sec-head"><span class="sec-num">03</span><h2>Active Priority Queue</h2></div>
     <p class="sec-dek">Work top to bottom — each unblocks a mechanic that's otherwise untestable, ahead of anything that just adds variety.</p>
     <ol class="queue-list">
       <li>Backpack <span class="sub">in progress · 500–1,200 tris · Content/ZS/Items/Containers/</span></li>
@@ -159,7 +213,7 @@
   </section>
 
   <section id="visual-confirm">
-    <div class="sec-head"><span class="sec-num">03</span><h2>Visual-Confirm Queue <em style="color:var(--ink-faint);font-style:normal;font-size:16px;">(editor work, not modeling)</em></h2></div>
+    <div class="sec-head"><span class="sec-num">04</span><h2>Visual-Confirm Queue <em style="color:var(--ink-faint);font-style:normal;font-size:16px;">(editor work, not modeling)</em></h2></div>
     <p class="sec-dek">The 8/29 pack audit found candidate meshes for these but couldn't confirm which variant matches without opening the pack in-editor. Pick the right one, copy into <code>Content/LowPolyPackUsedMeshes/</code>, wire the DA.</p>
     <div class="table-wrap"><table class="tasks">
       <thead><tr><th>Item</th><th>Candidate</th></tr></thead>
@@ -180,13 +234,13 @@
   </section>
 
   <section id="remaining">
-    <div class="sec-head"><span class="sec-num">04</span><h2>Remaining Blender Gaps <em style="color:var(--ink-faint);font-style:normal;font-size:16px;">(later tiers, nothing blocking)</em></h2></div>
+    <div class="sec-head"><span class="sec-num">05</span><h2>Remaining Blender Gaps <em style="color:var(--ink-faint);font-style:normal;font-size:16px;">(later tiers, nothing blocking)</em></h2></div>
     <div class="table-wrap"><table class="tasks">
       <thead><tr><th>Category</th><th>Items</th></tr></thead>
       <tbody>
         <tr><td class="notes">Ammo</td><td>.308, 12 Gauge — real gaps, unconfirmed against any pack</td></tr>
         <tr><td class="notes">Medical</td><td>Antibiotics, Tourniquet, Morphine/Pain Injector, Adrenaline Shot</td></tr>
-        <tr><td class="notes">Combat/tactical</td><td>Smoke Grenade, Flare, Ballistic Plate, Weapon Cleaning/Repair Kit, Binoculars</td></tr>
+        <tr><td class="notes">Combat/tactical</td><td>Smoke Grenade, Flash Grenade, Bomb <em style="color:var(--ink-faint);font-style:normal;">(breach charge/timed explosive, new)</em>, Flare, Weapon Cleaning/Repair Kit — Binoculars and Ballistic Plate dropped from scope 2026-09-07</td></tr>
         <tr><td class="notes">Contract/intel <em style="color:var(--ink-faint);font-style:normal;">(new)</em></td><td>Classified Dossier, USB Drive/Data Stick, Keycard — Cash Bundle blocked on a code decision (bypasses inventory vs. carryable item) before any content</td></tr>
         <tr><td class="notes">World containers</td><td>Kitchen Cabinet, Locker, Dumpster</td></tr>
         <tr><td class="notes">Misc/junk <em style="color:var(--ink-faint);font-style:normal;">(lowest priority, pure volume)</em></td><td>Wallet, Cigarette Pack, Playing Cards</td></tr>
@@ -196,15 +250,15 @@
   </section>
 
   <section id="blocked">
-    <div class="sec-head"><span class="sec-num">05</span><h2>Blocked — Needs a Decision, Not a Queue Position</h2></div>
+    <div class="sec-head"><span class="sec-num">06</span><h2>Blocked — Needs a Decision, Not a Queue Position</h2></div>
     <div class="table-wrap"><table class="tasks">
       <thead><tr><th>Item</th><th>Blocked on</th></tr></thead>
       <tbody>
         <tr><td>Cash Bundle</td><td class="notes">Code decision: bypass inventory entirely, or a carryable item?</td></tr>
         <tr><td>Clothing (all 6 slots)</td><td class="notes">The texture/material-swap system landing on the base skin mesh — doesn't exist yet, not a content gap right now</td></tr>
-        <tr><td>Radio item</td><td class="notes">Confirmed resolved this session (Manifest 02 §02) but a physical radio item still isn't scoped as content — don't model until confirmed</td></tr>
       </tbody>
     </table></div>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:10px;"><strong>Radio item — resolved 2026-09-07, no longer blocked.</strong> Scope: a single equip item serving two roles — gates the already-planned ping-wheel/text-chat system (B10-T1.8) to long-range use, and is required to trigger Supply Drop / Emergency Exfil call-ins via the existing <code>SupportStrike</code> consumable system. Model it into <code>Content/ZS/Items/Comms/Radio/</code>, small-handheld budget (100–400 tris).</p>
   </section>
 
   <footer>

@@ -104,9 +104,9 @@
   </div>
 
   <div class="stat-row">
-    <div class="stat"><div class="n">~100</div><div class="l">Catalogued items</div></div>
+    <div class="stat"><div class="n">~130</div><div class="l">Catalogued items</div></div>
     <div class="stat"><div class="n">~30</div><div class="l">Confirmed free (data-only)</div></div>
-    <div class="stat"><div class="n">~45</div><div class="l">Real Blender gaps</div></div>
+    <div class="stat"><div class="n">~60</div><div class="l">Real Blender gaps</div></div>
     <div class="stat"><div class="n">1</div><div class="l">Zombie mesh — still unsourced</div></div>
     <div class="stat"><div class="n">0</div><div class="l">VFX tasks currently scoped</div></div>
   </div>
@@ -123,15 +123,14 @@
     <div class="sec-head"><span class="sec-num">01</span><h2>Items</h2></div>
     <p class="sec-dek">Corrected against ItemCatalog_2026-08-12.md's own 8/29 pack-audit note — several rows the table still marks Blender-gap are actually confirmed free. Full per-item Blender specs (budgets, folders, sockets) are Manifest 07's job, not repeated here.</p>
 
-    <h3 class="cat">Weapons — Ranged</h3>
+    <h3 class="cat">Weapons — Ranged <em style="color:var(--ink-faint);font-style:normal;">(roster expanded 2026-09-07 — full 21-weapon table with codenames now lives in Manifest 07 §02, single source of truth)</em></h3>
     <div class="item-grid">
-      <span class="tag"><span class="dot done"></span>Assault Rifle (M4)</span>
-      <span class="tag"><span class="dot data"></span>SMG</span>
-      <span class="tag"><span class="dot confirm"></span>Pistol</span>
-      <span class="tag"><span class="dot confirm"></span>Revolver</span>
-      <span class="tag"><span class="dot confirm"></span>Pump Shotgun</span>
-      <span class="tag"><span class="dot confirm"></span>Sawn-off Shotgun</span>
-      <span class="tag"><span class="dot confirm"></span>Bolt-Action / Hunting Rifle</span>
+      <span class="tag"><span class="dot done"></span>Rifles — 6 (AMCAR built; Kalinov-47, Falk-77, Sturm-36, AMCAR-L, Skarn-L pending)</span>
+      <span class="tag"><span class="dot data"></span>Pistols — 3 (Glak-19, Widow .357, Vantec-9)</span>
+      <span class="tag"><span class="dot data"></span>Shotguns — 3 (Ferelli Auto-12, Renfield-12, Sawn-Off 12)</span>
+      <span class="tag"><span class="dot data"></span>SMGs — 4 (SP-5, SP-7, PP-9, Micro-9)</span>
+      <span class="tag"><span class="dot confirm"></span>LMGs — 4 (Predator LMG, Vulcan Rotary, Kalinov LSW, Torrent-45)</span>
+      <span class="tag"><span class="dot blender"></span>Heavy — 2 (GL-40, RL-7)</span>
     </div>
 
     <h3 class="cat">Weapons — Melee</h3>
@@ -171,33 +170,33 @@
       <span class="tag"><span class="dot done"></span>LPVO Sight <em style="color:var(--ink-faint);font-style:normal;">— flagged for tris revision, not blocking</em></span>
     </div>
 
-    <h3 class="cat">Combat / Tactical</h3>
+    <h3 class="cat">Combat / Tactical <em style="color:var(--ink-faint);font-style:normal;">(revised 2026-09-07 — Binoculars/Ballistic Plate dropped, Bomb added)</em></h3>
     <div class="item-grid">
       <span class="tag"><span class="dot data"></span>Frag Grenade</span>
       <span class="tag"><span class="dot data"></span>Molotov Cocktail</span>
       <span class="tag"><span class="dot data"></span>Landmine</span>
       <span class="tag"><span class="dot data"></span>Bolt/Wire Cutters</span>
       <span class="tag"><span class="dot blender"></span>Smoke Grenade</span>
+      <span class="tag"><span class="dot blender"></span>Flash Grenade</span>
+      <span class="tag"><span class="dot blender"></span>Bomb <em style="color:var(--ink-faint);font-style:normal;">— breach charge/timed explosive, new</em></span>
       <span class="tag"><span class="dot blender"></span>Flare</span>
-      <span class="tag"><span class="dot blender"></span>Ballistic Plate</span>
       <span class="tag"><span class="dot blender"></span>Weapon Cleaning/Repair Kit</span>
-      <span class="tag"><span class="dot blender"></span>Binoculars</span>
     </div>
 
-    <h3 class="cat">Medical</h3>
+    <h3 class="cat">Medical <em style="color:var(--ink-faint);font-style:normal;">(recategorized 2026-09-07 by what it treats, tiered by potency — folder structure in Manifest 07)</em></h3>
     <div class="item-grid">
-      <span class="tag"><span class="dot done"></span>Bandage (clean)</span>
-      <span class="tag"><span class="dot data"></span>Bandage (dirty rag)</span>
-      <span class="tag"><span class="dot data"></span>Disinfectant / Alcohol</span>
-      <span class="tag"><span class="dot data"></span>Tincture of Iodine</span>
-      <span class="tag"><span class="dot data"></span>Painkillers</span>
-      <span class="tag"><span class="dot blender"></span>Splint</span>
-      <span class="tag"><span class="dot blender"></span>Antibiotics</span>
-      <span class="tag"><span class="dot confirm"></span>Suture kit</span>
-      <span class="tag"><span class="dot blender"></span>Antiseptic Wipes</span>
-      <span class="tag"><span class="dot blender"></span>Tourniquet</span>
-      <span class="tag"><span class="dot blender"></span>Morphine / Pain Injector</span>
-      <span class="tag"><span class="dot blender"></span>Adrenaline Shot</span>
+      <span class="tag"><span class="dot done"></span>Bleeding · T1 Dirty Rag</span>
+      <span class="tag"><span class="dot done"></span>Bleeding · T2 Bandage (clean)</span>
+      <span class="tag"><span class="dot blender"></span>Bleeding · T3 Trauma Bandage</span>
+      <span class="tag"><span class="dot data"></span>Infection · T1 Disinfectant/Alcohol, Iodine</span>
+      <span class="tag"><span class="dot blender"></span>Infection · T2 Antiseptic Wipes</span>
+      <span class="tag"><span class="dot blender"></span>Infection · T3 Antibiotics</span>
+      <span class="tag"><span class="dot blender"></span>Fracture · Splint</span>
+      <span class="tag"><span class="dot confirm"></span>Fracture · Suture kit</span>
+      <span class="tag"><span class="dot data"></span>Pain Management · T1 Painkillers</span>
+      <span class="tag"><span class="dot blender"></span>Pain Management · T2 Morphine/Injector</span>
+      <span class="tag"><span class="dot blender"></span>Emergency · Tourniquet</span>
+      <span class="tag"><span class="dot blender"></span>Emergency · Adrenaline Shot</span>
     </div>
 
     <h3 class="cat">Food &amp; Drink</h3>
@@ -212,6 +211,11 @@
       <span class="tag"><span class="dot data"></span>Coffee</span>
       <span class="tag"><span class="dot blender"></span>Jerky</span>
       <span class="tag"><span class="dot blender"></span>Wrapped Snack / Candy Bar</span>
+    </div>
+
+    <h3 class="cat">Comms <em style="color:var(--ink-faint);font-style:normal;">(new 2026-09-07)</em></h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot blender"></span>Radio <em style="color:var(--ink-faint);font-style:normal;">— gates the ping-wheel to long-range use + triggers Supply Drop/Emergency Exfil call-ins, see Manifest 07 §06</em></span>
     </div>
 
     <h3 class="cat">Clothing — texture-only, blocked</h3>
@@ -266,7 +270,6 @@
       <span class="tag"><span class="dot confirm"></span>Newspaper/Magazine</span>
     </div>
 
-    <div class="note-box"><strong>Flagged, don't model yet:</strong> Radio item — B5's fate under the persistent-hub pivot is settled now (Manifest 02 §02), but a physical radio item still isn't scoped as content. Confirm before building.</div>
   </section>
 
   <section id="characters">
