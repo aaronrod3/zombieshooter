@@ -126,8 +126,8 @@
       <tbody>
         <tr><td class="notes" style="white-space:pre;font-family:'IBM Plex Mono';font-size:12px;line-height:1.7;">Content/ZS/Items/
 ├── Weapons/
-│   ├── Rifles/&lt;Name&gt;/       (5 — Mk18, AKM, R-36, M16, Mk16)
-│   ├── Pistols/&lt;Name&gt;/      (3 — P80, R-357, MP-9)
+│   ├── Rifles/&lt;Name&gt;/       (5 — M4, AKM, H36, M16, Mk16)
+│   ├── Pistols/&lt;Name&gt;/      (3 — G-17, R-357, MP-9)
 │   ├── Shotguns/&lt;Name&gt;/     (3 — M1014, M870, Sawed-Off 12)
 │   ├── SMGs/&lt;Name&gt;/         (4 — SMG-5, SMG-7, PP-9, SMG-3)
 │   ├── LMGs/&lt;Name&gt;/         (4 — M249, M134, RPK, M1A1)
@@ -143,7 +143,7 @@
       </tbody>
     </table></div>
     <div class="spec-grid" style="margin-top:12px;">
-      <div class="spec"><span class="k">Migration</span><span class="v">Existing <code>Weapons/Pistol/</code> → <code>Pistols/&lt;name&gt;/</code> and <code>Weapons/Rifle/</code> → <code>Rifles/Mk18/</code> must be done via the Content Browser's Move/Rename — never a raw filesystem move, it breaks every reference into the asset.</span></div>
+      <div class="spec"><span class="k">Migration</span><span class="v">Existing <code>Weapons/Pistol/</code> → <code>Pistols/G-17/</code> and <code>Weapons/Rifle/</code> → <code>Rifles/M4/</code> must be done via the Content Browser's Move/Rename — never a raw filesystem move, it breaks every reference into the asset.</span></div>
       <div class="spec"><span class="k">Removed</span><span class="v"><code>Content/ZS/Weapons/</code> <strong>no longer exists</strong> — don't reference it if seen in an older doc</span></div>
       <div class="spec"><span class="k">Trigger</span><span class="v">Final assets bake the trigger into <code>BaseWeaponMesh</code> permanently — leave <code>UZSWeaponConfig::TriggerMesh</code> unset on every new weapon. No code change needed.</span></div>
     </div>
@@ -167,12 +167,12 @@
     <div class="table-wrap"><table class="tasks">
       <thead><tr><th>Category</th><th>Real reference</th><th>Final name</th><th>Basis</th><th>Caliber</th></tr></thead>
       <tbody>
-        <tr><td>Rifle</td><td class="notes">AR <em>(existing built asset — needs rename)</em></td><td><strong>Mk 18</strong></td><td class="notes">Real US SOCOM designation (CQBR), clean of Colt's contested "M4" trademark</td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">AR <em>(existing built asset — needs rename)</em></td><td><strong>M4</strong></td><td class="notes">Real US designation — dev-chosen despite Colt's active trademark claims on "M4" specifically, flagged</td><td class="notes">5.56×45</td></tr>
         <tr><td>Rifle</td><td class="notes">AK</td><td><strong>AKM</strong></td><td class="notes">Real Soviet designation — still "K"-adjacent to the Kalashnikov trademark, flagged</td><td class="notes">7.62×39</td></tr>
-        <tr><td>Rifle</td><td class="notes">G36</td><td><strong>R-36</strong></td><td class="notes">No separate designation exists — Bundeswehr uses "G36" too. Styled stand-in.</td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">G36</td><td><strong>H36</strong></td><td class="notes">No separate designation exists — Bundeswehr uses "G36" too. Styled stand-in.</td><td class="notes">5.56×45</td></tr>
         <tr><td>Rifle</td><td class="notes">M16</td><td><strong>M16</strong></td><td class="notes">Real, no brand attached — unchanged</td><td class="notes">5.56×45</td></tr>
         <tr><td>Rifle</td><td class="notes">SCAR-L <em>(defaulted — confirm)</em></td><td><strong>Mk 16</strong></td><td class="notes">Real US SOCOM designation for the 5.56 SCAR-L variant, matches your earlier caliber confirmation</td><td class="notes">5.56×45</td></tr>
-        <tr><td>Pistol</td><td class="notes">Glock</td><td><strong>P80</strong></td><td class="notes">Real Austrian military designation ("Pistole 80"), distinct from Glock's own model numbering</td><td class="notes">9×19</td></tr>
+        <tr><td>Pistol</td><td class="notes">Glock</td><td><strong>G-17</strong></td><td class="notes">Glock's own model number, dev-chosen over the fully-separate "P80" Austrian designation — lower risk than the "Glock" wordmark, not zero</td><td class="notes">9×19</td></tr>
         <tr><td>Pistol</td><td class="notes">Revolver</td><td><strong>R-357</strong></td><td class="notes">No specific real gun named, nothing to substitute. Styled stand-in.</td><td class="notes">.357 Mag</td></tr>
         <tr><td>Pistol</td><td class="notes">Tec-9</td><td><strong>MP-9</strong></td><td class="notes">Never military-issued, no designation exists. Styled stand-in.</td><td class="notes">9×19</td></tr>
         <tr><td>Shotgun</td><td class="notes">Benelli M4</td><td><strong>M1014</strong></td><td class="notes">Real US Joint Service Combat Shotgun designation</td><td class="notes">12 Gauge</td></tr>
@@ -191,8 +191,8 @@
         <tr><td>Melee</td><td class="notes">Bat / Nailed Bat / Knife / Machete</td><td colspan="3" class="notes"><em>unchanged — generic object names, not trademarks</em></td></tr>
       </tbody>
     </table></div>
-    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:14px;"><strong>AKM/RPK residual risk</strong>: both are real designations, but the letters themselves carry the Kalashnikov association — the only way around that is dropping to an obscure Soviet GRAU index number (e.g. <code>6P1</code>) instead. Left as AKM/RPK per instruction; revisit if that changes.</p>
-    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:10px;"><strong>21 weapons, 10 ammo types</strong> — most weapons share a caliber. Per caliber, build in priority order: <strong>Loose Round</strong> (bullet+case combined — the actual loot/pickup representation, build first) → <strong>Case</strong> (ejected-shell VFX, nice-to-have) → <strong>Bullet-only</strong> (lowest priority). Calibers: 5.56×45 (Mk 18, R-36, M16, Mk 16, M249 — 5 weapons), 9×19 (P80, MP-9, SMG-5, PP-9, SMG-3 — 5 weapons), 7.62×39 (AKM, RPK — 2 weapons), 12 Gauge (M1014, M870, Sawed-Off 12 — 3 weapons), plus one weapon each on 7.62×51 (M134), .357 Mag (R-357), 4.6×30 (SMG-7), .45 ACP (M1A1), 40mm Grenade (M320), RPG Rocket (RPG-7).</p>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:14px;"><strong>Residual risk on three entries, dev-accepted</strong>: <strong>M4</strong> — Colt has actively pursued trademark claims specifically over this designation; <strong>AKM/RPK</strong> — both real designations, but the letters themselves carry the Kalashnikov association. The only way around either is an obscure index number (e.g. Soviet GRAU <code>6P1</code> for the AK family) — left as named per instruction, revisit if that changes.</p>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:10px;"><strong>21 weapons, 10 ammo types</strong> — most weapons share a caliber. Per caliber, build in priority order: <strong>Loose Round</strong> (bullet+case combined — the actual loot/pickup representation, build first) → <strong>Case</strong> (ejected-shell VFX, nice-to-have) → <strong>Bullet-only</strong> (lowest priority). Calibers: 5.56×45 (M4, H36, M16, Mk 16, M249 — 5 weapons), 9×19 (G-17, MP-9, SMG-5, PP-9, SMG-3 — 5 weapons), 7.62×39 (AKM, RPK — 2 weapons), 12 Gauge (M1014, M870, Sawed-Off 12 — 3 weapons), plus one weapon each on 7.62×51 (M134), .357 Mag (R-357), 4.6×30 (SMG-7), .45 ACP (M1A1), 40mm Grenade (M320), RPG Rocket (RPG-7).</p>
   </section>
 
   <section id="queue">
