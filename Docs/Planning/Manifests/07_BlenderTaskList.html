@@ -126,14 +126,14 @@
       <tbody>
         <tr><td class="notes" style="white-space:pre;font-family:'IBM Plex Mono';font-size:12px;line-height:1.7;">Content/ZS/Items/
 ├── Weapons/
-│   ├── Rifles/&lt;Codename&gt;/       (6 — AMCAR, Kalinov-47, Falk-77, Sturm-36, AMCAR-L, Skarn-L)
-│   ├── Pistols/&lt;Codename&gt;/      (3 — Glak-19, Widow .357, Vantec-9)
-│   ├── Shotguns/&lt;Codename&gt;/     (3 — Ferelli Auto-12, Renfield-12, Sawn-Off 12)
-│   ├── SMGs/&lt;Codename&gt;/         (4 — SP-5, SP-7, PP-9, Micro-9)
-│   ├── LMGs/&lt;Codename&gt;/         (4 — Predator LMG, Vulcan Rotary, Kalinov LSW, Torrent-45)
-│   ├── HeavyWeapons/&lt;Codename&gt;/ (2 — GL-40, RL-7)
-│   ├── Melee/&lt;Name&gt;/            (unchanged — Bat, Nailed Bat, Knife, Machete)
-│   ├── Ammo/Ammo_&lt;Caliber&gt;/     (10 calibers, see Weapon Roster table below)
+│   ├── Rifles/&lt;Name&gt;/       (5 — Mk18, AKM, R-36, M16, Mk16)
+│   ├── Pistols/&lt;Name&gt;/      (3 — P80, R-357, MP-9)
+│   ├── Shotguns/&lt;Name&gt;/     (3 — M1014, M870, Sawed-Off 12)
+│   ├── SMGs/&lt;Name&gt;/         (4 — SMG-5, SMG-7, PP-9, SMG-3)
+│   ├── LMGs/&lt;Name&gt;/         (4 — M249, M134, RPK, M1A1)
+│   ├── HeavyWeapons/&lt;Name&gt;/ (2 — M320, RPG-7)
+│   ├── Melee/&lt;Name&gt;/        (unchanged — Bat, Nailed Bat, Knife, Machete)
+│   ├── Ammo/Ammo_&lt;Caliber&gt;/ (10 calibers, see Weapon Roster table below)
 │   └── _SourceMeshes/LowPolyWeapons/  (was LowPolyPackUsedMeshes — unchanged, raw FAB reference pool)
 ├── CombatTactical/{Grenades,Explosives}/
 ├── Medical/{Bleeding,Infection,Fracture,PainManagement,Emergency}/
@@ -143,7 +143,7 @@
       </tbody>
     </table></div>
     <div class="spec-grid" style="margin-top:12px;">
-      <div class="spec"><span class="k">Migration</span><span class="v">Existing <code>Weapons/Pistol/</code> → <code>Pistols/&lt;codename&gt;/</code> and <code>Weapons/Rifle/</code> → <code>Rifles/AMCAR/</code> must be done via the Content Browser's Move/Rename — never a raw filesystem move, it breaks every reference into the asset.</span></div>
+      <div class="spec"><span class="k">Migration</span><span class="v">Existing <code>Weapons/Pistol/</code> → <code>Pistols/&lt;name&gt;/</code> and <code>Weapons/Rifle/</code> → <code>Rifles/Mk18/</code> must be done via the Content Browser's Move/Rename — never a raw filesystem move, it breaks every reference into the asset.</span></div>
       <div class="spec"><span class="k">Removed</span><span class="v"><code>Content/ZS/Weapons/</code> <strong>no longer exists</strong> — don't reference it if seen in an older doc</span></div>
       <div class="spec"><span class="k">Trigger</span><span class="v">Final assets bake the trigger into <code>BaseWeaponMesh</code> permanently — leave <code>UZSWeaponConfig::TriggerMesh</code> unset on every new weapon. No code change needed.</span></div>
     </div>
@@ -163,36 +163,36 @@
 
   <section id="roster">
     <div class="sec-head"><span class="sec-num">02</span><h2>Weapon Roster &amp; Ammo Consolidation</h2></div>
-    <p class="sec-dek">Real-world references renamed to avoid trademark issues — Payday 2-style phonetic-adjacent fictional names (recognizable, legally distinct), not Fallout-style generic descriptions, chosen to fit this game's grounded tone. Cheap to rename further — nothing is built against these except AMCAR.</p>
+    <p class="sec-dek">Revised 2026-09-07: dev-directed switch to real military/government designations wherever one genuinely exists (distinct from the manufacturer's own trademark), not invented brand-style codenames. Where no separate designation exists at all — the military uses the manufacturer's own commercial name too — a styled numeric stand-in is kept instead, flagged below. AUG dropped from the roster entirely.</p>
     <div class="table-wrap"><table class="tasks">
-      <thead><tr><th>Category</th><th>Real reference</th><th>Codename</th><th>Caliber</th></tr></thead>
+      <thead><tr><th>Category</th><th>Real reference</th><th>Final name</th><th>Basis</th><th>Caliber</th></tr></thead>
       <tbody>
-        <tr><td>Rifle</td><td class="notes">AR <em>(existing built asset)</em></td><td><strong>AMCAR</strong></td><td class="notes">5.56×45</td></tr>
-        <tr><td>Rifle</td><td class="notes">AK</td><td><strong>Kalinov-47</strong></td><td class="notes">7.62×39</td></tr>
-        <tr><td>Rifle</td><td class="notes">AUG</td><td><strong>Falk-77</strong></td><td class="notes">5.56×45</td></tr>
-        <tr><td>Rifle</td><td class="notes">G36</td><td><strong>Sturm-36</strong></td><td class="notes">5.56×45</td></tr>
-        <tr><td>Rifle</td><td class="notes">M16</td><td><strong>AMCAR-L</strong> <em>(rifle-length AMCAR sibling)</em></td><td class="notes">5.56×45</td></tr>
-        <tr><td>Rifle</td><td class="notes">SCAR (-L confirmed)</td><td><strong>Skarn-L</strong></td><td class="notes">5.56×45</td></tr>
-        <tr><td>Pistol</td><td class="notes">Glock</td><td><strong>Glak-19</strong></td><td class="notes">9×19</td></tr>
-        <tr><td>Pistol</td><td class="notes">Revolver</td><td><strong>Widow .357</strong></td><td class="notes">.357 Mag</td></tr>
-        <tr><td>Pistol</td><td class="notes">Tec-9</td><td><strong>Vantec-9</strong></td><td class="notes">9×19</td></tr>
-        <tr><td>Shotgun</td><td class="notes">Benelli M4</td><td><strong>Ferelli Auto-12</strong></td><td class="notes">12 Gauge</td></tr>
-        <tr><td>Shotgun</td><td class="notes">Remington 870</td><td><strong>Renfield-12</strong></td><td class="notes">12 Gauge</td></tr>
-        <tr><td>Shotgun</td><td class="notes">Sawed-Off</td><td><strong>Sawn-Off 12</strong> <em>(generic term, no rename needed)</em></td><td class="notes">12 Gauge</td></tr>
-        <tr><td>SMG</td><td class="notes">MP5</td><td><strong>SP-5</strong></td><td class="notes">9×19</td></tr>
-        <tr><td>SMG</td><td class="notes">MP7</td><td><strong>SP-7</strong></td><td class="notes">4.6×30</td></tr>
-        <tr><td>SMG</td><td class="notes">PP9</td><td><strong>PP-9</strong> <em>(already generic)</em></td><td class="notes">9×19</td></tr>
-        <tr><td>SMG</td><td class="notes">Uzi</td><td><strong>Micro-9</strong></td><td class="notes">9×19</td></tr>
-        <tr><td>LMG</td><td class="notes">M249</td><td><strong>Predator LMG</strong></td><td class="notes">5.56×45</td></tr>
-        <tr><td>LMG</td><td class="notes">Minigun</td><td><strong>Vulcan Rotary</strong></td><td class="notes">7.62×51</td></tr>
-        <tr><td>LMG</td><td class="notes">RPK</td><td><strong>Kalinov LSW</strong> <em>(shares AK's fictional maker)</em></td><td class="notes">7.62×39</td></tr>
-        <tr><td>LMG</td><td class="notes">TommyGun</td><td><strong>Torrent-45</strong></td><td class="notes">.45 ACP</td></tr>
-        <tr><td>Heavy</td><td class="notes">Grenade Launcher</td><td><strong>GL-40</strong></td><td class="notes">40mm Grenade</td></tr>
-        <tr><td>Heavy</td><td class="notes">RPG</td><td><strong>RL-7</strong></td><td class="notes">RPG Rocket</td></tr>
-        <tr><td>Melee</td><td class="notes">Bat / Nailed Bat / Knife / Machete</td><td colspan="2" class="notes"><em>unchanged — generic object names, not trademarks</em></td></tr>
+        <tr><td>Rifle</td><td class="notes">AR <em>(existing built asset — needs rename)</em></td><td><strong>Mk 18</strong></td><td class="notes">Real US SOCOM designation (CQBR), clean of Colt's contested "M4" trademark</td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">AK</td><td><strong>AKM</strong></td><td class="notes">Real Soviet designation — still "K"-adjacent to the Kalashnikov trademark, flagged</td><td class="notes">7.62×39</td></tr>
+        <tr><td>Rifle</td><td class="notes">G36</td><td><strong>R-36</strong></td><td class="notes">No separate designation exists — Bundeswehr uses "G36" too. Styled stand-in.</td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">M16</td><td><strong>M16</strong></td><td class="notes">Real, no brand attached — unchanged</td><td class="notes">5.56×45</td></tr>
+        <tr><td>Rifle</td><td class="notes">SCAR-L <em>(defaulted — confirm)</em></td><td><strong>Mk 16</strong></td><td class="notes">Real US SOCOM designation for the 5.56 SCAR-L variant, matches your earlier caliber confirmation</td><td class="notes">5.56×45</td></tr>
+        <tr><td>Pistol</td><td class="notes">Glock</td><td><strong>P80</strong></td><td class="notes">Real Austrian military designation ("Pistole 80"), distinct from Glock's own model numbering</td><td class="notes">9×19</td></tr>
+        <tr><td>Pistol</td><td class="notes">Revolver</td><td><strong>R-357</strong></td><td class="notes">No specific real gun named, nothing to substitute. Styled stand-in.</td><td class="notes">.357 Mag</td></tr>
+        <tr><td>Pistol</td><td class="notes">Tec-9</td><td><strong>MP-9</strong></td><td class="notes">Never military-issued, no designation exists. Styled stand-in.</td><td class="notes">9×19</td></tr>
+        <tr><td>Shotgun</td><td class="notes">Benelli M4</td><td><strong>M1014</strong></td><td class="notes">Real US Joint Service Combat Shotgun designation</td><td class="notes">12 Gauge</td></tr>
+        <tr><td>Shotgun</td><td class="notes">Remington 870</td><td><strong>M870</strong></td><td class="notes">Real informal US military designation</td><td class="notes">12 Gauge</td></tr>
+        <tr><td>Shotgun</td><td class="notes">Sawed-Off</td><td><strong>Sawed-Off 12</strong></td><td class="notes">A modification, not an issued weapon — no designation applies</td><td class="notes">12 Gauge</td></tr>
+        <tr><td>SMG</td><td class="notes">MP5</td><td><strong>SMG-5</strong></td><td class="notes">No separate designation — German military uses "MP5" too. Styled stand-in.</td><td class="notes">9×19</td></tr>
+        <tr><td>SMG</td><td class="notes">MP7</td><td><strong>SMG-7</strong></td><td class="notes">Same issue as MP5. Styled stand-in.</td><td class="notes">4.6×30</td></tr>
+        <tr><td>SMG</td><td class="notes">PP9</td><td><strong>PP-9</strong></td><td class="notes">Unclear real reference, already fits the pattern</td><td class="notes">9×19</td></tr>
+        <tr><td>SMG</td><td class="notes">Uzi</td><td><strong>SMG-3</strong></td><td class="notes">IDF's own designation is also just "Uzi." Styled stand-in.</td><td class="notes">9×19</td></tr>
+        <tr><td>LMG</td><td class="notes">M249</td><td><strong>M249</strong></td><td class="notes">Real, no brand attached — unchanged</td><td class="notes">5.56×45</td></tr>
+        <tr><td>LMG</td><td class="notes">Minigun</td><td><strong>M134</strong></td><td class="notes">Real US designation</td><td class="notes">7.62×51</td></tr>
+        <tr><td>LMG</td><td class="notes">RPK</td><td><strong>RPK</strong></td><td class="notes">Real designation, but the acronym itself encodes "Kalashnikov" — same exposure as AKM, flagged</td><td class="notes">7.62×39</td></tr>
+        <tr><td>LMG</td><td class="notes">TommyGun</td><td><strong>M1A1</strong></td><td class="notes">Real WWII US Army designation — unchanged</td><td class="notes">.45 ACP</td></tr>
+        <tr><td>Heavy</td><td class="notes">Grenade Launcher</td><td><strong>M320</strong></td><td class="notes">Real, current US designation — unchanged</td><td class="notes">40mm Grenade</td></tr>
+        <tr><td>Heavy</td><td class="notes">RPG</td><td><strong>RPG-7</strong></td><td class="notes">Fully genericized term, real Soviet designation — unchanged</td><td class="notes">RPG Rocket</td></tr>
+        <tr><td>Melee</td><td class="notes">Bat / Nailed Bat / Knife / Machete</td><td colspan="3" class="notes"><em>unchanged — generic object names, not trademarks</em></td></tr>
       </tbody>
     </table></div>
-    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:14px;"><strong>10 ammo types, not 24</strong> — most weapons share a caliber. Per caliber, build in this priority order: <strong>Loose Round</strong> (bullet+case combined — the actual loot/pickup representation, build first) → <strong>Case</strong> (ejected-shell VFX, nice-to-have) → <strong>Bullet-only</strong> (lowest priority, rarely seen alone). Calibers needed: 5.56×45 (6 weapons), 9×19 (5 weapons), 7.62×39 (2 weapons), 12 Gauge (3 weapons), plus one weapon each on .357 Mag, 7.62×51, 4.6×30, .45 ACP, 40mm Grenade, RPG Rocket.</p>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:14px;"><strong>AKM/RPK residual risk</strong>: both are real designations, but the letters themselves carry the Kalashnikov association — the only way around that is dropping to an obscure Soviet GRAU index number (e.g. <code>6P1</code>) instead. Left as AKM/RPK per instruction; revisit if that changes.</p>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:10px;"><strong>21 weapons, 10 ammo types</strong> — most weapons share a caliber. Per caliber, build in priority order: <strong>Loose Round</strong> (bullet+case combined — the actual loot/pickup representation, build first) → <strong>Case</strong> (ejected-shell VFX, nice-to-have) → <strong>Bullet-only</strong> (lowest priority). Calibers: 5.56×45 (Mk 18, R-36, M16, Mk 16, M249 — 5 weapons), 9×19 (P80, MP-9, SMG-5, PP-9, SMG-3 — 5 weapons), 7.62×39 (AKM, RPK — 2 weapons), 12 Gauge (M1014, M870, Sawed-Off 12 — 3 weapons), plus one weapon each on 7.62×51 (M134), .357 Mag (R-357), 4.6×30 (SMG-7), .45 ACP (M1A1), 40mm Grenade (M320), RPG Rocket (RPG-7).</p>
   </section>
 
   <section id="queue">
