@@ -4,15 +4,20 @@
 
 > **New phase, CR-13 (`00_MasterPlan.md` §2, extraction pivot 2026-08-27).** The persistent-across-character-death half of the hub-and-raid loop: secure stash, currency, vendors, contracts, hideout upgrades. First code landed the same day as the pivot as `UZSHubSubsystem` (`Source/ZombieShooter/Hub/`) — deliberately minimal (in-memory stash + currency only, no vendor/contract/upgrade systems yet, no disk persistence) — then **moved onto `AZSPlayerState` entirely on 2026-08-28** once a deeper problem surfaced: a `UGameInstanceSubsystem`'s state never replicates across the network at all, so a non-host connected player's own hub UI would have shown their own stale, never-updated local copy no matter how the mutators were wrapped. `AZSPlayerState.h` now carries the full finding and the current shape (`Currency`/`Stash`, replicated `COND_OwnerOnly`, real `Server`-RPC mutators). This file is the scoping pass that code was explicitly built ahead of, per `02_MasterWorkflow.md` §3 Step 3 — nothing below should be read as already decided just because a shape for it exists in code.
 >
-> **Sequencing principle: backend before hub space.** The stash/currency/vendor/contract *systems* can be built and automation-tested with zero level content (mirrors B4/B4X's "systems before volume" split) — a hub level or menu flow is the last thing this phase needs, not the first, and its shape depends on OQ-BH-01 below.
+> **⚑ PIVOT NOTICE, 2026-08-29 (`00_MasterPlan.md` CR-14) — the hub is now a physical, walkable, persistent location, not a menu.** `OQ-BH-01` is superseded: the hub is **Grayback Lodge**, a converted mountain hunting-lodge/outfitter compound sitting inside the one continuous, never-reloaded persistent world (see `BR_RaidLifecycleExtraction.md`'s matching pivot notice for the world-side half of this same change). This section's "sequencing principle" below is **unaffected in spirit** — the stash/currency/vendor/contract systems still don't need level content to be built and tested — but the "hub level or menu flow" framing needs updating: it's now a real level with physical interactables (stash vault, vendor NPCs, contract board, Motor Barn for vehicles), opened the same way `AZSContainerActor` already is (walk up, interact, modal screen opens over the world) rather than through hub-wide menu navigation.
+>
+> **Grayback Lodge — key structures** (`OQ-BH-04`): the **Lodge** itself (vendor/quartermaster NPC + contract board, taxidermy/gun-rack decor doubling as the armory backdrop `BH-T2` already needs), the **Cache** (a root-cellar/walk-in-cooler style stash vault — the physical thing `WBP_ZS_Stash` opens when interacted with), the **Motor Barn** (the old equipment barn, now storage for recovered/drivable vehicles — `BR-T4`'s vehicle work parks here), and a ridge **lookout tower** (overwatch flavor for now, not yet a scoped mechanic).
+>
+> **Sequencing principle: backend before hub space.** The stash/currency/vendor/contract *systems* can be built and automation-tested with zero level content (mirrors B4/B4X's "systems before volume" split) — the physical compound is still the last thing this phase strictly needs to start on, even though it's no longer optional the way a menu-only hub would have been.
 
 ## Entry criteria
 
 - [x] B1's widget/modal-stack architecture exists in code (`UZSUserWidgetBase`, `UZSUIManager`) — BH's screens reuse this directly, no parallel UI system needed. B1 does not need to be fully PIE-verified first.
 - [x] CR-13 confirmed: a secure stash exists at the hub, never tied to character death (`GameDevPlan.md` Decision 7).
-- [x] **OQ-BH-01 (BLOCKING)** — ✅ RESOLVED 2026-08-28: **menu-driven screen flow, no hub level at all.** `BH-T6` is now `T6.1-alt` only.
-- [x] **OQ-BH-02 (BLOCKING)** — ✅ RESOLVED 2026-08-28: **per-player stash**, not shared per game instance. `Currency`/`Stash` now live on `AZSPlayerState` (moved off `UZSHubSubsystem` the same day, see this file's own header note) — genuinely per-connection by construction, not just per-key-in-a-map (see `BH-T1.4` below).
+- [x] **OQ-BH-01 (BLOCKING)** — ⚠️ SUPERSEDED 2026-08-29 (see pivot notice above): **walkable, physical hub — Grayback Lodge**, not a menu flow. `BH-T6.1` (walkable hub level) is now the real scope; `T6.1-alt` (menu-only) is the one that's cut.
+- [x] **OQ-BH-02 (BLOCKING)** — ✅ RESOLVED 2026-08-28: **per-player stash**, not shared per game instance. `Currency`/`Stash` now live on `AZSPlayerState` (moved off `UZSHubSubsystem` the same day, see this file's own header note) — genuinely per-connection by construction, not just per-key-in-a-map (see `BH-T1.4` below). Unaffected by the 2026-08-29 pivot.
 - [ ] **OQ-BH-03 (SEQUENCEABLE)** — starting currency for a fresh mercenary, and the first vendor's price scale. Needed before `BH-T2` can be tuned, not before it can be built.
+- [x] **OQ-BH-04 (BLOCKING)** — ✅ RESOLVED 2026-08-29: hub theme/structures, see pivot notice above.
 
 ## Exit criteria
 
@@ -72,12 +77,12 @@
 | T5.4 | Loadout-prep screen — equip from the stash before entering a raid; this is the concrete screen `BR`'s "enter raid" flow opens into. |
 | T5.5 | Currency display, wherever the hub's own persistent HUD/menu chrome lives. |
 
-### BH-T6 — The hub space itself · **RESOLVED 2026-08-28: menu-only, `T6.1` cut**
+### BH-T6 — The hub space itself · **RE-RESOLVED 2026-08-29: walkable, `T6.1` un-cut** (was "menu-only, `T6.1` cut" 2026-08-28 — see `OQ-BH-01`'s SUPERSEDED entry)
 
 | Sub-task | Definition of done |
 |---|---|
-| ~~T6.1~~ | ~~Walkable hub level~~ — cut, `OQ-BH-01` resolved menu-driven. |
-| T6.1-alt | **The actual scope now.** No level content at all — the hub is a screen flow reached directly from `BR`'s "raid ended" transition. `AZSGameMode::Server_ReturnPlayerToHub` still needs a real destination to send the departing player's pawn to first (`OQ-BR-01`'s level-streamed private sub-area, `BR-T1.2`) — that destination can be a minimal/empty holding level with no hub geometry, since all real hub interaction happens through `BH-T5`'s UI screens on top of it, not by walking around. |
+| T6.1 | **The actual scope now.** A real, walkable level for Grayback Lodge (`OQ-BH-04`): the Lodge building, the Cache (stash vault), the Motor Barn (vehicle storage — coordinate with `BR-T4`), a ridge lookout tower, and enough surrounding terrain that driving/walking out into the persistent zone (`BR`'s pivot notice) reads as one continuous space, not a loading-screen seam. Graybox is sufficient to start — this doesn't need final art to unblock `BH-T5`'s screens being placed as physical interactables. |
+| ~~T6.1-alt~~ | ~~No level content, menu-only hub~~ — cut 2026-08-29, superseded by `T6.1` above. Kept here for history, not as live scope. |
 
 ---
 

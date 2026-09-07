@@ -1,0 +1,341 @@
+<title>Priority Track to Beta</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:980px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:70ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(36px,6.4vw,58px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:64ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  .toc{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:20px 24px;margin-bottom:44px;box-shadow:var(--shadow);}
+  .toc-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:12px;display:block;}
+  .toc ol{columns:2;column-gap:32px;margin:0;padding:0;list-style:none;counter-reset:toc;}
+  .toc li{counter-increment:toc;break-inside:avoid;margin-bottom:8px;font-size:14px;}
+  .toc li a{color:var(--ink);text-decoration:none;display:flex;gap:8px;}
+  .toc li a::before{content:counter(toc,decimal-leading-zero);font-family:'IBM Plex Mono';color:var(--accent);font-weight:600;}
+  .toc li a:hover{color:var(--accent);}
+  @media (max-width:600px){.toc ol{columns:1;}}
+
+  section{margin-bottom:52px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:26px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:15px;max-width:70ch;margin:14px 0 22px;}
+
+  /* Decision / callout boxes */
+  .decision{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:3px;padding:16px 20px;margin-bottom:12px;}
+  .decision .k{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:700;display:block;margin-bottom:6px;}
+  .decision p{font-size:14.5px;margin:0;max-width:none;}
+  .decision.warn{border-left-color:var(--rust);}
+  .decision.warn .k{color:var(--rust);}
+
+  /* Priority tier stepper */
+  .tier{display:grid;grid-template-columns:64px 1fr;gap:0;position:relative;}
+  .tier + .tier{margin-top:0;}
+  .tier-rail{display:flex;flex-direction:column;align-items:center;}
+  .tier-num{font-family:'Oswald';font-size:22px;font-weight:700;color:var(--accent-ink);background:var(--accent);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;}
+  .tier-num.gate{background:var(--rust);color:var(--rust-ink);}
+  .tier-line{flex:1;width:2px;background:var(--line-strong);margin:4px 0;min-height:20px;}
+  .tier-body{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:20px 24px;margin:0 0 18px 18px;box-shadow:var(--shadow);}
+  .tier-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:8px;}
+  .tier-title{font-size:20px;text-transform:none;margin:0;}
+  .tier-phase{font-family:'IBM Plex Mono';font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;}
+  .badge-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .badge{font-family:'IBM Plex Mono';font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:99px;white-space:nowrap;}
+  .badge.size{background:color-mix(in srgb, var(--info) 18%, transparent);color:var(--info);}
+  .badge.gate{background:color-mix(in srgb, var(--rust) 20%, transparent);color:var(--rust);}
+  .tier-goal{font-size:14.5px;color:var(--ink-muted);margin:6px 0 14px;max-width:64ch;}
+  .chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .chip{font-family:'IBM Plex Mono';font-size:11.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:3px;padding:4px 9px;color:var(--ink);}
+  .chip.new{border-color:var(--accent);color:var(--accent);font-weight:600;}
+  .tier-exit{font-size:13px;color:var(--ink-faint);border-top:1px dashed var(--line-strong);padding-top:10px;margin-top:6px;}
+  .tier-exit strong{color:var(--ink);}
+  .gate-body{border:2px solid var(--rust);background:color-mix(in srgb, var(--rust) 6%, var(--surface));}
+
+  /* Cut list */
+  .cut-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+  .cut-item{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--ink-faint);border-radius:3px;padding:10px 14px;font-size:13.5px;}
+  .cut-item .when{display:block;font-family:'IBM Plex Mono';font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:9px 12px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.term{font-family:'IBM Plex Mono';font-weight:600;color:var(--accent);white-space:nowrap;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:600;font-family:'IBM Plex Mono';}
+  .pill.open{background:color-mix(in srgb, var(--rust) 20%, transparent);color:var(--rust);}
+  .pill.resolved{background:color-mix(in srgb, var(--good) 20%, transparent);color:var(--good);}
+
+  footer{border-top:3px solid var(--ink);margin-top:60px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 02 / 09</span> ZombieShooter Production Manifests · Design Record</div>
+    <h1 class="title">Priority Track to Beta</h1>
+    <p class="subtitle">A streamlined, sequential rebuild of the B0–B12 plan around three new decisions (satellite safe spots, hybrid contracts, mixed exfil) and one goal: reach a genuinely playable internal beta as fast as scope allows.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Supersedes framing of</span><span class="meta-value">00_MasterPlan.md §3.2/§3.3</span></div>
+      <div class="meta-cell"><span class="meta-label">Does not replace</span><span class="meta-value">Per-phase B*.md task files</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Internal beta target</span><span class="meta-value">End of Tier 8</span></div>
+    </div>
+  </div>
+
+  <div class="toc">
+    <span class="toc-label">On this page</span>
+    <ol>
+      <li><a href="#why">Why This Rebuild</a></li>
+      <li><a href="#decisions">Three New Decisions, Applied</a></li>
+      <li><a href="#track">The Priority Track</a></li>
+      <li><a href="#cut">Cut From the Critical Path</a></li>
+      <li><a href="#open">Still Open</a></li>
+    </ol>
+  </div>
+
+  <section id="why">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Why This Rebuild</h2></div>
+    <p>The existing <code>Docs/Beta/</code> plan (00_MasterPlan.md + 20 phase files) is thorough and not wrong — B0's stabilization debt is real, the item-instance refactor was the right call, and most phase-internal task breakdowns below are lifted straight from it. What it isn't is <strong>fast to orient from</strong>: 20 files, a contradiction register with 14 entries, ~70 open questions, and a session estimate of 195–250 (10–14 months part-time) that bundles "get a fun loop working" together with store pages, localization, and screen-reader support at the same priority level.</p>
+    <p>This manifest is a <strong>priority lens on top of that plan</strong>, not a replacement for it. Every tier below maps to specific existing phases (B0, B1, BH…) — go to those files for the actual task-by-task detail. What changes here: the sequencing is collapsed into one linear track instead of a two-stage/three-branch dependency graph, everything not required to reach a playable internal beta is explicitly pushed past it, and the three decisions from this session are threaded through wherever they touch existing scope.</p>
+  </section>
+
+  <section id="decisions">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Three New Decisions, Applied</h2></div>
+    <p class="sec-dek">Resolved this session. Each one lands as a concrete scope change against specific existing phase files — not just a philosophy shift.</p>
+
+    <div class="decision">
+      <span class="k">World layout → Hub + satellite safe spots</span>
+      <p>Grayback Lodge stays the one true bank (Cache = the only place that permanently secures loot). New: four satellite locations (Fire Watch Tower, St. Anne's Parish, County Line Truck Stop, Checkpoint Delta — see Manifest 01 §5) offer rest and light trade only, no stash access. New task: <strong>BH-T7 Satellite Safe Spots</strong> — placement, claim/discovery state, and the rest-only interaction, sized <strong>S</strong>, sequenced in Tier 6 alongside region content since it's physically built the same way as any other POI.</p>
+    </div>
+    <div class="decision">
+      <span class="k">Exfil model → Mixed, resolves OQ-BR-04</span>
+      <p><code>AZSExtractionPointActor</code>/<code>Server_RequestExtraction</code> are <strong>repurposed, not deleted</strong>. General loot needs no ceremony — walk or drive it to the Cache and deposit, an ordinary container interaction. Contract-critical items (samples, escort targets) additionally require reaching that specific contract's drop-off, which reuses the extraction-point actor as a "delivery point" rather than a raid-wide extraction mechanic. <code>OQ-BR-02</code>'s channel-time question re-activates, scoped only to contract drop-offs. Lands as part of <strong>BH-T3</strong> (contract system), not a separate phase.</p>
+    </div>
+    <div class="decision">
+      <span class="k">Objectives → Hybrid freeform + contracts</span>
+      <p>Mostly already the plan's shape — it just needs the seam cleaned up. <strong>B5 owns freeform</strong>: the event director, radio, and the investigation/mystery arc, now executed directly against Manifest 01's full lore bible instead of "brainstorm live" (<code>OQ-B5-01</code> is hereby resolved). <strong>BH-T3 owns contracts</strong>: vendor-given, optional, better payout. Neither blocks the other — a player can finish the game without accepting a single contract.</p>
+    </div>
+  </section>
+
+  <section id="track">
+    <div class="sec-head"><span class="sec-num">03</span><h2>The Priority Track</h2></div>
+    <p class="sec-dek">Ten tiers, strictly sequential — each one assumes the last is done. Sizes reuse the existing S/1–3 · M/4–8 · L/9–20 · XL/21–40 sessions key, trimmed wherever a tier below explicitly cuts scope from its source phase.</p>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">0</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Foundation Lock</h3><div class="badge-row"><span class="badge size">XS · this session</span></div></div>
+        <p class="tier-goal">No code. Reconcile the plan itself so nothing below builds against a stale assumption.</p>
+        <div class="chip-list"><span class="chip new">Lore bible locked (Manifest 01)</span><span class="chip new">OQ-BR-04 resolved (mixed exfil)</span><span class="chip new">OQ-B5-01 resolved (the plot exists now)</span><span class="chip new">BH/B5 seam cleaned up</span><span class="chip new">Satellite safe spots scoped (BH-T7)</span></div>
+        <div class="tier-exit">Exit: this manifest set exists and is committed. <strong>Zero engineering risk — do this before touching anything else.</strong></div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">1</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Verify &amp; Stabilize What's Already Built</h3><div class="tier-phase">≈ B0</div><div class="badge-row"><span class="badge size">L · 14–18</span></div></div>
+        <p class="tier-goal">Nothing else should start first — this is unrun code sitting under everything downstream, per the plan's own original reasoning. Unchanged by this rebuild.</p>
+        <div class="chip-list"><span class="chip">Item-instance/GUID refactor</span><span class="chip">PIE-verify P5/P6 combat+inventory</span><span class="chip">Camera/aim-cone lock</span><span class="chip">Wet+Temperature needs</span><span class="chip">Two-tier infection, legible UI</span><span class="chip">Jamming</span><span class="chip">Downed/revive</span><span class="chip">Profiling baseline stub</span></div>
+        <div class="tier-exit">Exit: <strong>B0-PT2</strong> camera sign-off passes; automation suite clean; every P5/P6 system confirmed working in PIE, not just compiling.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">2</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">See What You're Doing</h3><div class="tier-phase">≈ B1</div><div class="badge-row"><span class="badge size">L · 14–18</span></div></div>
+        <p class="tier-goal">The instrument panel. You cannot meaningfully playtest anything below without this existing first.</p>
+        <div class="chip-list"><span class="chip">IMC_ZS_UI modal stack</span><span class="chip">HUD (needs/health/wounds/hotbar)</span><span class="chip">Inventory + Loadout tab</span><span class="chip">Container loot screen</span><span class="chip">Death/respawn/sleep screens</span><span class="chip">Main menu + pause</span></div>
+        <div class="tier-exit">Exit: full loot→equip→fight→treat loop playable and legible with zero console commands.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">3</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Persistent World Skeleton</h3><div class="tier-phase">≈ B3 + B4 (systems only, graybox)</div><div class="badge-row"><span class="badge size">L · 24–32</span></div></div>
+        <p class="tier-goal">Makes "one seamless, never-reloaded zone" literally true: save/load, multi-level, darkness, weather — proven small before the real map exists.</p>
+        <div class="chip-list"><span class="chip">UZSSaveGameSubsystem</span><span class="chip">Layered save (10s/periodic/shutdown)</span><span class="chip">World Partition streaming</span><span class="chip">Corpse/item lifetime pooling</span><span class="chip">Elevation/multi-level system</span><span class="chip">Darkness + light-source mechanic</span><span class="chip">Weather as real mechanic</span></div>
+        <div class="tier-exit">Exit: quit/relaunch remembered; 2-hour soak clean; a 2-floor graybox building fully navigable/lootable/dark.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">4</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">The Hub Loop</h3><div class="tier-phase">≈ BH (+ new T7)</div><div class="badge-row"><span class="badge size">L · 16–20</span></div></div>
+        <p class="tier-goal">This is the game's actual identity becoming real: a walkable Grayback Lodge with stash, vendors, contracts, and the mixed exfil model from §02 wired in.</p>
+        <div class="chip-list"><span class="chip">Walkable Lodge/Cache/Motor Barn/tower</span><span class="chip">Stash deposit (AZSPlayerState-backed, done)</span><span class="chip">Vendor buy/sell</span><span class="chip new">Contract board + drop-off delivery (OQ-BR-04 resolution)</span><span class="chip">Hideout upgrade station (one, mechanical)</span><span class="chip new">Satellite safe spots (T7)</span></div>
+        <div class="tier-exit">Exit: a full contract can be accepted, worked, and turned in without leaving persistent play; general loot banks with zero ceremony.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">5</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Make the Zone Dangerous</h3><div class="tier-phase">≈ BR-T3 + BF</div><div class="badge-row"><span class="badge size">M · 10–14</span></div></div>
+        <p class="tier-goal">Off-screen zombie spawn-director, migrating hordes, and the human hostile faction — the two threats a persistent world needs instead of a per-raid reseed.</p>
+        <div class="chip-list"><span class="chip">Zombie spawn-director (no-pop-in refill)</span><span class="chip">Horde migration routing</span><span class="chip">Non-replenishing loot flag</span><span class="chip">AZSHostileCharacter/Controller (done)</span><span class="chip">BT_Hostile investigate-noise graph</span><span class="chip">One authored UZSHostileConfig + death loot</span></div>
+        <div class="tier-exit">Exit: population feels alive without visible spawning; the Fallow Company guards at least one real cache convincingly.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">6</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Build the Actual Map</h3><div class="tier-phase">≈ B2 + B4X</div><div class="badge-row"><span class="badge size">XL · ongoing, checkpointed</span></div></div>
+        <p class="tier-goal">Art direction lock, kit selection, then district-by-district content — the single biggest remaining time sink, deliberately sequenced <em>after</em> every system it needs to showcase already works on graybox.</p>
+        <div class="chip-list"><span class="chip">B2-T2 kit-selection decision (blocks everything below)</span><span class="chip">Reference room quality bar</span><span class="chip">Grayback Lodge real pass first</span><span class="chip">Millbrook Falls (urban)</span><span class="chip">Cedar Hollow (suburban)</span><span class="chip">Anders River Farmland (rural)</span><span class="chip">Grayback Highlands (wooded)</span><span class="chip">Satellite safe spot dressing</span></div>
+        <div class="tier-exit">Exit: whole region graybox-to-content complete and traversable; see Manifest 05 for the full POI checklist driving this tier.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">7</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Progression &amp; Story</h3><div class="tier-phase">≈ B6-Sys + B6-Content + B5</div><div class="badge-row"><span class="badge size">M · 14–18</span></div></div>
+        <p class="tier-goal">Skills/backgrounds go from data-structure to authored content, and the mystery from Manifest 01 gets delivered through B5's event/radio/clue systems.</p>
+        <div class="chip-list"><span class="chip">3-attribute/5-skill milestone system</span><span class="chip">Background roster (real tradeoffs)</span><span class="chip">Event director + roster (8–10 types)</span><span class="chip">Radio system</span><span class="chip new">Mystery Tier 1→3 delivery (found docs, Notes tab)</span><span class="chip new">Dr. Anand's contract line → 3-flag ending</span></div>
+        <div class="tier-exit">Exit: a full playthrough can surface the outbreak's true cause without any forced cutscene; onboarding flow complete.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">8</div><div class="tier-line"></div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Vehicles (First Slice)</h3><div class="tier-phase">≈ BR-T5</div><div class="badge-row"><span class="badge size">M · 8–12</span></div></div>
+        <p class="tier-goal">Basic drivable transport only — movement, enter/exit seats, Motor Barn spawn. Full fuel/damage/combat depth is explicitly BV, explicitly post-beta.</p>
+        <div class="chip-list"><span class="chip">AZSVehicle actor + movement</span><span class="chip">Enter/exit seats</span><span class="chip">Motor Barn spawn/storage</span></div>
+        <div class="tier-exit">Exit: a vehicle gets a player from the Lodge to a district and back reliably.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num gate">★</div></div>
+      <div class="tier-body gate-body">
+        <div class="tier-head"><h3 class="tier-title">Internal Beta Gate</h3><div class="badge-row"><span class="badge gate">Milestone, not a phase</span></div></div>
+        <p class="tier-goal">This is the "at least get a beta done" target. Everything in Tiers 0–8 is exactly what's needed to hand this to 6–12 testers for a real session — nothing more. Full checklist: <code>Docs/Beta/99_DefinitionOfBetaReady.md</code> Gate 1.</p>
+        <div class="tier-exit"><strong>Reaching this gate is the finish line this rebuild optimizes for.</strong> Tiers 9+ below make the game public-shippable, not more playable — don't let them creep earlier.</div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-rail"><div class="tier-num">9</div></div>
+      <div class="tier-body">
+        <div class="tier-head"><h3 class="tier-title">Public Beta Readiness</h3><div class="tier-phase">≈ B7 + B8 + B9 + B10 + B11 + B12</div><div class="badge-row"><span class="badge size">XL · 70–90</span></div></div>
+        <p class="tier-goal">Everything deferred past the internal gate: full audio production, deep performance passes, accessibility/settings, multiplayer hardening, closed beta, then store presence. Unchanged in content from the existing plan — just confirmed <em>after</em>, not alongside, Tier 0–8.</p>
+        <div class="chip-list"><span class="chip">Full audio + horde-at-scale AI</span><span class="chip">Performance budget lock</span><span class="chip">Settings/remap/accessibility</span><span class="chip">Late-join, crash telemetry, build pipeline</span><span class="chip">Closed beta with real testers</span><span class="chip">Steam page, EA launch</span></div>
+      </div>
+    </div>
+
+  </section>
+
+  <section id="cut">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Cut From the Critical Path</h2></div>
+    <p class="sec-dek">Not cut from the game — cut from <em>blocking the internal beta gate</em>. Every item below has a real home in Tier 9 or later.</p>
+    <div class="cut-grid">
+      <div class="cut-item">Gamepad support<span class="when">→ Tier 9 (B9)</span></div>
+      <div class="cut-item">Colorblind modes, subtitles, motion reduction<span class="when">→ Tier 9 (B9)</span></div>
+      <div class="cut-item">Full audio production pass<span class="when">→ Tier 9 (B7)</span></div>
+      <div class="cut-item">Deep performance/profiling pass<span class="when">→ Tier 9 (B8)</span></div>
+      <div class="cut-item">Late-join / disconnect hardening<span class="when">→ Tier 9 (B10)</span></div>
+      <div class="cut-item">Crash telemetry, build pipeline<span class="when">→ Tier 9 (B10)</span></div>
+      <div class="cut-item">Store page, trailer, marketing<span class="when">→ Tier 9 (B12)</span></div>
+      <div class="cut-item">Localization<span class="when">→ Tier 9 (B12)</span></div>
+      <div class="cut-item">Full sandbox difficulty sliders<span class="when">Post-beta</span></div>
+      <div class="cut-item">Vehicle fuel/damage/combat depth<span class="when">Post-beta (BV)</span></div>
+      <div class="cut-item">Farming, fishing, trapping, deep crafting<span class="when">Cut outright (GameDevPlan §3)</span></div>
+      <div class="cut-item">NPC survivor factions, dialogue trees<span class="when">Post-beta</span></div>
+    </div>
+  </section>
+
+  <section id="open">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Still Open</h2></div>
+    <p class="sec-dek">Genuinely blocking questions this rebuild didn't resolve, pulled from <code>90_OpenQuestions.md</code>. Batch these into one design pass before the tier that needs them, not mid-implementation.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Question</th><th>Blocks</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="term">OQ-B0-13</td><td>Item-instance refactor go/no-go</td><td>Tier 1</td><td><span class="pill resolved">Resolved — go</span></td></tr>
+          <tr><td class="term">OQ-B5-04</td><td>Event roster count for beta (rec: 8–10)</td><td>Tier 7</td><td><span class="pill open">Open</span></td></tr>
+          <tr><td class="term">OQ-X-09</td><td>Run vs. Sprint as distinct stamina tiers</td><td>Tier 1</td><td><span class="pill open">Open</span></td></tr>
+          <tr><td class="term">OQ-B0-12</td><td>Firearm roster (melee resolved, firearms open)</td><td>Tier 1</td><td><span class="pill open">Open</span></td></tr>
+          <tr><td class="term">OQ-BH-03</td><td>Starting currency + first vendor pricing</td><td>Tier 4 tuning</td><td><span class="pill open">Open</span></td></tr>
+          <tr><td class="term">OQ-BF-02/03</td><td>Hostile roster variety, death-loot tuning</td><td>Tier 5</td><td><span class="pill open">Open</span></td></tr>
+          <tr><td class="term">OQ-B7-01</td><td>Horde-coordination approach (gated on profiling)</td><td>Tier 9</td><td><span class="pill open">Open</span></td></tr>
+          <tr><td class="term">OQ-B8-01/02</td><td>Performance budget + min-spec numbers</td><td>Tier 9</td><td><span class="pill open">Open</span></td></tr>
+          <tr><td class="term">New</td><td>What does a satellite safe spot mechanically grant? (rest only, or partial stash/fast-travel?)</td><td>Tier 4 (BH-T7)</td><td><span class="pill open">Open — ask before building T7</span></td></tr>
+          <tr><td class="term">New</td><td>Does a contract drop-off need a channel/delay time like old extraction did?</td><td>Tier 4 (BH-T3)</td><td><span class="pill open">Open — OQ-BR-02 reactivated</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a class="current" href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/02_MasterPlanRestructure.html · written 2026-09-06 · reads against Docs/Beta/00_MasterPlan.md, BH/BR/BF/B5/90_OpenQuestions.md · does not replace per-phase B*.md task files</div>
+  </footer>
+
+</div>

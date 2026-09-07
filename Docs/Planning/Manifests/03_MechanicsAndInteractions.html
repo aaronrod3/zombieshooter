@@ -1,0 +1,247 @@
+<title>Systems &amp; Interactions Ledger</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1040px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:74ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(34px,6vw,54px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:66ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px 20px;margin-bottom:40px;box-shadow:var(--shadow);}
+  .legend .item{display:flex;align-items:center;gap:7px;font-size:13px;font-family:'IBM Plex Mono';}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .dot.built{background:var(--good);} .dot.planned{background:var(--info);} .dot.gap{background:var(--rust);} .dot.cut{background:var(--ink-faint);}
+
+  section{margin-bottom:48px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:24px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14.5px;max-width:74ch;margin:12px 0 18px;}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:9px 12px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.interaction{font-weight:600;white-space:nowrap;}
+  td.notes{color:var(--ink-muted);}
+  .status{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono';font-size:11px;font-weight:600;white-space:nowrap;}
+
+  footer{border-top:3px solid var(--ink);margin-top:60px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 03 / 09</span> ZombieShooter Production Manifests · Design Record</div>
+    <h1 class="title">Systems &amp; Interactions Ledger</h1>
+    <p class="subtitle">Every way a player touches the world, an item, another player, or a threat — built, planned, or a genuine gap. Reorganize new mechanics work around this, not around whatever feels top-of-mind.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Sources</span><span class="meta-value">CLAUDE.md architecture + B0–B12 tasks</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Feeds</span><span class="meta-value">02, 04, 05, 08</span></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="item"><span class="dot built"></span>Built &amp; PIE-verifiable</span>
+    <span class="item"><span class="dot planned"></span>Designed, has a phase</span>
+    <span class="item"><span class="dot gap"></span>New gap, no phase yet</span>
+    <span class="item"><span class="dot cut"></span>Explicitly out of scope</span>
+  </div>
+
+  <section id="movement">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Movement &amp; Traversal</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Interaction</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="interaction">Walk / run / sprint</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Stamina-gated, encumbrance-scaled drain</td></tr>
+        <tr><td class="interaction">Crouch / crouch-walk</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Reduces detection via Sneak stat</td></tr>
+        <tr><td class="interaction">Cursor-facing aim turn</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Gated to aim/attack/interact only</td></tr>
+        <tr><td class="interaction">Multi-level stairs / floor transitions</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 3 (B4-T3) — elevation subsystem</td></tr>
+        <tr><td class="interaction">Vehicle enter / exit / drive</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 8 (BR-T5) — movement only, no combat</td></tr>
+        <tr><td class="interaction">Swim / wade</td><td><span class="status"><span class="dot cut"></span>Cut</span></td><td class="notes">No water-traversal system scoped anywhere</td></tr>
+        <tr><td class="interaction">Climb / vault low obstacles</td><td><span class="status"><span class="dot gap"></span>Gap</span></td><td class="notes">No mantle/vault system scoped; flag for Tier 6 if fences/windows need it</td></tr>
+        <tr><td class="interaction">Shove (stagger an enemy or ally)</td><td><span class="status"><span class="dot gap"></span>Gap</span></td><td class="notes">Bundled on <code>Space</code> with the finisher input, genuinely undesigned</td></tr>
+        <tr><td class="interaction">Sleep / time-skip</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Per-player ready flag + co-op aggregation; "real shelter" half still stubbed true</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="world">
+    <div class="sec-head"><span class="sec-num">02</span><h2>World &amp; Environment Interaction</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Interaction</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="interaction">Generic interactable (sphere-scan, nearest-wins)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>UZSInteractableComponent</code>, no world-prompt widget yet</td></tr>
+        <tr><td class="interaction">World item pickup</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>AZSWorldItemActor</code>, preserves instance GUID/durability</td></tr>
+        <tr><td class="interaction">Container loot — per-item transfer</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 2 (B1-T6) — two-pane, replaces loot-all-only</td></tr>
+        <tr><td class="interaction">Doors — open / close</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 6 (B4X-T5)</td></tr>
+        <tr><td class="interaction">Doors — locked / breach / thump</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 6 — pairs with new Lockpicking skill</td></tr>
+        <tr><td class="interaction">Windows — intact / broken, climb-through</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 6 content; climb-through is a Gap (see Movement)</td></tr>
+        <tr><td class="interaction">Lockpicking</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Pure success-chance roll, no minigame; failed attempts generate noise</td></tr>
+        <tr><td class="interaction">Vendor stash deposit / withdraw</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 4 (BH-T1/T5), backend already replicated on <code>AZSPlayerState</code></td></tr>
+        <tr><td class="interaction">Contract drop-off / delivery</td><td><span class="status"><span class="dot gap"></span>Gap → resolved this session</td><td class="notes">Repurposes <code>AZSExtractionPointActor</code>; see Manifest 02 §02</td></tr>
+        <tr><td class="interaction">Satellite safe-spot rest / light trade</td><td><span class="status"><span class="dot gap"></span>Gap → scoped this session</td><td class="notes">New BH-T7; grant scope still an open question (Manifest 02 §05)</td></tr>
+        <tr><td class="interaction">Hideout upgrade stations</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 4 (BH-T4) — one real mechanical-effect upgrade for beta</td></tr>
+        <tr><td class="interaction">Light sources (flashlight, lantern)</td><td><span class="status"><span class="dot built"></span>Built / planned</span></td><td class="notes">Flashlight (real spotlight) built; lantern + "attracts zombies" behavior is Tier 3 (B4-T4)</td></tr>
+        <tr><td class="interaction">Utilities shutoff (darkness hazard)</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Per-zone hazard roll, Tier 3/6</td></tr>
+        <tr><td class="interaction">Weather exposure (rain/fog/snow)</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 3 (B4-T8) — drives Wet/Temperature, masks noise</td></tr>
+        <tr><td class="interaction">Barricading / base-building in the zone</td><td><span class="status"><span class="dot cut"></span>Cut</span></td><td class="notes">Replaced by hub-side hideout upgrades (GameDevPlan §3 SIMPLIFY row)</td></tr>
+        <tr><td class="interaction">Vehicle repair / refuel</td><td><span class="status"><span class="dot cut"></span>Cut for beta</td><td class="notes">Full BV depth, explicitly post-beta</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="combat">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Combat</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Interaction</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="interaction">Ranged fire (hip / aimed)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Spread-cone hitscan, headshot weighting differs hip vs. aimed</td></tr>
+        <tr><td class="interaction">Opt-in simulated projectiles</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>AZSProjectile</code>, per-weapon opt-in</td></tr>
+        <tr><td class="interaction">Reload (magazine swap)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Real per-instance magazine, quick vs. normal/tactical</td></tr>
+        <tr><td class="interaction">Weapon jam / clear jam</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Durability-banded chance, needs a UI/audio legibility pass</td></tr>
+        <tr><td class="interaction">Weapon attachments (muzzle/grip/optic/handguard)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">All 9 attachment meshes done; stat-affecting effects still Tier 6+</td></tr>
+        <tr><td class="interaction">Melee swing (bare-fist / weapon)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Stamina-costed, excludes downed targets</td></tr>
+        <tr><td class="interaction">Downed-enemy finisher</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Bare-hand stomp vs. weapon strike branch</td></tr>
+        <tr><td class="interaction">Throwables (grenade, molotov, mine)</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Content-ready (packs owned); wiring is Tier 5/6 content pass</td></tr>
+        <tr><td class="interaction">Support-strike consumables</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes"><code>EZSItemUseType::SupportStrike</code> exists; payload actor unbuilt</td></tr>
+        <tr><td class="interaction">Downed / revive (player)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">2-min window, can still fight penalized, teammate or self-revive</td></tr>
+        <tr><td class="interaction">Stealth takedown</td><td><span class="status"><span class="dot cut"></span>Cut</span></td><td class="notes">No stealth-kill system scoped; sneak only reduces detection radius</td></tr>
+        <tr><td class="interaction">Cover system</td><td><span class="status"><span class="dot cut"></span>Cut</span></td><td class="notes">Not part of the top-down direct-control pillar</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="items">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Items &amp; Inventory</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Interaction</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="interaction">Equip / unequip (hotbar, gear, clothing)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Never physically removes from CarrySlots; GUID reference only</td></tr>
+        <tr><td class="interaction">Drag-and-drop, compartment position persistence</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>SlotIndex</code>, container-to-container transfer</td></tr>
+        <tr><td class="interaction">Stack / split stacks</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Stackable vs. per-instance-stateful mutually exclusive by design</td></tr>
+        <tr><td class="interaction">Store in bag / retrieve from any equipped bag</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">4 container-bearing gear slots (Vest/Belt/Backpack/Duffle)</td></tr>
+        <tr><td class="interaction">Consume (eat / drink / use)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>Server_ConsumeItem</code>/<code>Server_UseItem</code>, dispatches on use-type</td></tr>
+        <tr><td class="interaction">Repair / maintain weapon condition</td><td><span class="status"><span class="dot gap"></span>Gap</span></td><td class="notes">Maintenance skill was cut in favor of hub vendor repair — vendor-side repair service unbuilt</td></tr>
+        <tr><td class="interaction">Craft</td><td><span class="status"><span class="dot cut"></span>Cut</span></td><td class="notes">No deep crafting web (GameDevPlan §3 CUT row) — hub upgrade stations are the closest analog</td></tr>
+        <tr><td class="interaction">Drop (single item / drop-all on death)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>Server_DropItem</code>/<code>Server_DropAllItems</code>, sweeps equipped/hotbarred items too</td></tr>
+        <tr><td class="interaction">Trade with vendor (buy / sell)</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 4 (BH-T2) — backend built, UI screen pending</td></tr>
+        <tr><td class="interaction">Trade between players</td><td><span class="status"><span class="dot gap"></span>Gap</span></td><td class="notes">No direct player-to-player trade system scoped anywhere — flag if co-op testers want it</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="survival">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Survival &amp; Body</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Interaction</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="interaction">Eat / drink to offset Hunger/Thirst</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Full needs component, replicated</td></tr>
+        <tr><td class="interaction">Regulate Wet / Temperature</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Clothing insulation sum, four-input scalar model</td></tr>
+        <tr><td class="interaction">Bandage / disinfect / splint</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Routed through <code>Server_UseItem</code> dispatch</td></tr>
+        <tr><td class="interaction">Amputate</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Timed action, permanent zone penalty + temp shock</td></tr>
+        <tr><td class="interaction">Treat bite infection (delay only, not curable)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Medical incubation delay item field</td></tr>
+        <tr><td class="interaction">Sleep to restore Fatigue / skip time</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Real shelter safety check still stubbed true (Tier 3 closes this)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="social">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Multiplayer &amp; Social</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Interaction</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="interaction">Revive a downed teammate</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>ReviveInteractable</code>, floors HP at a tunable amount</td></tr>
+        <tr><td class="interaction">Sleep-readiness aggregation</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">All-players-ready check on <code>AZSGameState</code></td></tr>
+        <tr><td class="interaction">Independent movement (no party lockstep)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Confirmed CR-14 — any subset of the group can be in the zone at once</td></tr>
+        <tr><td class="interaction">Text chat / ping wheel</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 9 (B10)</td></tr>
+        <tr><td class="interaction">Voice chat</td><td><span class="status"><span class="dot cut"></span>Cut</span></td><td class="notes">Relying on Discord (OQ-B10-09)</td></tr>
+        <tr><td class="interaction">Per-player independent stash/currency</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Replicated on <code>AZSPlayerState</code>, not shared</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="threats">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Zombie &amp; Hostile Interaction</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Interaction</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="interaction">Noise generation (sprint, gunfire, wet footsteps)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes"><code>UZSNoiseSystem</code>, feeds AI perception</td></tr>
+        <tr><td class="interaction">Sight/hearing detection (per-type, fixed)</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Never randomized per-individual</td></tr>
+        <tr><td class="interaction">Zombie downed-state → finisher</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Knockback-threshold triggered</td></tr>
+        <tr><td class="interaction">Investigate last-known-location</td><td><span class="status"><span class="dot built"></span>Built</span></td><td class="notes">Native BT tasks; BT graph itself needs editor-hands wiring</td></tr>
+        <tr><td class="interaction">Off-screen spawn-director refill</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 5 — replaces per-raid reseed</td></tr>
+        <tr><td class="interaction">Migrating horde routing</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 5, independent of player position</td></tr>
+        <tr><td class="interaction">Human hostile guard / investigate-noise</td><td><span class="status"><span class="dot planned"></span>Planned</span></td><td class="notes">Tier 5 (BF) — the "guard" differentiator, resolved as investigate-noise not patrol</td></tr>
+        <tr><td class="interaction">Zombie "freshness" (fast/newly-turned vs. slow/decayed)</td><td><span class="status"><span class="dot gap"></span>Gap</span></td><td class="notes">Now story-grounded via Manifest 01 §06 — multi-config, not new engineering</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a class="current" href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/03_MechanicsAndInteractions.html · written 2026-09-06 · cross-check against CLAUDE.md Architecture bullets before assuming "Built" still holds</div>
+  </footer>
+
+</div>

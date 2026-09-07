@@ -21,6 +21,8 @@ After cloning, the project will not open cleanly until these are restored.
 | 7 | `Content/BulletSFX_BasicCollection/` | Fab | Weapon SFX. Relevant to B7's audio pass. |
 | 8 | `Content/Footsteps_Volume_02/` | Fab | Footstep SFX. Relevant to B0-T4.2's wet-footstep variant and B7-T3.4. |
 | 9 | `Plugins/Marketplace/` | Fab | Marketplace plugins. Reinstall via the editor's Fab window. |
+| 10 | `Content/FirstAidCabinet/` | Fab | Medical prop pack — cabinet/door meshes plus first-aid item candidates (alcohol, scissors, dirty-bandage variants). Referenced throughout `Docs/Planning/ItemCatalog_2026-08-12.md`'s Medical section. ~752 MB — largest single pack in the project, added 2026-09.|
+| 11 | `Content/Poly-MegaSurvivalFood/` | Fab | Food/drink item pack (canned goods, bread, bottles, coffee) backing most of the Food/Drink category in the item catalog. ~23 MB, added 2026-09. |
 
 ## Deliberately not restored
 

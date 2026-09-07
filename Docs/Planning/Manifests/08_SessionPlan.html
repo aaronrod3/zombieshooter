@@ -1,0 +1,220 @@
+<title>Working the Manifest Set</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:74ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(32px,5.6vw,50px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:66ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  section{margin-bottom:46px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:24px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14.5px;max-width:74ch;margin:12px 0 18px;}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:9px 12px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.notes{color:var(--ink-muted);}
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:600;font-family:'IBM Plex Mono';white-space:nowrap;}
+  .pill.lock{background:color-mix(in srgb, var(--accent) 20%, transparent);color:var(--accent);}
+  .pill.live{background:color-mix(in srgb, var(--info) 18%, transparent);color:var(--info);}
+  .pill.ref{background:color-mix(in srgb, var(--ink-faint) 20%, transparent);color:var(--ink-faint);}
+
+  .archetype-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;}
+  .archetype{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:18px 20px;box-shadow:var(--shadow);}
+  .archetype h3{font-size:16px;margin:0 0 8px;}
+  .archetype .k{font-family:'IBM Plex Mono';font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--rust);display:block;margin:10px 0 4px;}
+  .archetype p, .archetype ul{font-size:13.5px;color:var(--ink-muted);margin:0;}
+  .archetype ul{padding-left:18px;}
+
+  .checklist{list-style:none;margin:0;padding:0;counter-reset:cl;display:grid;gap:8px;}
+  .checklist li{counter-increment:cl;display:flex;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:12px 16px;font-size:14px;align-items:baseline;}
+  .checklist li::before{content:counter(cl);font-family:'Oswald';font-size:18px;font-weight:700;color:var(--accent);flex:none;width:22px;}
+
+  footer{border-top:3px solid var(--ink);margin-top:56px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 08 / 09</span> ZombieShooter Production Manifests · Process Record</div>
+    <h1 class="title">Working the Manifest Set</h1>
+    <p class="subtitle">How the other eight documents fit together, what kind of session each one serves, and how to break the Priority Track into session-sized work without losing the thread between sessions.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Does not replace</span><span class="meta-value">SessionHandoff.md, CLAUDE.md</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Read this when</span><span class="meta-value">Starting a session, or lost in the doc set</span></div>
+    </div>
+  </div>
+
+  <section id="map">
+    <div class="sec-head"><span class="sec-num">01</span><h2>The Nine Manifests, at a Glance</h2></div>
+    <p class="sec-dek">Three kinds of document, mixed into one set. Knowing which kind you're opening tells you whether to trust it as-is or check it against the live code first.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Manifest</th><th>Kind</th><th>Reread it when…</th></tr></thead>
+      <tbody>
+        <tr><td>01</td><td>Lore &amp; Story Bible</td><td><span class="pill lock">Locked</span></td><td class="notes">Writing any contract text, vendor bark, or found document — or if a story decision genuinely needs to change</td></tr>
+        <tr><td>02</td><td>Priority Track to Beta</td><td><span class="pill live">Living</span></td><td class="notes">Starting any session — confirms what tier you're in and what's explicitly deferred</td></tr>
+        <tr><td>03</td><td>Systems &amp; Interactions Ledger</td><td><span class="pill live">Living</span></td><td class="notes">Scoping new mechanics work, or before claiming something is "already built"</td></tr>
+        <tr><td>04</td><td>Content Checklist</td><td><span class="pill live">Living</span></td><td class="notes">Any content-authoring or animation session — tick items off as they land</td></tr>
+        <tr><td>05</td><td>Environments Checklist</td><td><span class="pill live">Living</span></td><td class="notes">Any B2/B4X region-content session</td></tr>
+        <tr><td>06</td><td>Comparable Games Research</td><td><span class="pill ref">Reference</span></td><td class="notes">Designing a new system and want a sanity check against what's worked/failed elsewhere</td></tr>
+        <tr><td>07</td><td>Blender Task List</td><td><span class="pill live">Living</span></td><td class="notes">Every Blender session — start here, not from memory</td></tr>
+        <tr><td>08</td><td>Session Plan <em style="color:var(--ink-faint);font-style:normal;">(this doc)</em></td><td><span class="pill ref">Reference</span></td><td class="notes">Lost in the doc set, or scoping a new kind of session</td></tr>
+        <tr><td>09</td><td>Code &amp; Mechanic Map</td><td><span class="pill live">Living</span></td><td class="notes">Any code-review session — keep it open alongside the diff</td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:14px;"><strong>This set sits above, not instead of, the existing docs.</strong> <code>Docs/SessionHandoff.md</code> is still the sole owner of compile/PIE-test status, rewritten once at session end. <code>CLAUDE.md</code> is still the architecture record. <code>Docs/Beta/B*.md</code> phase files are still where the actual T-numbered task detail lives. This set is the orientation layer that sits on top: what to prioritize, what a mechanic maps to in code, what content still needs building.</p>
+  </section>
+
+  <section id="archetypes">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Four Session Archetypes</h2></div>
+    <p class="sec-dek">Almost every session is one of these. Naming the type up front — even just to yourself — keeps a session from drifting into a second kind of work mid-stream.</p>
+    <div class="archetype-grid">
+      <div class="archetype">
+        <h3>Design &amp; Decision</h3>
+        <p>Resolving an open question, scoping a new system before code exists.</p>
+        <span class="k">Open</span><ul><li>Manifest 02 §05 (open questions)</li><li>The relevant B*.md phase file</li><li>90_OpenQuestions.md</li></ul>
+        <span class="k">Output</span><p>A dated decision recorded in the phase file — not code.</p>
+      </div>
+      <div class="archetype">
+        <h3>Implementation</h3>
+        <p>Building or fixing a specific T-numbered task from a current-tier phase file.</p>
+        <span class="k">Open</span><ul><li>Manifest 02 (confirm the tier)</li><li>Manifest 09 (find the code)</li><li>Manifest 03 (confirm the status claim)</li></ul>
+        <span class="k">Output</span><p>Compiled, PIE-tested where possible, committed. SessionHandoff.md updated at session end.</p>
+      </div>
+      <div class="archetype">
+        <h3>Content &amp; Blender</h3>
+        <p>Modeling, texturing, or animation-sourcing work.</p>
+        <span class="k">Open</span><ul><li>Manifest 07 (the queue, top to bottom)</li><li>Manifest 04 (cross-check status)</li></ul>
+        <span class="k">Output</span><p>Assets in the correct folder per Manifest 07 §01, checklist entries flipped from gap to done in Manifest 04.</p>
+      </div>
+      <div class="archetype">
+        <h3>Review</h3>
+        <p>Verifying an already-built mechanic actually does what was intended.</p>
+        <span class="k">Open</span><ul><li>Manifest 09, the relevant section</li><li>The actual source file it names</li></ul>
+        <span class="k">Output</span><p>Confirmed-correct, or a filed bug — plus a fix to Manifest 09 if the code has drifted from what it says.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Session Roadmap by Tier</h2></div>
+    <p class="sec-dek">Maps Manifest 02's ten tiers onto the four archetypes above. Sizes are the same S/M/L/XL figures from Manifest 02 — this just says what <em>kind</em> of session fills them.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tier</th><th>Session mix</th><th>Primary manifests open</th></tr></thead>
+      <tbody>
+        <tr><td>0 — Foundation Lock</td><td class="notes">1 Design session (this one, already done)</td><td class="notes">01, 02</td></tr>
+        <tr><td>1 — Stabilize</td><td class="notes">Mostly Implementation, a few Review sessions re-verifying "probably already fixed" items</td><td class="notes">02, 09, B0_Stabilization.md</td></tr>
+        <tr><td>2 — UI</td><td class="notes">Implementation, widget-by-widget</td><td class="notes">02, 09, B1_UI_UX.md</td></tr>
+        <tr><td>3 — Persistent World Skeleton</td><td class="notes">Implementation, occasional Design (save-format decisions)</td><td class="notes">02, 09, B3/B4</td></tr>
+        <tr><td>4 — Hub Loop</td><td class="notes">Implementation + 1–2 Design sessions (satellite-spot grant, drop-off channel time)</td><td class="notes">01, 02, 05, 09, BH</td></tr>
+        <tr><td>5 — Make the Zone Dangerous</td><td class="notes">Implementation, BT graph work needs editor-hands</td><td class="notes">02, 03, 09, BR/BF</td></tr>
+        <tr><td>6 — Build the Map</td><td class="notes">Mostly Content &amp; Blender, checkpointed district by district</td><td class="notes">04, 05, 07</td></tr>
+        <tr><td>7 — Progression &amp; Story</td><td class="notes">Implementation + Content, executing Manifest 01 directly</td><td class="notes">01, 04, 09, B5/B6</td></tr>
+        <tr><td>8 — Vehicles (first slice)</td><td class="notes">Implementation</td><td class="notes">02, 03, 09</td></tr>
+        <tr><td>9 — Public Beta Readiness</td><td class="notes">All four archetypes, longest tier by far</td><td class="notes">Everything, plus B7–B12</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="starting">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Starting Any Session</h2></div>
+    <ol class="checklist">
+      <li>Read <code>Docs/SessionHandoff.md</code> — what was last completed, what's next.</li>
+      <li>Check Manifest 02 — confirm which tier is active and that nothing there has been superseded.</li>
+      <li>Name the session's archetype (§02 above) before opening any file.</li>
+      <li>Open only the manifests that archetype needs — don't load all nine into context by default.</li>
+      <li>Scope one task. Keep phases small and testable; ask before any design-shaping decision rather than guessing (standing project convention).</li>
+      <li>Commit after each sub-task, not at session end.</li>
+      <li>At session end: rewrite <code>SessionHandoff.md</code> once — this manifest set doesn't own status, that file still does.</li>
+    </ol>
+  </section>
+
+  <section id="upkeep">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Keeping the Set Current</h2></div>
+    <p class="sec-dek">A stale checklist is worse than no checklist. Cheap rule: whoever finishes a task that a manifest tracks flips its status in the same session, not later.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Manifest</th><th>Update trigger</th></tr></thead>
+      <tbody>
+        <tr><td>01 Lore</td><td class="notes">Only on a real story decision — this is meant to be stable</td></tr>
+        <tr><td>02 Priority Track</td><td class="notes">A tier completes, or scope inside one changes materially</td></tr>
+        <tr><td>03 Interactions Ledger</td><td class="notes">Any mechanic moves between Built / Planned / Gap</td></tr>
+        <tr><td>04 Content Checklist</td><td class="notes">Any item, skin, animation, audio, or VFX asset lands</td></tr>
+        <tr><td>05 Environments</td><td class="notes">The B2-T2 kit decision lands, or any building/POI gets built</td></tr>
+        <tr><td>06 Comparable Games</td><td class="notes">Rarely — re-research only if a whole new system category enters scope</td></tr>
+        <tr><td>07 Blender Bench Sheet</td><td class="notes">Every Blender session — reorder the queue as items land or new gaps surface</td></tr>
+        <tr><td>09 Code &amp; Mechanic Map</td><td class="notes">Any function/class named in it gets renamed, moved, or reworked</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a class="current" href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/08_SessionPlan.html · written 2026-09-06 · does not replace SessionHandoff.md's ownership of status</div>
+  </footer>
+
+</div>

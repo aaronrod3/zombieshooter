@@ -1,0 +1,402 @@
+<title>Grayback County</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --map-fill:#57662f; --map-line:#7a7358;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --map-fill:#8fae5c; --map-line:#4a5138;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --map-fill:#8fae5c; --map-line:#4a5138;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:920px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+
+  /* ===== Header / cover ===== */
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:40px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(40px,7vw,64px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:60ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;gap:0;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  /* ===== TOC ===== */
+  .toc{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:20px 24px;margin-bottom:48px;box-shadow:var(--shadow);}
+  .toc-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:12px;display:block;}
+  .toc ol{columns:2;column-gap:32px;margin:0;padding:0;list-style:none;counter-reset:toc;}
+  .toc li{counter-increment:toc;break-inside:avoid;margin-bottom:8px;font-size:14px;}
+  .toc li a{color:var(--ink);text-decoration:none;display:flex;gap:8px;}
+  .toc li a::before{content:counter(toc,decimal-leading-zero);font-family:'IBM Plex Mono';color:var(--accent);font-weight:600;}
+  .toc li a:hover{color:var(--accent);}
+  @media (max-width:600px){.toc ol{columns:1;}}
+
+  /* ===== Sections ===== */
+  section{margin-bottom:56px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:28px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:15px;max-width:68ch;margin:14px 0 24px;}
+  p{max-width:68ch;margin:0 0 14px;}
+  .lede{font-size:19px;line-height:1.55;color:var(--ink);}
+  .lede strong{color:var(--rust);font-weight:600;}
+
+  /* ===== Cards ===== */
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:8px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:18px 20px;box-shadow:var(--shadow);}
+  .card h3{font-size:17px;text-transform:none;margin:0 0 4px;}
+  .card .role{font-family:'IBM Plex Mono';font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--rust);margin-bottom:10px;display:block;}
+  .card p{font-size:14px;margin-bottom:8px;color:var(--ink-muted);}
+  .card p:last-child{margin-bottom:0;}
+  .card p strong{color:var(--ink);font-weight:600;}
+
+  /* ===== Faction table ===== */
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:10px 14px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.term{font-family:'IBM Plex Mono';font-weight:600;color:var(--accent);white-space:nowrap;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;font-family:'IBM Plex Mono';letter-spacing:.03em;}
+  .pill.safe{background:color-mix(in srgb, var(--good) 20%, transparent);color:var(--good);}
+  .pill.contested{background:color-mix(in srgb, var(--rust) 22%, transparent);color:var(--rust);}
+
+  /* ===== Map ===== */
+  .map-wrap{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:18px;box-shadow:var(--shadow);}
+  .map-wrap svg{width:100%;height:auto;display:block;}
+  .map-caption{font-family:'IBM Plex Mono';font-size:11px;color:var(--ink-faint);margin-top:10px;letter-spacing:.03em;}
+
+  /* ===== Clearance tiers ===== */
+  .tier{border:1px solid var(--line);border-left:5px solid var(--line-strong);border-radius:3px;padding:20px 24px;margin-bottom:16px;background:var(--surface);}
+  .tier-head{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+  .tier-badge{font-family:'IBM Plex Mono';font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:2px;}
+  .tier-when{font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+  .tier h3{font-size:16px;margin:0;text-transform:none;}
+  .tier p{font-size:14.5px;}
+  .tier.public{border-left-color:var(--info);}
+  .tier.public .tier-badge{background:color-mix(in srgb, var(--info) 20%, transparent);color:var(--info);}
+  .tier.field{border-left-color:var(--rust);}
+  .tier.field .tier-badge{background:color-mix(in srgb, var(--rust) 20%, transparent);color:var(--rust);}
+  .tier.classified{border-left-color:var(--danger);background:repeating-linear-gradient(135deg, var(--surface), var(--surface) 14px, color-mix(in srgb, var(--danger) 6%, var(--surface)) 14px, color-mix(in srgb, var(--danger) 6%, var(--surface)) 28px);}
+  .tier.classified .tier-badge{background:color-mix(in srgb, var(--danger) 22%, transparent);color:var(--danger);}
+
+  /* ===== Rules list ===== */
+  .rules{list-style:none;margin:0;padding:0;display:grid;gap:10px;}
+  .rules li{display:flex;gap:12px;font-size:14.5px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:12px 16px;}
+  .rules li::before{content:"§";font-family:'IBM Plex Mono';color:var(--accent);font-weight:700;flex:none;}
+
+  /* ===== Footer / index ===== */
+  footer{border-top:3px solid var(--ink);margin-top:64px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 01 / 09</span> ZombieShooter Production Manifests · Design Record</div>
+    <h1 class="title">Grayback County</h1>
+    <p class="subtitle">The lore &amp; story bible — setting, factions, key figures, and the mystery thread underneath the contract work. Reference for every other manifest in this set.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Status</span><span class="meta-value">Locked — full bible</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Supersedes</span><span class="meta-value">GameDevPlan §1 Decision 6/10 stubs</span></div>
+      <div class="meta-cell"><span class="meta-label">Feeds</span><span class="meta-value">02, 05, 06, 08</span></div>
+    </div>
+  </div>
+
+  <div class="toc">
+    <span class="toc-label">On this page</span>
+    <ol>
+      <li><a href="#premise">The Premise</a></li>
+      <li><a href="#geography">World &amp; Geography</a></li>
+      <li><a href="#outbreak">The Outbreak</a></li>
+      <li><a href="#warden">Warden Group</a></li>
+      <li><a href="#hub">The Hub Network</a></li>
+      <li><a href="#factions">Factions</a></li>
+      <li><a href="#figures">Key Figures</a></li>
+      <li><a href="#mystery">The Mystery</a></li>
+      <li><a href="#delivery">Story Delivery &amp; Endings</a></li>
+      <li><a href="#rules">Tone &amp; Writing Rules</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+    </ol>
+  </div>
+
+  <section id="premise">
+    <div class="sec-head"><span class="sec-num">01</span><h2>The Premise</h2></div>
+    <p class="lede">Four months ago, Grayback County went dark. What the news called a <strong>"contamination incident"</strong> at an agricultural research annex outside Millbrook Falls became, within seventy-two hours, a hard quarantine line sixty miles around — and everyone inside who could still move was reclassified as a biohazard.</p>
+    <p class="lede">You are not a soldier. You are a contractor: one of hundreds hired by <strong>Warden Group</strong> under a no-bid federal recovery contract to go back in, again and again, for whatever the county still has worth taking — samples, salvage, sometimes bodies, whenever the pay justifies it. Nobody expects you to survive your contract. Nobody's replaced yet, either.</p>
+    <p>You work out of Grayback Lodge, a converted hunting compound the locals still half-own and Warden Group half-runs, and a handful of smaller holdouts scattered through the county that haven't been picked clean or burned out. What you do with your time in the zone is yours to decide — survive, loot, hunt contracts, or start pulling on the thread that says none of this was an accident.</p>
+  </section>
+
+  <section id="geography">
+    <div class="sec-head"><span class="sec-num">02</span><h2>World &amp; Geography</h2></div>
+    <p class="sec-dek">One seamless map, four districts, a river spine, and a perimeter nobody's supposed to cross in either direction. District names below are the ones content/environment work should use instead of placeholders.</p>
+    <div class="map-wrap">
+      <svg viewBox="0 0 760 480" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="contour" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M0 20 Q10 10 20 20 T40 20" fill="none" stroke="var(--map-line)" stroke-width="0.6" opacity="0.35"/>
+          </pattern>
+        </defs>
+        <rect x="0" y="0" width="760" height="480" fill="var(--surface-2)"/>
+        <rect x="0" y="0" width="760" height="480" fill="url(#contour)"/>
+        <ellipse cx="380" cy="240" rx="330" ry="210" fill="none" stroke="var(--rust)" stroke-width="2" stroke-dasharray="10 7"/>
+        <text x="380" y="18" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="var(--rust)">GRAYBACK PERIMETER — HARD QUARANTINE LINE</text>
+
+        <path d="M 120 60 Q 250 140 220 260 Q 190 380 340 430" fill="none" stroke="var(--info)" stroke-width="4" opacity="0.55" stroke-linecap="round"/>
+        <text x="150" y="95" font-family="IBM Plex Mono" font-size="10" fill="var(--info)" opacity="0.8">Anders River</text>
+
+        <path d="M100 60 C 60 140, 90 220, 170 250 C 230 270, 250 200, 210 130 C 190 90, 150 60, 100 60 Z" fill="var(--map-fill)" opacity="0.16"/>
+        <text x="120" y="150" font-family="Oswald" font-size="15" fill="var(--ink)" font-weight="600">GRAYBACK</text>
+        <text x="120" y="167" font-family="Oswald" font-size="15" fill="var(--ink)" font-weight="600">HIGHLANDS</text>
+        <text x="120" y="184" font-family="IBM Plex Mono" font-size="9" fill="var(--ink-faint)">wooded · rural</text>
+
+        <circle cx="380" cy="250" r="95" fill="var(--rust)" opacity="0.14"/>
+        <text x="380" y="245" text-anchor="middle" font-family="Oswald" font-size="16" fill="var(--ink)" font-weight="600">MILLBROOK FALLS</text>
+        <text x="380" y="263" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--ink-faint)">urban · ground zero</text>
+
+        <circle cx="490" cy="180" r="70" fill="var(--info)" opacity="0.13"/>
+        <text x="490" y="178" text-anchor="middle" font-family="Oswald" font-size="14" fill="var(--ink)" font-weight="600">CEDAR HOLLOW</text>
+        <text x="490" y="195" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--ink-faint)">suburban</text>
+
+        <path d="M 300 360 C 380 330, 480 340, 560 380 C 610 400, 600 440, 520 445 C 420 450, 340 430, 300 400 Z" fill="var(--accent)" opacity="0.16"/>
+        <text x="440" y="405" text-anchor="middle" font-family="Oswald" font-size="14" fill="var(--ink)" font-weight="600">ANDERS RIVER FARMLAND</text>
+        <text x="440" y="422" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--ink-faint)">rural</text>
+
+        <!-- Hub: Grayback Lodge -->
+        <g transform="translate(118,140)">
+          <path d="M0 -12 L4 -3 L13 -3 L6 3 L8 12 L0 6 L-8 12 L-6 3 L-13 -3 L-4 -3 Z" fill="var(--rust)"/>
+        </g>
+        <text x="118" y="120" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" font-weight="700" fill="var(--ink)">GRAYBACK LODGE</text>
+        <text x="118" y="132" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="var(--good)">HUB — SAFE</text>
+
+        <!-- Satellites -->
+        <circle cx="255" cy="330" r="5" fill="var(--good)"/>
+        <text x="255" y="350" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="var(--ink)">FIRE WATCH TOWER</text>
+
+        <circle cx="600" cy="300" r="5" fill="var(--rust)"/>
+        <text x="600" y="320" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="var(--ink)">COUNTY LINE STOP</text>
+
+        <circle cx="470" cy="255" r="5" fill="var(--good)"/>
+        <text x="470" y="275" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="var(--ink)">ST. ANNE'S PARISH</text>
+
+        <circle cx="330" cy="180" r="5" fill="var(--danger)"/>
+        <text x="330" y="200" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="var(--ink)">CHECKPOINT DELTA</text>
+      </svg>
+      <div class="map-caption">Fig. 1 — District sketch, not to scale. Green pins = safe satellite spot, rust = contested, red = hostile-controlled at campaign start. See Manifest 05 for the buildable POI list per district.</div>
+    </div>
+  </section>
+
+  <section id="outbreak">
+    <div class="sec-head"><span class="sec-num">03</span><h2>The Outbreak</h2></div>
+    <p><strong>Halvorsen AgriGen</strong> ran a research annex on the north edge of Millbrook Falls developing <strong>Compound Fallow</strong> — publicly, a controlled-dormancy agent meant to humanely suppress livestock and pest populations during famine-relief operations, pitched to regulators as a genuinely humanitarian technology. What it actually did, in a live human population, was different: Fallow doesn't just induce dormancy. In a high enough dose, following either a bite or prolonged exposure, it re-animates the nervous system after clinical death and drives it toward one behavior — spreading the exposure further.</p>
+    <p>The contamination event itself is never fully explained on-screen — that ambiguity is deliberate (see §10). What's public record: an "atmospheric containment failure" at the Annex, a blackout of the surrounding six blocks within the hour, and a spreading pattern too clean and too fast for an accidental leak, though nobody outside a very short list has ever been in a position to say so out loud.</p>
+    <p>A federal quarantine order stood up the Grayback Perimeter in under four days. Millbrook Falls, Cedar Hollow, the Anders River farms, and the Grayback Highlands were all inside the line before evacuation finished. What's inside now stays inside.</p>
+  </section>
+
+  <section id="warden">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Warden Group</h2></div>
+    <p>A full military occupation of a county-sized biohazard zone is expensive, politically ugly, and hard to sustain past the first news cycle. So the perimeter itself is federal and permanent, but everything <em>inside</em> it — salvage, sample recovery, population control, contract enforcement — is subcontracted to <strong>Warden Group</strong>, a private crisis-response firm operating under a no-bid recovery contract nobody in the county seat ever got to vote on.</p>
+    <p>Warden Group doesn't send its own people past the wire more than it has to. It hires yours instead — mercenaries, salvagers, the desperate and the specialized alike — pays them in scrip redeemable at Grayback Lodge, and treats every contractor as fully expendable. A dead contractor is a line item, not an incident. That's the entire reason permadeath is the premise, not a difficulty setting: nobody sent you in expecting you back.</p>
+    <p>Publicly, Warden Group's contracts are framed as recovery and cleanup: retrieve viable tissue samples, thin the population in overrun sectors, recover Halvorsen equipment "for containment analysis." Whether that framing survives contact with what your contracts actually add up to is §8's territory.</p>
+  </section>
+
+  <section id="hub">
+    <div class="sec-head"><span class="sec-num">05</span><h2>The Hub Network</h2></div>
+    <p class="sec-dek">Grayback Lodge is the only fully safe location — but it isn't the only place worth walking to. Four satellite spots give players reasons to range further before committing to the long walk home.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Location</th><th>Type</th><th>Run by</th><th>Offers</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="term">Grayback Lodge</td><td>Main hub</td><td>Sam Ostrander + Warden Group liaison</td><td>Cache (stash), Vendor row, Motor Barn, Contract board, full rest</td><td><span class="pill safe">Safe</span></td></tr>
+          <tr><td class="term">Fire Watch Tower</td><td>Satellite — highlands</td><td>Two holdout rangers</td><td>Light trade, rest, sightline over the highlands</td><td><span class="pill safe">Safe</span></td></tr>
+          <tr><td class="term">St. Anne's Parish</td><td>Satellite — Cedar Hollow edge</td><td>Dr. Priya Anand + a handful of civilians</td><td>Medical trade, rest, cure-arc contract line</td><td><span class="pill safe">Safe</span></td></tr>
+          <tr><td class="term">County Line Truck Stop</td><td>Satellite — farmland</td><td>Reyes (the Fence)</td><td>Black-market trade, no questions asked</td><td><span class="pill contested">Contested</span></td></tr>
+          <tr><td class="term">Checkpoint Delta</td><td>Satellite — Millbrook approach</td><td>Disputed</td><td>Nothing yet — reclaimable content target, see Manifest 02</td><td><span class="pill contested">Hostile-held</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px;font-size:14px;color:var(--ink-muted);">Mechanical note: only the Lodge's Cache is a true bank — loot carried there is safe the moment it's deposited. Satellite spots are rest/light-trade only; they don't bank loot. Contract-critical items (samples, escort targets) additionally require reaching that contract's specific drop-off, which may not be any of the five locations above — see Manifest 02 §"Exfil model."</p>
+  </section>
+
+  <section id="factions">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Factions</h2></div>
+    <div class="card-grid">
+      <div class="card">
+        <span class="role">Hostile — infected</span>
+        <h3>The Fallow-touched</h3>
+        <p>Not one enemy type — a progression. <strong>Fresh</strong> cases (recently turned, days old) are fast, aggressive, still coordinated enough to be dangerous in groups. <strong>Wasted</strong> cases (weeks to months post-turn) are slower and dumber but absorb more damage and travel in the migrating hordes the spawn-director routes through the map. Both are the same <code>UZSZombieConfig</code> archetype system already built — this is content variety, not new engineering.</p>
+      </div>
+      <div class="card">
+        <span class="role">Employer</span>
+        <h3>Warden Group</h3>
+        <p>Checkpoint guards, the Lodge liaison, and the contract board. Not combatants you fight under normal play — they're the reason you're here. Their sincerity is the thing §8 slowly undermines.</p>
+      </div>
+      <div class="card">
+        <span class="role">Hostile — human</span>
+        <h3>The Fallow Company</h3>
+        <p>Rogue ex-Warden Group contractors led by Marcus Voss, who figured out what Warden Group is really recovering before anyone else did — and now hold territory, guard caches, and occasionally hire out to whoever pays, zombies and mercs alike treated as equally disposable obstacles. This is <code>BF_HumanHostileFaction</code>'s content identity.</p>
+      </div>
+      <div class="card">
+        <span class="role">Background — noncombatant</span>
+        <h3>The Hollow Folk</h3>
+        <p>Scattered civilian holdouts who never made evacuation and never joined a faction — a few at St. Anne's, more implied than shown elsewhere. Pure environmental storytelling and light dynamic-event fuel (radio chatter, found notes); not a combat faction and not scoped for dialogue trees.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="figures">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Key Figures</h2></div>
+    <div class="card-grid">
+      <div class="card">
+        <h3>Handler Okafor</h3>
+        <span class="role">Warden Group liaison, the Lodge</span>
+        <p>Gives the official contract line: sample recovery, kill quotas, equipment retrieval. Professionally warm, genuinely believes the cover story for longer than is comfortable once players start finding evidence otherwise.</p>
+      </div>
+      <div class="card">
+        <h3>"Cutter" Sam Ostrander</h3>
+        <span class="role">Lodge proprietor</span>
+        <p>Owned the hunting outfit before the quarantine, never left. Runs general trade independent of Warden Group — the freeform economy's anchor. Lost a nephew who worked at the Annex; trusts Warden Group exactly as far as he has to.</p>
+      </div>
+      <div class="card">
+        <h3>Reyes</h3>
+        <span class="role">"The Fence," County Line Truck Stop</span>
+        <p>Black-market trade, stolen Warden Group gear, and the first NPC to casually mention a rumor that doesn't match the official story — dropped as flavor, not a quest marker.</p>
+      </div>
+      <div class="card">
+        <h3>Dr. Priya Anand</h3>
+        <span class="role">Ex-Halvorsen bio-safety officer, St. Anne's Parish</span>
+        <p>Defected from the Annex before the breach went public. Gives the documentation/cure-arc contract line — the one vendor thread that pulls all the way through to §8's endgame branch.</p>
+      </div>
+      <div class="card">
+        <h3>Marcus Voss</h3>
+        <span class="role">Fallow Company commander</span>
+        <p>Former Halvorsen site-security chief, now leads the rogue PMC holding Checkpoint Delta and points beyond. Has — or claims to have — Halvorsen's own cure research. Never a dialogue NPC; encountered only through his faction and what's recovered from them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="mystery">
+    <div class="sec-head"><span class="sec-num">08</span><h2>The Mystery</h2></div>
+    <p class="sec-dek">Not advertised at game start. Delivered entirely through optional, found material — loot documents, vendor barks, environmental staging — the way Tarkov's TerraGroup evidence and STALKER 2's PDAs do it (see Manifest 06). A player who never picks up a single document still gets the full survival game with zero narrative debt.</p>
+
+    <div class="tier public">
+      <div class="tier-head"><span class="tier-badge">Tier 1 — Public Briefing</span><span class="tier-when">known from the first session</span></div>
+      <h3>What everyone's told</h3>
+      <p>An accidental containment failure at a Halvorsen agricultural research annex caused the outbreak. Warden Group is here to help recover the county and study a cure. Your contracts serve that recovery.</p>
+    </div>
+
+    <div class="tier field">
+      <div class="tier-head"><span class="tier-badge">Tier 2 — Field Intelligence</span><span class="tier-when">discoverable mid-game, optional loot &amp; vendor dialogue</span></div>
+      <h3>What the documents say</h3>
+      <p>Internal Halvorsen memos (found in Annex-adjacent loot, sold piecemeal by Reyes) describe Fallow as a dual-use program — the "humane pest control" pitch sat alongside a parallel, unlabeled military application file. A shipping log shows a field test scheduled in the two weeks before the "accidental" breach. None of this is handed to the player outright; it's assembled from partial documents the way STALKER 2's PDA notes are.</p>
+    </div>
+
+    <div class="tier classified">
+      <div class="tier-head"><span class="tier-badge">Tier 3 — Classified</span><span class="tier-when">endgame thread, Dr. Anand's contract line + Fallow Company recovery</span></div>
+      <h3>What's actually true</h3>
+      <p>The breach wasn't an accident — it was an unauthorized live-population field test, and Warden Group's recovery contract was in place <em>before</em> it happened. Warden Group isn't here to cure Grayback County; it's here to recover Halvorsen's research and viable specimens for a client that was never named to the county, the state, or you. Marcus Voss's Fallow Company broke off when its own contractors figured this out first — and Voss may hold the one clean copy of Halvorsen's actual antidote research, not just the weaponized half.</p>
+    </div>
+  </section>
+
+  <section id="delivery">
+    <div class="sec-head"><span class="sec-num">09</span><h2>Story Delivery &amp; Endings</h2></div>
+    <p>No cutscenes, no branching dialogue trees, no forced story missions. The mystery surfaces exactly the way B5's contract system and existing item-pickup architecture already work: found documents auto-file into a Notes/Intel tab on pickup (a light UI addition, not a new content pipeline), vendor barks drop hints opportunistically, and Dr. Anand's contract line is the one guaranteed thread that gates the endgame reveal behind actual play rather than a cutscene.</p>
+    <p>The resolution is a light branch, not a full narrative fork — three world-state flags, not three game endings with unique content:</p>
+    <ul class="rules">
+      <li><strong>Hand it to Warden Group</strong> — turn in the recovered cure research through Handler Okafor. Hub economy shifts (better Warden Group stock, Fallow Company escalates in retaliation).</li>
+      <li><strong>Sell it to Reyes</strong> — the research goes wide on the black market. Warden Group's authority at the Lodge visibly weakens; new black-market stock unlocks.</li>
+      <li><strong>Destroy it with Dr. Anand</strong> — no faction gets it. Quietest ending; a permanent world-state marker and closing vendor dialogue, no new content gated behind it.</li>
+    </ul>
+    <p style="font-size:14px;color:var(--ink-muted);">This resolution is explicitly <strong>post-Stage-1 scope</strong> — it lives in Manifest 02's B5 phase, not anything blocking the core loop. Nothing here requires new engineering beyond flags Warden Group/Reyes/Anand vendor stock already needs to read.</p>
+  </section>
+
+  <section id="rules">
+    <div class="sec-head"><span class="sec-num">10</span><h2>Tone &amp; Writing Rules</h2></div>
+    <p class="sec-dek">Guardrails for any future session (human or AI) writing contract text, vendor barks, or found documents against this bible.</p>
+    <ul class="rules">
+      <li>Grounded survival dread, not camp. No zombie one-liners, no "brains" jokes. Infected are a biohazard, not a punchline.</li>
+      <li>The mystery is entirely optional content layered on freeform/contract play — never gate core survival mechanics behind it.</li>
+      <li>No forced dialogue trees or cutscenes. Every story beat is a found object, a bark, or a contract's flavor text.</li>
+      <li>Stay consistent with what's already mechanically true: two-tier infection (wound vs. bite), permadeath with loot-stays-where-it-fell, the hub/satellite split above. Don't write around them.</li>
+      <li>The exact contamination trigger stays unconfirmed on purpose — Tier 3 implies "field test," never states it as flatly proven. Certainty is a player inference, not a cutscene fact.</li>
+      <li>Warden Group NPCs (Okafor especially) are not cartoon villains — they believe the official story for a long time. The horror is institutional, not a mustache-twirling reveal.</li>
+    </ul>
+  </section>
+
+  <section id="glossary">
+    <div class="sec-head"><span class="sec-num">11</span><h2>Glossary</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Term</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td class="term">Grayback County</td><td>The region — one seamless map, four districts, inside the Perimeter.</td></tr>
+          <tr><td class="term">Millbrook Falls</td><td>Urban district, county seat, ground zero.</td></tr>
+          <tr><td class="term">Cedar Hollow</td><td>Suburban district adjoining Millbrook Falls.</td></tr>
+          <tr><td class="term">Anders River Farmland</td><td>Rural district along the river's southern stretch.</td></tr>
+          <tr><td class="term">Grayback Highlands</td><td>Wooded/rural district; the Lodge's location.</td></tr>
+          <tr><td class="term">Halvorsen AgriGen</td><td>Biotech company behind Compound Fallow.</td></tr>
+          <tr><td class="term">Compound Fallow</td><td>The pathogen — dual-use dormancy agent, weaponized.</td></tr>
+          <tr><td class="term">Warden Group</td><td>Private contractor running recovery ops inside the Perimeter.</td></tr>
+          <tr><td class="term">Grayback Perimeter</td><td>The hard federal quarantine boundary.</td></tr>
+          <tr><td class="term">The Fallow Company</td><td>Voss's rogue PMC — the human hostile faction.</td></tr>
+          <tr><td class="term">Grayback Lodge</td><td>Main hub — Lodge, Cache, Motor Barn, lookout tower.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a class="current" href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/01_LoreAndStoryBible.html · written 2026-09-06 · ties into CR-13/CR-14 (Docs/Beta/00_MasterPlan.md) and GameDevPlan.md Decisions 6 &amp; 10</div>
+  </footer>
+
+</div>

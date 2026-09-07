@@ -1,0 +1,226 @@
+<title>Blender Bench Sheet</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:74ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(32px,5.6vw,50px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:66ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  .warn-box{background:var(--surface);border:2px solid var(--rust);border-radius:3px;padding:16px 22px;margin-bottom:40px;box-shadow:var(--shadow);}
+  .warn-box .k{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--rust);font-weight:700;display:block;margin-bottom:6px;}
+  .warn-box p{margin:0;font-size:14px;max-width:none;}
+
+  section{margin-bottom:44px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:24px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14.5px;max-width:74ch;margin:12px 0 18px;}
+
+  .spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:8px;}
+  .spec{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:14px 18px;}
+  .spec .k{font-family:'IBM Plex Mono';font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);display:block;margin-bottom:6px;}
+  .spec .v{font-size:13.5px;color:var(--ink-muted);}
+  .spec .v code{color:var(--ink);}
+
+  .budget-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}
+  .budget-table th{text-align:left;font-family:'IBM Plex Mono';font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:var(--surface-2);padding:8px 12px;border-bottom:1px solid var(--line-strong);}
+  .budget-table td{padding:8px 12px;border-bottom:1px solid var(--line);background:var(--surface);font-variant-numeric:tabular-nums;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;}
+
+  .queue-list{list-style:none;margin:0;padding:0;counter-reset:q;display:grid;gap:8px;}
+  .queue-list li{counter-increment:q;display:flex;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:12px 16px;align-items:baseline;font-size:14px;}
+  .queue-list li::before{content:counter(q);font-family:'Oswald';font-size:18px;font-weight:700;color:var(--accent);flex:none;width:22px;}
+  .queue-list li .sub{color:var(--ink-faint);font-family:'IBM Plex Mono';font-size:11.5px;margin-left:auto;white-space:nowrap;}
+
+  table.tasks{width:100%;border-collapse:collapse;font-size:13px;}
+  table.tasks th{text-align:left;font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:8px 10px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  table.tasks td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  table.tasks tr:last-child td{border-bottom:none;}
+  td.notes{color:var(--ink-muted);}
+
+  footer{border-top:3px solid var(--ink);margin-top:56px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 07 / 09</span> ZombieShooter Production Manifests · Design Record</div>
+    <h1 class="title">Blender Bench Sheet</h1>
+    <p class="subtitle">Conventions, budgets, and the full modeling queue for every real Blender gap — sequenced so the mechanically-blocking items land before genre-depth filler.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Source</span><span class="meta-value">BlenderNotes.md, ItemSetupStandard §4b/§9</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Companion</span><span class="meta-value">Manifest 04 (what), this doc (how)</span></div>
+    </div>
+  </div>
+
+  <div class="warn-box">
+    <span class="k">Do this first — never verified</span>
+    <p>The 1×1×1m cube export test (Blender FBX → Unreal import, confirm scale/axis) has <strong>never been run</strong>. Every export setting below is a starting guess, not a fact. Run the test, confirm Forward <code>-Z</code> / Up <code>Y</code> / Scale <code>1.00</code> actually round-trips correctly, then update this page and <code>Docs/BlenderNotes.md</code> §3 with the confirmed settings before trusting a real asset's dimensions.</p>
+  </div>
+
+  <section id="conventions">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Project-Wide Conventions</h2></div>
+    <div class="spec-grid">
+      <div class="spec"><span class="k">Naming</span><span class="v">Mesh <code>SM_&lt;Name&gt;</code> (or <code>SM_&lt;Abbrev&gt;_&lt;Part&gt;</code> multi-part); texture <code>T_&lt;Name&gt;_BaseColor</code>; material <code>M_&lt;Name&gt;</code> (master) / <code>MI_&lt;Name&gt;</code> (instance). <code>ZS</code> prefix applies to classes/BP/DA/WBP only, never raw art.</span></div>
+      <div class="spec"><span class="k">Export (unverified)</span><span class="v">Blender FBX, Forward <code>-Z</code>, Up <code>Y</code>, Scale <code>1.00</code>, Apply Scale <code>FBX All</code>. Apply all object transforms (<code>Ctrl+A</code> → All Transforms) before export.</span></div>
+      <div class="spec"><span class="k">Origin placement</span><span class="v">Critical for <code>WornMesh</code> items — must sit correctly relative to its character socket, no per-item code offset exists. <code>WorldMesh</code> pickups are less strict.</span></div>
+      <div class="spec"><span class="k">Collision</span><span class="v"><code>WornMesh</code> and weapon-attachment meshes get <code>NoCollision</code> forced automatically at runtime — no manual setup needed. <code>WorldMesh</code> pickups can keep simple auto-collision or none.</span></div>
+      <div class="spec"><span class="k">Texture / material</span><span class="v">One shared master <code>M_ZS_Item</code> <em>(not created yet)</em> + one <code>MI_&lt;ItemName&gt;</code> instance per item, not an atlas. BaseColor only by default; Roughness/Metallic as flat scalars unless an item genuinely mixes materials. 256×256 default, 128×128 for small clutter.</span></div>
+      <div class="spec"><span class="k">Scale reference</span><span class="v">Model at real-world scale in Blender meters. Not the same as <code>UZSItemConfig::ItemSize</code> (gameplay compartment-fit, unrelated to physical dimension).</span></div>
+      <div class="spec"><span class="k">Icon pipeline</span><span class="v"><code>BP_IconGenerator</code>/<code>M_Icon</code> exist mid-edit — appears to be a render-capture-to-icon system. <strong>Unconfirmed</strong> — if true, no separate 2D icon art is ever needed. Confirm before assuming.</span></div>
+    </div>
+
+    <h3 style="font-size:14px;text-transform:uppercase;color:var(--ink-muted);margin:24px 0 10px;">Folder destinations (verified current)</h3>
+    <div class="spec-grid">
+      <div class="spec"><span class="k">Existing</span><span class="v"><code>Content/ZS/Items/Weapons/{Ammo,Melee,Pistol,Rifle}/</code>, <code>.../Weapons/Meshes/AssaultRifle/</code>, <code>Medical/Meshes/</code>, flat <code>Textures/</code>, <code>ItemDataAssets/</code></span></div>
+      <div class="spec"><span class="k">Removed</span><span class="v"><code>Content/ZS/Weapons/</code> <strong>no longer exists</strong> — don't reference it if seen in an older doc</span></div>
+      <div class="spec"><span class="k">New</span><span class="v"><code>Content/LowPolyPackUsedMeshes/</code> — destination for a specific mesh picked out of the big mirrored <code>LowPolyWeapons</code> dump, alongside (not replacing) the per-category weapon folders</span></div>
+      <div class="spec"><span class="k">New Blender output</span><span class="v"><code>Content/ZS/Items/&lt;Category&gt;/</code> (non-weapon) or <code>.../Weapons/&lt;Category&gt;/</code> (weapon) — mesh+texture+material together, flat, matching <code>Rifle/</code>'s pattern</span></div>
+    </div>
+
+    <h3 style="font-size:14px;text-transform:uppercase;color:var(--ink-muted);margin:24px 0 10px;">Triangle budgets by class</h3>
+    <div class="table-wrap"><table class="budget-table">
+      <thead><tr><th>Class</th><th>Budget</th></tr></thead>
+      <tbody>
+        <tr><td>Small handheld / pickup</td><td>100–400 tris</td></tr>
+        <tr><td>Worn gear, small (helmet, belt)</td><td>300–800 tris</td></tr>
+        <tr><td>Worn gear, large (backpack, duffle, vest)</td><td>500–1,200 tris</td></tr>
+        <tr><td>Weapons, simple (revolver, shotgun, melee)</td><td>800–2,200 tris</td></tr>
+        <tr><td>Weapons, modular/hero (full-rail AR-class)</td><td>4,000–6,500 tris</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="queue">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Active Priority Queue</h2></div>
+    <p class="sec-dek">Work top to bottom — each unblocks a mechanic that's otherwise untestable, ahead of anything that just adds variety.</p>
+    <ol class="queue-list">
+      <li>Backpack <span class="sub">in progress · 500–1,200 tris · Content/ZS/Items/Containers/</span></li>
+      <li>Pistol Magazine <span class="sub">~150 tris · mechanical blocker, no reload without it</span></li>
+      <li>SMG Magazine <span class="sub">~150 tris · mechanical blocker</span></li>
+      <li>Helmet <span class="sub">300–800 tris</span></li>
+      <li>Vest <span class="sub">500–1,200 tris</span></li>
+      <li>Belt <span class="sub">300–800 tris</span></li>
+      <li>Splint <span class="sub">real gap — Disinfectant/Splint archetypes coded, no real item exercises them</span></li>
+      <li>Wrapped Snack / Candy Bar <span class="sub">confirmed real gap, no pack match</span></li>
+      <li>Machete <span class="sub">the one true melee gap after the plausible-match tier is confirmed</span></li>
+    </ol>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:12px;">Zombie mesh + skin remains the single biggest content gap overall, but runs as a <strong>parallel track, not part of this queue</strong> — it's a rigged/skinned character + animation retarget, a different pipeline than a static prop. Pursue via sourcing a pack alongside the queue above, don't block either on the other.</p>
+  </section>
+
+  <section id="visual-confirm">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Visual-Confirm Queue <em style="color:var(--ink-faint);font-style:normal;font-size:16px;">(editor work, not modeling)</em></h2></div>
+    <p class="sec-dek">The 8/29 pack audit found candidate meshes for these but couldn't confirm which variant matches without opening the pack in-editor. Pick the right one, copy into <code>Content/LowPolyPackUsedMeshes/</code>, wire the DA.</p>
+    <div class="table-wrap"><table class="tasks">
+      <thead><tr><th>Item</th><th>Candidate</th></tr></thead>
+      <tbody>
+        <tr><td>Revolver</td><td class="notes">Plausible match in mirrored pack, unconfirmed variant</td></tr>
+        <tr><td>Pump Shotgun</td><td class="notes">Plausible match, unconfirmed</td></tr>
+        <tr><td>Sawn-off Shotgun</td><td class="notes">Plausible match, unconfirmed</td></tr>
+        <tr><td>Bolt-Action / Hunting Rifle</td><td class="notes">Plausible match, unconfirmed</td></tr>
+        <tr><td>Kitchen Knife</td><td class="notes">Generic <code>HandWeapon_01..08</code> shape</td></tr>
+        <tr><td>Baseball Bat</td><td class="notes">Generic <code>HandWeapon</code> shape</td></tr>
+        <tr><td>Footlocker</td><td class="notes">Plausible reskin, <code>SM_METAL_BOX</code></td></tr>
+        <tr><td>Suture kit</td><td class="notes">Plausible reskin, <code>SM_SEWING_KIT</code></td></tr>
+        <tr><td>Lockpick</td><td class="notes">Plausible, <code>SM_Diamond_File</code></td></tr>
+        <tr><td>.357 ammo</td><td class="notes">Plausible, close-caliber reskin of <code>SM_Bullet_45Cal</code> — treat as optimistic, not confirmed</td></tr>
+        <tr><td>Newspaper/magazine</td><td class="notes">Plausible, <code>SM_OFFICE_PAPER</code></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="remaining">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Remaining Blender Gaps <em style="color:var(--ink-faint);font-style:normal;font-size:16px;">(later tiers, nothing blocking)</em></h2></div>
+    <div class="table-wrap"><table class="tasks">
+      <thead><tr><th>Category</th><th>Items</th></tr></thead>
+      <tbody>
+        <tr><td class="notes">Ammo</td><td>.308, 12 Gauge — real gaps, unconfirmed against any pack</td></tr>
+        <tr><td class="notes">Medical</td><td>Antibiotics, Tourniquet, Morphine/Pain Injector, Adrenaline Shot</td></tr>
+        <tr><td class="notes">Combat/tactical</td><td>Smoke Grenade, Flare, Ballistic Plate, Weapon Cleaning/Repair Kit, Binoculars</td></tr>
+        <tr><td class="notes">Contract/intel <em style="color:var(--ink-faint);font-style:normal;">(new)</em></td><td>Classified Dossier, USB Drive/Data Stick, Keycard — Cash Bundle blocked on a code decision (bypasses inventory vs. carryable item) before any content</td></tr>
+        <tr><td class="notes">World containers</td><td>Kitchen Cabinet, Locker, Dumpster</td></tr>
+        <tr><td class="notes">Misc/junk <em style="color:var(--ink-faint);font-style:normal;">(lowest priority, pure volume)</em></td><td>Wallet, Cigarette Pack, Playing Cards</td></tr>
+        <tr><td class="notes">Gear</td><td>Duffle (deferred, shares Backpack's socket), Backpack large variant (reuse base topology, later)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="blocked">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Blocked — Needs a Decision, Not a Queue Position</h2></div>
+    <div class="table-wrap"><table class="tasks">
+      <thead><tr><th>Item</th><th>Blocked on</th></tr></thead>
+      <tbody>
+        <tr><td>Cash Bundle</td><td class="notes">Code decision: bypass inventory entirely, or a carryable item?</td></tr>
+        <tr><td>Clothing (all 6 slots)</td><td class="notes">The texture/material-swap system landing on the base skin mesh — doesn't exist yet, not a content gap right now</td></tr>
+        <tr><td>Radio item</td><td class="notes">Confirmed resolved this session (Manifest 02 §02) but a physical radio item still isn't scoped as content — don't model until confirmed</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a class="current" href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/07_BlenderTaskList.html · written 2026-09-06 · run the 1×1×1m export test before trusting any spec above</div>
+  </footer>
+
+</div>

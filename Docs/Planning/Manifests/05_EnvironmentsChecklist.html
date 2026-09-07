@@ -1,0 +1,268 @@
+<title>District Build Checklist</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:74ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(34px,6vw,54px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:66ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  .blocker{background:var(--surface);border:2px solid var(--rust);border-radius:3px;padding:18px 22px;margin-bottom:40px;box-shadow:var(--shadow);}
+  .blocker .k{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--rust);font-weight:700;display:block;margin-bottom:6px;}
+  .blocker p{margin:0;font-size:14.5px;max-width:none;}
+
+  section{margin-bottom:48px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:24px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14.5px;max-width:74ch;margin:12px 0 18px;}
+
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:8px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px 20px;box-shadow:var(--shadow);}
+  .card h3{font-size:16px;text-transform:none;margin:0 0 6px;}
+  .card .role{font-family:'IBM Plex Mono';font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--rust);display:block;margin-bottom:8px;}
+  .card p{font-size:13.5px;color:var(--ink-muted);margin:0;}
+
+  .district{border:1px solid var(--line);border-radius:3px;margin-bottom:16px;overflow:hidden;}
+  .district-head{background:var(--surface-2);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);}
+  .district-head h3{font-size:16px;margin:0;text-transform:none;}
+  .district-head .sub{font-family:'IBM Plex Mono';font-size:11px;color:var(--ink-faint);}
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:9px 12px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.notes{color:var(--ink-muted);}
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:600;font-family:'IBM Plex Mono';white-space:nowrap;}
+  .pill.high{background:color-mix(in srgb, var(--rust) 20%, transparent);color:var(--rust);}
+  .pill.med{background:color-mix(in srgb, var(--info) 18%, transparent);color:var(--info);}
+  .pill.low{background:color-mix(in srgb, var(--ink-faint) 20%, transparent);color:var(--ink-faint);}
+
+  .chip-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
+  .chip{font-family:'IBM Plex Mono';font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:5px 10px;}
+
+  .order-list{list-style:none;margin:0;padding:0;counter-reset:ord;display:grid;gap:10px;}
+  .order-list li{counter-increment:ord;display:flex;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:14px 18px;font-size:14px;align-items:baseline;}
+  .order-list li::before{content:counter(ord);font-family:'Oswald';font-size:20px;font-weight:700;color:var(--accent);flex:none;width:24px;}
+
+  footer{border-top:3px solid var(--ink);margin-top:60px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 05 / 09</span> ZombieShooter Production Manifests · Design Record</div>
+    <h1 class="title">District Build Checklist</h1>
+    <p class="subtitle">Every building, room, and world prop the map needs, grouped by Grayback County's four districts (Manifest 01 §02) plus the hub compound. Zero content is currently owned in this category.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Source</span><span class="meta-value">EnvironmentCatalog_2026-08-29.md</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Build tier</span><span class="meta-value">Manifest 02, Tier 6</span></div>
+    </div>
+  </div>
+
+  <div class="blocker">
+    <span class="k">Blocking everything below</span>
+    <p><strong>B2-T2 — modular kit selection</strong> hasn't happened yet. Not a modeling task, a decision: pick or purchase the architectural kit before building a single room in bulk. Every checklist item on this page is inventory to build <em>against</em> that kit, not a queue to start today.</p>
+  </div>
+
+  <section id="hub">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Hub Compound — Grayback Lodge</h2></div>
+    <p class="sec-dek">Small footprint, highest priority — seen every session, and a rough pass tests the vendor/stash loop end to end without the rest of the map existing.</p>
+    <div class="card-grid">
+      <div class="card"><span class="role">Priority 1</span><h3>The Lodge</h3><p>Vendor NPC + contract board. Taxidermy/gun-rack decor as armory backdrop — worth prioritizing over generic dressing.</p></div>
+      <div class="card"><span class="role">Priority 1</span><h3>The Cache</h3><p>Stash vault. Root-cellar / walk-in-cooler aesthetic, distinct shelving/storage furniture from the Lodge.</p></div>
+      <div class="card"><span class="role">Priority 2</span><h3>The Motor Barn</h3><p>Vehicle storage — needs vehicle meshes as a dependency (Tier 8), don't block the barn shell on that.</p></div>
+      <div class="card"><span class="role">Priority 3</span><h3>Ridge Lookout Tower</h3><p>Flavor only, no scoped gameplay purpose yet — don't over-invest here.</p></div>
+    </div>
+    <h3 style="font-size:14px;text-transform:uppercase;color:var(--ink-muted);margin:22px 0 10px;">Satellite safe spots <em style="color:var(--ink-faint);font-style:normal;">— new this session</em></h3>
+    <div class="chip-grid">
+      <span class="chip">Fire Watch Tower — Grayback Highlands</span>
+      <span class="chip">St. Anne's Parish — Cedar Hollow edge</span>
+      <span class="chip">County Line Truck Stop — Anders River Farmland</span>
+      <span class="chip">Checkpoint Delta — Millbrook approach (hostile-held at start)</span>
+    </div>
+  </section>
+
+  <section id="districts">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Buildings by District</h2></div>
+    <p class="sec-dek">Sequence within Tier 6: "mechanical identity" sites (medical/firearms/food) before generic residential variety.</p>
+
+    <div class="district">
+      <div class="district-head"><h3>Millbrook Falls — Urban</h3><span class="sub">county seat · ground zero</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Building</th><th>Loot identity</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td>Apartment building</td><td class="notes">Residential, multi-level — tests elevation system on real content</td><td><span class="pill med">Medium</span></td></tr>
+          <tr><td>Pharmacy / small hospital</td><td class="notes">Medical site — highest-value medical loot</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Gun store / police station</td><td class="notes">Firearms site</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Grocery store</td><td class="notes">Food site, larger footprint</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Office building</td><td class="notes">Document/intel site — feeds Classified Dossier loot (Manifest 01 mystery)</td><td><span class="pill med">Medium</span></td></tr>
+          <tr><td>Bank</td><td class="notes">Heist-contract site — keycard/vault content, pairs with BF hostile guards</td><td><span class="pill med">Medium</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="district">
+      <div class="district-head"><h3>Cedar Hollow — Suburban</h3><span class="sub">adjoins Millbrook Falls</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Building</th><th>Loot identity</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td>Single-family house (2–3 variants)</td><td class="notes">Most-repeated building — variety matters most here</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Garage</td><td class="notes">Tools site</td><td><span class="pill med">Medium</span></td></tr>
+          <tr><td>Strip mall</td><td class="notes">Mixed small commercial</td><td><span class="pill low">Low</span></td></tr>
+          <tr><td>Convenience store</td><td class="notes">Food site, small</td><td><span class="pill high">High</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="district">
+      <div class="district-head"><h3>Anders River Farmland — Rural</h3><span class="sub">river's southern stretch</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Building</th><th>Loot identity</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td>Farmhouse + barn</td><td class="notes">Residential + tools/containers</td><td><span class="pill high">High</span></td></tr>
+          <tr><td>Gas station</td><td class="notes">Fuel/tools site, small</td><td><span class="pill med">Medium</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="district">
+      <div class="district-head"><h3>Grayback Highlands — Wooded</h3><span class="sub">the Lodge's district</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Building</th><th>Loot identity</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td>Hunting cabin / ranger station</td><td class="notes">Weapons/tools site, small footprint</td><td><span class="pill med">Medium</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="district">
+      <div class="district-head"><h3>Industrial Fringe</h3><span class="sub">cuts across district boundaries</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Building</th><th>Loot identity</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td>Warehouse</td><td class="notes">Large open loot volume — good horde-event space candidate</td><td><span class="pill med">Medium</span></td></tr>
+          <tr><td>Power substation / water treatment</td><td class="notes">Should visibly tie into the utilities-shutoff hazard mechanic</td><td><span class="pill low">Low</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section id="kit">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Modular Architectural Kit</h2></div>
+    <p class="sec-dek">The actual B2-T2 purchase/build target — every district above is assembled from this set.</p>
+    <div class="chip-grid">
+      <span class="chip">Walls — exterior/interior, ≥1 damaged/breached variant</span>
+      <span class="chip">Floors/ceilings — matched to interior-visibility technique</span>
+      <span class="chip">Doors — intact, breachable, locked</span>
+      <span class="chip">Windows — intact + broken</span>
+      <span class="chip">Stairs — real geometry, multi-level</span>
+      <span class="chip">Fences/chain-link — urban vs. rural variants</span>
+      <span class="chip">Basements — fixed/hand-authored, own smaller kit (concrete walls, pillars, pipes)</span>
+    </div>
+  </section>
+
+  <section id="furniture">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Furniture by Room Type</h2></div>
+    <div class="card-grid">
+      <div class="card"><h3>Residential — Living</h3><p>Sofa, TV stand, coffee table, bookshelf</p></div>
+      <div class="card"><h3>Residential — Bedroom</h3><p>Bed, dresser, nightstand, closet</p></div>
+      <div class="card"><h3>Residential — Bathroom</h3><p>Sink, toilet, bathtub/shower</p></div>
+      <div class="card"><h3>Kitchen</h3><p>Counter, stove, refrigerator, dining table + chairs</p></div>
+      <div class="card"><h3>Office</h3><p>Desk, chair, filing cabinet, computer/monitor (set dressing)</p></div>
+      <div class="card"><h3>Medical</h3><p>Hospital bed, medical cart, exam table</p></div>
+      <div class="card"><h3>Retail</h3><p>Shelving unit, checkout counter, cash register</p></div>
+      <div class="card"><h3>Garage / Industrial</h3><p>Workbench, tool rack, shelving</p></div>
+    </div>
+  </section>
+
+  <section id="props">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Exterior / World Props</h2></div>
+    <p class="sec-dek">Lowest priority — pure dressing, build last.</p>
+    <div class="chip-grid">
+      <span class="chip">Streetlight</span><span class="chip">Traffic light / stop sign</span><span class="chip">Mailbox</span>
+      <span class="chip">Exterior trash can</span><span class="chip">Fire hydrant</span><span class="chip">Wrecked vehicle (static)</span>
+      <span class="chip">Barricade / sandbags</span><span class="chip">Road debris / rubble</span><span class="chip">Utility pole</span>
+      <span class="chip">Vegetation (tree/bush/tall grass, biome-differentiating)</span><span class="chip">Streetside dumpster</span>
+    </div>
+    <p style="font-size:13.5px;color:var(--ink-muted);margin-top:14px;">Drivable vehicles are a separate, unscoped asset category (Manifest 07 doesn't cover them) — near-term relevant now that Tier 8 lands basic driving.</p>
+  </section>
+
+  <section id="order">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Priority Build Order</h2></div>
+    <ol class="order-list">
+      <li>Land the B2-T2 kit-selection decision — nothing below starts in bulk until this happens.</li>
+      <li>Grayback Lodge rough pass (Lodge + Cache specifically) — tests the vendor/stash loop end to end.</li>
+      <li>Raid-zone buildings by district, mechanical-identity sites first (medical/firearms/food) before residential variety.</li>
+      <li>Satellite safe spots (Fire Watch Tower, St. Anne's, County Line, Checkpoint Delta) — small footprint, high narrative payoff.</li>
+      <li>Furniture, following whichever buildings land first.</li>
+      <li>Exterior world props — pure dressing, last.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a class="current" href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/05_EnvironmentsChecklist.html · written 2026-09-06 · district map: see Manifest 01 §02 Fig. 1</div>
+  </footer>
+
+</div>

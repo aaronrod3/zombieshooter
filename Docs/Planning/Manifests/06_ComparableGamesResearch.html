@@ -1,0 +1,236 @@
+<title>Field Study — Extraction Survival</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:74ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(32px,5.6vw,50px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:66ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  section{margin-bottom:48px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:24px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14.5px;max-width:74ch;margin:12px 0 18px;}
+
+  .game-card{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:20px 24px;margin-bottom:14px;box-shadow:var(--shadow);}
+  .game-card h3{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px;}
+  .tier-tag{font-family:'IBM Plex Mono';font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:99px;background:var(--surface-2);color:var(--ink-faint);border:1px solid var(--line);}
+  .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 20px;}
+  .field{font-size:13px;}
+  .field .k{font-family:'IBM Plex Mono';font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);display:block;margin-bottom:3px;}
+  .field .v{color:var(--ink-muted);}
+  .field.hook{grid-column:1/-1;background:var(--surface-2);border-radius:3px;padding:10px 14px;margin-top:4px;}
+  .field.hook .k{color:var(--rust);}
+  .field.hook .v{color:var(--ink);}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:8px 10px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.g{font-weight:600;white-space:nowrap;}
+
+  .num-grid{display:grid;gap:10px;}
+  .num-item{display:flex;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:14px 18px;align-items:baseline;}
+  .num-item .idx{font-family:'Oswald';font-size:20px;font-weight:700;color:var(--accent);flex:none;width:26px;}
+  .num-item.warn .idx{color:var(--danger);}
+  .num-item p{margin:0;font-size:14px;}
+
+  footer{border-top:3px solid var(--ink);margin-top:60px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 06 / 09</span> ZombieShooter Production Manifests · Research Record</div>
+    <h1 class="title">Field Study — Extraction Survival</h1>
+    <p class="subtitle">Ten comparable games, read for hub systems, objective structure, exfil mechanics, loot economy, and how each delivers a hidden narrative. What to steal, and what to build around instead of repeating.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Games covered</span><span class="meta-value">10, ranked by depth of relevance</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Feeds</span><span class="meta-value">Manifest 02, 03</span></div>
+    </div>
+  </div>
+
+  <section id="primary">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Primary Deep Dives</h2></div>
+
+    <div class="game-card">
+      <h3>Escape from Tarkov <span class="tier-tag">Hard extraction</span></h3>
+      <div class="field-grid">
+        <div class="field"><span class="k">Hub</span><span class="v">Single hideout, ~20 upgradable modules gated on items/roubles/trader loyalty/skills. No combat here — pure crafting/passive income/storage.</span></div>
+        <div class="field"><span class="k">Objectives</span><span class="v">7 traders, strict tiered questlines — kill/fetch/place-in-raid, gate gear behind loyalty level.</span></div>
+        <div class="field"><span class="k">Exfil</span><span class="v">Hard extraction points per map, some keyed/timed. Failed or late extract loses the raid.</span></div>
+        <div class="field"><span class="k">Death</span><span class="v">Lose everything but melee/compass/armband/secure container. Full wipe every ~6–7 months.</span></div>
+        <div class="field"><span class="k">Loot</span><span class="v">Tiered rarity, container-type-driven, finite per-raid, restocks on server restart.</span></div>
+        <div class="field"><span class="k">Narrative</span><span class="v">TerraGroup's real activity is the unstated mystery — 32 optional "Evidence" collectibles, quest text, NPC dialogue.</span></div>
+        <div class="field hook"><span class="k">The hook</span><span class="v">Real loss makes every raid decision matter — gear fear and the gear-up→raid→extract-or-lose loop is the addictive core.</span></div>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <h3>Project Zomboid <span class="tier-tag">Freeform sandbox</span></h3>
+      <div class="field-grid">
+        <div class="field"><span class="k">Hub</span><span class="v">None designed — players build their own base anywhere via Carpentry.</span></div>
+        <div class="field"><span class="k">Objectives</span><span class="v">None. Survival itself is the objective.</span></div>
+        <div class="field"><span class="k">Exfil</span><span class="v">None — one continuous persistent world, no session boundary.</span></div>
+        <div class="field"><span class="k">Death</span><span class="v">Full permadeath, no respawn on survival presets.</span></div>
+        <div class="field"><span class="k">Loot</span><span class="v">Sandbox-tunable rarity multipliers, pre-looted buildings, diminishing over time.</span></div>
+        <div class="field"><span class="k">Narrative</span><span class="v">Near-none — purely environmental implication.</span></div>
+        <div class="field hook"><span class="k">The hook</span><span class="v">"Your death is inevitable" — the fun is how creatively/long you delay it. No boss, no ending.</span></div>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <h3>DayZ <span class="tier-tag">Emergent PvP</span></h3>
+      <div class="field-grid">
+        <div class="field"><span class="k">Hub</span><span class="v">None official — improvised camps/tents/stashes, vulnerable to raiding.</span></div>
+        <div class="field"><span class="k">Objectives</span><span class="v">None in vanilla — fully freeform.</span></div>
+        <div class="field"><span class="k">Exfil</span><span class="v">None — persistent, always-on world.</span></div>
+        <div class="field"><span class="k">Death</span><span class="v">Lose everything; corpse recoverable only before the server's item-lifetime timer despawns it.</span></div>
+        <div class="field"><span class="k">Loot</span><span class="v">Central Loot Economy — server-wide caps, auto-cleanup, often tuned too scarce.</span></div>
+        <div class="field"><span class="k">Narrative</span><span class="v">Deliberately unexplained — devs never confirm outbreak origin.</span></div>
+        <div class="field hook"><span class="k">The hook</span><span class="v">Every encounter is a real stranger who might help or kill you — the "will they shoot" moment is the entire game.</span></div>
+      </div>
+    </div>
+
+    <div class="game-card">
+      <h3>SCUM <span class="tier-tag">Simulation depth</span></h3>
+      <div class="field-grid">
+        <div class="field"><span class="k">Hub</span><span class="v">Four safe-zone trading posts (Fame Points economy) + player-built bases anywhere.</span></div>
+        <div class="field"><span class="k">Objectives</span><span class="v">Trader "Life Goals" mission chains, added only in the 1.0 release (June 2025).</span></div>
+        <div class="field"><span class="k">Exfil</span><span class="v">None — Bunkers are raid-in-place high-value zones, not extraction points.</span></div>
+        <div class="field"><span class="k">Death</span><span class="v">Fame score drops; full loss tied to the BCU-2 neural implant vitals system.</span></div>
+        <div class="field"><span class="k">Loot</span><span class="v">Bunkers/named POIs hold top-tier gear, hand-placed.</span></div>
+        <div class="field"><span class="k">Narrative</span><span class="v">Reality-TV frame (TEC1 broadcasts prisoners) — found audio logs, implant lore.</span></div>
+        <div class="field hook"><span class="k">The hook</span><span class="v">Simulation depth as spectacle — also its most-criticized trait (see pitfalls).</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="secondary">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Secondary — Moderate Depth</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Game</th><th>Relevant mechanic</th><th>Takeaway</th></tr></thead>
+      <tbody>
+        <tr><td class="g">7 Days to Die</td><td>Blood Moon horde (every 7th day, zombies path perfectly toward players regardless of stealth)</td><td>Strong analog for the spawn-director's migrating hordes — but see pitfall below on stealth-defeating design</td></tr>
+        <tr><td class="g">S.T.A.L.K.E.R. 2</td><td>PDAs — found notes auto-file into a Notes tab, some quest-critical, most pure lore</td><td>Directly matches Manifest 01's "Tier 2 Field Intelligence" delivery model</td></tr>
+        <tr><td class="g">Sons of the Forest</td><td>Environmental storytelling via escalating vertical exploration (surface → caves → bunkers)</td><td>Warning as much as a pattern — see pitfall on disconnected narrative pacing</td></tr>
+        <tr><td class="g">Icarus</td><td>Hard session timer + true permadeath, later softened by "Insured Drops" rescue</td><td>The clearest case study for why our mixed-exfil model needs a forgiving failure mode from day one</td></tr>
+        <tr><td class="g">Once Human</td><td>Deviants — captured creatures automate base tasks while offline</td><td>Good model for a low-combat "reason to return to the hub"</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="reference">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Reference Only</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Game</th><th>Mechanic worth knowing</th></tr></thead>
+      <tbody>
+        <tr><td class="g">Deep Rock Galactic</td><td class="notes">Bite-sized "Assignments" (3–5 missions) + weekly-rotating Deep Dives — clean template for contract chains that don't block freeform play</td></tr>
+        <tr><td class="g">Valheim</td><td class="notes">Cheap, tagged/paired portals as a soft fast-travel alternative that still costs resources</td></tr>
+        <tr><td class="g">The Division</td><td class="notes">Dark Zone — loot stays "contaminated" until an extraction call-in, which broadcasts your location to other players</td></tr>
+        <tr><td class="g">Green Hell</td><td class="notes">Story Mode delivered as an intimate two-character radio thread over a freeform Survival Mode</td></tr>
+        <tr><td class="g">Hunt: Showdown</td><td class="notes">Clue-chain boss triangulation + multi-stage objective — strong template for a "retrieval contract" with built-in escalation</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="steal">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Patterns Worth Stealing</h2></div>
+    <div class="num-grid">
+      <div class="num-item"><span class="idx">1</span><p>Optional lore collectibles kept separate from critical-path quests (Tarkov's Evidence, STALKER 2's PDAs) — the mystery stays genuinely optional.</p></div>
+      <div class="num-item"><span class="idx">2</span><p>A contract-board with one "current assignment" + freeform overflow (DRG) — avoids Tarkov's "everything gated behind quest RNG" complaint.</p></div>
+      <div class="num-item"><span class="idx">3</span><p>Durability-banded malfunction thresholds (Tarkov's 93%/5% jam breakpoints) — directly reusable against the existing <code>ConditionQuality</code>-driven jam system.</p></div>
+      <div class="num-item"><span class="idx">4</span><p>A corpse-run recovery window (DayZ) — softens permadeath since dropped loot already persists; make the race-back tension explicit.</p></div>
+      <div class="num-item"><span class="idx">5</span><p>Config-driven rarity per container archetype (Zomboid, Tarkov) — matches the existing <code>RollConditionQuality</code> pattern already in code.</p></div>
+      <div class="num-item"><span class="idx">6</span><p>Idle/automated base tasks while offline (Once Human's Deviants) — a hub-return hook that doesn't require combat.</p></div>
+      <div class="num-item"><span class="idx">7</span><p>Trader opening hours + rotating stock (7 Days to Die) — ties hub visits to the existing day/night clock instead of an always-open menu.</p></div>
+      <div class="num-item"><span class="idx">8</span><p>Soft-into-hard extraction hybrid (Division's Dark Zone) — borrow the tension, not the ceremony, for the mixed-exfil model.</p></div>
+      <div class="num-item"><span class="idx">9</span><p>Clue-chain objective structure (Hunt: Showdown) — good template for the "recon" contract type.</p></div>
+      <div class="num-item"><span class="idx">10</span><p>A weekly-rotating escalating challenge run (DRG Deep Dives) — a retention lever once the core loop is proven, not before.</p></div>
+      <div class="num-item"><span class="idx">11</span><p>Rescue-instead-of-silent-deletion as a designed-in safety valve (Icarus), not a reactive patch — build this into the drop-off model now.</p></div>
+      <div class="num-item"><span class="idx">12</span><p>Implant/vitals-as-worldbuilding (SCUM's BCU-2) — a diegetic reason for the needs/moodle HUD, worth considering for how it's justified in-fiction.</p></div>
+    </div>
+  </section>
+
+  <section id="pitfalls">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Pitfalls to Avoid</h2></div>
+    <div class="num-grid">
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>Tarkov's wipe fatigue</strong> — full resets every 6–7 months. Permadeath already provides per-character loss tension; don't add a parallel full-world-wipe layer without a clear reason.</p></div>
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>DayZ's loot scarcity spiral</strong> — over-tuned rarity reads as "a running simulator with flashes of disappointment." Tune finite loot generously for the first hour.</p></div>
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>DayZ's KOS culture</strong> — lower risk here since this is co-op-first, but any future PvP/hostile system should avoid pure win-by-killing-other-survivors incentives.</p></div>
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>SCUM's simulation bloat</strong> — an entire stat page called "needlessly complicated." The existing needs/wound/infection stack is already approaching this ceiling — don't out-simulate what the UI can legibly show.</p></div>
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>STALKER 2's over-promised emergence</strong> — marketed "A-Life 2.0" as fully living, shipped something that read as scripted. Describe the spawn-director accurately; don't oversell it as emergent.</p></div>
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>Icarus's permadeath support disaster</strong> — harsh timer-based loss players triggered by accident forced an emergency rescue patch. Build the forgiving failure mode into the contract drop-off model from day one, not after complaints.</p></div>
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>Sons of the Forest's disconnected narrative</strong> — survival mechanics and story built independently read as "two games stapled together." Integrate mystery discovery with existing looting/traversal (the PDA model), not a separate quest-log track.</p></div>
+      <div class="num-item warn"><span class="idx">✕</span><p><strong>7 Days to Die's "horde always finds you"</strong> — Blood Moon zombies ignore stealth entirely, which reads as removing player agency. If migrating hordes are meant to be avoidable, make positioning visibly matter.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a class="current" href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/06_ComparableGamesResearch.html · written 2026-09-06 · research compiled via background agent, sources retained in session log</div>
+  </footer>
+
+</div>

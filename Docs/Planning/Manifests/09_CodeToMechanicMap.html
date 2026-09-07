@@ -1,0 +1,250 @@
+<title>Code &amp; Mechanic Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1180px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:76ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(32px,5.6vw,50px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:68ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  .caveat{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--info);border-radius:3px;padding:14px 20px;margin-bottom:40px;font-size:13.5px;color:var(--ink-muted);}
+  .caveat strong{color:var(--ink);}
+
+  section{margin-bottom:44px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:22px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14px;max-width:76ch;margin:10px 0 16px;}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:8px 11px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.mech{font-weight:600;min-width:150px;}
+  td.cls{font-family:'IBM Plex Mono';font-size:12px;color:var(--accent);white-space:nowrap;}
+  td.fn{font-family:'IBM Plex Mono';font-size:11.5px;color:var(--ink-muted);min-width:220px;}
+  td.file{font-family:'IBM Plex Mono';font-size:11px;color:var(--ink-faint);white-space:nowrap;}
+  td.review{color:var(--ink-muted);min-width:220px;}
+  .pending{font-style:italic;color:var(--ink-faint);}
+
+  footer{border-top:3px solid var(--ink);margin-top:56px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 09 / 09</span> ZombieShooter Production Manifests · Review Companion</div>
+    <h1 class="title">Code &amp; Mechanic Map</h1>
+    <p class="subtitle">Every mechanic from Manifest 03, mapped to the actual classes, functions, and files that implement it. Built to sit open during a code-review session — jump straight to what should be checked instead of re-deriving it each time.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Companion to</span><span class="meta-value">Manifest 03 (status), CLAUDE.md (architecture)</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Paths verified</span><span class="meta-value">Against live Source/ZombieShooter tree</span></div>
+    </div>
+  </div>
+
+  <div class="caveat"><strong>How to trust this table:</strong> file paths are confirmed against the actual source tree as of this writing. Function/class names are pulled from CLAUDE.md's architecture record, which this project keeps genuinely current — but treat this page as a <strong>navigation aid</strong>, not a substitute for opening the file. If a signature here doesn't match what you find, the file wins; flag the drift so this page and CLAUDE.md both get fixed, not just one.</div>
+
+  <section id="movement">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Movement, Camera &amp; Aim</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Move / sprint / crouch</td><td class="cls">AZSPlayerCharacter</td><td class="fn">StartSprint, movement replication RPCs</td><td class="file">Player/ZSPlayerCharacter.h/.cpp</td><td class="review">Sprint gated correctly by Stamina; encumbrance scales drain, not a hard block</td></tr>
+        <tr><td class="mech">Cursor-facing rotation</td><td class="cls">AZSPlayerCharacter</td><td class="fn">UpdateCursorFacing, GetCursorGroundLocation</td><td class="file">Player/ZSPlayerCharacter.cpp; Framework/ZSElevationSubsystem.h</td><td class="review">Only engages during aim/attack/interact — confirm no leak into free-look</td></tr>
+        <tr><td class="mech">Camera zoom / context stack</td><td class="cls">UZSCameraDirector</td><td class="fn">ApplyManualZoom, EZSCameraContext push/pop</td><td class="file">Player/ZSCameraDirector.h</td><td class="review">Manual override fully disengages auto-zoom until a real context change — verify no fighting between the two</td></tr>
+        <tr><td class="mech">Weapon-slot selection (1/2/3/4/G)</td><td class="cls">AZSPlayerCharacter</td><td class="fn">SelectHotbarSlot, ResolveWeaponSlotInstance, Server_SelectHotbarSlot</td><td class="file">Player/ZSPlayerCharacter.cpp</td><td class="review">Equip/unequip timers respect bIsBusy; downed-state 0.5× multiplier applied uniformly</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="combat">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Combat &amp; Weapons</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Ranged fire, spread cone, headshot weighting</td><td class="cls">AZSPlayerCharacter, AZSWeapon</td><td class="fn">Server_Fire, FMath::VRandCone roll, Hit.BoneName override</td><td class="file">Player/ZSPlayerCharacter.cpp; Weapons/ZSWeapon.h/.cpp</td><td class="review">Hip vs. aimed spread/headshot % actually differ; GetAccuracySpreadMultiplier folds in downed/wound penalties correctly</td></tr>
+        <tr><td class="mech">Opt-in simulated projectile</td><td class="cls">AZSProjectile</td><td class="fn">movement replication, first-blocking-hit damage</td><td class="file">Weapons/ZSProjectile.h</td><td class="review">Only engages when ProjectileClass is set — hitscan path untouched otherwise</td></tr>
+        <tr><td class="mech">Magazine reload (quick vs. normal/tactical)</td><td class="cls">AZSPlayerCharacter, AZSWeapon</td><td class="fn">PerformMagazineReload, Server_LoadMagazine, Server_EjectCurrentMagazine, FindBestCompatibleMagazine</td><td class="file">Player/ZSPlayerCharacter.cpp; Weapons/ZSWeapon.h; Weapons/ZSMagazineConfig.h</td><td class="review">Quick reload discards remainder correctly; normal reload stows partial magazine back via Server_AddItemInstance</td></tr>
+        <tr><td class="mech">Weapon jam / clear jam</td><td class="cls">AZSWeapon</td><td class="fn">Server_RollForJam, Server_ClearJam, OnJamStateChanged</td><td class="file">Weapons/ZSWeapon.h/.cpp</td><td class="review">Roll happens before ammo consumed; jam chance actually bands against CurrentConditionQuality, not flat</td></tr>
+        <tr><td class="mech">Melee swing / stamina cost / finisher</td><td class="cls">AZSPlayerCharacter</td><td class="fn">PerformMeleeSwing, Server_PerformFinisher</td><td class="file">Player/ZSPlayerCharacter.cpp</td><td class="review">Excludes downed targets on standard swing; finisher branches bare-hand vs. weapon correctly</td></tr>
+        <tr><td class="mech">Hit knockback → downed-state trigger</td><td class="cls">AZSPlayerCharacter</td><td class="fn">ApplyHitKnockback, DownedKnockbackThreshold check</td><td class="file">Player/ZSPlayerCharacter.cpp</td><td class="review">Threshold checked centrally so hitscan/projectile/melee/bare-fist all trigger identically — verify no path bypasses it</td></tr>
+        <tr><td class="mech">Weapon attachments (muzzle/grip/optic/handguard)</td><td class="cls">AZSWeapon, UZSWeaponConfig</td><td class="fn">AssignNewStaticMesh</td><td class="file">Weapons/ZSWeapon.h; Weapons/ZSWeaponConfig.h</td><td class="review">Every attachment sub-mesh has NoCollision explicitly set — check any new attachment type follows this</td></tr>
+        <tr><td class="mech">Support-strike consumables</td><td class="cls">AZSPlayerCharacter</td><td class="fn">Server_UseItem_Implementation (SupportStrike case)</td><td class="file">Player/ZSPlayerCharacter.cpp; Survival/ZSItemConfig.h</td><td class="review">Spawns at a fixed offset server-side, not client cursor — payload actor itself still unbuilt</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="health">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Health, Wounds &amp; Infection</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Damage entry point, zone/wound-type inference</td><td class="cls">AZSPlayerCharacter, UZSHealthComponent</td><td class="fn">TakeDamage → Server_ApplyDamage</td><td class="file">Player/ZSPlayerCharacter.cpp; Combat/ZSHealthComponent.h; Combat/ZSDamageTypes.h</td><td class="review">Confirm nothing else mutates CurrentHealth directly — the whole replication convention depends on this being the one door</td></tr>
+        <tr><td class="mech">Bleed / critical head bleed</td><td class="cls">UZSHealthComponent</td><td class="fn">TickBleed, bCriticalBleed roll</td><td class="file">Combat/ZSHealthComponent.h/.cpp</td><td class="review">Critical bleed override rate is steep until bandaged — verify it's not so steep it reads as unfair</td></tr>
+        <tr><td class="mech">Two-tier infection (wound vs. bite)</td><td class="cls">UZSHealthComponent</td><td class="fn">TickInfection (bite), wound-infection tick, EZSWoundInfectionState</td><td class="file">Combat/ZSHealthComponent.h; Combat/ZSHealthTypes.h</td><td class="review"><strong>Legibility is the whole point of CR-06</strong> — verify the UI actually shows bite vs. wound infection as plainly distinct, not ambiguous</td></tr>
+        <tr><td class="mech">Fracture recovery (multi-day)</td><td class="cls">UZSHealthComponent</td><td class="fn">TickFractureRecovery</td><td class="file">Combat/ZSHealthComponent.cpp</td><td class="review">Splinted vs. unsplinted duration actually differ; pauses correctly on death/downed</td></tr>
+        <tr><td class="mech">Amputation + shock penalty</td><td class="cls">UZSHealthComponent, AZSPlayerCharacter</td><td class="fn">Server_AmputateZone, bIsAmputationShocked</td><td class="file">Combat/ZSHealthComponent.h; Player/ZSPlayerCharacter.h</td><td class="review">Shock stacks with (doesn't replace) the permanent zone penalty — check both apply simultaneously</td></tr>
+        <tr><td class="mech">Downed / revive</td><td class="cls">UZSHealthComponent, AZSPlayerCharacter</td><td class="fn">HandleHealthDepleted, Server_EnterDowned, Server_ReviveDowned, bIsPostReviveSlowed</td><td class="file">Combat/ZSHealthComponent.h; Player/ZSPlayerCharacter.h</td><td class="review">A hit while already downed is an instant finishing blow — verify no double-downed state possible; post-revive slow stacks correctly with amputation shock</td></tr>
+        <tr><td class="mech">Wound display priority</td><td class="cls">UZSHealthComponent</td><td class="fn">GetWoundDisplayCondition, HasAnyGameplayAffectingCondition</td><td class="file">Combat/ZSHealthComponent.cpp</td><td class="review">Worst-wins priority across the 6-value enum; Head/Torso correctly excluded from the Fracture multiplier path</td></tr>
+        <tr><td class="mech">Treatment items (bandage/disinfect/splint)</td><td class="cls">AZSPlayerCharacter</td><td class="fn">Server_ApplyBandage, Server_Disinfect, Server_Splint → Server_UseItem</td><td class="file">Player/ZSPlayerCharacter.cpp; Survival/ZSItemConfig.h</td><td class="review">All route through the one Server_UseItem dispatch — confirm no item type bypasses it</td></tr>
+        <tr><td class="mech">Death → loot drop → zombie spawn</td><td class="cls">AZSPlayerCharacter</td><td class="fn">HandleDeath, Server_HandleDeathLootAndZombie, FlushAndDestroyEquippedWeapons</td><td class="file">Player/ZSPlayerCharacter.cpp; Inventory/ZSInventoryComponent.h</td><td class="review">Weapon durability/ammo written back before destroying the actor — this exact bug class has recurred twice (death path, then extraction path)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="survival">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Needs &amp; Survival</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Hunger/Thirst/Fatigue/Temperature decay</td><td class="cls">UZSNeedsComponent, AZSGameState</td><td class="fn">game-hour clock tick</td><td class="file">Survival/ZSNeedsComponent.h; Framework/ZSGameState.h</td><td class="review">Decay rates forgiving, not punishing — confirm against the dev's own "don't let survival become the main thing" pillar</td></tr>
+        <tr><td class="mech">Stamina (real-time, sprint-gated)</td><td class="cls">UZSNeedsComponent</td><td class="fn">encumbrance-scaled drain, idle regen</td><td class="file">Survival/ZSNeedsComponent.cpp</td><td class="review">Inverse-encumbrance scaling actually applied, not just documented</td></tr>
+        <tr><td class="mech">Wet / footstep noise / dry-out</td><td class="cls">AZSPlayerCharacter, UZSNeedsComponent</td><td class="fn">TickWetFootstepNoise, Server_SetWet, WetDryOutGameHours</td><td class="file">Player/ZSPlayerCharacter.cpp; Survival/ZSNeedsConfig.h</td><td class="review">Debug-only Server_SetWet until B4 weather lands — confirm it's not reachable from real gameplay yet</td></tr>
+        <tr><td class="mech">Performance / perception multipliers</td><td class="cls">UZSNeedsComponent</td><td class="fn">GetPerformanceMultiplier, GetPerceptionMultiplier</td><td class="file">Survival/ZSNeedsComponent.h</td><td class="review">Performance multiplier provably never exceeds 1.0 — spot-check the math, this is a stated invariant</td></tr>
+        <tr><td class="mech">Sleep / time-skip / co-op readiness</td><td class="cls">AZSPlayerCharacter, AZSGameState</td><td class="fn">RequestSleep, CancelSleepReady, UpdateSleepRequestState, IsSafeToSleep</td><td class="file">Player/ZSPlayerCharacter.cpp; Framework/ZSGameState.h</td><td class="review">Aggro-cooldown half is real; "real shelter" half still hardcoded true — don't assume it's checking anything yet</td></tr>
+        <tr><td class="mech">Noise reporting → AI perception</td><td class="cls">UZSNoiseSystem</td><td class="fn">ReportNoise (wraps UAISense_Hearing)</td><td class="file">Zombies/ZSNoiseSystem.h</td><td class="review">Wired into fire, sprint start, wet footsteps — confirm every noise-generating action in Manifest 03 actually calls this</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="inventory">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Inventory, Equip &amp; Items</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Item instance model</td><td class="cls">FZSItemInstance</td><td class="fn">InstanceId (FGuid), StackCount, FZSItemInstanceState</td><td class="file">Inventory/ZSItemInstance.h</td><td class="review">Stackable and per-instance-stateful are mutually exclusive by construction — verify a merge always discards the right identity</td></tr>
+        <tr><td class="mech">Add / remove / drop items</td><td class="cls">UZSInventoryComponent</td><td class="fn">Server_AddItem, Server_AddItemInstance, Server_RemoveItem, Server_RemoveInstanceById, Server_DropItem, Server_DropAllItems</td><td class="file">Inventory/ZSInventoryComponent.h/.cpp</td><td class="review">Pockets-overflow rejection keeps the item in place rather than destroying it — check every add path respects CanFitInPockets</td></tr>
+        <tr><td class="mech">Equip / mount / bag storage</td><td class="cls">UZSInventoryComponent</td><td class="fn">Server_EquipToSlot, Server_MountLongGun, Server_MountSidearm, Server_StoreInBag, Server_RetrieveFromBag, Server_RetrieveFromAnyEquippedBag</td><td class="file">Inventory/ZSInventoryComponent.h/.cpp</td><td class="review">Equipping never removes the instance from CarrySlots — verify Helmet-force-unequips-Head still routes through Server_UnequipSlot properly (this exact bug recurred once)</td></tr>
+        <tr><td class="mech">Slot position persistence / drag-drop</td><td class="cls">UZSInventoryComponent</td><td class="fn">Server_MoveToSlot, FindItemAnywhere</td><td class="file">Inventory/ZSInventoryComponent.cpp</td><td class="review">FindItemAnywhere doesn't check equipped/mounted state before allowing a move — known low-priority gap, still open</td></tr>
+        <tr><td class="mech">World pickups &amp; containers</td><td class="cls">AZSWorldItemActor, AZSContainerActor</td><td class="fn">InitializeItem, InitializeFromInstance, RollLoot</td><td class="file">Inventory/ZSWorldItemActor.h; Inventory/ZSContainerActor.h; Inventory/ZSLootTableConfig.h</td><td class="review">Drop path preserves durability (InitializeFromInstance); hand-placed path mints fresh (InitializeItem) — don't mix the two up in new content</td></tr>
+        <tr><td class="mech">Loot rarity / condition rolls</td><td class="cls">AZSGameState</td><td class="fn">RollConditionQuality</td><td class="file">Framework/ZSGameState.h</td><td class="review">Finite per-session rarity pool for Rare/VeryRare — confirm it actually depletes and doesn't silently reset</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="zombies">
+    <div class="sec-head"><span class="sec-num">06</span><h2>Zombie AI</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Perception → chase / investigate</td><td class="cls">AZombieAIController</td><td class="fn">HandleTargetPerceptionUpdated, SetChasing</td><td class="file">Zombies/ZombieAIController.h</td><td class="review">Senses fixed per UZSZombieConfig type, never randomized per-individual — spot-check a config isn't accidentally overridden</td></tr>
+        <tr><td class="mech">Downed-state / finisher</td><td class="cls">AZombieCharacter</td><td class="fn">SetDowned, Server_EnterDownedState, Server_ExitDownedState</td><td class="file">Zombies/ZombieCharacter.h</td><td class="review">BT_Hostile/BT_Zombie graph branch on bIsDowned is still a content gap — SetDowned pauses BrainComponent directly as a stand-in; confirm this is still true before assuming the BT itself handles it</td></tr>
+        <tr><td class="mech">BT tasks (wander/investigate/idle)</td><td class="cls">BTTask_Wander, BTTask_GetInvestigationPoint, BTTask_ClearLastKnownLocation, BTTask_StartInvestigationTimer, BTTask_StartIdleDwell, BTTask_MeleeAttack</td><td class="fn">native C++ BT nodes</td><td class="file">Zombies/AI/*.h</td><td class="review">StartInvestigationTimer/StartIdleDwell use controller-owned FTimerHandles, not NodeMemory-scoped — flagged risk if a BT decorator skips re-entry, never fully confirmed</td></tr>
+        <tr><td class="mech">Zombie spawn-director (off-screen refill)</td><td class="cls"><span class="pending">not yet implemented</span></td><td class="fn"><span class="pending">—</span></td><td class="file"><span class="pending">target: Zombies/ZSZombieSpawnDirector.h (new)</span></td><td class="review">Manifest 02 Tier 5 — check it actually avoids visible pop-in, don't just trust the name</td></tr>
+        <tr><td class="mech">Horde migration routing</td><td class="cls"><span class="pending">not yet implemented</span></td><td class="fn"><span class="pending">—</span></td><td class="file"><span class="pending">target: Zombies/ (new)</span></td><td class="review">Manifest 02 Tier 5 — independent of player position per CR-14; verify it doesn't secretly track players</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="hostiles">
+    <div class="sec-head"><span class="sec-num">07</span><h2>Human Hostile Faction</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Hostile controller / ranged attack</td><td class="cls">AZSHostileAIController, AZSHostileCharacter</td><td class="fn">TriggerRangedAttack, Server_RangedAttack</td><td class="file">Hostiles/ZSHostileAIController.h; Hostiles/ZSHostileCharacter.h</td><td class="review">Stationary-only fallback pending BT_Hostile — confirm it's not silently doing more (movement) than documented</td></tr>
+        <tr><td class="mech">Investigate-noise BT tasks</td><td class="cls">BTTask_HostileGetInvestigationPoint, BTTask_HostileClearLastKnownLocation, BTTask_HostileStartInvestigationTimer</td><td class="fn">native C++ mirrors of the zombie AI tasks</td><td class="file">Hostiles/AI/*.h</td><td class="review">BT_Hostile graph itself is still editor-hands-only content — don't assume guard behavior is live just because the task nodes compile</td></tr>
+        <tr><td class="mech">Death loot</td><td class="cls">AZSHostileCharacter</td><td class="fn">Die() → RollLoot via UZSHostileConfig::DeathLootTable</td><td class="file">Hostiles/ZSHostileCharacter.h; Hostiles/ZSHostileConfig.h</td><td class="review">Reuses the same container loot-table pattern — no separate carry-inventory component needed, confirm nothing tries to add one</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="hub">
+    <div class="sec-head"><span class="sec-num">08</span><h2>Hub, Vendors &amp; Contracts</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Stash / currency (per-player)</td><td class="cls">AZSPlayerState</td><td class="fn">Server_AddCurrency, Server_TrySpendCurrency, Server_DepositItemsToStash, Server_WithdrawFromStash</td><td class="file">Framework/ZSPlayerState.h</td><td class="review">Replicated COND_OwnerOnly — verify a non-host client actually sees only their own balance, this was a real bug once (UZSHubSubsystem never replicated at all, now fixed by moving state here)</td></tr>
+        <tr><td class="mech">Vendor buy/sell</td><td class="cls">AZSPlayerState, UZSVendorConfig</td><td class="fn">Server_SellStashItemToVendor, Server_BuyItemFromVendor</td><td class="file">Framework/ZSPlayerState.h; Hub/ZSVendorConfig.h</td><td class="review">Buy flow mirrors Server_AddItem's fill-stacks-then-mint shape on purpose — check new vendor logic doesn't duplicate that behavior differently</td></tr>
+        <tr><td class="mech">Stash / vendor UI</td><td class="cls">UZSStashWidget, UZSVendorWidget, UZSStashItemEntryWidget, UZSVendorCatalogEntryWidget</td><td class="fn">SetVendor (mirrors SetContainer's contract)</td><td class="file">UI/ZSStashWidget.h; UI/ZSVendorWidget.h; UI/ZSStashItemEntryWidget.h; UI/ZSVendorCatalogEntryWidget.h</td><td class="review">Stash withdraw is deliberately not wired yet (no destination existed pre-pivot) — confirm this is still true or has been closed</td></tr>
+        <tr><td class="mech">Contract board</td><td class="cls"><span class="pending">not yet implemented</span></td><td class="fn"><span class="pending">—</span></td><td class="file"><span class="pending">target: Hub/ZSContractConfig.h (new)</span></td><td class="review">Manifest 02 Tier 4 — data shape genuinely undecided, needs its own scoping pass before trusting any code here</td></tr>
+        <tr><td class="mech">Contract drop-off / delivery (mixed exfil)</td><td class="cls">AZSExtractionPointActor <em>(repurposed)</em></td><td class="fn"><span class="pending">Server_RequestExtraction — needs rework, not yet repointed at contract delivery</span></td><td class="file">Raid/ZSExtractionPointActor.h</td><td class="review"><strong>This is the OQ-BR-04 resolution from Manifest 02</strong> — verify the rework actually narrows this to contract-critical items only, doesn't resurrect a general raid-wide extraction ceremony</td></tr>
+        <tr><td class="mech">Raid-lifecycle machinery (legacy, flagged for removal/rework)</td><td class="cls">AZSGameState</td><td class="fn">IsRaidOver, Server_CheckRaidEndAndReset</td><td class="file">Framework/ZSGameState.h</td><td class="review">Still exactly as the 2026-08-27 pivot left it — dead code under the persistent-hub model unless intentionally repurposed; confirm before deleting or leaving it live by accident</td></tr>
+        <tr><td class="mech">Satellite safe spots</td><td class="cls"><span class="pending">not yet implemented</span></td><td class="fn"><span class="pending">—</span></td><td class="file"><span class="pending">target: reuse UZSInteractableComponent (Interaction/)</span></td><td class="review">Manifest 02 Tier 4 (new BH-T7) — grant scope still an open question, don't build ahead of that answer</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="ui">
+    <div class="sec-head"><span class="sec-num">09</span><h2>UI &amp; Modal Input</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mechanic</th><th>Class</th><th>Key functions</th><th>File</th><th>Review focus</th></tr></thead>
+      <tbody>
+        <tr><td class="mech">Modal input-mode stack</td><td class="cls">UZSUIManager</td><td class="fn">PushModal, PopModal, IsAnyModalActive</td><td class="file">UI/ZSUIManager.h</td><td class="review">First-modal-adds/last-modal-removes IMC_ZS_UI — verify HandleAttack() and IsCursorFacingActive() both still hard-guard on this, not relying solely on Enhanced Input context priority</td></tr>
+        <tr><td class="mech">Shared widget base / getters</td><td class="cls">UZSUserWidgetBase</td><td class="fn">GetOwningZSPlayerCharacter, GetOwningHealthComponent, GetUIManager, PushAsModal/PopAsModal</td><td class="file">UI/ZSUserWidgetBase.h</td><td class="review">Every WBP_ZS_* should inherit this — spot-check a new widget doesn't reinvent one of these getters</td></tr>
+        <tr><td class="mech">HUD root + always-on elements</td><td class="cls">AZSHUD</td><td class="fn">MainHUDClass/MainHUDRef creation in BeginPlay</td><td class="file">Framework/ZSHUD.h</td><td class="review">BP_ZS_HUD still needs MainHUDClass assigned in Class Defaults — a content step, verify it's actually set before trusting the HUD renders at all</td></tr>
+        <tr><td class="mech">Inventory / Loadout screens</td><td class="cls">UZSInventoryScreenWidget, UZSCompartmentPanelWidget, UZSItemSlotWidget, UZSEquipSlotWidget, UZSWeaponMountSlotWidget, UZSEquipmentSlotWidget, UZSSecondaryHandSlotWidget</td><td class="fn">RefreshFromInstance, RefreshCompartment, RefreshIcon variants</td><td class="file">UI/ZSInventoryScreenWidget.h; UI/ZSCompartmentPanelWidget.h; UI/ZSItemSlotWidget.h; UI/ZSEquip*Widget.h</td><td class="review"><strong>Slot-widget convention is mandatory</strong>: empty slot stays visible, only the icon brush clears — check any new slot widget follows UZSItemSlotWidget's pattern, not the collapse-when-empty anti-pattern fixed twice already</td></tr>
+        <tr><td class="mech">Container loot screen</td><td class="cls">UZSContainerLootWidget</td><td class="fn">SetContainer, RefreshContainerGrid</td><td class="file">UI/ZSContainerLootWidget.h</td><td class="review">Known open issue: rebuilds every item-slot widget on every mutation (unlike the compartment panel's reused-widget pattern) — a real perf/flicker risk at larger container sizes</td></tr>
+        <tr><td class="mech">Death / sleep / menu screens</td><td class="cls">UZSDeathScreenWidget, UZSSleepPromptWidget, UZSSleepPlayerRowWidget, UZSMainMenuWidget, UZSPauseMenuWidget, UZSLoadingScreenWidget</td><td class="fn">screen-specific refresh/bind logic</td><td class="file">UI/ZSDeathScreenWidget.h; UI/ZSSleepPromptWidget.h; UI/ZSMainMenuWidget.h; UI/ZSPauseMenuWidget.h; UI/ZSLoadingScreenWidget.h</td><td class="review">Blackout overlay was removed outright (not renamed) — confirm no stale reference to it survives in any of these</td></tr>
+        <tr><td class="mech">Notifications / toasts</td><td class="cls">UZSNotificationSubsystem, UZSToastListWidget, UZSToastEntryWidget</td><td class="fn">notification queue/display</td><td class="file">UI/ZSNotificationSubsystem.h; UI/ZSToastListWidget.h</td><td class="review">Confirm queue de-dupes rapid repeated events rather than flooding the toast stack</td></tr>
+        <tr><td class="mech">Moodles / body-condition display</td><td class="cls">UZSMoodleStackWidget, UZSMoodleEntryWidget, UZSBodyConditionIndicatorWidget</td><td class="fn">GetMoodleEntries, wound-condition binding</td><td class="file">UI/ZSMoodleStackWidget.h; UI/ZSBodyConditionIndicatorWidget.h</td><td class="review">Live PIE Details panel can show this component's array as falsely empty — cross-check against ZS.DebugListWounds before trusting a visual bug report</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a class="current" href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/09_CodeToMechanicMap.html · written 2026-09-06 · paths verified against Source/ZombieShooter live tree · re-verify signatures against the file itself, not this table alone</div>
+  </footer>
+
+</div>

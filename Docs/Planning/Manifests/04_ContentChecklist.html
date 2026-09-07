@@ -1,0 +1,425 @@
+<title>Content Inventory</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#e9e6da; --surface:#f7f5eb; --surface-2:#efece0;
+    --ink:#232921; --ink-muted:#5b5f4f; --ink-faint:#8a8d78;
+    --line:#c9c3ac; --line-strong:#a9a389;
+    --accent:#57662f; --accent-ink:#f7f5eb;
+    --rust:#af5f27; --rust-ink:#f7f5eb;
+    --good:#3f7d4a; --info:#3e6b8a; --danger:#a63a2e;
+    --shadow: 0 1px 0 rgba(35,41,33,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+      --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+      --line:#333b28; --line-strong:#414a32;
+      --accent:#8fae5c; --accent-ink:#12160c;
+      --rust:#e08a42; --rust-ink:#1c1206;
+      --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14180f; --surface:#1c2116; --surface-2:#20261a;
+    --ink:#e8e6d9; --ink-muted:#a3a68f; --ink-faint:#6f7360;
+    --line:#333b28; --line-strong:#414a32;
+    --accent:#8fae5c; --accent-ink:#12160c;
+    --rust:#e08a42; --rust-ink:#1c1206;
+    --good:#6fbf73; --info:#6fa8c9; --danger:#e2685a;
+    --shadow: 0 1px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.6;}
+  .page{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+  h1,h2,h3{font-family:'Oswald',system-ui,sans-serif;text-wrap:balance;letter-spacing:.01em;color:var(--ink);}
+  code,.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--accent);}
+  p{max-width:74ch;}
+
+  .cover{padding:56px 0 32px;border-bottom:3px solid var(--ink);margin-bottom:36px;}
+  .eyebrow{display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono';font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:18px;}
+  .eyebrow .tag{background:var(--accent);color:var(--accent-ink);padding:3px 8px;border-radius:2px;font-weight:600;}
+  h1.title{font-size:clamp(34px,6vw,54px);font-weight:700;text-transform:uppercase;line-height:.98;margin:0 0 10px;}
+  .subtitle{font-size:18px;color:var(--ink-muted);max-width:66ch;margin:0 0 26px;}
+  .meta-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line-strong);}
+  .meta-cell{flex:1 1 160px;padding:12px 16px 0;border-right:1px solid var(--line-strong);}
+  .meta-cell:last-child{border-right:none;}
+  .meta-label{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);display:block;margin-bottom:3px;}
+  .meta-value{font-size:14px;font-weight:600;}
+
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:44px;}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px 18px;box-shadow:var(--shadow);}
+  .stat .n{font-family:'Oswald';font-size:32px;font-weight:700;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums;}
+  .stat .l{font-family:'IBM Plex Mono';font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);margin-top:6px;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px 20px;margin-bottom:40px;box-shadow:var(--shadow);}
+  .legend .item{display:flex;align-items:center;gap:7px;font-size:13px;font-family:'IBM Plex Mono';}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .dot.done{background:var(--good);} .dot.data{background:var(--info);} .dot.blender{background:var(--rust);} .dot.texture{background:var(--ink-faint);} .dot.confirm{background:#b08a2e;}
+
+  section{margin-bottom:48px;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .sec-num{font-family:'IBM Plex Mono';font-size:14px;color:var(--rust);font-weight:600;}
+  h2{font-size:24px;text-transform:uppercase;margin:0;}
+  .sec-dek{color:var(--ink-muted);font-size:14.5px;max-width:74ch;margin:12px 0 18px;}
+  h3.cat{font-size:14px;text-transform:uppercase;color:var(--ink-muted);margin:22px 0 8px;letter-spacing:.04em;}
+  h3.cat:first-of-type{margin-top:6px;}
+
+  .item-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
+  .tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:4px 10px 4px 8px;white-space:nowrap;}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-2);padding:9px 12px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--surface);}
+  tr:last-child td{border-bottom:none;}
+  td.notes{color:var(--ink-muted);}
+  .status{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono';font-size:11px;font-weight:600;white-space:nowrap;}
+
+  .note-box{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--rust);border-radius:3px;padding:14px 18px;font-size:13.5px;color:var(--ink-muted);margin-bottom:18px;}
+  .note-box strong{color:var(--ink);}
+
+  footer{border-top:3px solid var(--ink);margin-top:60px;padding-top:28px;}
+  .series-label{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;}
+  .series-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+  .series-list a{display:block;padding:10px 14px;border:1px solid var(--line);border-radius:3px;text-decoration:none;color:var(--ink-muted);font-size:13px;background:var(--surface);}
+  .series-list a.current{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);font-weight:600;}
+  .series-list a:hover:not(.current){border-color:var(--line-strong);color:var(--ink);}
+  .foot-meta{margin-top:20px;font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono';}
+</style>
+
+<div class="page">
+
+  <div class="cover">
+    <div class="eyebrow"><span class="tag">Manifest 04 / 09</span> ZombieShooter Production Manifests · Design Record</div>
+    <h1 class="title">Content Inventory</h1>
+    <p class="subtitle">Every item, skin, animation, sound, and effect the game needs — what's owned, what's a real Blender gap, and what has no home yet. Blender execution detail lives in Manifest 07; this is the completeness map.</p>
+    <div class="meta-strip">
+      <div class="meta-cell"><span class="meta-label">Sources</span><span class="meta-value">ItemCatalog, AnimationPlan, GameDevPlan §5</span></div>
+      <div class="meta-cell"><span class="meta-label">Dated</span><span class="meta-value">2026-09-06</span></div>
+      <div class="meta-cell"><span class="meta-label">Corrects</span><span class="meta-value">Stale [Blender] rows vs. 8/29 pack audit</span></div>
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="n">~100</div><div class="l">Catalogued items</div></div>
+    <div class="stat"><div class="n">~30</div><div class="l">Confirmed free (data-only)</div></div>
+    <div class="stat"><div class="n">~45</div><div class="l">Real Blender gaps</div></div>
+    <div class="stat"><div class="n">1</div><div class="l">Zombie mesh — still unsourced</div></div>
+    <div class="stat"><div class="n">0</div><div class="l">VFX tasks currently scoped</div></div>
+  </div>
+
+  <div class="legend">
+    <span class="item"><span class="dot done"></span>Done — DA + mesh real</span>
+    <span class="item"><span class="dot data"></span>Data-only — pack mesh confirmed, needs DA</span>
+    <span class="item"><span class="dot confirm"></span>Plausible match — needs visual confirm</span>
+    <span class="item"><span class="dot blender"></span>Blender gap — no source found</span>
+    <span class="item"><span class="dot texture"></span>Texture-only — never gets a mesh</span>
+  </div>
+
+  <section id="items">
+    <div class="sec-head"><span class="sec-num">01</span><h2>Items</h2></div>
+    <p class="sec-dek">Corrected against ItemCatalog_2026-08-12.md's own 8/29 pack-audit note — several rows the table still marks Blender-gap are actually confirmed free. Full per-item Blender specs (budgets, folders, sockets) are Manifest 07's job, not repeated here.</p>
+
+    <h3 class="cat">Weapons — Ranged</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot done"></span>Assault Rifle (M4)</span>
+      <span class="tag"><span class="dot data"></span>SMG</span>
+      <span class="tag"><span class="dot confirm"></span>Pistol</span>
+      <span class="tag"><span class="dot confirm"></span>Revolver</span>
+      <span class="tag"><span class="dot confirm"></span>Pump Shotgun</span>
+      <span class="tag"><span class="dot confirm"></span>Sawn-off Shotgun</span>
+      <span class="tag"><span class="dot confirm"></span>Bolt-Action / Hunting Rifle</span>
+    </div>
+
+    <h3 class="cat">Weapons — Melee</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot done"></span>Crowbar</span>
+      <span class="tag"><span class="dot data"></span>Fire Axe</span>
+      <span class="tag"><span class="dot data"></span>Claw Hammer</span>
+      <span class="tag"><span class="dot data"></span>Sledgehammer</span>
+      <span class="tag"><span class="dot data"></span>Chainsaw</span>
+      <span class="tag"><span class="dot confirm"></span>Kitchen Knife</span>
+      <span class="tag"><span class="dot confirm"></span>Baseball Bat</span>
+      <span class="tag"><span class="dot blender"></span>Machete <em style="color:var(--ink-faint);font-style:normal;">— no match found</em></span>
+    </div>
+
+    <h3 class="cat">Ammo &amp; Magazines</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot data"></span>9mm</span>
+      <span class="tag"><span class="dot data"></span>5.56</span>
+      <span class="tag"><span class="dot confirm"></span>.357</span>
+      <span class="tag"><span class="dot blender"></span>.308</span>
+      <span class="tag"><span class="dot blender"></span>12 Gauge</span>
+      <span class="tag"><span class="dot done"></span>AR Magazine (PMAG, 116 tris)</span>
+      <span class="tag"><span class="dot blender"></span>Pistol Magazine <em style="color:var(--ink-faint);font-style:normal;">— mechanical blocker</em></span>
+      <span class="tag"><span class="dot blender"></span>SMG Magazine <em style="color:var(--ink-faint);font-style:normal;">— mechanical blocker</em></span>
+    </div>
+
+    <h3 class="cat">Weapon Attachments — complete</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot done"></span>Suppressor</span>
+      <span class="tag"><span class="dot done"></span>Compensator</span>
+      <span class="tag"><span class="dot done"></span>Vertical Grip</span>
+      <span class="tag"><span class="dot done"></span>Angled Grip</span>
+      <span class="tag"><span class="dot done"></span>Weapon Light</span>
+      <span class="tag"><span class="dot done"></span>DBAL Laser</span>
+      <span class="tag"><span class="dot done"></span>PEQ-15 Laser</span>
+      <span class="tag"><span class="dot done"></span>EOTech Holo</span>
+      <span class="tag"><span class="dot done"></span>LPVO Sight <em style="color:var(--ink-faint);font-style:normal;">— flagged for tris revision, not blocking</em></span>
+    </div>
+
+    <h3 class="cat">Combat / Tactical</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot data"></span>Frag Grenade</span>
+      <span class="tag"><span class="dot data"></span>Molotov Cocktail</span>
+      <span class="tag"><span class="dot data"></span>Landmine</span>
+      <span class="tag"><span class="dot data"></span>Bolt/Wire Cutters</span>
+      <span class="tag"><span class="dot blender"></span>Smoke Grenade</span>
+      <span class="tag"><span class="dot blender"></span>Flare</span>
+      <span class="tag"><span class="dot blender"></span>Ballistic Plate</span>
+      <span class="tag"><span class="dot blender"></span>Weapon Cleaning/Repair Kit</span>
+      <span class="tag"><span class="dot blender"></span>Binoculars</span>
+    </div>
+
+    <h3 class="cat">Medical</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot done"></span>Bandage (clean)</span>
+      <span class="tag"><span class="dot data"></span>Bandage (dirty rag)</span>
+      <span class="tag"><span class="dot data"></span>Disinfectant / Alcohol</span>
+      <span class="tag"><span class="dot data"></span>Tincture of Iodine</span>
+      <span class="tag"><span class="dot data"></span>Painkillers</span>
+      <span class="tag"><span class="dot blender"></span>Splint</span>
+      <span class="tag"><span class="dot blender"></span>Antibiotics</span>
+      <span class="tag"><span class="dot confirm"></span>Suture kit</span>
+      <span class="tag"><span class="dot blender"></span>Antiseptic Wipes</span>
+      <span class="tag"><span class="dot blender"></span>Tourniquet</span>
+      <span class="tag"><span class="dot blender"></span>Morphine / Pain Injector</span>
+      <span class="tag"><span class="dot blender"></span>Adrenaline Shot</span>
+    </div>
+
+    <h3 class="cat">Food &amp; Drink</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot data"></span>Canned Beans / Tomatoes / Cucumbers / Pineapple</span>
+      <span class="tag"><span class="dot data"></span>Bread</span>
+      <span class="tag"><span class="dot data"></span>Crackers</span>
+      <span class="tag"><span class="dot data"></span>Cheese</span>
+      <span class="tag"><span class="dot data"></span>Generic Can</span>
+      <span class="tag"><span class="dot data"></span>Water Bottle</span>
+      <span class="tag"><span class="dot data"></span>Soda</span>
+      <span class="tag"><span class="dot data"></span>Coffee</span>
+      <span class="tag"><span class="dot blender"></span>Jerky</span>
+      <span class="tag"><span class="dot blender"></span>Wrapped Snack / Candy Bar</span>
+    </div>
+
+    <h3 class="cat">Clothing — texture-only, blocked</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot texture"></span>Shirt · Pants · Shoes · Head · Eyes · Mask <em style="color:var(--ink-faint);font-style:normal;">— whole category blocked on the texture-swap system</em></span>
+    </div>
+
+    <h3 class="cat">Gear — physical worn mesh</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot blender"></span>Backpack <em style="color:var(--ink-faint);font-style:normal;">— in progress</em></span>
+      <span class="tag"><span class="dot blender"></span>Helmet</span>
+      <span class="tag"><span class="dot blender"></span>Vest</span>
+      <span class="tag"><span class="dot blender"></span>Belt</span>
+      <span class="tag"><span class="dot blender"></span>Duffle <em style="color:var(--ink-faint);font-style:normal;">— deferred, shares Backpack socket</em></span>
+    </div>
+
+    <h3 class="cat">Tools &amp; Utility</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot done"></span>Flashlight</span>
+      <span class="tag"><span class="dot data"></span>Battery</span>
+      <span class="tag"><span class="dot data"></span>Matches/Lighter</span>
+      <span class="tag"><span class="dot data"></span>Rope</span>
+      <span class="tag"><span class="dot data"></span>Screwdriver</span>
+      <span class="tag"><span class="dot data"></span>Duct Tape</span>
+      <span class="tag"><span class="dot data"></span>Scissors</span>
+      <span class="tag"><span class="dot confirm"></span>Lockpick</span>
+    </div>
+
+    <h3 class="cat">World Containers</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot data"></span>Medical Cabinet</span>
+      <span class="tag"><span class="dot data"></span>Wooden Crate</span>
+      <span class="tag"><span class="dot confirm"></span>Footlocker</span>
+      <span class="tag"><span class="dot blender"></span>Kitchen Cabinet</span>
+      <span class="tag"><span class="dot blender"></span>Locker</span>
+      <span class="tag"><span class="dot blender"></span>Dumpster</span>
+    </div>
+
+    <h3 class="cat">Contract / Intel Items <em style="color:var(--ink-faint);font-style:normal;">(new, ties to Manifest 01's mystery thread)</em></h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot blender"></span>Classified Dossier</span>
+      <span class="tag"><span class="dot blender"></span>USB Drive / Data Stick</span>
+      <span class="tag"><span class="dot blender"></span>Keycard</span>
+      <span class="tag"><span class="dot blender"></span>Cash Bundle <em style="color:var(--ink-faint);font-style:normal;">— blocked on a code decision, see Manifest 07</em></span>
+    </div>
+
+    <h3 class="cat">Misc / Junk (pure volume, lowest priority)</h3>
+    <div class="item-grid">
+      <span class="tag"><span class="dot blender"></span>Wallet</span>
+      <span class="tag"><span class="dot blender"></span>Cigarette Pack</span>
+      <span class="tag"><span class="dot blender"></span>Playing Cards</span>
+      <span class="tag"><span class="dot confirm"></span>Newspaper/Magazine</span>
+    </div>
+
+    <div class="note-box"><strong>Flagged, don't model yet:</strong> Radio item — B5's fate under the persistent-hub pivot is settled now (Manifest 02 §02), but a physical radio item still isn't scoped as content. Confirm before building.</div>
+  </section>
+
+  <section id="characters">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Characters &amp; Skins</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Asset</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Player base mesh + rig</td><td><span class="status"><span class="dot done"></span>Confirmed</span></td><td class="notes">On <code>SKEL_TFA_Mannequin</code>, the one shared retarget hub</td></tr>
+        <tr><td>Zombie mesh + skin</td><td><span class="status"><span class="dot blender"></span>Biggest content gap</td><td class="notes">Different pipeline (rigged/skinned character, not a static prop) — source a pack, don't hand-model</td></tr>
+        <tr><td>Zombie variant skins ("Fresh" vs. "Wasted")</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Story-consistent per Manifest 01 §06 — texture/material variant on the same mesh, not a new model</td></tr>
+        <tr><td>Human hostile (Fallow Company) skin</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Reuses player skeleton/rig; PMC-styled clothing texture set</td></tr>
+        <tr><td>Clothing texture-swap system</td><td><span class="status"><span class="dot blender"></span>Not built</span></td><td class="notes">Blocks all 6 clothing slots — a system decision, not a content task</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="animations">
+    <div class="sec-head"><span class="sec-num">03</span><h2>Per-Item &amp; Per-Interaction Animation Matrix</h2></div>
+    <p class="sec-dek">Scope rule already locked (AnimationPlan_2026-08-07): a clip earns inclusion only if readable at top-down cam distance or gates gameplay timing. Weapons share clips <strong>by category</strong>, not one-per-weapon — <code>MountedLongGuns</code> (Handedness=TwoHanded) all ride the same rifle-class set; the multi-config rule means a new weapon in an existing category is a data-asset assignment, not a new animation.</p>
+
+    <h3 class="cat">Ranged — two-handed longarm set <em style="color:var(--ink-faint);font-style:normal;">(shared by AR, SMG, Pump Shotgun, Sawn-off, Bolt-Action)</em></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Clip</th><th>Status</th><th>Source / how to get it</th></tr></thead>
+      <tbody>
+        <tr><td>Idle / aim (ADS) pose</td><td><span class="status"><span class="dot done"></span>Built</span></td><td class="notes">Infima rifle pose set — confirmed working for AR; verify it reads correctly on shotgun/bolt-action meshes once those are wired (grip point may differ)</td></tr>
+        <tr><td>Fire (hip)</td><td><span class="status"><span class="dot done"></span>Built</span></td><td class="notes">Infima, AR-proven</td></tr>
+        <tr><td>Fire (aimed)</td><td><span class="status"><span class="dot done"></span>Built</span></td><td class="notes">Infima, AR-proven</td></tr>
+        <tr><td>Reload — normal/tactical</td><td><span class="status"><span class="dot done"></span>Built</span></td><td class="notes">Infima, AR-proven; per-weapon reload speed is a data field, not a new clip</td></tr>
+        <tr><td>Reload — quick (double-tap R)</td><td><span class="status"><span class="dot done"></span>Built</span></td><td class="notes">Infima, dev-confirmed working in PIE</td></tr>
+        <tr><td>Jam-clear — rack firearm</td><td><span class="status"><span class="dot data"></span>Free — assign only</td><td class="notes"><code>AM_TFA_TP_AR_ClearJam_Rack</code> → <code>TP_ClearJam</code></td></tr>
+        <tr><td>Jam-clear — mag-swipe</td><td><span class="status"><span class="dot data"></span>Free — assign only</td><td class="notes"><code>AM_TFA_TP_AR_ClearJam_MagSwipe</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="cat">Ranged — one-handed pistol set <em style="color:var(--ink-faint);font-style:normal;">(Pistol, Revolver)</em></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Clip</th><th>Status</th><th>Source / how to get it</th></tr></thead>
+      <tbody>
+        <tr><td>Idle / aim / fire / reload — full set</td><td><span class="status"><span class="dot blender"></span>Blocked</span></td><td class="notes">Infima does not ship pistol animations at all — not a design gap, a licensed-content gap. Source a dedicated pistol pack (Marketplace/free) and run it through the retarget pipeline onto <code>SKEL_TFA_Mannequin</code>, or hand-key as a last resort. This blocks the Pistol/Revolver mount from ever feeling finished.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="cat">Melee — grouped by category, not per-weapon</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Clip</th><th>Applies to</th><th>Status</th><th>Source / how to get it</th></tr></thead>
+      <tbody>
+        <tr><td>Swing L / Swing R</td><td class="notes">One-handed weapons: Kitchen Knife, Claw Hammer, Baseball Bat, Crowbar (category)</td><td><span class="status"><span class="dot data"></span>Free — assign</span></td><td class="notes"><code>AM_TFA_TP_AR_Melee_Swing_L/R</code> → <code>MeleeMontage</code>; verify weight/read is acceptable across the whole category, not just the AR-bash origin it was cut for</td></tr>
+        <tr><td>Swing — two-handed heavy</td><td class="notes">Fire Axe, Sledgehammer, Machete (if played two-handed)</td><td><span class="status"><span class="dot confirm"></span>Unconfirmed</span></td><td class="notes">Check whether the one-handed swing set reads acceptably on a two-handed grip pose before assuming it's free — may need its own clip</td></tr>
+        <tr><td>Idle / attack loop — chainsaw</td><td class="notes">Chainsaw only</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Bespoke — a chainsaw doesn't swing like the others (revving idle, continuous cut), needs its own sourced or authored loop</td></tr>
+        <tr><td>Crowbar-specific swing</td><td class="notes">Crowbar (the starter melee weapon)</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Flagged separately in AnimationPlan — still unsourced despite being the first weapon every player uses</td></tr>
+        <tr><td>Unarmed swing (bare-fist)</td><td class="notes">No weapon equipped</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Nothing usable in Infima or Lyra — needs sourcing or authoring from scratch</td></tr>
+        <tr><td>Finisher — weapon-equipped downward strike</td><td class="notes">All melee weapons</td><td><span class="status"><span class="dot data"></span>Free — assign</span></td><td class="notes"><code>AM_TFA_TP_AR_Melee_Bash_F</code> → <code>FinisherMontage</code></td></tr>
+        <tr><td>Finisher — bare-hand stomp</td><td class="notes">No weapon equipped</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Shares the unarmed-swing sourcing problem above</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="cat">Universal player actions</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Clip</th><th>Applies to</th><th>Status</th><th>Source / how to get it</th></tr></thead>
+      <tbody>
+        <tr><td>Hit-reaction (generic, non-directional)</td><td class="notes">Any damage instance</td><td><span class="status"><span class="dot data"></span>Free — retarget from Lyra</span></td><td class="notes"><code>MM_HitReact_Front_Med_01</code> or equivalent, <code>Content/LyraAnims/.../Actions/</code></td></tr>
+        <tr><td>Death (generic collapse)</td><td class="notes">Player death</td><td><span class="status"><span class="dot data"></span>Free — retarget from Lyra</span></td><td class="notes"><code>MM_Death_Front_01</code>; no ragdoll/Physics Asset work needed for v1</td></tr>
+        <tr><td>Generic "busy/use" pose</td><td class="notes">Eat, drink, bandage, disinfect, splint — every <code>Server_UseItem</code>/<code>Server_ConsumeItem</code> call</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Zero animation hook exists today at all — highest-leverage single clip to build, since one pose covers ~6 different actions</td></tr>
+        <tr><td>Amputation choreography</td><td class="notes">Server_AmputateZone</td><td><span class="status"><span class="dot confirm"></span>Unconfirmed</span></td><td class="notes">Code implies a real timed montage exists for this action — verify whether a clip is actually assigned or the timer runs with no animation yet</td></tr>
+        <tr><td>Downed idle pose</td><td class="notes">bIsDowned == true</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Not mentioned in any existing plan — needs scoping, may just be a crouched/prone locomotion-blend rather than a unique clip</td></tr>
+        <tr><td>Revive (self and being-revived)</td><td class="notes">Server_ReviveDowned</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Not scoped anywhere yet</td></tr>
+        <tr><td>Sleep pose</td><td class="notes">RequestSleep</td><td><span class="status"><span class="dot confirm"></span>Design question</span></td><td class="notes">Confirm whether sleep needs a pose at all — may be a UI-only camera fade with no character animation required</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="cat">Zombie</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Clip</th><th>Status</th><th>Source / how to get it</th></tr></thead>
+      <tbody>
+        <tr><td>Locomotion (walk/chase)</td><td><span class="status"><span class="dot done"></span>Imported, unused</span></td><td class="notes"><code>BS_ZombieLocomotion</code>, complete on <code>SKEL_TFA_Mannequin</code> — needs a zombie AnimBP + assignment, not new clips</td></tr>
+        <tr><td>Crawl</td><td><span class="status"><span class="dot done"></span>Imported, unused</span></td><td class="notes"><code>BS_ZombieCrawl</code></td></tr>
+        <tr><td>Attack</td><td><span class="status"><span class="dot done"></span>Imported, unused</span></td><td class="notes"><code>AM_ZombieAttack</code></td></tr>
+        <tr><td>Hit-react</td><td><span class="status"><span class="dot done"></span>Imported, unused</span></td><td class="notes"><code>AM_ZombieHitRact</code></td></tr>
+        <tr><td>Death</td><td><span class="status"><span class="dot confirm"></span>Unconfirmed</span></td><td class="notes">Not explicitly listed among the imported set — verify before assuming it exists</td></tr>
+        <tr><td>Downed / finisher-target pose</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Not scoped — needed for the finisher system's visual read</td></tr>
+        <tr><td>"Fresh" vs. "Wasted" variant read</td><td><span class="status"><span class="dot blender"></span>Gap, story-driven</span></td><td class="notes">Story hook from Manifest 01 §06 — cheapest version is playback-rate variance on the existing clips, not new ones</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="cat">Human hostile (Fallow Company)</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Clip</th><th>Status</th><th>Source / how to get it</th></tr></thead>
+      <tbody>
+        <tr><td>Idle / aim / fire (ranged combat)</td><td><span class="status"><span class="dot confirm"></span>Unconfirmed</span></td><td class="notes">Likely reuses the player's own rifle set since it shares the player skeleton — confirm reuse vs. a dedicated set before scoping new work</td></tr>
+        <tr><td>Death / hit-react</td><td><span class="status"><span class="dot confirm"></span>Unconfirmed</span></td><td class="notes">Same reuse question as above</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="cat">Vehicles <em style="color:var(--ink-faint);font-style:normal;">(Tier 8)</em></h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Clip</th><th>Status</th><th>Source / how to get it</th></tr></thead>
+      <tbody>
+        <tr><td>Enter / exit seat</td><td><span class="status"><span class="dot blender"></span>Gap</span></td><td class="notes">Not scoped yet — first-slice vehicles land movement + seats only, this is the one animation need it brings with it</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="audio">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Audio</h2></div>
+    <p class="sec-dek">All of it is Tier 9 (Manifest 02) by design — noise-as-threat is a pillar, but full production only starts once the systems it dramatizes are proven. Listed here so nothing gets forgotten when that tier opens.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Category</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td class="notes">Zombie vocalization</td><td>Per-state set (idle/alert/chase/attack/death), per-config voice assignment, layered crowd/horde audio, distance/occlusion count-estimation</td></tr>
+        <tr><td class="notes">Combat</td><td>Firearm SFX incl. jam/jam-clear, gunshot-radius honesty, melee SFX incl. finisher, footsteps + wet variant</td></tr>
+        <tr><td class="notes">Body/health</td><td>Critical bleed cue, infection-stage audio, downed/revive stingers</td></tr>
+        <tr><td class="notes">UI</td><td>Menu nav, inventory drag/drop, notification/toast, jam-warning</td></tr>
+        <tr><td class="notes">Ambience</td><td>Beds per zone × time-of-day × weather, underground ambience, weather audio (rain/fog/snow)</td></tr>
+        <tr><td class="notes">Music</td><td>Sparse/event-driven direction, no adaptive/vertical layering for v1</td></tr>
+        <tr><td class="notes">Vehicles <em style="color:var(--ink-faint);font-style:normal;">(new, Tier 8)</em></td><td>Engine loop, door open/close, horn — minimal set for the movement-only first slice</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="vfx">
+    <div class="sec-head"><span class="sec-num">05</span><h2>VFX</h2></div>
+    <div class="note-box"><strong>No VFX phase currently exists anywhere in the plan.</strong> Not cut deliberately — just never scoped. The list below is a first pass; fold it into Tier 9 alongside B7 (Audio) rather than leaving it homeless.</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Effect</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Muzzle flash + tracer</td><td class="notes">Per weapon-fire event</td></tr>
+        <tr><td>Bullet impact (surface-typed: flesh/concrete/wood/metal)</td><td class="notes">Ties into the surface-typed footstep audio work</td></tr>
+        <tr><td>Blood spatter / hit reaction</td><td class="notes">Body-zone-aware if budget allows</td></tr>
+        <tr><td>Fire / explosion (Molotov, grenade, landmine)</td><td class="notes">Content-owned meshes exist; no effect built</td></tr>
+        <tr><td>Smoke (grenade, structure fires)</td><td class="notes">Pairs with the unmet Smoke Grenade item gap</td></tr>
+        <tr><td>Flashlight beam / light-attracts-zombies visual read</td><td class="notes">Ties into Tier 3 darkness mechanic</td></tr>
+        <tr><td>Weather (rain, fog, snow particles)</td><td class="notes">Tier 3 — currently a gameplay-mechanic task, no particle owner assigned</td></tr>
+        <tr><td>Zombie death/decay dressing</td><td class="notes">Consistency with the "freshness" story hook (Manifest 01)</td></tr>
+        <tr><td>Item-use feedback (heal glow, disinfect steam)</td><td class="notes">Pairs with the generic busy/use animation gap above</td></tr>
+        <tr><td>Utilities-shutoff darkness transition</td><td class="notes">Lighting-driven, not particle-driven — coordinate with B4-T4</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    <div class="series-label">ZombieShooter Production Manifests — full set</div>
+    <ul class="series-list">
+      <li><a href="01_LoreAndStoryBible.html">01 · Lore &amp; Story Bible</a></li>
+      <li><a href="02_MasterPlanRestructure.html">02 · Master Plan</a></li>
+      <li><a href="03_MechanicsAndInteractions.html">03 · Mechanics &amp; Interactions</a></li>
+      <li><a class="current" href="04_ContentChecklist.html">04 · Content Checklist</a></li>
+      <li><a href="05_EnvironmentsChecklist.html">05 · Environments Checklist</a></li>
+      <li><a href="06_ComparableGamesResearch.html">06 · Comparable Games Research</a></li>
+      <li><a href="07_BlenderTaskList.html">07 · Blender Task List</a></li>
+      <li><a href="08_SessionPlan.html">08 · Session Plan</a></li>
+      <li><a href="09_CodeToMechanicMap.html">09 · Code &amp; Mechanic Map</a></li>
+    </ul>
+    <div class="foot-meta">Docs/Planning/Manifests/04_ContentChecklist.html · written 2026-09-06 · item statuses corrected against ItemCatalog_2026-08-12.md's 8/29 audit note</div>
+  </footer>
+
+</div>
